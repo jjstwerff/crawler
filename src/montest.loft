@@ -1,0 +1,47 @@
+// montest — headless check of the enemy database (independent of wallgeo).
+
+use monsters;
+
+fn main() {
+  println("=== story enemy database test ===");
+  tbl = monster_table();
+  n = len(tbl);
+  println("monsters: {n}");
+
+  d5 = mon_for_depth(tbl, 5);
+  n5 = len(d5);
+  println("eligible at depth 5: {n5}");
+
+  rat = mon_find(tbl, "giant_rat");
+  println("giant_rat: hp={rat.m_hp} glyph={rat.m_glyph} group={mon_has_flag(rat, MF_GROUP)} breeder={mon_has_flag(rat, MF_BREEDER)}");
+
+  miss = mon_find(tbl, "nope");
+  found_miss = miss.m_key == "";
+
+  uq = 0;
+  boss_hp = 0;
+  for ui in 0..n {
+    if ui < n {
+      m = tbl[ui];
+      if mon_has_flag(m, MF_UNIQUE) {
+        uq += 1;
+        if m.m_key == "maug_world_sunderer" { boss_hp = m.m_hp; }
+      }
+    }
+  }
+  println("uniques: {uq}, final-boss hp: {boss_hp}");
+
+  ok_count = n >= 25;
+  ok_depth = n5 > 0 && n5 < n;          // depth filter actually filters
+  ok_find  = rat.m_hp > 0 && found_miss;
+  ok_uniq  = uq >= 4 && boss_hp > 1000;
+  println("count   : {ok_count}");
+  println("depth   : {ok_depth}");
+  println("lookup  : {ok_find}");
+  println("uniques : {ok_uniq}");
+  if ok_count && ok_depth && ok_find && ok_uniq {
+    println("=== ENEMY DB OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

@@ -1,0 +1,108 @@
+// monsters.loft — clean-room enemy database (renderer-agnostic kernel data).
+//
+// All names are original or generic public-domain folklore — NO Tolkien /
+// Zelazny IP (see DESIGN §3). Stats are first-pass and meant to be balanced
+// later; the sim reads hp/speed/damage/AI flags, the view reads glyph/colour.
+// Speed is a modifier on the base 1-hex-per-tick clock (0 = normal, +N faster);
+// wired into spawning + combat in M1/M2.
+
+// ── Behaviour flags (bitmask, combine with `|`) ──────────────────────
+pub const MF_NONE       = 0;
+pub const MF_GROUP      = 1;    // spawns in packs
+pub const MF_ERRATIC    = 2;    // movement sometimes random
+pub const MF_CASTER     = 4;    // ranged attack / spells
+pub const MF_BREEDER    = 8;    // multiplies if left alone
+pub const MF_NEVER_MOVE = 16;   // stationary (molds, eyes)
+pub const MF_UNIQUE     = 32;   // named boss, one per game
+
+pub struct MonsterDef {
+  m_key:    text,                 // stable id, e.g. "giant_rat"
+  m_name:   text,                 // display name
+  m_glyph:  text,                 // single-char map symbol
+  m_cr: integer not null,         // display colour 0..255
+  m_cg: integer not null,
+  m_cb: integer not null,
+  m_depth:  integer not null,     // native dungeon level (min depth seen)
+  m_rarity: integer not null,     // 1 common .. higher rarer; 0 = unique/special
+  m_hp:     integer not null,
+  m_ac:     integer not null,     // armour class / defence
+  m_speed:  integer not null,     // 0 normal, +N faster, -N slower
+  m_dam:    integer not null,     // base melee damage
+  m_vision: integer not null,     // aggro / detection range (hexes)
+  m_xp:     integer not null,     // experience reward
+  m_flags:  integer not null,
+}
+
+fn mon_none() -> MonsterDef {
+  MonsterDef { m_key: "", m_name: "", m_glyph: "",
+    m_cr: 0, m_cg: 0, m_cb: 0, m_depth: 0, m_rarity: 0, m_hp: 0, m_ac: 0,
+    m_speed: 0, m_dam: 0, m_vision: 0, m_xp: 0, m_flags: 0 }
+}
+
+// The database. Built on demand; small enough to rebuild where needed, or
+// build once and pass the vector to the helpers below.
+pub fn monster_table() -> vector<MonsterDef> {
+  t: vector<MonsterDef> = [];
+  // ── shallow (1-3) ──
+  t += [MonsterDef { m_key: "giant_rat", m_name: "giant rat", m_glyph: "r", m_cr: 150, m_cg: 90, m_cb: 60, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 0, m_dam: 1, m_vision: 6, m_xp: 1, m_flags: MF_GROUP | MF_BREEDER }];
+  t += [MonsterDef { m_key: "white_mouse", m_name: "white mouse", m_glyph: "r", m_cr: 220, m_cg: 220, m_cb: 220, m_depth: 1, m_rarity: 1, m_hp: 2, m_ac: 3, m_speed: 0, m_dam: 1, m_vision: 5, m_xp: 1, m_flags: MF_BREEDER }];
+  t += [MonsterDef { m_key: "giant_bat", m_name: "giant bat", m_glyph: "b", m_cr: 140, m_cg: 90, m_cb: 160, m_depth: 1, m_rarity: 1, m_hp: 4, m_ac: 5, m_speed: 5, m_dam: 2, m_vision: 8, m_xp: 2, m_flags: MF_ERRATIC }];
+  t += [MonsterDef { m_key: "centipede", m_name: "crawling centipede", m_glyph: "c", m_cr: 200, m_cg: 120, m_cb: 40, m_depth: 1, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 0, m_dam: 2, m_vision: 6, m_xp: 2, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "white_snake", m_name: "white snake", m_glyph: "J", m_cr: 230, m_cg: 230, m_cb: 230, m_depth: 2, m_rarity: 1, m_hp: 8, m_ac: 4, m_speed: 0 - 5, m_dam: 3, m_vision: 6, m_xp: 3, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "grey_mold", m_name: "grey mold", m_glyph: "m", m_cr: 140, m_cg: 140, m_cb: 140, m_depth: 2, m_rarity: 2, m_hp: 10, m_ac: 2, m_speed: 0, m_dam: 2, m_vision: 2, m_xp: 3, m_flags: MF_NEVER_MOVE | MF_BREEDER }];
+  t += [MonsterDef { m_key: "kobold", m_name: "kobold", m_glyph: "k", m_cr: 120, m_cg: 180, m_cb: 80, m_depth: 2, m_rarity: 1, m_hp: 6, m_ac: 8, m_speed: 0, m_dam: 3, m_vision: 8, m_xp: 3, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "cave_spider", m_name: "cave spider", m_glyph: "S", m_cr: 90, m_cg: 90, m_cb: 200, m_depth: 3, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 10, m_dam: 2, m_vision: 8, m_xp: 3, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "C", m_cr: 180, m_cg: 140, m_cb: 70, m_depth: 3, m_rarity: 1, m_hp: 6, m_ac: 7, m_speed: 5, m_dam: 3, m_vision: 10, m_xp: 3, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "goblin", m_name: "goblin", m_glyph: "g", m_cr: 100, m_cg: 160, m_cb: 90, m_depth: 3, m_rarity: 1, m_hp: 9, m_ac: 10, m_speed: 0, m_dam: 4, m_vision: 9, m_xp: 4, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "floating_eye", m_name: "floating eye", m_glyph: "e", m_cr: 240, m_cg: 220, m_cb: 60, m_depth: 3, m_rarity: 2, m_hp: 11, m_ac: 3, m_speed: 0, m_dam: 0, m_vision: 5, m_xp: 5, m_flags: MF_NEVER_MOVE | MF_CASTER }];
+  // ── mid (4-10) ──
+  t += [MonsterDef { m_key: "giant_frog", m_name: "giant frog", m_glyph: "R", m_cr: 90, m_cg: 200, m_cb: 90, m_depth: 4, m_rarity: 1, m_hp: 14, m_ac: 8, m_speed: 0, m_dam: 4, m_vision: 7, m_xp: 5, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "orc", m_name: "orc", m_glyph: "o", m_cr: 90, m_cg: 150, m_cb: 70, m_depth: 4, m_rarity: 1, m_hp: 16, m_ac: 12, m_speed: 0, m_dam: 5, m_vision: 10, m_xp: 6, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "skeleton", m_name: "skeleton", m_glyph: "s", m_cr: 230, m_cg: 230, m_cb: 210, m_depth: 5, m_rarity: 1, m_hp: 15, m_ac: 11, m_speed: 0, m_dam: 5, m_vision: 9, m_xp: 6, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "zombie", m_name: "zombie", m_glyph: "z", m_cr: 110, m_cg: 140, m_cb: 90, m_depth: 5, m_rarity: 1, m_hp: 22, m_ac: 9, m_speed: 0 - 5, m_dam: 5, m_vision: 8, m_xp: 7, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "giant_ant", m_name: "giant ant", m_glyph: "a", m_cr: 160, m_cg: 60, m_cb: 40, m_depth: 5, m_rarity: 1, m_hp: 12, m_ac: 14, m_speed: 5, m_dam: 4, m_vision: 8, m_xp: 6, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "gnoll", m_name: "gnoll", m_glyph: "n", m_cr: 180, m_cg: 140, m_cb: 60, m_depth: 6, m_rarity: 1, m_hp: 20, m_ac: 13, m_speed: 0, m_dam: 6, m_vision: 10, m_xp: 8, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "ghoul", m_name: "ghoul", m_glyph: "G", m_cr: 130, m_cg: 160, m_cb: 120, m_depth: 7, m_rarity: 2, m_hp: 24, m_ac: 14, m_speed: 5, m_dam: 6, m_vision: 10, m_xp: 10, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "ogre", m_name: "ogre", m_glyph: "O", m_cr: 160, m_cg: 110, m_cb: 70, m_depth: 8, m_rarity: 1, m_hp: 40, m_ac: 16, m_speed: 0, m_dam: 10, m_vision: 10, m_xp: 14, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "harpy", m_name: "harpy", m_glyph: "H", m_cr: 200, m_cg: 170, m_cb: 90, m_depth: 8, m_rarity: 2, m_hp: 22, m_ac: 14, m_speed: 10, m_dam: 5, m_vision: 11, m_xp: 10, m_flags: MF_GROUP | MF_ERRATIC }];
+  t += [MonsterDef { m_key: "dark_elf", m_name: "dark elf", m_glyph: "h", m_cr: 150, m_cg: 90, m_cb: 200, m_depth: 9, m_rarity: 2, m_hp: 26, m_ac: 15, m_speed: 5, m_dam: 6, m_vision: 12, m_xp: 14, m_flags: MF_CASTER }];
+  t += [MonsterDef { m_key: "wraith", m_name: "wraith", m_glyph: "W", m_cr: 90, m_cg: 90, m_cb: 140, m_depth: 10, m_rarity: 2, m_hp: 30, m_ac: 16, m_speed: 0, m_dam: 7, m_vision: 12, m_xp: 18, m_flags: MF_CASTER }];
+  // ── deep (12+) ──
+  t += [MonsterDef { m_key: "troll", m_name: "troll", m_glyph: "T", m_cr: 90, m_cg: 170, m_cb: 90, m_depth: 12, m_rarity: 1, m_hp: 65, m_ac: 20, m_speed: 0, m_dam: 14, m_vision: 12, m_xp: 30, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "giant_spider", m_name: "giant spider", m_glyph: "S", m_cr: 140, m_cg: 80, m_cb: 200, m_depth: 13, m_rarity: 2, m_hp: 45, m_ac: 18, m_speed: 10, m_dam: 8, m_vision: 12, m_xp: 28, m_flags: MF_CASTER }];
+  t += [MonsterDef { m_key: "wyvern", m_name: "wyvern", m_glyph: "w", m_cr: 120, m_cg: 140, m_cb: 200, m_depth: 14, m_rarity: 2, m_hp: 70, m_ac: 22, m_speed: 10, m_dam: 12, m_vision: 14, m_xp: 40, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "basilisk", m_name: "basilisk", m_glyph: "R", m_cr: 110, m_cg: 200, m_cb: 110, m_depth: 16, m_rarity: 2, m_hp: 80, m_ac: 24, m_speed: 0, m_dam: 12, m_vision: 12, m_xp: 55, m_flags: MF_CASTER }];
+  t += [MonsterDef { m_key: "stone_giant", m_name: "stone giant", m_glyph: "P", m_cr: 160, m_cg: 160, m_cb: 160, m_depth: 18, m_rarity: 2, m_hp: 120, m_ac: 26, m_speed: 0, m_dam: 20, m_vision: 12, m_xp: 80, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "lich", m_name: "lich", m_glyph: "L", m_cr: 180, m_cg: 120, m_cb: 220, m_depth: 20, m_rarity: 3, m_hp: 110, m_ac: 28, m_speed: 5, m_dam: 14, m_vision: 16, m_xp: 140, m_flags: MF_CASTER }];
+  // ── uniques (original names; rarity 0) ──
+  t += [MonsterDef { m_key: "skarn_rat_king", m_name: "Skarn, the Rat King", m_glyph: "r", m_cr: 200, m_cg: 60, m_cb: 60, m_depth: 3, m_rarity: 0, m_hp: 30, m_ac: 10, m_speed: 5, m_dam: 5, m_vision: 12, m_xp: 25, m_flags: MF_UNIQUE | MF_GROUP | MF_BREEDER }];
+  t += [MonsterDef { m_key: "grix_gravecaller", m_name: "Grix the Gravecaller", m_glyph: "h", m_cr: 150, m_cg: 80, m_cb: 210, m_depth: 11, m_rarity: 0, m_hp: 90, m_ac: 18, m_speed: 0, m_dam: 10, m_vision: 16, m_xp: 200, m_flags: MF_UNIQUE | MF_CASTER }];
+  t += [MonsterDef { m_key: "vohl_hollow_crown", m_name: "Vohl, the Hollow Crown", m_glyph: "W", m_cr: 120, m_cg: 120, m_cb: 200, m_depth: 17, m_rarity: 0, m_hp: 200, m_ac: 26, m_speed: 10, m_dam: 16, m_vision: 18, m_xp: 600, m_flags: MF_UNIQUE | MF_CASTER }];
+  t += [MonsterDef { m_key: "maug_world_sunderer", m_name: "Maug, the World-Sunderer", m_glyph: "U", m_cr: 220, m_cg: 60, m_cb: 40, m_depth: 25, m_rarity: 0, m_hp: 1500, m_ac: 40, m_speed: 10, m_dam: 40, m_vision: 20, m_xp: 50000, m_flags: MF_UNIQUE | MF_CASTER }];
+  t
+}
+
+// ── Helpers (pass the table to avoid rebuilding) ─────────────────────
+
+pub fn mon_has_flag(m: MonsterDef, flag: integer) -> boolean {
+  (m.m_flags & flag) != 0
+}
+
+pub fn mon_find(table: vector<MonsterDef>, key: text) -> MonsterDef {
+  for mi in 0..len(table) {
+    m = table[mi] ?? mon_none();
+    if m.m_key == key { return m; }
+  }
+  mon_none()
+}
+
+// Monsters whose native depth is at or above the surface and no deeper than
+// `depth` — the eligible spawn pool for that dungeon level.
+pub fn mon_for_depth(table: vector<MonsterDef>, depth: integer) -> vector<MonsterDef> {
+  out: vector<MonsterDef> = [];
+  for mi in 0..len(table) {
+    m = table[mi] ?? mon_none();
+    if m.m_depth > 0 && m.m_depth <= depth { out += [m]; }
+  }
+  out
+}
