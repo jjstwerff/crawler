@@ -163,6 +163,26 @@ Surfaced for later milestones: step-up limit + climb cost vs. the distance
 clock; height-aware FOV (tall hexes block sight); layer traversal (stairs) and
 what the 2D view shows (one layer at a time, height as shading).
 
+### 6b. World structure — wilderness overworld + dungeons (ZAngband-style)
+
+The world is a **wilderness overworld** — a large surface hex map (terrain,
+height, towns, dungeon entrances) you travel across continuously — plus
+**dungeons** (separate hex maps of descending levels) entered from points on it.
+This matches `moros_map` directly: the overworld *is* a `moros_map` and can be
+**hand-authored in the moros editor + loaded as JSON** (hand-crafted overworld +
+procedural dungeons), and `moros_render` draws both in 3D. The continuous-player
++ distance-clock model applies on the overworld too (glide across terrain,
+distance ticks the clock, wilderness encounters). The kernel gains a **current
+map** + **transitions** (enter dungeon, descend/ascend, recall) — additive over
+the world model; the view treats overworld and dungeon identically, only the map
+swaps. This is an M2/M3 system; M0/M1 stay on a single dungeon test map.
+
+**Source-of-truth for logic (decided):** **hybrid** — modern Angband (4.2.x)
+for the core engine formulas (combat, stats, HP, XP/leveling, FOV, monster AI;
+cleanest to reproduce faithfully), and ZAngband for the structure & flavor
+(wilderness now; realm-based magic + mutations later). Mechanics are GPL/free to
+clone; only names stay clean-room (§3).
+
 ---
 
 ## 7. Actors
