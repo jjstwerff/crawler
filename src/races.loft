@@ -1,0 +1,100 @@
+// races.loft — clean-room playable-race database (renderer-agnostic data).
+//
+// Generic fantasy races (no IP — "halfling" not "hobbit"; "highborn" is an
+// original long-lived-human race). Stat modifiers + skill modifiers stack on
+// top of the chosen class. r_hd = hit-die modifier; r_xp = % experience
+// factor; r_infra = infravision range (tens of feet); r_flags = ability
+// bitmask (RF_*).
+
+pub const RF_NONE        = 0;
+pub const RF_FREE_ACTION = 1;
+pub const RF_SEE_INVIS   = 2;
+pub const RF_REGEN       = 4;
+pub const RF_HOLD_LIFE   = 8;
+pub const RF_SUST_STR    = 16;
+pub const RF_SUST_CON    = 32;
+pub const RF_SUST_DEX    = 64;
+pub const RF_RES_DARK    = 128;
+pub const RF_RES_LIGHT   = 256;
+pub const RF_RES_BLIND   = 512;
+pub const RF_RES_POISON  = 1024;
+
+pub struct RaceDef {
+  r_key: text, r_name: text,
+  r_str: integer not null, r_int: integer not null, r_wis: integer not null,
+  r_dex: integer not null, r_con: integer not null, r_chr: integer not null,
+  r_hd: integer not null,    // hit-die modifier
+  r_xp: integer not null,    // % experience factor
+  r_melee: integer not null, r_bow: integer not null, r_device: integer not null,
+  r_disarm: integer not null, r_stealth: integer not null, r_save: integer not null,
+  r_infra: integer not null, // infravision (tens of feet)
+  r_flags: integer not null,
+  r_desc: text,
+}
+
+fn race_none() -> RaceDef {
+  RaceDef { r_key: "", r_name: "", r_str: 0, r_int: 0, r_wis: 0, r_dex: 0,
+    r_con: 0, r_chr: 0, r_hd: 0, r_xp: 100, r_melee: 0, r_bow: 0, r_device: 0,
+    r_disarm: 0, r_stealth: 0, r_save: 0, r_infra: 0, r_flags: 0, r_desc: "" }
+}
+
+pub fn race_table() -> vector<RaceDef> {
+  t: vector<RaceDef> = [];
+  t += [RaceDef { r_key: "human", r_name: "Human", r_str: 0, r_int: 0, r_wis: 0,
+    r_dex: 0, r_con: 0, r_chr: 0, r_hd: 0, r_xp: 100, r_melee: 0, r_bow: 0,
+    r_device: 0, r_disarm: 0, r_stealth: 0, r_save: 0, r_infra: 0, r_flags: RF_NONE,
+    r_desc: "Balanced and adaptable; the fastest to gain levels." }];
+  t += [RaceDef { r_key: "half_elf", r_name: "Half-Elf", r_str: -1, r_int: 1, r_wis: 0,
+    r_dex: 1, r_con: -1, r_chr: 1, r_hd: -1, r_xp: 110, r_melee: 0, r_bow: 2,
+    r_device: 3, r_disarm: 2, r_stealth: 1, r_save: 3, r_infra: 2, r_flags: RF_NONE,
+    r_desc: "Versatile, with a touch of elven grace." }];
+  t += [RaceDef { r_key: "elf", r_name: "Elf", r_str: -1, r_int: 2, r_wis: 1,
+    r_dex: 1, r_con: -2, r_chr: 1, r_hd: -2, r_xp: 120, r_melee: 0, r_bow: 5,
+    r_device: 6, r_disarm: 4, r_stealth: 1, r_save: 6, r_infra: 3, r_flags: RF_RES_LIGHT,
+    r_desc: "Graceful and keen-eyed; frail but gifted with magic." }];
+  t += [RaceDef { r_key: "halfling", r_name: "Halfling", r_str: -2, r_int: 2, r_wis: 1,
+    r_dex: 3, r_con: 1, r_chr: 1, r_hd: -2, r_xp: 110, r_melee: 0, r_bow: 4,
+    r_device: 6, r_disarm: 8, r_stealth: 4, r_save: 5, r_infra: 4,
+    r_flags: RF_SUST_DEX | RF_FREE_ACTION,
+    r_desc: "Small, nimble and lucky; superb stealth and reflexes." }];
+  t += [RaceDef { r_key: "gnome", r_name: "Gnome", r_str: -1, r_int: 2, r_wis: 0,
+    r_dex: 2, r_con: 1, r_chr: -2, r_hd: -1, r_xp: 115, r_melee: 0, r_bow: 2,
+    r_device: 8, r_disarm: 10, r_stealth: 3, r_save: 3, r_infra: 4, r_flags: RF_FREE_ACTION,
+    r_desc: "Inquisitive tinkerers; never paralysed, masters of devices." }];
+  t += [RaceDef { r_key: "dwarf", r_name: "Dwarf", r_str: 2, r_int: -3, r_wis: 2,
+    r_dex: -2, r_con: 2, r_chr: -3, r_hd: 2, r_xp: 120, r_melee: 3, r_bow: 0,
+    r_device: 5, r_disarm: 0, r_stealth: -1, r_save: 6, r_infra: 5,
+    r_flags: RF_RES_BLIND | RF_SUST_CON,
+    r_desc: "Stout miners; cannot be blinded, hardy and resolute." }];
+  t += [RaceDef { r_key: "half_orc", r_name: "Half-Orc", r_str: 2, r_int: -1, r_wis: 0,
+    r_dex: 0, r_con: 1, r_chr: -4, r_hd: 1, r_xp: 110, r_melee: 3, r_bow: 0,
+    r_device: 3, r_disarm: 0, r_stealth: 0, r_save: 3, r_infra: 3, r_flags: RF_RES_DARK,
+    r_desc: "Brutish and tough; shrugs off the dark." }];
+  t += [RaceDef { r_key: "half_troll", r_name: "Half-Troll", r_str: 4, r_int: -4, r_wis: -2,
+    r_dex: -4, r_con: 3, r_chr: -6, r_hd: 4, r_xp: 137, r_melee: 5, r_bow: -5,
+    r_device: -5, r_disarm: -5, r_stealth: -2, r_save: 4, r_infra: 3,
+    r_flags: RF_REGEN | RF_SUST_STR,
+    r_desc: "Huge and regenerating; dim-witted and slow to learn." }];
+  t += [RaceDef { r_key: "high_elf", r_name: "High-Elf", r_str: 1, r_int: 3, r_wis: -1,
+    r_dex: 3, r_con: 1, r_chr: 2, r_hd: 0, r_xp: 145, r_melee: 0, r_bow: 6,
+    r_device: 10, r_disarm: 5, r_stealth: 2, r_save: 8, r_infra: 4,
+    r_flags: RF_SEE_INVIS | RF_RES_LIGHT,
+    r_desc: "Ancient and powerful; see the unseen, but costly to level." }];
+  t += [RaceDef { r_key: "highborn", r_name: "Highborn", r_str: 1, r_int: 2, r_wis: 2,
+    r_dex: 1, r_con: 2, r_chr: 2, r_hd: 1, r_xp: 145, r_melee: 4, r_bow: 2,
+    r_device: 5, r_disarm: 3, r_stealth: 1, r_save: 5, r_infra: 0, r_flags: RF_SUST_CON,
+    r_desc: "Long-lived nobility; well-rounded but slow to advance." }];
+  t
+}
+
+pub fn race_find(table: vector<RaceDef>, key: text) -> RaceDef {
+  for ri in 0..len(table) {
+    r = table[ri] ?? race_none();
+    if r.r_key == key { return r; }
+  }
+  race_none()
+}
+
+pub fn race_has_flag(r: RaceDef, flag: integer) -> boolean {
+  (r.r_flags & flag) != 0
+}

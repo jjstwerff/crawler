@@ -1,0 +1,80 @@
+// classes.loft — clean-room character-class database (renderer-agnostic data).
+//
+// Generic fantasy class names (no IP). Stat modifiers use the six core stats
+// STR/INT/WIS/DEX/CON/CHR. Skill aptitudes are forward-looking placeholders
+// (the skill *system* is still TBD); the sim will read hit-die/xp/realm, the
+// character sheet reads the rest. c_hd = HP per level bonus; c_xp = % of
+// normal experience needed (100 = normal, higher = slower).
+
+pub struct ClassDef {
+  c_key: text, c_name: text,
+  c_hd: integer not null,    // hit-die bonus
+  c_xp: integer not null,    // % experience factor
+  c_str: integer not null, c_int: integer not null, c_wis: integer not null,
+  c_dex: integer not null, c_con: integer not null, c_chr: integer not null,
+  c_melee: integer not null, c_bow: integer not null, c_device: integer not null,
+  c_disarm: integer not null, c_stealth: integer not null, c_save: integer not null,
+  c_realm: text,             // "none" / "arcane" / "divine" / "nature"
+  c_spell_stat: text,        // "none" / "int" / "wis"
+  c_desc: text,
+}
+
+fn class_none() -> ClassDef {
+  ClassDef { c_key: "", c_name: "", c_hd: 0, c_xp: 100,
+    c_str: 0, c_int: 0, c_wis: 0, c_dex: 0, c_con: 0, c_chr: 0,
+    c_melee: 0, c_bow: 0, c_device: 0, c_disarm: 0, c_stealth: 0, c_save: 0,
+    c_realm: "none", c_spell_stat: "none", c_desc: "" }
+}
+
+pub fn class_table() -> vector<ClassDef> {
+  t: vector<ClassDef> = [];
+  t += [ClassDef { c_key: "warrior", c_name: "Warrior", c_hd: 9, c_xp: 100,
+    c_str: 3, c_int: -2, c_wis: -2, c_dex: 2, c_con: 2, c_chr: -1,
+    c_melee: 30, c_bow: 25, c_device: 5, c_disarm: 25, c_stealth: 1, c_save: 18,
+    c_realm: "none", c_spell_stat: "none",
+    c_desc: "Master of arms. No magic, highest hit points, best melee." }];
+  t += [ClassDef { c_key: "mage", c_name: "Mage", c_hd: 0, c_xp: 130,
+    c_str: -5, c_int: 3, c_wis: -2, c_dex: 1, c_con: -2, c_chr: -1,
+    c_melee: 5, c_bow: 5, c_device: 36, c_disarm: 30, c_stealth: 2, c_save: 30,
+    c_realm: "arcane", c_spell_stat: "int",
+    c_desc: "Arcane spellcaster. Fragile, but commands the deepest magic." }];
+  t += [ClassDef { c_key: "priest", c_name: "Priest", c_hd: 2, c_xp: 120,
+    c_str: -1, c_int: -3, c_wis: 3, c_dex: -1, c_con: 0, c_chr: 2,
+    c_melee: 12, c_bow: 10, c_device: 20, c_disarm: 25, c_stealth: 2, c_save: 32,
+    c_realm: "divine", c_spell_stat: "wis",
+    c_desc: "Divine caster. Healing and protection; prefers blunt weapons." }];
+  t += [ClassDef { c_key: "rogue", c_name: "Rogue", c_hd: 6, c_xp: 125,
+    c_str: 2, c_int: 1, c_wis: -2, c_dex: 3, c_con: 1, c_chr: -1,
+    c_melee: 22, c_bow: 25, c_device: 24, c_disarm: 45, c_stealth: 5, c_save: 28,
+    c_realm: "arcane", c_spell_stat: "int",
+    c_desc: "Stealth, traps, and utility magic. A capable jack-of-all-trades." }];
+  t += [ClassDef { c_key: "ranger", c_name: "Ranger", c_hd: 4, c_xp: 130,
+    c_str: 2, c_int: 1, c_wis: 0, c_dex: 2, c_con: 1, c_chr: 1,
+    c_melee: 18, c_bow: 40, c_device: 22, c_disarm: 30, c_stealth: 4, c_save: 28,
+    c_realm: "nature", c_spell_stat: "int",
+    c_desc: "Peerless archer with nature magic to back the bow." }];
+  t += [ClassDef { c_key: "paladin", c_name: "Paladin", c_hd: 6, c_xp: 135,
+    c_str: 3, c_int: -3, c_wis: 1, c_dex: 0, c_con: 2, c_chr: 2,
+    c_melee: 26, c_bow: 18, c_device: 12, c_disarm: 20, c_stealth: 1, c_save: 25,
+    c_realm: "divine", c_spell_stat: "wis",
+    c_desc: "Holy warrior. Strong melee reinforced with prayers." }];
+  t += [ClassDef { c_key: "druid", c_name: "Druid", c_hd: 2, c_xp: 125,
+    c_str: -2, c_int: -3, c_wis: 3, c_dex: 1, c_con: 0, c_chr: 0,
+    c_melee: 10, c_bow: 12, c_device: 18, c_disarm: 22, c_stealth: 3, c_save: 30,
+    c_realm: "nature", c_spell_stat: "wis",
+    c_desc: "Nature caster wielding the elements and the wild." }];
+  t += [ClassDef { c_key: "necromancer", c_name: "Necromancer", c_hd: 0, c_xp: 135,
+    c_str: -3, c_int: 3, c_wis: -2, c_dex: 1, c_con: -2, c_chr: -2,
+    c_melee: 6, c_bow: 6, c_device: 34, c_disarm: 28, c_stealth: 4, c_save: 28,
+    c_realm: "arcane", c_spell_stat: "int",
+    c_desc: "Master of death magic. Sees in the dark, but dreads the light." }];
+  t
+}
+
+pub fn class_find(table: vector<ClassDef>, key: text) -> ClassDef {
+  for ci in 0..len(table) {
+    c = table[ci] ?? class_none();
+    if c.c_key == key { return c; }
+  }
+  class_none()
+}

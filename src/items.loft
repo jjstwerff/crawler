@@ -1,0 +1,149 @@
+// items.loft — clean-room base-item database (renderer-agnostic data).
+//
+// Base item "kinds" across all categories (generic fantasy names, no IP).
+// Fields the sim/inventory read: cat/slot/weight/cost/depth/rarity, weapon
+// dice (i_dd×i_ds), armour i_ac, and a generic i_power (heal amount, wand
+// damage proxy, light radius, food nutrition, bow multiplier, ring bonus…).
+// The view reads glyph/colour. Magic "ego" items / artifacts come later.
+
+pub const IT_WEAPON = 1;
+pub const IT_BOW    = 2;
+pub const IT_AMMO   = 3;
+pub const IT_ARMOR  = 4;
+pub const IT_LIGHT  = 5;
+pub const IT_POTION = 6;
+pub const IT_SCROLL = 7;
+pub const IT_WAND   = 8;
+pub const IT_STAFF  = 9;
+pub const IT_RING   = 10;
+pub const IT_AMULET = 11;
+pub const IT_FOOD   = 12;
+pub const IT_BOOK   = 13;
+
+pub const SLOT_NONE   = 0;
+pub const SLOT_WEAPON = 1;
+pub const SLOT_BOW    = 2;
+pub const SLOT_BODY   = 3;
+pub const SLOT_SHIELD = 4;
+pub const SLOT_HEAD   = 5;
+pub const SLOT_HANDS  = 6;
+pub const SLOT_FEET   = 7;
+pub const SLOT_CLOAK  = 8;
+pub const SLOT_LIGHT  = 9;
+pub const SLOT_RING   = 10;
+pub const SLOT_AMULET = 11;
+
+pub const IF_NONE      = 0;
+pub const IF_STACKABLE = 1;
+
+pub struct ItemDef {
+  i_key: text, i_name: text, i_glyph: text,
+  i_cr: integer not null, i_cg: integer not null, i_cb: integer not null,
+  i_cat: integer not null, i_slot: integer not null,
+  i_depth: integer not null, i_rarity: integer not null,
+  i_weight: integer not null,   // tenths of a pound
+  i_cost: integer not null,     // base gold value
+  i_dd: integer not null, i_ds: integer not null,   // damage dice (weapons/ammo)
+  i_ac: integer not null,       // base armour class
+  i_power: integer not null,    // generic magnitude (see header)
+  i_flags: integer not null,
+  i_desc: text,
+}
+
+fn item_none() -> ItemDef {
+  ItemDef { i_key: "", i_name: "", i_glyph: "", i_cr: 0, i_cg: 0, i_cb: 0,
+    i_cat: 0, i_slot: 0, i_depth: 0, i_rarity: 0, i_weight: 0, i_cost: 0,
+    i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: 0, i_desc: "" }
+}
+
+pub fn item_table() -> vector<ItemDef> {
+  t: vector<ItemDef> = [];
+  // ── melee weapons ──
+  t += [ItemDef { i_key: "dagger", i_name: "Dagger", i_glyph: "|", i_cr: 200, i_cg: 200, i_cb: 210, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 1, i_rarity: 1, i_weight: 12, i_cost: 10, i_dd: 1, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A light, fast blade." }];
+  t += [ItemDef { i_key: "short_sword", i_name: "Short Sword", i_glyph: "|", i_cr: 200, i_cg: 200, i_cb: 210, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 2, i_rarity: 1, i_weight: 75, i_cost: 90, i_dd: 1, i_ds: 7, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A reliable one-handed sword." }];
+  t += [ItemDef { i_key: "long_sword", i_name: "Long Sword", i_glyph: "|", i_cr: 210, i_cg: 210, i_cb: 220, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 7, i_rarity: 1, i_weight: 130, i_cost: 300, i_dd: 2, i_ds: 5, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A versatile knightly blade." }];
+  t += [ItemDef { i_key: "broad_sword", i_name: "Broad Sword", i_glyph: "|", i_cr: 210, i_cg: 210, i_cb: 220, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 10, i_rarity: 1, i_weight: 150, i_cost: 255, i_dd: 2, i_ds: 6, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A heavy slashing sword." }];
+  t += [ItemDef { i_key: "mace", i_name: "Mace", i_glyph: "|", i_cr: 180, i_cg: 170, i_cb: 150, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 4, i_rarity: 1, i_weight: 120, i_cost: 130, i_dd: 2, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A blunt weapon; priests' friend." }];
+  t += [ItemDef { i_key: "war_hammer", i_name: "War Hammer", i_glyph: "|", i_cr: 180, i_cg: 170, i_cb: 150, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 8, i_rarity: 1, i_weight: 120, i_cost: 225, i_dd: 3, i_ds: 3, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A crushing hammer." }];
+  t += [ItemDef { i_key: "spear", i_name: "Spear", i_glyph: "|", i_cr: 190, i_cg: 180, i_cb: 150, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 3, i_rarity: 1, i_weight: 50, i_cost: 30, i_dd: 1, i_ds: 6, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A long thrusting polearm." }];
+  t += [ItemDef { i_key: "halberd", i_name: "Halberd", i_glyph: "|", i_cr: 190, i_cg: 180, i_cb: 150, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 12, i_rarity: 2, i_weight: 190, i_cost: 430, i_dd: 3, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A fearsome bladed polearm." }];
+  t += [ItemDef { i_key: "battle_axe", i_name: "Battle Axe", i_glyph: "|", i_cr: 190, i_cg: 180, i_cb: 160, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 10, i_rarity: 1, i_weight: 170, i_cost: 330, i_dd: 2, i_ds: 8, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A broad-bladed war axe." }];
+  t += [ItemDef { i_key: "quarterstaff", i_name: "Quarterstaff", i_glyph: "|", i_cr: 160, i_cg: 120, i_cb: 80, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 2, i_rarity: 1, i_weight: 150, i_cost: 120, i_dd: 1, i_ds: 9, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A sturdy wooden staff." }];
+  // ── bows (i_power = launch multiplier) ──
+  t += [ItemDef { i_key: "sling", i_name: "Sling", i_glyph: "}}", i_cr: 160, i_cg: 120, i_cb: 80, i_cat: IT_BOW, i_slot: SLOT_BOW, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 5, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_NONE, i_desc: "Hurls shots; humble but cheap." }];
+  t += [ItemDef { i_key: "short_bow", i_name: "Short Bow", i_glyph: "}}", i_cr: 170, i_cg: 130, i_cb: 80, i_cat: IT_BOW, i_slot: SLOT_BOW, i_depth: 2, i_rarity: 1, i_weight: 30, i_cost: 75, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_NONE, i_desc: "A compact bow for arrows." }];
+  t += [ItemDef { i_key: "long_bow", i_name: "Long Bow", i_glyph: "}}", i_cr: 180, i_cg: 140, i_cb: 90, i_cat: IT_BOW, i_slot: SLOT_BOW, i_depth: 8, i_rarity: 1, i_weight: 40, i_cost: 120, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 3, i_flags: IF_NONE, i_desc: "A powerful war bow." }];
+  // ── ammunition ──
+  t += [ItemDef { i_key: "iron_shot", i_name: "Iron Shot", i_glyph: "{{", i_cr: 150, i_cg: 150, i_cb: 160, i_cat: IT_AMMO, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 5, i_cost: 1, i_dd: 1, i_ds: 3, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Shot for a sling." }];
+  t += [ItemDef { i_key: "arrow", i_name: "Arrow", i_glyph: "{{", i_cr: 180, i_cg: 150, i_cb: 100, i_cat: IT_AMMO, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 2, i_cost: 1, i_dd: 1, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Ammunition for bows." }];
+  t += [ItemDef { i_key: "bolt", i_name: "Bolt", i_glyph: "{{", i_cr: 170, i_cg: 150, i_cb: 110, i_cat: IT_AMMO, i_slot: SLOT_NONE, i_depth: 3, i_rarity: 1, i_weight: 3, i_cost: 2, i_dd: 1, i_ds: 5, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Ammunition for crossbows." }];
+  // ── body armour ──
+  t += [ItemDef { i_key: "soft_leather_armor", i_name: "Soft Leather Armour", i_glyph: "(", i_cr: 150, i_cg: 110, i_cb: 70, i_cat: IT_ARMOR, i_slot: SLOT_BODY, i_depth: 1, i_rarity: 1, i_weight: 80, i_cost: 20, i_dd: 0, i_ds: 0, i_ac: 8, i_power: 0, i_flags: IF_NONE, i_desc: "Light, supple body armour." }];
+  t += [ItemDef { i_key: "hard_leather_armor", i_name: "Hard Leather Armour", i_glyph: "(", i_cr: 150, i_cg: 110, i_cb: 70, i_cat: IT_ARMOR, i_slot: SLOT_BODY, i_depth: 3, i_rarity: 1, i_weight: 100, i_cost: 150, i_dd: 0, i_ds: 0, i_ac: 12, i_power: 0, i_flags: IF_NONE, i_desc: "Boiled leather plates." }];
+  t += [ItemDef { i_key: "chain_mail", i_name: "Chain Mail", i_glyph: "[", i_cr: 170, i_cg: 170, i_cb: 180, i_cat: IT_ARMOR, i_slot: SLOT_BODY, i_depth: 8, i_rarity: 1, i_weight: 220, i_cost: 750, i_dd: 0, i_ds: 0, i_ac: 22, i_power: 0, i_flags: IF_NONE, i_desc: "Interlocking metal rings." }];
+  t += [ItemDef { i_key: "plate_mail", i_name: "Plate Mail", i_glyph: "[", i_cr: 190, i_cg: 190, i_cb: 200, i_cat: IT_ARMOR, i_slot: SLOT_BODY, i_depth: 12, i_rarity: 2, i_weight: 300, i_cost: 1500, i_dd: 0, i_ds: 0, i_ac: 35, i_power: 0, i_flags: IF_NONE, i_desc: "Heavy articulated plate." }];
+  // ── shields / helms / gloves / boots / cloak ──
+  t += [ItemDef { i_key: "small_shield", i_name: "Small Shield", i_glyph: ")", i_cr: 160, i_cg: 130, i_cb: 90, i_cat: IT_ARMOR, i_slot: SLOT_SHIELD, i_depth: 2, i_rarity: 1, i_weight: 50, i_cost: 30, i_dd: 0, i_ds: 0, i_ac: 5, i_power: 0, i_flags: IF_NONE, i_desc: "A light buckler." }];
+  t += [ItemDef { i_key: "large_shield", i_name: "Large Shield", i_glyph: ")", i_cr: 170, i_cg: 140, i_cb: 90, i_cat: IT_ARMOR, i_slot: SLOT_SHIELD, i_depth: 6, i_rarity: 1, i_weight: 120, i_cost: 120, i_dd: 0, i_ds: 0, i_ac: 8, i_power: 0, i_flags: IF_NONE, i_desc: "A broad protective shield." }];
+  t += [ItemDef { i_key: "hard_leather_cap", i_name: "Hard Leather Cap", i_glyph: "]", i_cr: 150, i_cg: 110, i_cb: 70, i_cat: IT_ARMOR, i_slot: SLOT_HEAD, i_depth: 1, i_rarity: 1, i_weight: 15, i_cost: 12, i_dd: 0, i_ds: 0, i_ac: 2, i_power: 0, i_flags: IF_NONE, i_desc: "A simple leather cap." }];
+  t += [ItemDef { i_key: "iron_helm", i_name: "Iron Helm", i_glyph: "]", i_cr: 180, i_cg: 180, i_cb: 190, i_cat: IT_ARMOR, i_slot: SLOT_HEAD, i_depth: 5, i_rarity: 1, i_weight: 75, i_cost: 75, i_dd: 0, i_ds: 0, i_ac: 7, i_power: 0, i_flags: IF_NONE, i_desc: "A sturdy iron helmet." }];
+  t += [ItemDef { i_key: "leather_gloves", i_name: "Leather Gloves", i_glyph: "]", i_cr: 150, i_cg: 110, i_cb: 70, i_cat: IT_ARMOR, i_slot: SLOT_HANDS, i_depth: 1, i_rarity: 1, i_weight: 5, i_cost: 3, i_dd: 0, i_ds: 0, i_ac: 1, i_power: 0, i_flags: IF_NONE, i_desc: "Supple leather gloves." }];
+  t += [ItemDef { i_key: "gauntlets", i_name: "Gauntlets", i_glyph: "]", i_cr: 180, i_cg: 180, i_cb: 190, i_cat: IT_ARMOR, i_slot: SLOT_HANDS, i_depth: 4, i_rarity: 1, i_weight: 25, i_cost: 45, i_dd: 0, i_ds: 0, i_ac: 3, i_power: 0, i_flags: IF_NONE, i_desc: "Armoured gloves." }];
+  t += [ItemDef { i_key: "leather_boots", i_name: "Leather Boots", i_glyph: "]", i_cr: 150, i_cg: 110, i_cb: 70, i_cat: IT_ARMOR, i_slot: SLOT_FEET, i_depth: 1, i_rarity: 1, i_weight: 20, i_cost: 7, i_dd: 0, i_ds: 0, i_ac: 2, i_power: 0, i_flags: IF_NONE, i_desc: "Comfortable boots." }];
+  t += [ItemDef { i_key: "iron_shod_boots", i_name: "Iron Shod Boots", i_glyph: "]", i_cr: 180, i_cg: 180, i_cb: 190, i_cat: IT_ARMOR, i_slot: SLOT_FEET, i_depth: 5, i_rarity: 1, i_weight: 80, i_cost: 50, i_dd: 0, i_ds: 0, i_ac: 4, i_power: 0, i_flags: IF_NONE, i_desc: "Boots reinforced with iron." }];
+  t += [ItemDef { i_key: "cloak", i_name: "Cloak", i_glyph: "(", i_cr: 120, i_cg: 130, i_cb: 150, i_cat: IT_ARMOR, i_slot: SLOT_CLOAK, i_depth: 1, i_rarity: 1, i_weight: 10, i_cost: 3, i_dd: 0, i_ds: 0, i_ac: 1, i_power: 0, i_flags: IF_NONE, i_desc: "A simple travelling cloak." }];
+  // ── light (i_power = light radius) ──
+  t += [ItemDef { i_key: "wooden_torch", i_name: "Wooden Torch", i_glyph: "~", i_cr: 230, i_cg: 160, i_cb: 60, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 2, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_STACKABLE, i_desc: "Burns for a while; radius 2." }];
+  t += [ItemDef { i_key: "brass_lantern", i_name: "Brass Lantern", i_glyph: "~", i_cr: 240, i_cg: 210, i_cb: 90, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 3, i_rarity: 1, i_weight: 50, i_cost: 35, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 3, i_flags: IF_NONE, i_desc: "A steady oil lantern; radius 3." }];
+  // ── potions (i_power = effect magnitude) ──
+  t += [ItemDef { i_key: "potion_cure_light", i_name: "Potion of Cure Light Wounds", i_glyph: "!", i_cr: 220, i_cg: 120, i_cb: 120, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 4, i_cost: 15, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 15, i_flags: IF_STACKABLE, i_desc: "Heals minor wounds." }];
+  t += [ItemDef { i_key: "potion_cure_serious", i_name: "Potion of Cure Serious Wounds", i_glyph: "!", i_cr: 220, i_cg: 90, i_cb: 90, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 5, i_rarity: 1, i_weight: 4, i_cost: 40, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 30, i_flags: IF_STACKABLE, i_desc: "Heals serious wounds." }];
+  t += [ItemDef { i_key: "potion_healing", i_name: "Potion of Healing", i_glyph: "!", i_cr: 240, i_cg: 60, i_cb: 60, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 20, i_rarity: 2, i_weight: 4, i_cost: 300, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 300, i_flags: IF_STACKABLE, i_desc: "Restores a great deal of health." }];
+  t += [ItemDef { i_key: "potion_speed", i_name: "Potion of Speed", i_glyph: "!", i_cr: 120, i_cg: 220, i_cb: 220, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 10, i_rarity: 3, i_weight: 4, i_cost: 500, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 10, i_flags: IF_STACKABLE, i_desc: "Hastens the drinker." }];
+  t += [ItemDef { i_key: "potion_restore", i_name: "Potion of Restoration", i_glyph: "!", i_cr: 200, i_cg: 200, i_cb: 120, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 8, i_rarity: 2, i_weight: 4, i_cost: 200, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Restores drained attributes." }];
+  // ── scrolls (i_power = range/magnitude) ──
+  t += [ItemDef { i_key: "scroll_phase_door", i_name: "Scroll of Phase Door", i_glyph: "?", i_cr: 230, i_cg: 230, i_cb: 210, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 1, i_cost: 15, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 10, i_flags: IF_STACKABLE, i_desc: "Short-range blink." }];
+  t += [ItemDef { i_key: "scroll_teleport", i_name: "Scroll of Teleportation", i_glyph: "?", i_cr: 230, i_cg: 230, i_cb: 210, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 5, i_rarity: 1, i_weight: 1, i_cost: 40, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 100, i_flags: IF_STACKABLE, i_desc: "Long-range escape." }];
+  t += [ItemDef { i_key: "scroll_magic_mapping", i_name: "Scroll of Magic Mapping", i_glyph: "?", i_cr: 230, i_cg: 230, i_cb: 210, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 5, i_rarity: 1, i_weight: 1, i_cost: 40, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Reveals the nearby map." }];
+  t += [ItemDef { i_key: "scroll_identify", i_name: "Scroll of Identify", i_glyph: "?", i_cr: 230, i_cg: 230, i_cb: 210, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 1, i_cost: 50, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Reveals an item's nature." }];
+  t += [ItemDef { i_key: "scroll_recall", i_name: "Scroll of Recall", i_glyph: "?", i_cr: 230, i_cg: 220, i_cb: 180, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 5, i_rarity: 1, i_weight: 1, i_cost: 150, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Returns to town or dungeon." }];
+  // ── wands (i_dd×i_ds = bolt damage) ──
+  t += [ItemDef { i_key: "wand_magic_bolt", i_name: "Wand of Magic Bolt", i_glyph: "-", i_cr: 200, i_cg: 160, i_cb: 90, i_cat: IT_WAND, i_slot: SLOT_NONE, i_depth: 3, i_rarity: 1, i_weight: 10, i_cost: 200, i_dd: 3, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "Fires a bolt of raw force." }];
+  t += [ItemDef { i_key: "wand_frost_bolt", i_name: "Wand of Frost Bolt", i_glyph: "-", i_cr: 140, i_cg: 200, i_cb: 230, i_cat: IT_WAND, i_slot: SLOT_NONE, i_depth: 10, i_rarity: 2, i_weight: 10, i_cost: 500, i_dd: 5, i_ds: 6, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "Fires a freezing bolt." }];
+  // ── staves (i_power = magnitude/radius) ──
+  t += [ItemDef { i_key: "staff_light", i_name: "Staff of Light", i_glyph: "_", i_cr: 200, i_cg: 180, i_cb: 120, i_cat: IT_STAFF, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 50, i_cost: 100, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_NONE, i_desc: "Lights the area." }];
+  t += [ItemDef { i_key: "staff_detection", i_name: "Staff of Detection", i_glyph: "_", i_cr: 200, i_cg: 180, i_cb: 120, i_cat: IT_STAFF, i_slot: SLOT_NONE, i_depth: 3, i_rarity: 2, i_weight: 50, i_cost: 150, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "Detects nearby threats." }];
+  t += [ItemDef { i_key: "staff_teleport", i_name: "Staff of Teleportation", i_glyph: "_", i_cr: 200, i_cg: 180, i_cb: 120, i_cat: IT_STAFF, i_slot: SLOT_NONE, i_depth: 8, i_rarity: 2, i_weight: 50, i_cost: 200, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 100, i_flags: IF_NONE, i_desc: "Teleports the wielder." }];
+  // ── rings / amulets (i_power = bonus magnitude) ──
+  t += [ItemDef { i_key: "ring_protection", i_name: "Ring of Protection", i_glyph: "=", i_cr: 220, i_cg: 200, i_cb: 120, i_cat: IT_RING, i_slot: SLOT_RING, i_depth: 5, i_rarity: 2, i_weight: 2, i_cost: 500, i_dd: 0, i_ds: 0, i_ac: 10, i_power: 0, i_flags: IF_NONE, i_desc: "Wards the wearer; +AC." }];
+  t += [ItemDef { i_key: "ring_strength", i_name: "Ring of Strength", i_glyph: "=", i_cr: 220, i_cg: 120, i_cb: 90, i_cat: IT_RING, i_slot: SLOT_RING, i_depth: 10, i_rarity: 3, i_weight: 2, i_cost: 1000, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 1, i_flags: IF_NONE, i_desc: "Increases strength." }];
+  t += [ItemDef { i_key: "amulet_slow_digestion", i_name: "Amulet of Slow Digestion", i_glyph: "\"", i_cr: 180, i_cg: 180, i_cb: 220, i_cat: IT_AMULET, i_slot: SLOT_AMULET, i_depth: 3, i_rarity: 2, i_weight: 3, i_cost: 200, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "Slows hunger." }];
+  t += [ItemDef { i_key: "amulet_resist_fire", i_name: "Amulet of Resist Fire", i_glyph: "\"", i_cr: 230, i_cg: 120, i_cb: 70, i_cat: IT_AMULET, i_slot: SLOT_AMULET, i_depth: 5, i_rarity: 2, i_weight: 3, i_cost: 300, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "Resists fire." }];
+  // ── food / books ──
+  t += [ItemDef { i_key: "ration_of_food", i_name: "Ration of Food", i_glyph: ",", i_cr: 180, i_cg: 150, i_cb: 100, i_cat: IT_FOOD, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 100, i_cost: 3, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 5000, i_flags: IF_STACKABLE, i_desc: "A filling meal." }];
+  t += [ItemDef { i_key: "book_arcane_primer", i_name: "Arcane Primer", i_glyph: "+", i_cr: 120, i_cg: 120, i_cb: 220, i_cat: IT_BOOK, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 25, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "First book of arcane magic." }];
+  t += [ItemDef { i_key: "book_holy_litany", i_name: "Holy Litany", i_glyph: "+", i_cr: 220, i_cg: 220, i_cb: 140, i_cat: IT_BOOK, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 25, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "First book of divine prayers." }];
+  t += [ItemDef { i_key: "book_nature_lore", i_name: "Nature Lore", i_glyph: "+", i_cr: 120, i_cg: 200, i_cb: 120, i_cat: IT_BOOK, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 25, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "First book of nature magic." }];
+  t
+}
+
+pub fn item_find(table: vector<ItemDef>, key: text) -> ItemDef {
+  for ii in 0..len(table) {
+    it = table[ii] ?? item_none();
+    if it.i_key == key { return it; }
+  }
+  item_none()
+}
+
+pub fn items_by_cat(table: vector<ItemDef>, cat: integer) -> vector<ItemDef> {
+  out: vector<ItemDef> = [];
+  for ii in 0..len(table) {
+    it = table[ii] ?? item_none();
+    if it.i_cat == cat { out += [it]; }
+  }
+  out
+}
+
+pub fn item_stackable(i: ItemDef) -> boolean {
+  (i.i_flags & IF_STACKABLE) != 0
+}

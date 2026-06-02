@@ -1,0 +1,44 @@
+// deftest — headless check of the classes / races / items databases.
+
+use classes;
+use races;
+use items;
+
+fn main() {
+  println("=== story definition tables test ===");
+  ct = class_table();
+  rt = race_table();
+  it = item_table();
+  println("classes={len(ct)} races={len(rt)} items={len(it)}");
+
+  w = class_find(ct, "warrior");
+  println("warrior: hd={w.c_hd} melee={w.c_melee} realm={w.c_realm}");
+  m = class_find(ct, "mage");
+  println("mage: str={m.c_str} device={m.c_device} realm={m.c_realm}");
+
+  hf = race_find(rt, "halfling");
+  println("halfling: dex={hf.r_dex} stealth={hf.r_stealth} freeact={race_has_flag(hf, RF_FREE_ACTION)}");
+  ht = race_find(rt, "half_troll");
+  println("half_troll: str={ht.r_str} regen={race_has_flag(ht, RF_REGEN)} xp={ht.r_xp}");
+
+  ls = item_find(it, "long_sword");
+  println("long_sword: {ls.i_dd}d{ls.i_ds} cost={ls.i_cost} slot={ls.i_slot}");
+  pot = item_find(it, "potion_cure_light");
+  println("cure_light: power={pot.i_power} stack={item_stackable(pot)}");
+  weapons = items_by_cat(it, IT_WEAPON);
+  potions = items_by_cat(it, IT_POTION);
+  println("weapons={len(weapons)} potions={len(potions)}");
+
+  miss = item_find(it, "nope");
+  ok_classes = len(ct) >= 6 && w.c_hd > 0 && m.c_str < 0 && m.c_realm == "arcane";
+  ok_races   = len(rt) >= 8 && hf.r_dex > 0 && race_has_flag(hf, RF_FREE_ACTION) && race_has_flag(ht, RF_REGEN);
+  ok_items   = len(it) >= 25 && ls.i_dd > 0 && len(weapons) >= 8 && len(potions) >= 3 && item_stackable(pot) && miss.i_key == "";
+  println("classes : {ok_classes}");
+  println("races   : {ok_races}");
+  println("items   : {ok_items}");
+  if ok_classes && ok_races && ok_items {
+    println("=== DEFS OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}
