@@ -4,6 +4,7 @@
 
 use hexgeo;
 use sim;
+use wallgeo;
 
 fn main() {
   println("=== story M0 kernel self-test ===");
@@ -53,19 +54,27 @@ fn main() {
   sdy = s.py - spy0;
   println("slide: along wall -> dy={sdy} hex ({slq},{slr})");
 
+  // (7) wall-outline pass: silhouette → smoothed segments.
+  s = sim_new();
+  wsegs = build_walls(s);
+  nseg = len(wsegs);
+  println("wall-outline: {nseg} smoothed segments");
+
   ok_turn   = turn_ticks == 0;
   ok_move   = fwd_ticks > 0;
   ok_chase  = d1 < d0;
   ok_edge   = ew_blocked && !ew_open;
   ok_radius = !rwall && rpq < 20 && rdx > 1.0;
   ok_slide  = sdy > 0.3 && !is_wall(s, slq, slr);
+  ok_walls  = nseg > 0;
   println("turning-free  : {ok_turn}");
   println("movement-ticks: {ok_move}");
   println("enemy-chases  : {ok_chase}");
   println("edge-walls    : {ok_edge}");
   println("radius-stop   : {ok_radius}");
   println("wall-slide    : {ok_slide}");
-  if ok_turn && ok_move && ok_chase && ok_edge && ok_radius && ok_slide {
+  println("wall-outline  : {ok_walls}");
+  if ok_turn && ok_move && ok_chase && ok_edge && ok_radius && ok_slide && ok_walls {
     println("=== ALL CHECKS PASS ===");
   } else {
     println("=== FAIL ===");

@@ -8,6 +8,7 @@
 
 use graphics;
 use sim;
+use wallgeo;
 use view;
 
 WIN_W   = 800;
@@ -32,6 +33,7 @@ fn main() {
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
   graphics::gl_enable(graphics::GL_BLEND);
   s = sim_new();
+  walls = build_walls(s);   // smoothed wall outline, built once (static per level)
   last = ticks();
   running = true;
   while running {
@@ -53,7 +55,7 @@ fn main() {
       if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
 
       sim_step(s, fwd, turn, dt);
-      view_draw(painter, s);
+      view_draw(painter, s, walls);
       graphics::gl_swap_buffers();
     }
   }

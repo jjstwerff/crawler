@@ -1,0 +1,150 @@
+// wallgeo — derive smoothed wall outlines from solid hex regions + edge walls.
+//
+// Renderer-agnostic (uses hexgeo + sim, NO graphics): outputs world-space
+// segments that both the 2D view and the future 3D mesh builder consume.
+//
+// Pipeline:
+//   A. Collect boundary edges — a hex edge is a wall face when it separates an
+//      open (floor) hex from a solid one, plus any explicit edge wall.
+//   B. Dedupe the edge endpoints into a corner graph (shared hex vertices merge
+//      by quantised position), recording each corner's degree + first two
+//      neighbours.
+//   C. Laplacian-smooth degree-2 corners toward their neighbours' midpoint:
+//      the per-hex zig-zag "wobble" (high frequency) flattens into straight
+//      runs; junctions (deg != 2) and endpoints anchor. (First-cut smoothing;
+//      a 12-direction snap + corner-preserving pass is the planned refinement.)
+//   D. Emit one segment per edge using the smoothed corner positions.
+
+use hexgeo;
+use sim;
+
+SMOOTH_ITERS  = 3;
+SMOOTH_LAMBDA = 0.5;   // 0..1 blend toward the neighbour midpoint each pass
+
+pub struct WallSeg {
+  ax: float not null, ay: float not null,
+  bx: float not null, by: float not null,
+}
+
+struct WCorner {
+  x: float not null, y: float not null,
+  deg: integer not null,
+  n1: integer not null,
+  n2: integer not null,
+}
+
+struct WEdge { a: integer not null, b: integer not null }
+
+struct CornerRef { ck: text, idx: integer not null }
+
+struct WallGraph {
+  corners: vector<WCorner> not null,
+  edges:   vector<WEdge> not null,
+  lookup:  hash<CornerRef[ck]>,
+}
+
+fn corner_key(x: float, y: float) -> text {
+  kx = round(x * 1000.0) as integer;
+  ky = round(y * 1000.0) as integer;
+  "{kx}_{ky}"
+}
+
+fn get_or_add(g: &WallGraph, x: float, y: float) -> integer {
+  k = corner_key(x, y);
+  found = g.lookup[k];
+  if found != null { return found.idx; }
+  idx = len(g.corners);
+  g.corners += [WCorner { x: x, y: y, deg: 0, n1: -1, n2: -1 }];
+  g.lookup += [CornerRef { ck: k, idx: idx }];
+  idx
+}
+
+fn add_edge(g: &WallGraph, q: integer, r: integer, dir: integer) {
+  (ca, cb) = edge_corners(dir);
+  (ax, ay) = hex_corner_px(q, r, ca);
+  (bx, by) = hex_corner_px(q, r, cb);
+  ia = get_or_add(g, ax, ay);
+  ib = get_or_add(g, bx, by);
+  g.edges += [WEdge { a: ia, b: ib }];
+}
+
+fn corner_at(cs: vector<WCorner>, i: integer) -> WCorner {
+  if i < 0 { return WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1 }; }
+  if i < len(cs) { return cs[i]; }
+  WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1 }
+}
+
+fn edge_at(es: vector<WEdge>, i: integer) -> WEdge {
+  if i < 0 { return WEdge { a: -1, b: -1 }; }
+  if i < len(es) { return es[i]; }
+  WEdge { a: -1, b: -1 }
+}
+
+pub fn build_walls(s: Sim) -> vector<WallSeg> {
+  g = WallGraph { corners: [], edges: [], lookup: [] };
+
+  // A. Collect boundary edges.
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      if !is_wall(s, q, r) {
+        for d in 0..6 {
+          (nq, nr) = hex_neighbor(q, r, d);
+          if is_wall(s, nq, nr) { add_edge(g, q, r, d); }
+        }
+      }
+      for e in 0..3 {
+        if edge_wall_raw(s, q, r, e) != 0 { add_edge(g, q, r, e); }
+      }
+    }
+  }
+
+  cs = g.corners;
+  es = g.edges;
+
+  // B. Degree + first two neighbours per corner.
+  for ei in 0..len(es) {
+    ed = edge_at(es, ei);
+    ia = ed.a;
+    ib = ed.b;
+    if ia >= 0 && ib >= 0 {
+      ca2 = corner_at(cs, ia);
+      ca2.deg += 1;
+      if ca2.deg == 1 { ca2.n1 = ib; } else if ca2.deg == 2 { ca2.n2 = ib; }
+      if ia < len(cs) { cs[ia] = ca2; }
+      cb2 = corner_at(cs, ib);
+      cb2.deg += 1;
+      if cb2.deg == 1 { cb2.n1 = ia; } else if cb2.deg == 2 { cb2.n2 = ia; }
+      if ib < len(cs) { cs[ib] = cb2; }
+    }
+  }
+
+  // C. Laplacian smoothing of degree-2 corners (flatten the wobble).
+  for _ in 0..SMOOTH_ITERS {
+    for ci in 0..len(cs) {
+      c = corner_at(cs, ci);
+      if c.deg == 2 && c.n1 >= 0 && c.n2 >= 0 {
+        p1 = corner_at(cs, c.n1);
+        p2 = corner_at(cs, c.n2);
+        mx = (p1.x + p2.x) / 2.0;
+        my = (p1.y + p2.y) / 2.0;
+        c.x = c.x + SMOOTH_LAMBDA * (mx - c.x);
+        c.y = c.y + SMOOTH_LAMBDA * (my - c.y);
+        if ci < len(cs) { cs[ci] = c; }
+      }
+    }
+  }
+
+  // D. Emit one segment per edge from the smoothed corners.
+  segs: vector<WallSeg> = [];
+  for ej in 0..len(es) {
+    ee = edge_at(es, ej);
+    if ee.a >= 0 && ee.b >= 0 {
+      pa = corner_at(cs, ee.a);
+      pb = corner_at(cs, ee.b);
+      segs += [WallSeg { ax: pa.x, ay: pa.y, bx: pb.x, by: pb.y }];
+    }
+  }
+  segs
+}

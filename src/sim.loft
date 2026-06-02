@@ -242,6 +242,18 @@ pub fn sim_new() -> Sim {
     if wj < len(tiles) { tiles[wj] = 1; }
   }
 
+  // Demo: a stepped diagonal line of solid hexes (SW corner) — its silhouette
+  // should straighten into a clean diagonal wall, showing the wobble-averaging
+  // produce an intermediate (non-edge) direction. Off the self-test paths.
+  ds_q = [3, 4, 4, 5, 5, 6];
+  ds_r = [3, 3, 4, 4, 5, 5];
+  for di in 0..len(ds_q) {
+    dq = ds_q[di] ?? 0;
+    dr = ds_r[di] ?? 0;
+    didx = dr * w + dq;
+    if didx < len(tiles) { tiles[didx] = 1; }
+  }
+
   // Edge walls: a 3-edge wall stub on hex (12,7), a low barrier you can bump
   // into — demonstrates edge walls alongside the full-hex walls above.
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
