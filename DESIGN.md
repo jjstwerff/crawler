@@ -177,11 +177,26 @@ map** + **transitions** (enter dungeon, descend/ascend, recall) — additive ove
 the world model; the view treats overworld and dungeon identically, only the map
 swaps. This is an M2/M3 system; M0/M1 stay on a single dungeon test map.
 
-**Source-of-truth for logic (decided):** **hybrid** — modern Angband (4.2.x)
-for the core engine formulas (combat, stats, HP, XP/leveling, FOV, monster AI;
-cleanest to reproduce faithfully), and ZAngband for the structure & flavor
-(wilderness now; realm-based magic + mutations later). Mechanics are GPL/free to
-clone; only names stay clean-room (§3).
+**Source-of-truth for logic (decided):** **hybrid** — **modern Angband (4.2.x)**
+for the core engine *and* the **monster & object rules/data** (`monster.txt` /
+`object.txt` flag sets, resistances, ego/affixes, combat, AI, stats, HP,
+XP/leveling, FOV — cleanest to reproduce faithfully); **ZAngband** for **world
+structure & flavor** (wilderness now; realm-based magic + the full ZAngband
+**spell pool**; mutations later). Mechanics are GPL/free to clone; only names
+stay clean-room (§3).
+
+**Spell ↔ monster/object compatibility:** compatible. Both are Angband-derived,
+so every spell (player or monster) resolves as an *effect/projection* the
+target resists and saves against, and that can affect objects. ZAngband
+supplies the spell **catalog** (realms × books × spells + mana/fail/level +
+each spell's effect); execution runs through modern Angband's
+effect/projection/resistance/save machinery. Work needed: map ZAngband's
+element/effect types → modern projections, and implement the few ZAngband-unique
+effects (Chaos/Trump/Death). Monster casting stays modern; the player's magic is
+the ZAngband realm system; they meet at the shared effect layer. Consequence:
+the current `monsters.loft`/`items.loft` are placeholders to **align to modern
+Angband's `monster.txt`/`object.txt`** — which is also what makes them
+spell-ready (resist/type flags are what spells query).
 
 ---
 
