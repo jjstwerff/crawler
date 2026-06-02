@@ -1,0 +1,61 @@
+// story — M0 vertical slice entry point.
+//
+// Opens a window, runs the frame loop, maps analog WASD input into kernel
+// intents, and draws the egocentric 2D view. The kernel (sim/hexgeo) is the
+// reusable core; this file and view.loft are the swappable 2D front-end.
+//
+// Controls: W glide forward · S glide back · A/D turn (free) · Esc quit.
+
+use graphics;
+use sim;
+use view;
+
+WIN_W   = 800;
+WIN_H   = 600;
+KEY_W   = 119;
+KEY_S   = 115;
+KEY_A   = 97;
+KEY_D   = 100;
+KEY_ESC = 27;
+
+fn main() {
+  if !graphics::gl_create_window(WIN_W, WIN_H, "story — M0") {
+    println("story: failed to create window");
+    return;
+  }
+  painter = graphics::create_painter_2d(WIN_W as float, WIN_H as float);
+  // The window enables GL_DEPTH_TEST by default, and 2D quads all share one
+  // z — so with depth-test on, the FIRST quad drawn to a pixel wins (terrain
+  // would occlude the player; a full-screen backdrop would occlude the whole
+  // world -> black). Disable it for normal last-drawn-on-top painting, and
+  // enable blending for alpha. (Same setup brick-buster uses.)
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  graphics::gl_enable(graphics::GL_BLEND);
+  s = sim_new();
+  last = ticks();
+  running = true;
+  while running {
+    if !graphics::gl_poll_events() {
+      running = false;
+    } else if graphics::gl_key_pressed(KEY_ESC) {
+      running = false;
+    } else {
+      tnow = ticks();
+      dt = (tnow - last) as float / 1000000.0;
+      last = tnow;
+      if dt > 0.05 { dt = 0.05; }
+
+      fwd = 0;
+      turn = 0;
+      if graphics::gl_key_pressed(KEY_W) { fwd = 1; }
+      if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
+      if graphics::gl_key_pressed(KEY_A) { turn = 1; }   // left  = CCW (heading up)
+      if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
+
+      sim_step(s, fwd, turn, dt);
+      view_draw(painter, s);
+      graphics::gl_swap_buffers();
+    }
+  }
+  graphics::gl_destroy_window();
+}

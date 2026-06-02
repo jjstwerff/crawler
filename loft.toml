@@ -1,0 +1,8 @@
+# story — clean-room roguelike (see DESIGN.md)
+[package]
+name    = "story"
+version = "0.0.0"
+loft    = ">=0.8"
+
+[dependencies]
+graphics = ">=0.1"

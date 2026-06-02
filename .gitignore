@@ -1,0 +1,13 @@
+# loft build caches / artifacts
+.loft/
+**/.loft/
+*.wasm
+
+# generated game builds
+/story.html
+/story.png
+
+# editor / OS noise
+*.swp
+*~
+.DS_Store

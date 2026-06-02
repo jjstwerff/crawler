@@ -1,0 +1,104 @@
+// view — 2D egocentric renderer for the story kernel (M0).
+//
+// The world rotates around the player so the player's heading is always "up",
+// and the player is anchored ~70% down the screen (rear visibility). This is
+// the 2D stand-in for moros_render::camera_follow; the kernel is unchanged.
+
+use graphics;
+use hexgeo;
+use sim;
+
+VIEW_W   = 800.0;
+VIEW_H   = 600.0;
+SCALE    = 26.0;     // pixels per world unit
+CX       = 400.0;    // player screen x (centre)
+ANCHOR_Y = 420.0;    // player screen y (~70% down)
+
+// World-plane point -> screen, rotated so the player's heading points up.
+pub fn world_to_screen(s: Sim, wx: float, wy: float) -> (float, float) {
+  rel_x = wx - s.px;
+  rel_y = wy - s.py;
+  phi = PI / 2.0 - s.heading;
+  cc = cos(phi);
+  ss = sin(phi);
+  cam_x = rel_x * cc - rel_y * ss;
+  cam_y = rel_x * ss + rel_y * cc;
+  sx = CX + cam_x * SCALE;
+  sy = ANCHOR_Y - cam_y * SCALE;
+  (sx, sy)
+}
+
+// Draw a line segment as a stipple of small squares (the painter only does
+// axis-aligned quads). Each dot is placed at its own rotated screen position,
+// so the segment rotates correctly with the world.
+fn draw_segment(painter: graphics::Painter2D, x1: float, y1: float, x2: float, y2: float,
+                cr: float, cg: float, cb: float) {
+  segn = 12;
+  for sg in 0..=segn {
+    sgt = sg as float / segn as float ?? 0.0;
+    sgx = x1 + (x2 - x1) * sgt;
+    sgy = y1 + (y2 - y1) * sgt;
+    sgs = 5.0;
+    graphics::draw_rect_at(painter, sgx - sgs / 2.0, sgy - sgs / 2.0, sgs, sgs, cr, cg, cb, 1.0);
+  }
+}
+
+pub fn view_draw(painter: graphics::Painter2D, s: Sim) {
+  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
+  cell = SCALE * 1.35;
+  // Draw order matters (painter is last-on-top once depth-test is disabled in
+  // main): terrain first, then enemies, then the player on top.
+
+  // Terrain hexes (drawn as tiles at their rotated screen positions).
+  for vr in 0..s.lh {
+    for vq in 0..s.lw {
+      q = s.qmin + vq;
+      r = s.rmin + vr;
+      t = tile_at(s, q, r);
+      (wx, wy) = hex_to_px(q, r);
+      (hsx, hsy) = world_to_screen(s, wx, wy);
+      if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
+        if t == 1 {
+          graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.40, 0.44, 0.56, 1.0);
+        } else {
+          graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.11, 0.13, 0.19, 1.0);
+        }
+      }
+    }
+  }
+
+  // Edge walls (3 canonical edges per hex: 0=N,1=NE,2=SE).
+  for wvr in 0..s.lh {
+    for wvq in 0..s.lw {
+      wq2 = s.qmin + wvq;
+      wr2 = s.rmin + wvr;
+      for wed in 0..3 {
+        if edge_wall_raw(s, wq2, wr2, wed) != 0 {
+          (eca, ecb) = edge_corners(wed);
+          (wxa, wya) = hex_corner_px(wq2, wr2, eca);
+          (wxb, wyb) = hex_corner_px(wq2, wr2, ecb);
+          (wsa, wsb) = world_to_screen(s, wxa, wya);
+          (wsc, wsd) = world_to_screen(s, wxb, wyb);
+          draw_segment(painter, wsa, wsb, wsc, wsd, 0.80, 0.56, 0.28);
+        }
+      }
+    }
+  }
+
+  // Enemies (smoothly interpolated between hex centres).
+  ecount = sim_enemy_count(s);
+  for ve in 0..ecount {
+    if sim_enemy_alive(s, ve) {
+      (ewx, ewy) = sim_enemy_pos(s, ve);
+      (esx, esy) = world_to_screen(s, ewx, ewy);
+      msz = SCALE * 0.95;
+      graphics::draw_rect_at(painter, esx - msz / 2.0, esy - msz / 2.0, msz, msz, 0.88, 0.24, 0.20, 1.0);
+    }
+  }
+
+  // Player at the anchor, plus a "nose" showing forward (always up-screen).
+  psz = SCALE * 1.0;
+  graphics::draw_rect_at(painter, CX - psz / 2.0, ANCHOR_Y - psz / 2.0, psz, psz, 0.95, 0.90, 0.30, 1.0);
+  nsz = SCALE * 0.42;
+  graphics::draw_rect_at(painter, CX - nsz / 2.0, ANCHOR_Y - psz * 0.9 - nsz, nsz, nsz, 0.30, 0.92, 0.40, 1.0);
+}

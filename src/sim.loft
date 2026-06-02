@@ -1,0 +1,263 @@
+// sim — the renderer-agnostic roguelike kernel (M0).
+//
+// Continuous player (position + heading) over a hex tile grid; hex-locked
+// enemies; a distance-driven clock: every HEX_LEN of player travel = one tick,
+// turning costs no distance and therefore no time.  NO graphics dependency.
+
+use hexgeo;
+
+MOVE_SPEED = 3.0;     // world units / second (animation rate; clock is distance)
+TURN_SPEED = 2.6;     // radians / second
+PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.866)
+
+pub struct Enemy {
+  cur_q: integer not null,
+  cur_r: integer not null,
+  tgt_q: integer not null,
+  tgt_r: integer not null,
+  hp:    integer not null,
+  alive: boolean not null,
+}
+
+pub struct Sim {
+  lw:      integer not null,
+  lh:      integer not null,
+  qmin:    integer not null,
+  rmin:    integer not null,
+  tiles:   vector<integer> not null,   // hex kind: 0 floor, 1 solid full-hex wall
+  walls:   vector<integer> not null,   // edge walls: idx = hex*3 + edge(0=N,1=NE,2=SE)
+  px:      float not null,
+  py:      float not null,
+  heading: float not null,             // radians; forward = (cos,sin)
+  accrued: float not null,             // remainder distance in [0, HEX_LEN)
+  ticks:   integer not null,
+  enemies: vector<Enemy> not null,
+}
+
+// ── World queries ────────────────────────────────────────────────────
+
+pub fn tile_at(s: Sim, q: integer, r: integer) -> integer {
+  if q < s.qmin || r < s.rmin || q >= s.qmin + s.lw || r >= s.rmin + s.lh {
+    return 1;
+  }
+  tiles = s.tiles;
+  ti = (r - s.rmin) * s.lw + (q - s.qmin);
+  if ti < len(tiles) { tiles[ti] } else { 1 }
+}
+
+pub fn is_wall(s: Sim, q: integer, r: integer) -> boolean {
+  tile_at(s, q, r) == 1
+}
+
+// Read a stored canonical edge wall directly (edge 0=N,1=NE,2=SE on this hex).
+pub fn edge_wall_raw(s: Sim, q: integer, r: integer, edge: integer) -> integer {
+  if q < s.qmin || r < s.rmin || q >= s.qmin + s.lw || r >= s.rmin + s.lh {
+    return 0;
+  }
+  ws = s.walls;
+  ei = ((r - s.rmin) * s.lw + (q - s.qmin)) * 3 + edge;
+  if ei < len(ws) { ws[ei] } else { 0 }
+}
+
+// Wall value on the edge leaving (q,r) in direction `dir` (resolves the
+// canonical owner: dirs 3,4,5 read the neighbour's edge).
+pub fn edge_wall(s: Sim, q: integer, r: integer, dir: integer) -> integer {
+  (oq, owr, oe) = canon_edge(q, r, dir);
+  edge_wall_raw(s, oq, owr, oe)
+}
+
+// Is a single-hex step from (q1,r1) to (q2,r2) blocked? Blocked if the
+// target is a solid full-hex wall (or out of bounds), or an edge wall sits
+// on the shared edge.
+pub fn is_blocked_move(s: Sim, q1: integer, r1: integer, q2: integer, r2: integer) -> boolean {
+  if is_wall(s, q2, r2) { return true; }
+  bd = neighbor_dir(q1, r1, q2, r2);
+  if bd < 0 { return false; }
+  edge_wall(s, q1, r1, bd) != 0
+}
+
+// Can the player's centre at (fromx,fromy) advance so its probe point lands at
+// (tox,toy)?  Returns true if that probe enters a solid hex, an enemy hex, or
+// crosses a walled edge.  Used per-axis with the probe offset one radius ahead.
+fn pos_blocked(s: Sim, fromx: float, fromy: float, tox: float, toy: float) -> boolean {
+  (aq, ar) = px_to_hex(fromx, fromy);
+  (bq, br) = px_to_hex(tox, toy);
+  if enemy_blocks(s, bq, br) { return true; }
+  if aq == bq && ar == br { return is_wall(s, bq, br); }
+  is_blocked_move(s, aq, ar, bq, br)
+}
+
+fn enemy_blocks(s: Sim, q: integer, r: integer) -> boolean {
+  enemies = s.enemies;
+  hit = false;
+  for eb in 0..len(enemies) {
+    e = enemies[eb];
+    if e.alive && ((e.cur_q == q && e.cur_r == r) || (e.tgt_q == q && e.tgt_r == r)) {
+      hit = true;
+    }
+  }
+  hit
+}
+
+// Greedy one-hex step from (eq,er) toward (pq,pr): best floor neighbour that
+// is not the player's own hex; stay put if nothing improves.
+fn best_step(s: Sim, eq: integer, er: integer, pq: integer, pr: integer) -> (integer, integer) {
+  best_q = eq;
+  best_r = er;
+  best_d = hex_distance(eq, er, pq, pr);
+  for bd in 0..6 {
+    (nq, nr) = hex_neighbor(eq, er, bd);
+    if !is_blocked_move(s, eq, er, nq, nr) && !(nq == pq && nr == pr) {
+      nd = hex_distance(nq, nr, pq, pr);
+      if nd < best_d {
+        best_d = nd;
+        best_q = nq;
+        best_r = nr;
+      }
+    }
+  }
+  (best_q, best_r)
+}
+
+// ── Clock & step ─────────────────────────────────────────────────────
+
+// One world tick: commit each enemy's pending move, then choose the next.
+pub fn sim_tick(s: &Sim) {
+  s.ticks += 1;
+  (pq, pr) = px_to_hex(s.px, s.py);
+  enemies = s.enemies;
+  for et in 0..len(enemies) {
+    e = enemies[et];
+    if e.alive {
+      e.cur_q = e.tgt_q;
+      e.cur_r = e.tgt_r;
+      (bq, br) = best_step(s, e.cur_q, e.cur_r, pq, pr);
+      e.tgt_q = bq;
+      e.tgt_r = br;
+      enemies[et] = e;
+    }
+  }
+}
+
+// Advance one frame.  fwd in {-1,0,1}, turn in {-1,0,1}, dt seconds.
+pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
+  if turn != 0 {
+    s.heading += (turn as float) * TURN_SPEED * dt;
+  }
+  if fwd != 0 {
+    step = (fwd as float) * MOVE_SPEED * dt;
+    dx = cos(s.heading) * step;
+    dy = sin(s.heading) * step;
+    moved_x = 0.0;
+    moved_y = 0.0;
+    // Axis-separated so the player slides along walls; probe one radius ahead
+    // in the direction of travel so the centre halts short of the wall face.
+    if dx != 0.0 {
+      sxr = if dx > 0.0 { PLAYER_RADIUS } else { 0.0 - PLAYER_RADIUS };
+      if !pos_blocked(s, s.px, s.py, s.px + dx + sxr, s.py) {
+        s.px += dx;
+        moved_x = dx;
+      }
+    }
+    if dy != 0.0 {
+      syr = if dy > 0.0 { PLAYER_RADIUS } else { 0.0 - PLAYER_RADIUS };
+      if !pos_blocked(s, s.px, s.py, s.px, s.py + dy + syr) {
+        s.py += dy;
+        moved_y = dy;
+      }
+    }
+    s.accrued += sqrt(moved_x * moved_x + moved_y * moved_y);
+    while s.accrued >= HEX_LEN {
+      s.accrued -= HEX_LEN;
+      sim_tick(s);
+    }
+  }
+}
+
+// ── Read-only accessors for the view / tests ────────────────────────
+
+pub fn sim_frac(s: Sim) -> float { s.accrued / HEX_LEN }
+
+pub fn sim_player_hex(s: Sim) -> (integer, integer) { px_to_hex(s.px, s.py) }
+
+pub fn sim_enemy_count(s: Sim) -> integer { len(s.enemies) }
+
+pub fn sim_enemy_alive(s: Sim, i: integer) -> boolean {
+  enemies = s.enemies;
+  alive = false;
+  if i < len(enemies) {
+    e = enemies[i];
+    alive = e.alive;
+  }
+  alive
+}
+
+pub fn sim_enemy_cur(s: Sim, i: integer) -> (integer, integer) {
+  enemies = s.enemies;
+  rq = 0;
+  rr = 0;
+  if i < len(enemies) {
+    e = enemies[i];
+    rq = e.cur_q;
+    rr = e.cur_r;
+  }
+  (rq, rr)
+}
+
+// Smoothly-interpolated enemy world position (cur -> tgt by clock fraction).
+pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
+  enemies = s.enemies;
+  ex = 0.0;
+  ey = 0.0;
+  if i < len(enemies) {
+    e = enemies[i];
+    (acx, acy) = hex_to_px(e.cur_q, e.cur_r);
+    (atx, aty) = hex_to_px(e.tgt_q, e.tgt_r);
+    f = s.accrued / HEX_LEN;
+    ex = acx + (atx - acx) * f;
+    ey = acy + (aty - acy) * f;
+  }
+  (ex, ey)
+}
+
+// ── Construction ─────────────────────────────────────────────────────
+
+pub fn sim_new() -> Sim {
+  w = 21;
+  h = 21;
+  tiles: vector<integer> = [];
+  for gr in 0..h {
+    for gq in 0..w {
+      edge = gq == 0 || gr == 0 || gq == w - 1 || gr == h - 1;
+      tiles += [if edge { 1 } else { 0 }];
+    }
+  }
+  // a couple of deterministic interior walls for visual reference
+  for wr in 5..13 {
+    wi = wr * w + 7;
+    if wi < len(tiles) { tiles[wi] = 1; }
+  }
+  for wq in 9..16 {
+    wj = 9 * w + wq;
+    if wj < len(tiles) { tiles[wj] = 1; }
+  }
+
+  // Edge walls: a 3-edge wall stub on hex (12,7), a low barrier you can bump
+  // into — demonstrates edge walls alongside the full-hex walls above.
+  walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
+  ewi = (7 * w + 12) * 3;
+  for ee in 0..3 {
+    eidx = ewi + ee;
+    if eidx < len(walls) { walls[eidx] = 1; }
+  }
+
+  (spx, spy) = hex_to_px(10, 10);
+  e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 5, alive: true };
+  enemies: vector<Enemy> = [e0];
+
+  Sim {
+    lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
+    px: spx, py: spy, heading: PI / 2.0,
+    accrued: 0.0, ticks: 0, enemies: enemies,
+  }
+}

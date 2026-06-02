@@ -1,0 +1,73 @@
+// selftest — headless verification of the kernel (no graphics).
+// Proves the distance-driven clock: turning is free, forward movement ticks
+// the world, and the enemy closes on the player.  Deterministic.
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story M0 kernel self-test ===");
+
+  // (1) turning is free in time.
+  s = sim_new();
+  for _ in 0..120 { sim_step(s, 0, 1, 0.016); }
+  turn_ticks = s.ticks;
+  println("120 turning frames -> ticks={turn_ticks} (expect 0)");
+
+  // (2) forward movement ticks the world; (3) enemy chases.
+  s = sim_new();
+  (eq0, er0) = sim_enemy_cur(s, 0);
+  (pq0, pr0) = sim_player_hex(s);
+  d0 = hex_distance(eq0, er0, pq0, pr0);
+  println("forward start: player ({pq0},{pr0}) enemy ({eq0},{er0}) dist={d0}");
+
+  for _ in 0..240 { sim_step(s, 1, 0, 0.016); }
+  fwd_ticks = s.ticks;
+  (eq1, er1) = sim_enemy_cur(s, 0);
+  (pq1, pr1) = sim_player_hex(s);
+  d1 = hex_distance(eq1, er1, pq1, pr1);
+  println("after 240 forward frames -> ticks={fwd_ticks} player ({pq1},{pr1}) enemy ({eq1},{er1}) dist={d1}");
+
+  // (4) edge-wall collision: hex (12,7) has all 3 canonical edges walled.
+  s = sim_new();
+  ew_blocked = is_blocked_move(s, 12, 7, 13, 7);   // across a walled edge -> true
+  ew_open    = is_blocked_move(s, 12, 7, 11, 7);   // across an open edge  -> false
+  println("edge-wall: across-wall={ew_blocked} (expect true), across-open={ew_open} (expect false)");
+
+  // (5) collision radius: ram the east border head-on; never enter the wall hex.
+  s = sim_new();
+  s.heading = 0.0;                 // due east toward the border wall at q=20
+  rx0 = s.px;
+  for _ in 0..400 { sim_step(s, 1, 0, 0.016); }
+  (rpq, rpr) = sim_player_hex(s);
+  rwall = is_wall(s, rpq, rpr);
+  rdx = s.px - rx0;
+  println("radius: rammed east -> hex ({rpq},{rpr}) in-wall={rwall} dx={rdx}");
+
+  // (6) sliding: now pinned against the east wall, head NE — east stays blocked,
+  // north is free, so the player should still make progress (slide north).
+  spy0 = s.py;
+  s.heading = PI / 4.0;
+  for _ in 0..200 { sim_step(s, 1, 0, 0.016); }
+  (slq, slr) = sim_player_hex(s);
+  sdy = s.py - spy0;
+  println("slide: along wall -> dy={sdy} hex ({slq},{slr})");
+
+  ok_turn   = turn_ticks == 0;
+  ok_move   = fwd_ticks > 0;
+  ok_chase  = d1 < d0;
+  ok_edge   = ew_blocked && !ew_open;
+  ok_radius = !rwall && rpq < 20 && rdx > 1.0;
+  ok_slide  = sdy > 0.3 && !is_wall(s, slq, slr);
+  println("turning-free  : {ok_turn}");
+  println("movement-ticks: {ok_move}");
+  println("enemy-chases  : {ok_chase}");
+  println("edge-walls    : {ok_edge}");
+  println("radius-stop   : {ok_radius}");
+  println("wall-slide    : {ok_slide}");
+  if ok_turn && ok_move && ok_chase && ok_edge && ok_radius && ok_slide {
+    println("=== ALL CHECKS PASS ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}
