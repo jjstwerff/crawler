@@ -185,6 +185,19 @@ structure & flavor** (wilderness now; realm-based magic + the full ZAngband
 **spell pool**; mutations later). Mechanics are GPL/free to clone; only names
 stay clean-room (§3).
 
+**Difficulty model — zone-based + shallow dungeons (decided direction):**
+ZAngband's wilderness already carries per-location difficulty (its "law"
+parameter). We lean into it: each overworld region has a **zone difficulty**,
+and dungeons are **shallow** (a handful of levels) whose monsters are drawn at
+an **effective level = zone difficulty + dungeon sub-level** — not pure descent
+depth. Progression is mainly **horizontal** (travel to harder zones) with short
+vertical dungeons on top. This preserves Angband's monster-selection logic
+(native depth / rarity / out-of-depth, via `monsters.loft`'s `m_depth` +
+`mon_for_depth`) — we just feed it the zone-derived level (no DB change). Bonus:
+it fixes ZAngband's biggest wilderness weakness (no incentive to travel), since
+reaching new zones *is* the difficulty curve. Zone difficulty is authored in the
+moros editor (or derived from distance-from-start / terrain).
+
 **Spell ↔ monster/object compatibility:** compatible. Both are Angband-derived,
 so every spell (player or monster) resolves as an *effect/projection* the
 target resists and saves against, and that can affect objects. ZAngband
