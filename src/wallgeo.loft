@@ -1,39 +1,37 @@
-// wallgeo — derive smoothed wall outlines from solid hex regions + edge walls.
+// wallgeo — derive STRAIGHT wall outlines from solid hex regions + edge walls.
 //
 // Renderer-agnostic (uses hexgeo + sim, NO graphics): outputs world-space
 // segments that both the 2D view and the future 3D mesh builder consume.
 //
-// Pipeline:
-//   A. Collect boundary edges — a hex edge is a wall face when it separates an
-//      open (floor) hex from a solid one, plus any explicit edge wall.
-//   B. Dedupe the edge endpoints into a corner graph (shared hex vertices merge
-//      by quantised position), recording each corner's degree + first two
-//      neighbours.
-//   C. Laplacian-smooth degree-2 corners toward their neighbours' midpoint:
-//      the per-hex zig-zag "wobble" (high frequency) flattens into straight
-//      runs; junctions (deg != 2) and endpoints anchor. (First-cut smoothing;
-//      a 12-direction snap + corner-preserving pass is the planned refinement.)
-//   D. Emit one segment per edge using the smoothed corner positions.
+// The hex outline of a wall that runs in a non-edge direction zig-zags ("the
+// wobble"). We do NOT round it — we STRAIGHTEN it: collapse each wobble run
+// into one straight segment while keeping genuine corners sharp (so a hex
+// "house" comes out as straight walls meeting at crisp corners). Pipeline:
+//   A. Collect boundary edges (floor↔solid faces + explicit edge walls).
+//   B. Dedupe endpoints into a corner graph with incidence lists.
+//   C. Walk the graph into ordered polylines (loops + open chains).
+//   D. Douglas–Peucker each polyline: keep only corner vertices (wobble points
+//      lie within WALL_EPS of the straight chord, so they drop out).
+//   E. Emit straight segments between the kept corners.
+// (Next: place each corner at the intersection of its two adjoining wall lines
+//  rather than on the original hex vertex.)
 
 use hexgeo;
 use sim;
 
-SMOOTH_ITERS  = 3;
-SMOOTH_LAMBDA = 0.5;   // 0..1 blend toward the neighbour midpoint each pass
+WALL_EPS = 0.5;   // DP tolerance: > per-hex wobble (~0.25–0.45), < a real corner
 
 pub struct WallSeg {
   ax: float not null, ay: float not null,
   bx: float not null, by: float not null,
 }
 
+struct WEdge { a: integer not null, b: integer not null }
+
 struct WCorner {
   x: float not null, y: float not null,
-  deg: integer not null,
-  n1: integer not null,
-  n2: integer not null,
+  inc: vector<integer> not null,   // incident edge indices
 }
-
-struct WEdge { a: integer not null, b: integer not null }
 
 struct CornerRef { ck: text, idx: integer not null }
 
@@ -42,6 +40,8 @@ struct WallGraph {
   edges:   vector<WEdge> not null,
   lookup:  hash<CornerRef[ck]>,
 }
+
+struct Walker { vis: vector<boolean> not null }   // visited-edge flags (mutated via &)
 
 fn corner_key(x: float, y: float) -> text {
   kx = round(x * 1000.0) as integer;
@@ -54,7 +54,8 @@ fn get_or_add(g: &WallGraph, x: float, y: float) -> integer {
   found = g.lookup[k];
   if found != null { return found.idx; }
   idx = len(g.corners);
-  g.corners += [WCorner { x: x, y: y, deg: 0, n1: -1, n2: -1 }];
+  empty: vector<integer> = [];
+  g.corners += [WCorner { x: x, y: y, inc: empty }];
   g.lookup += [CornerRef { ck: k, idx: idx }];
   idx
 }
@@ -69,15 +70,154 @@ fn add_edge(g: &WallGraph, q: integer, r: integer, dir: integer) {
 }
 
 fn corner_at(cs: vector<WCorner>, i: integer) -> WCorner {
-  if i < 0 { return WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1 }; }
+  empty: vector<integer> = [];
+  if i < 0 { return WCorner { x: 0.0, y: 0.0, inc: empty }; }
   if i < len(cs) { return cs[i]; }
-  WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1 }
+  WCorner { x: 0.0, y: 0.0, inc: empty }
 }
 
 fn edge_at(es: vector<WEdge>, i: integer) -> WEdge {
   if i < 0 { return WEdge { a: -1, b: -1 }; }
   if i < len(es) { return es[i]; }
   WEdge { a: -1, b: -1 }
+}
+
+fn other_corner(e: WEdge, cur: integer) -> integer {
+  if e.a == cur { return e.b; }
+  e.a
+}
+
+fn next_inc_edge(cor: WCorner, came: integer) -> integer {
+  inc = cor.inc;
+  res = -1;
+  for ii in 0..len(inc) {
+    ee = inc[ii] ?? -1;
+    if ee != came && res < 0 { res = ee; }
+  }
+  res
+}
+
+fn perp_dist(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> float {
+  dx = bx - ax;
+  dy = by - ay;
+  ll = sqrt(dx * dx + dy * dy);
+  if ll < 0.0001 {
+    ex = px - ax;
+    ey = py - ay;
+    return sqrt(ex * ex + ey * ey);
+  }
+  cross = (px - ax) * dy - (py - ay) * dx;
+  abs(cross) / ll ?? 0.0
+}
+
+fn dp_simplify(xs: vector<float>, ys: vector<float>, eps: float) -> vector<integer> {
+  n = len(xs);
+  out: vector<integer> = [];
+  if n <= 2 {
+    for k0 in 0..n { out += [k0]; }
+    return out;
+  }
+  keep = [for _ in 0..n { false }];
+  z0 = 0;
+  if z0 < len(keep) { keep[z0] = true; }
+  zl = n - 1;
+  if zl < len(keep) { keep[zl] = true; }
+  wl_lo: vector<integer> = [0];
+  wl_hi: vector<integer> = [n - 1];
+  ri = 0;
+  while ri < len(wl_lo) {
+    lo = wl_lo[ri] ?? 0;
+    hi = wl_hi[ri] ?? 0;
+    ri += 1;
+    if hi - lo >= 2 {
+      ax = xs[lo] ?? 0.0;
+      ay = ys[lo] ?? 0.0;
+      bx = xs[hi] ?? 0.0;
+      by = ys[hi] ?? 0.0;
+      maxd = 0.0 - 1.0;
+      maxi = -1;
+      for k in (lo + 1)..hi {
+        d = perp_dist(xs[k] ?? 0.0, ys[k] ?? 0.0, ax, ay, bx, by);
+        if d > maxd { maxd = d; maxi = k; }
+      }
+      if maxd > eps && maxi >= 0 {
+        if maxi < len(keep) { keep[maxi] = true; }
+        wl_lo += [lo];
+        wl_hi += [maxi];
+        wl_lo += [maxi];
+        wl_hi += [hi];
+      }
+    }
+  }
+  for k2 in 0..n {
+    kp = keep[k2] ?? false;
+    if kp { out += [k2]; }
+  }
+  out
+}
+
+fn walk_emit(cs: vector<WCorner>, es: vector<WEdge>, start_corner: integer,
+             start_edge: integer, wk: &Walker) -> vector<WallSeg> {
+  vloc = wk.vis;
+  poly: vector<integer> = [start_corner];
+  cur = start_corner;
+  e = start_edge;
+  guard = 0;
+  going = true;
+  while going {
+    guard += 1;
+    if guard > 200000 {
+      going = false;
+    } else {
+      ve = vloc[e] ?? true;
+      if ve {
+        going = false;
+      } else {
+        if e < len(vloc) { vloc[e] = true; }
+        ed = edge_at(es, e);
+        nxt = other_corner(ed, cur);
+        poly += [nxt];
+        cur = nxt;
+        cor = corner_at(cs, cur);
+        if len(cor.inc) != 2 {
+          going = false;
+        } else {
+          ne = next_inc_edge(cor, e);
+          if ne < 0 {
+            going = false;
+          } else {
+            vne = vloc[ne] ?? true;
+            if vne { going = false; } else { e = ne; }
+          }
+        }
+      }
+    }
+  }
+
+  np = len(poly);
+  xs: vector<float> = [];
+  ys: vector<float> = [];
+  for pj in 0..np {
+    pidx = poly[pj] ?? -1;
+    pc = corner_at(cs, pidx);
+    xs += [pc.x];
+    ys += [pc.y];
+  }
+  kept = dp_simplify(xs, ys, WALL_EPS);
+  out_segs: vector<WallSeg> = [];
+  nk = len(kept);
+  for kj in 0..nk {
+    if kj + 1 < nk {
+      ka = kept[kj] ?? 0;
+      kb = kept[kj + 1] ?? 0;
+      xa = xs[ka] ?? 0.0;
+      ya = ys[ka] ?? 0.0;
+      xb = xs[kb] ?? 0.0;
+      yb = ys[kb] ?? 0.0;
+      out_segs += [WallSeg { ax: xa, ay: ya, bx: xb, by: yb }];
+    }
+  }
+  out_segs
 }
 
 pub fn build_walls(s: Sim) -> vector<WallSeg> {
@@ -94,8 +234,8 @@ pub fn build_walls(s: Sim) -> vector<WallSeg> {
           if is_wall(s, nq, nr) { add_edge(g, q, r, d); }
         }
       }
-      for e in 0..3 {
-        if edge_wall_raw(s, q, r, e) != 0 { add_edge(g, q, r, e); }
+      for ed3 in 0..3 {
+        if edge_wall_raw(s, q, r, ed3) != 0 { add_edge(g, q, r, ed3); }
       }
     }
   }
@@ -103,48 +243,49 @@ pub fn build_walls(s: Sim) -> vector<WallSeg> {
   cs = g.corners;
   es = g.edges;
 
-  // B. Degree + first two neighbours per corner.
+  // B. Incidence lists.
   for ei in 0..len(es) {
-    ed = edge_at(es, ei);
-    ia = ed.a;
-    ib = ed.b;
-    if ia >= 0 && ib >= 0 {
-      ca2 = corner_at(cs, ia);
-      ca2.deg += 1;
-      if ca2.deg == 1 { ca2.n1 = ib; } else if ca2.deg == 2 { ca2.n2 = ib; }
-      if ia < len(cs) { cs[ia] = ca2; }
-      cb2 = corner_at(cs, ib);
-      cb2.deg += 1;
-      if cb2.deg == 1 { cb2.n1 = ia; } else if cb2.deg == 2 { cb2.n2 = ia; }
-      if ib < len(cs) { cs[ib] = cb2; }
+    edb = edge_at(es, ei);
+    ea = edb.a;
+    eb = edb.b;
+    if ea >= 0 {
+      ca = corner_at(cs, ea);
+      ca.inc += [ei];
+      if ea < len(cs) { cs[ea] = ca; }
+    }
+    if eb >= 0 {
+      cb = corner_at(cs, eb);
+      cb.inc += [ei];
+      if eb < len(cs) { cs[eb] = cb; }
     }
   }
 
-  // C. Laplacian smoothing of degree-2 corners (flatten the wobble).
-  for _ in 0..SMOOTH_ITERS {
-    for ci in 0..len(cs) {
-      c = corner_at(cs, ci);
-      if c.deg == 2 && c.n1 >= 0 && c.n2 >= 0 {
-        p1 = corner_at(cs, c.n1);
-        p2 = corner_at(cs, c.n2);
-        mx = (p1.x + p2.x) / 2.0;
-        my = (p1.y + p2.y) / 2.0;
-        c.x = c.x + SMOOTH_LAMBDA * (mx - c.x);
-        c.y = c.y + SMOOTH_LAMBDA * (my - c.y);
-        if ci < len(cs) { cs[ci] = c; }
+  segs: vector<WallSeg> = [];
+  wk = Walker { vis: [for _ in 0..len(es) { false }] };
+
+  // C/D/E. Phase 1 — chains from endpoints / junctions (degree != 2).
+  for ci in 0..len(cs) {
+    cor = corner_at(cs, ci);
+    if len(cor.inc) != 2 {
+      incc = cor.inc;
+      for jj in 0..len(incc) {
+        se = incc[jj] ?? -1;
+        if se >= 0 {
+          vse = wk.vis[se] ?? true;
+          if !vse { segs += walk_emit(cs, es, ci, se, wk); }
+        }
       }
     }
   }
 
-  // D. Emit one segment per edge from the smoothed corners.
-  segs: vector<WallSeg> = [];
-  for ej in 0..len(es) {
-    ee = edge_at(es, ej);
-    if ee.a >= 0 && ee.b >= 0 {
-      pa = corner_at(cs, ee.a);
-      pb = corner_at(cs, ee.b);
-      segs += [WallSeg { ax: pa.x, ay: pa.y, bx: pb.x, by: pb.y }];
+  // Phase 2 — remaining pure loops (all degree-2).
+  for ei2 in 0..len(es) {
+    ve2 = wk.vis[ei2] ?? true;
+    if !ve2 {
+      edl = edge_at(es, ei2);
+      segs += walk_emit(cs, es, edl.a, ei2, wk);
     }
   }
+
   segs
 }
