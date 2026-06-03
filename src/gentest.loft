@@ -1,0 +1,78 @@
+// gentest — headless check of the procedural dungeon generator.
+// Verifies: room count, floor coverage, full connectivity (flood-fill), and
+// seed-determinism (which the world-key model depends on).
+
+use hexgeo;
+use gen;
+
+fn main() {
+  println("=== story dungeon generator test ===");
+  lvl = gen_dungeon(1234, 41, 41, 14);
+  w = lvl.g_w;
+  h = lvl.g_h;
+  tiles = lvl.g_tiles;
+
+  floor = 0;
+  for fi in 0..len(tiles) { if (tiles[fi] ?? 1) == 0 { floor += 1; } }
+  nrooms = len(lvl.g_rq);
+  println("rooms={nrooms} floor={floor} of {len(tiles)}");
+
+  // Flood-fill connectivity from room 0 — every floor hex should be reachable.
+  visited = [for _ in 0..(w * h) { 0 }];
+  qx: vector<integer> = [];
+  qy: vector<integer> = [];
+  rqs = lvl.g_rq;
+  rrs = lvl.g_rr;
+  sq = rqs[0] ?? 0;
+  sr = rrs[0] ?? 0;
+  si = sr * w + sq;
+  if si >= 0 && si < len(visited) { visited[si] = 1; }
+  qx += [sq];
+  qy += [sr];
+  cur = 0;
+  reach = 0;
+  while cur < len(qx) {
+    cq = qx[cur] ?? 0;
+    cr = qy[cur] ?? 0;
+    cur += 1;
+    reach += 1;
+    for d in 0..6 {
+      (nq, nr) = hex_neighbor(cq, cr, d);
+      if nq >= 0 && nr >= 0 && nq < w && nr < h {
+        ni = nr * w + nq;
+        if (tiles[ni] ?? 1) == 0 && (visited[ni] ?? 1) == 0 {
+          visited[ni] = 1;
+          qx += [nq];
+          qy += [nr];
+        }
+      }
+    }
+  }
+  println("reachable from room0 = {reach} / {floor}");
+
+  // Determinism: same seed -> identical layout; different seed -> different.
+  a = gen_dungeon(777, 41, 41, 14);
+  b = gen_dungeon(777, 41, 41, 14);
+  c = gen_dungeon(778, 41, 41, 14);
+  ta = a.g_tiles;
+  tb = b.g_tiles;
+  tc = c.g_tiles;
+  same_ab = true;
+  diff_ac = false;
+  for di in 0..len(ta) {
+    if (ta[di] ?? 1) != (tb[di] ?? 1) { same_ab = false; }
+    if (ta[di] ?? 1) != (tc[di] ?? 1) { diff_ac = true; }
+  }
+  k1 = world_key_seed(3, 5, 1);
+  k1b = world_key_seed(3, 5, 1);
+  k2 = world_key_seed(3, 6, 1);
+  ok_key = k1 == k1b && k1 != k2;
+  println("determinism: same-seed-identical={same_ab} diff-seed-differs={diff_ac} key-stable={ok_key}");
+
+  ok = nrooms >= 6 && floor > 150 && reach == floor && same_ab && diff_ac && ok_key;
+  println("rooms-ok  : {nrooms >= 6}");
+  println("floor-ok  : {floor > 150}");
+  println("connected : {reach == floor}");
+  println("determinism: {same_ab && diff_ac && ok_key}");
+  if ok { println("=== GEN OK ==="); } else { println("=== FAIL ==="); }
+}

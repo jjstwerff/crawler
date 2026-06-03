@@ -1,0 +1,102 @@
+// gen.loft — procedural dungeon generation (renderer-agnostic kernel data).
+//
+// v1: Angband-style rooms + corridors on the hex grid, carved out of solid
+// rock. Deterministic from a seed (self-contained LCG — no external RNG dep, so
+// the kernel stays pure). Designed to grow: room types, vaults/set-pieces,
+// buildings, and eventually wilderness gen layer on top of this. Output is a
+// GenLevel (tiles + room centres) the sim builds a level from; the same data
+// renders as cells now and through wallgeo / moros_render later.
+
+use hexgeo;
+
+GEN_MASK = 2147483647;   // 2^31 - 1
+
+struct Rng { rs: integer not null }
+
+fn rng_seed(seed: integer) -> Rng { Rng { rs: (seed & GEN_MASK) | 1 } }
+
+fn rng_u(r: &Rng) -> integer {
+  n = (r.rs * 1103515245 + 12345) & GEN_MASK;
+  r.rs = n;
+  n
+}
+
+fn rng_range(r: &Rng, lo: integer, hi: integer) -> integer {
+  if hi <= lo { return lo; }
+  span = hi - lo + 1;
+  lo + (rng_u(r) % span ?? 0)
+}
+
+pub struct GenLevel {
+  g_w: integer not null, g_h: integer not null,
+  g_tiles: vector<integer> not null,   // 0 floor, 1 solid wall
+  g_rq: vector<integer> not null,      // room centre q
+  g_rr: vector<integer> not null,      // room centre r
+}
+
+pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> GenLevel {
+  rng = rng_seed(seed);
+  tiles: vector<integer> = [for _ in 0..(w * h) { 1 }];
+  rq: vector<integer> = [];
+  rr: vector<integer> = [];
+
+  // Rooms — axial rectangles carved from the rock, kept off the border.
+  for _ in 0..tries {
+    rw = rng_range(rng, 4, 8);
+    rh = rng_range(rng, 4, 8);
+    q0 = rng_range(rng, 1, w - rw - 2);
+    r0 = rng_range(rng, 1, h - rh - 2);
+    for cr in r0..(r0 + rh) {
+      for cq in q0..(q0 + rw) {
+        ri = cr * w + cq;
+        if ri >= 0 && ri < len(tiles) { tiles[ri] = 0; }
+      }
+    }
+    rq += [q0 + rw / 2];
+    rr += [r0 + rh / 2];
+  }
+
+  // Corridors — greedy hex walk connecting each room centre to the next, so the
+  // whole level is one connected component.
+  nrm = len(rq);
+  for ci in 0..nrm {
+    if ci + 1 < nrm {
+      aq = rq[ci] ?? 0;
+      ar = rr[ci] ?? 0;
+      bq = rq[ci + 1] ?? 0;
+      br = rr[ci + 1] ?? 0;
+      cq2 = aq;
+      cr2 = ar;
+      guard = 0;
+      while (cq2 != bq || cr2 != br) && guard < 2000 {
+        guard += 1;
+        ci2 = cr2 * w + cq2;
+        if ci2 >= 0 && ci2 < len(tiles) { tiles[ci2] = 0; }
+        bestd = hex_distance(cq2, cr2, bq, br);
+        nq = cq2;
+        nrv = cr2;
+        for d in 0..6 {
+          (tq, tr) = hex_neighbor(cq2, cr2, d);
+          if tq >= 1 && tr >= 1 && tq < w - 1 && tr < h - 1 {
+            dd = hex_distance(tq, tr, bq, br);
+            if dd < bestd { bestd = dd; nq = tq; nrv = tr; }
+          }
+        }
+        if nq == cq2 && nrv == cr2 { guard = 2000; } else { cq2 = nq; cr2 = nrv; }
+      }
+      ce = br * w + bq;
+      if ce >= 0 && ce < len(tiles) { tiles[ce] = 0; }
+    }
+  }
+
+  GenLevel { g_w: w, g_h: h, g_tiles: tiles, g_rq: rq, g_rr: rr }
+}
+
+// Stable per-place generation seed from a world position + depth. A dungeon at
+// a given overworld location always regenerates the SAME base layout — so the
+// world needs to store only the *changes* (state deltas) once a place is
+// visited, not the whole layout. (Spatial hash of three large primes.)
+pub fn world_key_seed(wx: integer, wy: integer, depth: integer) -> integer {
+  (wx * 73856093 ^ wy * 19349663 ^ depth * 83492791) & GEN_MASK
+}
+
