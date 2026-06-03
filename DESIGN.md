@@ -144,6 +144,26 @@ graphics-dependent `moros_render`.
   `moros_render`'s `emit_wall_quad` along the edge. 2D now: full-hex walls are
   filled cells; edge walls are short segments between the edge's two corners.
 
+### 6c. Walls & roads as feature overlays on the hex map (current model)
+
+The hex map (§6) is the terrain — **kept** (movement, distance clock, moros 3D
+path). Walls/buildings and roads are **vector feature overlays** placed *on* it
+(not a square map, not hex-edge-locked):
+- **Buildings / walls** — laid out in a **local square grid** (`gridgeo.loft`)
+  so corners are clean 90° *by construction*, oriented to **one of 12
+  directions** (k×30°: the hex lattice's 6 edges + 6 vertices), then translated
+  to a hex anchor → straight world-space wall **segments** with **sharp
+  right-angle corners**.
+- **Roads** — finer: **24 directions** (the 12 interleaved → 15°), with
+  **rounded** corners (a corner-detect-and-round routine) for smooth turns.
+
+The two wall experiments both find a home: **straighten/sharp → buildings**;
+**average/round → roads** (the rounded `wallgeo.loft` is the road smoother; the
+Douglas–Peucker straightener is parked at `patches/`). Organic cave/dungeon
+walls (silhouette of solid hex regions) remain an optional separate style. The
+continuous player collides with the overlay **segments**; the hex terrain is the
+floor underneath.
+
 ### 6a. Full world model (target — mirrors `moros_map`)
 
 The terrain is ultimately a **stack of layers (`cy`) with a per-hex centre

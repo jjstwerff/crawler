@@ -1,9 +1,12 @@
-// gridgeo.loft — square ("90-degree") grid geometry: the planned replacement
-// for the hex grid (hexgeo). On a square grid, wall silhouettes are already
-// straight with right-angle corners (Angband-native), so the hex-wobble
-// straightening problem disappears. Renderer-agnostic. Cells are unit squares
-// centred on integer (q,r); world +y is "down" (screen convention). API mirrors
-// hexgeo so migrating sim/gen/view is mostly a name-swap (and 6→4 loops).
+// gridgeo.loft — square ("90-degree") grid geometry. NOT the map grid: the map
+// stays HEX (hexgeo). This is the LOCAL square basis for 90°-cornered
+// WALLS/BUILDINGS placed ON the hex world, each oriented to one of 12 directions
+// (k×30°, matching the hex lattice's 6 edges + 6 vertices and the player's 12
+// facings). A building is laid out in these clean square coords — so its walls
+// are straight with right-angle corners by construction — then rotated by its
+// orientation and translated to a hex anchor to yield world-space wall segments
+// (no hex-wobble, no straightening pass). Renderer-agnostic; cells are unit
+// squares centred on integer (q,r); world +y is "down" (screen convention).
 
 GRID_SIZE = 1.0;
 GRID_LEN  = 1.0;   // distance between adjacent cells = the distance-clock unit
