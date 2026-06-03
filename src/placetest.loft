@@ -1,0 +1,50 @@
+// placetest — headless checks for the placement pass (A1): same seed yields an
+// identical roster; the budgeted count lands in range; no monster spawns within
+// the start-safety radius of the player; every spawn sits on floor. Deterministic.
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story placement test ===");
+  s1 = sim_new_gen(4242, 3);
+  s2 = sim_new_gen(4242, 3);
+  (pq, pr) = sim_player_hex(s1);
+  n1 = sim_enemy_count(s1);
+  n2 = sim_enemy_count(s2);
+
+  // (1) determinism: same seed -> same count, positions and glyphs.
+  same = n1 == n2;
+  for i in 0..n1 {
+    if i < n2 {
+      (q1, r1) = sim_enemy_cur(s1, i);
+      (q2, r2) = sim_enemy_cur(s2, i);
+      if q1 != q2 || r1 != r2 { same = false; }
+      if sim_enemy_glyph(s1, i) != sim_enemy_glyph(s2, i) { same = false; }
+    }
+  }
+
+  // (2) start-safety + (3) on-floor.
+  near = 0;
+  inwall = 0;
+  for i in 0..n1 {
+    (q, r) = sim_enemy_cur(s1, i);
+    if hex_distance(q, r, pq, pr) < 8 { near += 1; }
+    if is_wall(s1, q, r) { inwall += 1; }
+  }
+
+  ok_det = same;
+  ok_count = n1 >= 5 && n1 <= 18;
+  ok_safe = near == 0;
+  ok_floor = inwall == 0;
+  println("count={n1} (rerun n2={n2}) near-start={near} in-wall={inwall}");
+  println("deterministic : {ok_det}");
+  println("count-in-range: {ok_count}");
+  println("start-safe    : {ok_safe}");
+  println("on-floor      : {ok_floor}");
+  if ok_det && ok_count && ok_safe && ok_floor {
+    println("=== PLACEMENT OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

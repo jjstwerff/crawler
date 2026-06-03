@@ -33,7 +33,7 @@ pub struct MonsterDef {
   m_flags:  integer not null,
 }
 
-fn mon_none() -> MonsterDef {
+pub fn mon_none() -> MonsterDef {
   MonsterDef { m_key: "", m_name: "", m_glyph: "",
     m_cr: 0, m_cg: 0, m_cb: 0, m_depth: 0, m_rarity: 0, m_hp: 0, m_ac: 0,
     m_speed: 0, m_dam: 0, m_vision: 0, m_xp: 0, m_flags: 0 }
@@ -126,4 +126,70 @@ pub fn mon_pick(pool: vector<MonsterDef>, seed: integer, i: integer) -> MonsterD
     }
   }
   res
+}
+
+// Selection weight ∝ 1/rarity (common monsters far likelier than rare ones).
+fn mon_weight(rarity: integer) -> integer {
+  rr = rarity;
+  if rr < 1 { rr = 1; }
+  64 / rr ?? 1
+}
+
+// Eligible, non-unique monsters at or above the floor depth (built like
+// mon_for_depth — the table-iteration form the interpreter handles safely).
+fn mon_pool(table: vector<MonsterDef>, eff: integer) -> vector<MonsterDef> {
+  out: vector<MonsterDef> = [];
+  for mi in 0..len(table) {
+    m = table[mi] ?? mon_none();
+    if m.m_hp > 0 && m.m_depth >= 1 && m.m_depth <= eff && !mon_has_flag(m, MF_UNIQUE) {
+      out += [m];
+    }
+  }
+  out
+}
+
+// One rarity-weighted pick from the pool (cumulative-weight scan, guarded
+// direct index — the mon_pick form the interpreter handles safely).
+fn mon_one(table: vector<MonsterDef>, eff: integer, salt: integer) -> MonsterDef {
+  pool = mon_pool(table, eff);
+  np = len(pool);
+  chosen = mon_none();
+  if np > 0 {
+    total = 0;
+    for wi in 0..np {
+      if wi < np { m = pool[wi]; total += mon_weight(m.m_rarity); }
+    }
+    if total > 0 {
+      s = (((salt & 2147483647) | 1) * 1103515245 + 12345) & 2147483647;
+      roll = s % total ?? 0;
+      acc = 0;
+      hit = false;
+      for wj in 0..np {
+        if !hit && wj < np {
+          m = pool[wj];
+          acc += mon_weight(m.m_rarity);
+          if roll < acc { chosen = m; hit = true; }
+        }
+      }
+    }
+  }
+  chosen
+}
+
+// Angband get_mon_num: rarity-weighted, depth-filtered draw with a deepen bias
+// (keep the deepest of 3 draws). Excludes uniques. Returns mon_none() (m_hp==0)
+// only if nothing is eligible. `salt` makes each call independent + reproducible.
+pub fn mon_choose(table: vector<MonsterDef>, eff: integer, salt: integer) -> MonsterDef {
+  best = mon_none();
+  bestdepth = -1;
+  d = 0;
+  while d < 3 {
+    cand = mon_one(table, eff, salt * 131 + d * 17);
+    if cand.m_hp > 0 && cand.m_depth > bestdepth {
+      bestdepth = cand.m_depth;
+      best = cand;
+    }
+    d += 1;
+  }
+  best
 }

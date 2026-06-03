@@ -450,9 +450,60 @@ pub fn sim_new() -> Sim {
   }
 }
 
+// ── Monster placement (Angband get_mon_num) ──────────────────────────
+
+// Self-contained LCG (gen's RNG lives in another module; `&` mutation only
+// propagates within a module, so placement keeps its own in `sim`).
+struct SimRng { rs: integer not null }
+
+fn srng_seed(seed: integer) -> SimRng { SimRng { rs: (seed & 2147483647) | 1 } }
+
+fn srng(r: &SimRng, lo: integer, hi: integer) -> integer {
+  if hi <= lo { return lo; }
+  n = (r.rs * 1103515245 + 12345) & 2147483647;
+  r.rs = n;
+  span = hi - lo + 1;
+  lo + (n % span ?? 0)
+}
+
+// Monster selection (get_mon_num) lives in monsters.loft as mon_choose —
+// iterating the MonsterDef table with a struct fallback SIGSEGVs the interpreter
+// from this module, but is fine inside monsters.loft where the type is defined.
+
+// Build a live (asleep) Enemy from a MonsterDef at a hex. (The glyph is guarded
+// to "?" — a struct-copy through the selection chain can drop the text field.)
+fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
+  g = md.m_glyph;
+  if len(g) == 0 { g = "?"; }
+  Enemy { cur_q: q, cur_r: r, tgt_q: q, tgt_r: r,
+    hp: md.m_hp, maxhp: md.m_hp, dam: md.m_dam,
+    vision: md.m_vision, flags: md.m_flags, awake: false,
+    cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, alive: true }
+}
+
+// Is any already-placed enemy on this hex?
+fn occupied_hex(enemies: vector<Enemy>, q: integer, r: integer) -> boolean {
+  found = false;
+  for oi in 0..len(enemies) {
+    e = enemies[oi];
+    if e.cur_q == q && e.cur_r == r { found = true; }
+  }
+  found
+}
+
+// Is (q,r) solid rock or off-map in this tile array?
+fn tile_solid(tiles: vector<integer>, w: integer, h: integer, q: integer, r: integer) -> boolean {
+  if q < 0 || r < 0 || q >= w || r >= h { return true; }
+  ti = r * w + q;
+  solid = true;
+  if ti < len(tiles) { solid = (tiles[ti] ?? 1) == 1; }
+  solid
+}
+
 // Procedural dungeon: rooms + corridors from gen_dungeon (world-keyed seed),
-// the player placed in room 0 and monsters drawn from the depth-appropriate
-// DB pool into the remaining rooms. Renderer-agnostic — no graphics here.
+// the player placed in room 0; monsters scattered onto legal floor by the
+// Angband placement pass (budget → get_mon_num → start-safe spot → groups).
+// Renderer-agnostic — no graphics here.
 pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   w = 41;
   h = 41;
@@ -472,18 +523,56 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   }
   (spx, spy) = hex_to_px(pq, pr);
 
-  // One monster per remaining room, picked from the depth pool.
-  pool = mon_for_depth(monster_table(), depth);
+  // Collect legal floor far from the player start, then sample the budget from
+  // it directly (robust even when open floor is a small fraction of the map).
+  table = monster_table();
+  rng = srng_seed((seed ^ 20771) & 2147483647);
+  safe = 8;                             // keep spawns this far from the start
+  candq: vector<integer> = [];
+  candr: vector<integer> = [];
+  for ccr in 1..(h - 1) {
+    for ccq in 1..(w - 1) {
+      if !tile_solid(tiles, w, h, ccq, ccr) && hex_distance(ccq, ccr, pq, pr) >= safe {
+        candq += [ccq];
+        candr += [ccr];
+      }
+    }
+  }
+  ncand = len(candq);
+  budget = 10 + srng(rng, 0, 8);   // ~10–18
+  if budget > ncand { budget = ncand; }
   enemies: vector<Enemy> = [];
-  for ri in 1..nrm {
-    eq = rqs[ri] ?? 0;
-    er = rrs[ri] ?? 0;
-    md = mon_pick(pool, seed, ri);
-    if md.m_hp > 0 {
-      enemies += [Enemy { cur_q: eq, cur_r: er, tgt_q: eq, tgt_r: er,
-        hp: md.m_hp, maxhp: md.m_hp, dam: md.m_dam,
-        vision: md.m_vision, flags: md.m_flags, awake: false,
-        cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: md.m_glyph, alive: true }];
+  placed = 0;
+  guard = 0;
+  // Dedup is handled by occupied_hex (re-picking a taken cell just retries) —
+  // a `used` marker vector built by comprehension read back null here.
+  while placed < budget && guard < ncand * 4 + 100 {
+    guard += 1;
+    if ncand > 0 {
+      k = srng(rng, 0, ncand - 1);
+      sq = candq[k] ?? 1;
+      sr = candr[k] ?? 1;
+      if !occupied_hex(enemies, sq, sr) {
+        eff = depth;
+        if srng(rng, 0, 24) == 0 { eff = depth + srng(rng, 1, 4); }   // out-of-depth
+        md = mon_choose(table, eff, srng(rng, 0, 2000000000));
+        if md.m_hp > 0 {
+          enemies += [mk_enemy(md, sq, sr)];
+          placed += 1;
+          if (md.m_flags & MF_GROUP) != 0 {
+            gsz = srng(rng, 2, 4);
+            for gk in 0..gsz {
+              if placed < budget {
+                (gq, gr) = hex_neighbor(sq, sr, gk % 6 ?? 0);
+                if !tile_solid(tiles, w, h, gq, gr) && hex_distance(gq, gr, pq, pr) >= safe && !occupied_hex(enemies, gq, gr) {
+                  enemies += [mk_enemy(md, gq, gr)];
+                  placed += 1;
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
