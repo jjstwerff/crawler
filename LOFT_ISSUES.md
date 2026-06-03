@@ -19,29 +19,40 @@ Severity: **HIGH** = silent wrong behaviour or crash on ordinary code ·
 > so each fix can be verified against real game code. As loft changes land, flip
 > the **Status** below and note the fixing commit; the repro for each issue is
 > the linked section.
+>
+> **Upstreamed 2026-06-03** to `jjstwerff/loft` (tagged `hit-by:crawler`): the
+> cleanly-minimal new bugs filed as issues; the HIGH "silent / emergent" ones
+> (C1–C5, C18) couldn't be isolated to a minimal repro and overlap the existing
+> store-lifetime issue **#248**, so they're attached there as a comment rather
+> than as un-repro-able dups. C9–C17 are older/by-design/environment notes and
+> were not refiled (re-verify on current loft before filing).
 
 ### Status tracker
 
 | ID  | Title | Sev | Status |
 |-----|-------|-----|--------|
-| C1  | `vector<struct>[i] ?? structfn()` SIGSEGV | HIGH | OPEN |
-| C2  | `println` changes results (Heisenbug) | HIGH | OPEN |
-| C3  | struct copy drops a `text` field | HIGH | OPEN |
-| C4  | cross-module `&Struct` mutation lost | HIGH | OPEN |
-| C5  | comprehension-built vector reads null | MED | OPEN |
-| C6  | `!` on an integer is not logical-not | MED | OPEN |
-| C7  | chained `as` casts don't parse | LOW | OPEN |
-| C8  | `gl_load_font` relative-path base (doc) | LOW | OPEN |
-| C9  | native: `return let mut …` invalid Rust | HIGH | OPEN |
-| C10 | boolean `?? fallback` unreliable | MED | OPEN |
-| C11 | struct-field vector index returns null | MED | OPEN |
-| C12 | `&vector<T>` param doesn't parse | LOW | OPEN |
-| C13 | copy `&ref` to local panics codegen | LOW | OPEN |
-| C14 | literal `{`/`}` in strings must double | LOW | OPEN |
-| C15 | `E0514` prebuilt-rlib rustc mismatch | env | OPEN |
-| C16 | GL 2D depth-test / no default blend func | doc | OPEN |
-| C17 | `gl_screenshot` unreliable under Xvfb | n/a | OPEN |
-| C18 | runtime append to a struct-field vector is unreliable | HIGH | OPEN |
+| C1  | `vector<struct>[i] ?? structfn()` SIGSEGV | HIGH | → loft#248 (comment; emergent, no min repro) |
+| C2  | `println` changes results (Heisenbug) | HIGH | → loft#248 (comment) |
+| C3  | struct copy drops a `text` field | HIGH | → loft#248 (comment) |
+| C4  | cross-module `&Struct` mutation lost | HIGH | → loft#248 (comment) |
+| C5  | comprehension-built vector reads null | MED | store-lifetime family (not filed) |
+| C6  | `!` on an integer is not logical-not | MED | **filed loft#253** |
+| C7  | chained `as` casts don't parse | LOW | **filed loft#254** |
+| C8  | `gl_load_font` relative-path base | LOW | **filed loft#255** |
+| C9  | native: `return let mut …` invalid Rust | HIGH | not refiled (older — re-verify) |
+| C10 | boolean `?? fallback` unreliable | MED | not refiled (older — re-verify) |
+| C11 | struct-field vector index returns null | MED | not refiled (≈ C3/C5 family) |
+| C12 | `&vector<T>` param doesn't parse | LOW | not refiled (older — re-verify) |
+| C13 | copy `&ref` to local panics codegen | LOW | not refiled (older — re-verify) |
+| C14 | literal `{`/`}` in strings must double | LOW | by-design (language) — not a bug |
+| C15 | `E0514` prebuilt-rlib rustc mismatch | env | environment (rebuild loft) — not filed |
+| C16 | GL 2D depth-test / no default blend func | doc | by-design — not filed |
+| C17 | `gl_screenshot` unreliable under Xvfb | n/a | test-env — not filed |
+| C18 | runtime append to a struct-field vector unreliable | HIGH | → loft#248 (comment; emergent) |
+
+Existing upstream issues that overlap our family (for reference): **#248**
+(constructor-return → CONST_STORE → read-only write), **#250** (nested-vector
+3-deep store OOB), **#246** (`vv[0] += [9]` nested-element compound-assign).
 
 ---
 
