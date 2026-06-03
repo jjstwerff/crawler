@@ -1,0 +1,27 @@
+// gridtest — headless check of the square ("90-degree") grid geometry.
+
+use gridgeo;
+
+fn main() {
+  println("=== grid geometry test ===");
+  (x, y) = cell_to_px(3, 5);
+  (cq, cr) = px_to_cell(3.1, 4.8);
+  (eq2, er2) = cell_neighbor(2, 2, 0);
+  d0 = neighbor_dir(0, 0, 1, 0);
+  d3 = neighbor_dir(0, 0, 0, -1);
+  dx = neighbor_dir(0, 0, 1, 1);
+  dist = cell_distance(0, 0, 3, 2);
+  (ca, cb) = edge_corners(0);
+  (oq, owr, oe) = canon_edge(5, 5, 2);
+  println("to_px=({x},{y}) px_to_cell=({cq},{cr}) E_nbr=({eq2},{er2})");
+  println("dirE={d0} dirN={d3} diag={dx} dist={dist} edge0=({ca},{cb}) canonW=({oq},{owr},{oe})");
+
+  ok = x == 3.0 && y == 5.0
+    && cq == 3 && cr == 5
+    && eq2 == 3 && er2 == 2
+    && d0 == 0 && d3 == 3 && dx == -1
+    && dist == 3
+    && ca == 1 && cb == 2
+    && oq == 4 && owr == 5 && oe == 0;
+  if ok { println("=== GRID OK ==="); } else { println("=== FAIL ==="); }
+}

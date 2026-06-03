@@ -1,0 +1,75 @@
+// gridgeo.loft — square ("90-degree") grid geometry: the planned replacement
+// for the hex grid (hexgeo). On a square grid, wall silhouettes are already
+// straight with right-angle corners (Angband-native), so the hex-wobble
+// straightening problem disappears. Renderer-agnostic. Cells are unit squares
+// centred on integer (q,r); world +y is "down" (screen convention). API mirrors
+// hexgeo so migrating sim/gen/view is mostly a name-swap (and 6→4 loops).
+
+GRID_SIZE = 1.0;
+GRID_LEN  = 1.0;   // distance between adjacent cells = the distance-clock unit
+
+// Cell (q,r) -> world centre.
+pub fn cell_to_px(q: integer, r: integer) -> (float, float) {
+  (q as float, r as float)
+}
+
+// World point -> the cell containing it (cells centred on integers).
+pub fn px_to_cell(x: float, y: float) -> (integer, integer) {
+  (round(x) as integer, round(y) as integer)
+}
+
+// 4 orthogonal directions: 0=E, 1=S, 2=W, 3=N.
+pub fn cell_neighbor(q: integer, r: integer, dir: integer) -> (integer, integer) {
+  if dir == 0 { return (q + 1, r); }
+  if dir == 1 { return (q, r + 1); }
+  if dir == 2 { return (q - 1, r); }
+  (q, r - 1)
+}
+
+// Inverse of cell_neighbor; -1 if not orthogonally adjacent.
+pub fn neighbor_dir(q1: integer, r1: integer, q2: integer, r2: integer) -> integer {
+  dq = q2 - q1;
+  dr = r2 - r1;
+  if dq == 1 && dr == 0 { return 0; }
+  if dq == 0 && dr == 1 { return 1; }
+  if dq == -1 && dr == 0 { return 2; }
+  if dq == 0 && dr == -1 { return 3; }
+  -1
+}
+
+// King-move (Chebyshev) distance — matches 8-directional movement.
+pub fn cell_distance(q1: integer, r1: integer, q2: integer, r2: integer) -> integer {
+  dq = abs(q1 - q2);
+  dr = abs(r1 - r2);
+  if dq > dr { dq } else { dr }
+}
+
+// Corner offsets of a unit cell (centre origin): 0=NW,1=NE,2=SE,3=SW (y down).
+pub fn cell_corner_offset(i: integer) -> (float, float) {
+  if i == 0 { return (-0.5, -0.5); }
+  if i == 1 { return (0.5, -0.5); }
+  if i == 2 { return (0.5, 0.5); }
+  (-0.5, 0.5)
+}
+
+pub fn cell_corner_px(q: integer, r: integer, i: integer) -> (float, float) {
+  (cox, coy) = cell_corner_offset(i);
+  (q as float + cox * GRID_SIZE, r as float + coy * GRID_SIZE)
+}
+
+// The two corner indices bounding the edge in direction dir.
+pub fn edge_corners(dir: integer) -> (integer, integer) {
+  if dir == 0 { return (1, 2); }   // E: NE-SE
+  if dir == 1 { return (2, 3); }   // S: SE-SW
+  if dir == 2 { return (3, 0); }   // W: SW-NW
+  (0, 1)                            // N: NW-NE
+}
+
+// Resolve any of the 4 directions to the owning cell + canonical edge (0=E,1=S);
+// W/N delegate to the neighbour (each physical edge stored once).
+pub fn canon_edge(q: integer, r: integer, dir: integer) -> (integer, integer, integer) {
+  if dir == 0 { return (q, r, 0); }       // E
+  if dir == 1 { return (q, r, 1); }       // S
+  if dir == 2 { return (q - 1, r, 0); }   // W == west neighbour's E
+  (q, r - 1, 1)                            // N == north neighbour's S
+}
