@@ -678,10 +678,11 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
 - [x] **P2** flow-field pathing — BFS distance field from the player (respects
   solid hexes + edge walls), recomputed per tick; monsters descend the gradient
   and **route around walls** (no more greedy `best_step` wall-stick/clump).
+- [x] **H1** hero progression — **XP on kill** (scaled by monster level),
+  level-up grows max HP + heals the gain; `CL` + XP bar in the HUD. (Hero stored
+  as flat `Sim` fields — `clevel/xp/gold/hcon`; full 6-stat block lands with H2.)
 
 ### Now — make it feel like a roguelike
-- [ ] **H1** Hero model + **XP on kill** + level-up (HP growth); promote
-  `Sim.php` → `Hero`. *The core RPG loop.*
 - [ ] **I1** floor gold + monster-death item drops + pickup (`g`); items as map
   glyphs.
 - [ ] **FOV** — facing-cone field of view / fog of war.

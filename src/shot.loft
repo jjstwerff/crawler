@@ -21,6 +21,7 @@ fn main() {
   s = sim_new_gen(1337, 5);
   walls = build_walls(s);
   hud = build_hud(s);
+  sim_award_xp(s, 35);   // (shot only) show the XP bar partway + a higher CL
 
   // Frame the down-stair: place the player ~2.5 units 'south' of it so the '>'
   // glyph sits just above the '@' (heading is up = +y).

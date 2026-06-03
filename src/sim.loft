@@ -11,9 +11,10 @@ use monsters;
 MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)
 TURN_SPEED = 2.6;     // radians / second
 PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.866)
-PLAYER_HP  = 30;      // starting / max player hit points (placeholder)
 PLAYER_DAM = 6;       // player melee damage per hit (placeholder)
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
+HERO_CON   = 16;      // starting Constitution (drives HP growth; full stat block = H2)
+MAX_CLEVEL = 50;      // character-level cap
 
 pub struct Enemy {
   cur_q: integer not null,
@@ -23,6 +24,8 @@ pub struct Enemy {
   hp:    integer not null,
   maxhp: integer not null,
   dam:   integer not null,
+  xp:     integer not null,   // experience awarded on death (m_xp)
+  mlvl:   integer not null,   // native level (m_depth) — scales the kill XP
   vision: integer not null,   // aggro / detection range in hexes (from the DB)
   flags:  integer not null,   // MF_* bitmask (from the DB)
   awake:  boolean not null,   // false = asleep: won't act until it perceives you
@@ -49,6 +52,10 @@ pub struct Sim {
   php:     integer not null,   // player hit points
   phpmax:  integer not null,
   over:    boolean not null,   // game over (player died)
+  clevel:  integer not null,   // character level (1..MAX_CLEVEL)
+  xp:      integer not null,   // experience points
+  gold:    integer not null,   // gold (income arrives with items, I1)
+  hcon:    integer not null,   // Constitution — drives HP growth
   depth:   integer not null,   // dungeon level (1 = shallowest)
   wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
@@ -206,15 +213,49 @@ fn front_enemy(s: Sim) -> integer {
   best
 }
 
-// Player hits enemy `idx` for PLAYER_DAM.
+// ── Hero progression (XP / level / HP) ───────────────────────────────
+
+fn con_bonus(con: integer) -> integer { (con - 10) / 2 ?? 0 }
+
+// Max HP at a character level (deterministic; per-class hit dice arrive in H2).
+fn hero_maxhp(clevel: integer, con: integer) -> integer {
+  20 + clevel * (6 + con_bonus(con))
+}
+
+// Total XP required to be AT a character level (quadratic growth).
+fn xp_for_level(lvl: integer) -> integer {
+  if lvl <= 1 { return 0; }
+  (lvl - 1) * (lvl - 1) * 10
+}
+
+// Award XP and level up while the threshold is met; each level grows max HP and
+// heals the gained amount.
+pub fn sim_award_xp(s: &Sim, amount: integer) {
+  if amount > 0 { s.xp += amount; }
+  while s.clevel < MAX_CLEVEL && s.xp >= xp_for_level(s.clevel + 1) {
+    s.clevel += 1;
+    oldmax = s.phpmax;
+    newmax = hero_maxhp(s.clevel, s.hcon);
+    s.phpmax = newmax;
+    s.php += newmax - oldmax;
+  }
+}
+
+// Player hits enemy `idx` for PLAYER_DAM; on a kill, awards level-scaled XP.
 fn player_attack(s: &Sim, idx: integer) {
   enemies = s.enemies;
   if idx >= 0 && idx < len(enemies) {
     e = enemies[idx];
     if e.alive {
       e.hp -= PLAYER_DAM;
-      if e.hp <= 0 { e.alive = false; }
+      gain = 0;
+      if e.hp <= 0 {
+        e.alive = false;
+        gain = e.xp * e.mlvl / s.clevel ?? 0;
+        if gain < 1 { gain = 1; }
+      }
       enemies[idx] = e;
+      if gain > 0 { sim_award_xp(s, gain); }
     }
   }
 }
@@ -400,6 +441,23 @@ pub fn sim_player_hp(s: Sim) -> integer { s.php }
 pub fn sim_player_hp_max(s: Sim) -> integer { s.phpmax }
 pub fn sim_over(s: Sim) -> boolean { s.over }
 
+pub fn sim_clevel(s: Sim) -> integer { s.clevel }
+pub fn sim_xp(s: Sim) -> integer { s.xp }
+pub fn sim_gold(s: Sim) -> integer { s.gold }
+
+// Fraction from the current level toward the next (0..1) — for the XP bar.
+pub fn sim_xp_frac(s: Sim) -> float {
+  lo = xp_for_level(s.clevel);
+  hi = xp_for_level(s.clevel + 1);
+  f = 0.0;
+  if hi > lo {
+    f = (s.xp - lo) as float / (hi - lo) as float ?? 0.0;
+  }
+  if f < 0.0 { f = 0.0; }
+  if f > 1.0 { f = 1.0; }
+  f
+}
+
 pub fn sim_enemy_hp(s: Sim, i: integer) -> integer {
   enemies = s.enemies;
   v = 0;
@@ -485,7 +543,7 @@ pub fn sim_new() -> Sim {
 
   (spx, spy) = hex_to_px(10, 10);
   e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
-    vision: 8, flags: 0, awake: true,
+    xp: 2, mlvl: 1, vision: 8, flags: 0, awake: true,
     cr: 200, cg: 60, cb: 50, glyph: "r", alive: true };
   enemies: vector<Enemy> = [e0];
 
@@ -493,7 +551,8 @@ pub fn sim_new() -> Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
-    php: PLAYER_HP, phpmax: PLAYER_HP, over: false,
+    php: hero_maxhp(1, HERO_CON), phpmax: hero_maxhp(1, HERO_CON), over: false,
+    clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: 1, wseed: 0, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
   }
 }
@@ -525,6 +584,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
   if len(g) == 0 { g = "?"; }
   Enemy { cur_q: q, cur_r: r, tgt_q: q, tgt_r: r,
     hp: md.m_hp, maxhp: md.m_hp, dam: md.m_dam,
+    xp: md.m_xp, mlvl: md.m_depth,
     vision: md.m_vision, flags: md.m_flags, awake: false,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, alive: true }
 }
@@ -647,7 +707,8 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
-    php: PLAYER_HP, phpmax: PLAYER_HP, over: false,
+    php: hero_maxhp(1, HERO_CON), phpmax: hero_maxhp(1, HERO_CON), over: false,
+    clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: depth, wseed: seed, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
   }
 }
@@ -664,6 +725,10 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.php = s.php;
   ns.phpmax = s.phpmax;
   ns.over = s.over;
+  ns.clevel = s.clevel;   // carry the hero across levels
+  ns.xp = s.xp;
+  ns.gold = s.gold;
+  ns.hcon = s.hcon;
   ns.heading = s.heading;
   if dir < 0 {
     (ax, ay) = hex_to_px(ns.dn_q, ns.dn_r);

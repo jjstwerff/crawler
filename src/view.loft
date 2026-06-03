@@ -40,6 +40,7 @@ pub struct Hud {
   sdown:  integer not null,           // '>' down-stair glyph
   sup:    integer not null,           // '<' up-stair glyph
   dlbl:   integer not null,           // "DEPTH" label
+  clbl:   integer not null,           // "CL" (character level) label
 }
 
 // Load the font and bake the static glyph/text textures for this level.
@@ -77,6 +78,7 @@ pub fn build_hud(s: Sim) -> Hud {
   sdown = 0;
   sup = 0;
   dlbl = 0;
+  clbl = 0;
   digits: vector<integer> = [for _ in 0..10 { 0 }];
   etex: vector<integer> = [];
   if font != 0 {
@@ -85,6 +87,7 @@ pub fn build_hud(s: Sim) -> Hud {
     sdown = graphics::create_text_texture(font, ">", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
     sup = graphics::create_text_texture(font, "<", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
     dlbl = graphics::create_text_texture(font, "DEPTH", DIGIT_SIZE, graphics::rgba(180, 190, 210, 255));
+    clbl = graphics::create_text_texture(font, "CL", DIGIT_SIZE, graphics::rgba(190, 210, 180, 255));
     for d in 0..10 {
       digits[d] = graphics::create_text_texture(font, "{d}", DIGIT_SIZE, graphics::rgba(235, 235, 215, 255));
     }
@@ -96,7 +99,7 @@ pub fn build_hud(s: Sim) -> Hud {
     }
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
-    sdown: sdown, sup: sup, dlbl: dlbl }
+    sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -246,6 +249,17 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0, 16.0, 0.25, 0.05, 0.05, 1.0);
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0 * hpf, 16.0, 0.20, 0.80, 0.30, 1.0);
   if hud.font != 0 { draw_number(painter, hud, hp, 240.0, 10.0); }
+
+  // XP bar (under the HP bar) + character level.
+  xpf = sim_xp_frac(s);
+  graphics::draw_rect_at(painter, 12.0, 30.0, 220.0, 6.0, 0.10, 0.10, 0.22, 1.0);
+  graphics::draw_rect_at(painter, 12.0, 30.0, 220.0 * xpf, 6.0, 0.45, 0.45, 0.85, 1.0);
+  if hud.font != 0 && hud.clbl != 0 {
+    clw = graphics::gl_measure_text(hud.font, "CL", DIGIT_SIZE) + 5.0;
+    clh = graphics::gl_text_height(hud.font, DIGIT_SIZE) as float + 4.0;
+    graphics::draw_texture_at(painter, hud.clbl, 12.0, 40.0, clw, clh);
+    draw_number(painter, hud, sim_clevel(s), 12.0 + clw + 4.0, 40.0);
+  }
 
   // Depth readout (top-right): "DEPTH n".
   if hud.font != 0 && hud.dlbl != 0 {

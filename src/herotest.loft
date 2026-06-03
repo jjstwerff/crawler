@@ -1,0 +1,46 @@
+// herotest — headless checks for H1 (hero progression): awarding XP levels the
+// hero up, growing max HP and healing the gained amount; killing a monster in
+// combat awards XP. Deterministic.
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story hero test (XP + level-up) ===");
+  s = sim_new();
+  cl0 = sim_clevel(s);            // 1
+  hp0max = sim_player_hp_max(s);  // hero_maxhp(1, 16)
+  before_hp = sim_player_hp(s);   // full at start
+  xp0 = sim_xp(s);                // 0
+
+  // L2 needs 10 xp, L3 40, L4 90 -> 100 xp reaches level 4.
+  sim_award_xp(s, 100);
+  cl1 = sim_clevel(s);
+  hp1max = sim_player_hp_max(s);
+  hp1 = sim_player_hp(s);
+  xp1 = sim_xp(s);
+
+  ok_levels = cl1 > cl0;
+  ok_hpgrow = hp1max > hp0max;
+  ok_healed = hp1 > before_hp;
+  ok_xp = xp1 == 100;
+
+  // Combat awards XP: charge and kill the trivial-map enemy.
+  s2 = sim_new();
+  (ppx, ppy) = hex_to_px(10, 10);
+  (eex, eey) = hex_to_px(10, 16);
+  s2.heading = atan2(eey - ppy, eex - ppx);
+  for _ in 0..600 { sim_step(s2, 1, 0, 0.016); }
+  dead = !sim_enemy_alive(s2, 0);
+  killxp = sim_xp(s2);
+  ok_killxp = dead && killxp > 0;
+
+  println("level {cl0}->{cl1}  maxhp {hp0max}->{hp1max}  hp {before_hp}->{hp1}  xp {xp0}->{xp1}");
+  println("combat-xp: enemy-dead={dead} xp={killxp}");
+  println("leveled={ok_levels} hp-grew={ok_hpgrow} healed={ok_healed} xp-tracked={ok_xp} kill-awards-xp={ok_killxp}");
+  if ok_levels && ok_hpgrow && ok_healed && ok_xp && ok_killxp {
+    println("=== HERO OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}
