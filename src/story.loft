@@ -20,7 +20,7 @@ KEY_D   = 100;
 KEY_ESC = 27;
 
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
-GEN_DEPTH = 5;      // zone depth -> monster-pool difficulty
+GEN_DEPTH = 1;      // starting level: depth 1 (rats/mice/bats/centipedes)
 
 fn main() {
   if !graphics::gl_create_window(WIN_W, WIN_H, "story — M0") {
