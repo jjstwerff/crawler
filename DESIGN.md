@@ -178,6 +178,28 @@ segments × (**junction policy**: sharp-miter / rounded-arc / round-tower), with
 a junction-detection pass. Houses = (12, sharp); roads = (24, rounded);
 town/castle walls = (24, sharp curtains + round towers).
 
+**Collision stays on the hex grid; the overlay is render-only.** Towers keep
+their own **hex**, and walls use the **3 canonical hex edge-walls** (`h_wall_*`).
+So collision is the existing hex model — solid cells + edge walls + tower hexes,
+resolved by `is_blocked_move` (+ sliding/radius), already built in `sim.loft`.
+The continuous player never collides against the pretty overlay segments; it
+collides against hex cells/edges. The 12/24-dir straight walls, round towers,
+and rounded roads are the **render** of that hex wall/tower data (the view
+detects towers at curtain-wall junctions and draws them round; `moros_render`
+does it in 3D). Clean split: **kernel = hex collision truth; view = the pretty
+overlay derived from it.**
+
+**Castle curtain walls are 2 hexes wide** — thick enough for a **walkable top
+(rampart / wall-walk)** and **battlements** (crenellated parapet on the outer
+edge). So a castle wall is a **height feature (§6a)**: the 2-hex band is
+solid/impassable at ground level but **walkable on top**, an elevated layer
+reached by stairs or a gate-tower, with the parapet providing cover/blocking up
+there. Towers rise to the wall-walk height and link the rampart runs. Collision
+is still the hex model — just with height (blocked below, walkable above, via the
+step-up/stairs + layer logic). 3D: `moros_render`'s thick walls + raised hex
+surfaces + cylinder-post towers — already-present primitives, so the full castle
+(thick curtains, ramparts, towers) is renderable.
+
 The two wall experiments both find a home: **straighten/sharp → buildings**;
 **average/round → roads** (the rounded `wallgeo.loft` is the road smoother; the
 Douglas–Peucker straightener is parked at `patches/`). Organic cave/dungeon
