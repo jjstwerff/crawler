@@ -24,8 +24,13 @@ Severity: **HIGH** = silent wrong behaviour or crash on ordinary code ·
 > cleanly-minimal new bugs filed as issues; the HIGH "silent / emergent" ones
 > (C1–C5, C18) couldn't be isolated to a minimal repro and overlap the existing
 > store-lifetime issue **#248**, so they're attached there as a comment rather
-> than as un-repro-able dups. C9–C17 are older/by-design/environment notes and
-> were not refiled (re-verify on current loft before filing).
+> than as un-repro-able dups.
+>
+> **Re-verified 2026-06-03** (current loft): **C9 fixed**, **C11 no longer
+> reproduces**, **C12 fixed**, and **C15 (E0514) resolved** — the native `--check`
+> gate runs again, so the WebGL build is unblocked. The still-live **C10**
+> (boolean `??`) and **C13** (`&ref`→local codegen panic) were filed (#256/#257).
+> C14/C16/C17 are by-design/environment and not refiled.
 
 ### Status tracker
 
@@ -39,13 +44,13 @@ Severity: **HIGH** = silent wrong behaviour or crash on ordinary code ·
 | C6  | `!` on an integer is not logical-not | MED | **filed loft#253** |
 | C7  | chained `as` casts don't parse | LOW | **filed loft#254** |
 | C8  | `gl_load_font` relative-path base | LOW | **filed loft#255** |
-| C9  | native: `return let mut …` invalid Rust | HIGH | not refiled (older — re-verify) |
-| C10 | boolean `?? fallback` unreliable | MED | not refiled (older — re-verify) |
-| C11 | struct-field vector index returns null | MED | not refiled (≈ C3/C5 family) |
-| C12 | `&vector<T>` param doesn't parse | LOW | not refiled (older — re-verify) |
-| C13 | copy `&ref` to local panics codegen | LOW | not refiled (older — re-verify) |
+| C9  | native: `return let mut …` invalid Rust | HIGH | **FIXED** (re-verified — compiles native) |
+| C10 | boolean `?? fallback` unreliable | MED | **filed loft#256** (re-verified) |
+| C11 | struct-field vector index returns null | MED | not reproduced (re-verified — fixed / was emergent) |
+| C12 | `&vector<T>` param doesn't parse | LOW | **FIXED** (re-verified — parses + mutates) |
+| C13 | copy `&ref` to local panics codegen | HIGH | **filed loft#257** (re-verified — both backends) |
 | C14 | literal `{`/`}` in strings must double | LOW | by-design (language) — not a bug |
-| C15 | `E0514` prebuilt-rlib rustc mismatch | env | environment (rebuild loft) — not filed |
+| C15 | `E0514` prebuilt-rlib rustc mismatch | env | **RESOLVED** (native `--check` runs; web build unblocked) |
 | C16 | GL 2D depth-test / no default blend func | doc | by-design — not filed |
 | C17 | `gl_screenshot` unreliable under Xvfb | n/a | test-env — not filed |
 | C18 | runtime append to a struct-field vector unreliable | HIGH | → loft#248 (comment; emergent) |
