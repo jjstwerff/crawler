@@ -682,11 +682,13 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
   level-up grows max HP + heals the gain; `CL` + XP bar in the HUD. (Hero stored
   as flat `Sim` fields — `clevel/xp/gold/hcon`; full 6-stat block lands with H2.)
 
+- [x] **Wait** — `.`/Space advances one world tick in place (enemies act; you
+  don't move).
+
 ### Now — make it feel like a roguelike
 - [ ] **I1** floor gold + monster-death item drops + pickup (`g`); items as map
   glyphs.
 - [ ] **FOV** — facing-cone field of view / fog of war.
-- [ ] **Wait** action (`.`/Space advances one tick in place).
 
 ### Next — depth & UI
 - [ ] **H2** character **sidebar** (name/race/class/level/xp/gold/6 stats/AC/HP/

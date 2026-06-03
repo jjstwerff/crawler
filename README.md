@@ -38,8 +38,30 @@ See **[DESIGN.md](DESIGN.md)** for the full design.
 |---|---|
 | `W` / `S` | glide forward / back |
 | `A` / `D` | turn left / right (free — no time passes) |
-| `.` / `Space` | wait one tick |
+| `E` | use the stairs under you (`>` descend · `<` ascend) |
+| `.` / `Space` | wait one tick (enemies act, you don't move) |
 | `Esc` | quit |
+
+## How to play
+
+You are **`@`**. Glide with `W`/`S` and turn with `A`/`D` — the dungeon rotates
+around you. Steer into a monster to attack it (pressing forward into it lands a
+hit each tick); you trade blows until one of you dies. Kills earn **XP** — fill
+the blue bar under the green HP bar to **level up** (more max HP). Find a **`>`**
+down-stair and press `E` to descend; deeper levels are tougher. The top-left HUD
+shows HP, the XP bar + level (`CL`), and the dungeon **DEPTH** (top-right).
+
+On the map:
+
+| Glyph | Meaning |
+|---|---|
+| `@` (yellow) | you |
+| letters (`r` `k` `o` `R` `g` …) | monsters — coloured & lettered by kind (rat, kobold, orc, frog, goblin, …) |
+| `>` / `<` | down / up stairs |
+| grey cells | rock / walls (the yellow outline traces the cavern edge) |
+
+Monsters spawn **asleep** and wake when you come within sight, so you can
+sometimes get the drop on them; once awake they path around walls to reach you.
 
 ## Build & run
 
@@ -55,19 +77,31 @@ make help     # list all targets
 
 ## Status
 
-**M0 vertical slice runs:** generated hex map, continuous WASD with the rotating
-egocentric view, a hex-locked enemy that ticks on your travel distance, wall
-collision with sliding + a player radius. Built and tested alongside it:
-clean-room **monster / class / race / item** data tables and a **procedural
-dungeon generator** (rooms + corridors, world-keyed). Next: combat + HP, the
-facing-cone FOV, a HUD, and wiring the generator into the live game.
+**Playable:** descend a procedurally generated, monster-populated dungeon, fight
+in melee, gain XP and level up, and take stairs to deeper levels. Built so far:
+
+- **Movement & view** — continuous egocentric glide/turn, distance-driven clock,
+  hex collision with sliding + a player radius.
+- **Combat** — bump-melee, HP, death / game-over.
+- **Procedural dungeon + monsters** — rooms + corridors (world-keyed); monsters
+  drawn from the DB by depth (rarity-weighted, packs, spawned asleep), rendered
+  as coloured glyph letters on backdrop discs.
+- **Monster AI** — awareness (sleep → wake on sight), `NEVER_MOVE`, and
+  **flow-field pathing** that routes around walls.
+- **Progression** — XP on kill (scaled by monster level), level-up, HP growth;
+  HP / XP / level / depth HUD.
+- **Levels** — `>` / `<` stairs, real depth, deterministic per-depth descent.
+
+Plus clean-room **monster / class / race / item** data tables. The ordered
+roadmap (next: items, the character sidebar, monster speed & fear) is the backlog
+in **[DESIGN.md §18a](DESIGN.md)**.
 
 ## Layout
 
 ```
 src/hexgeo.loft   hex geometry (axial)                 — kernel
 src/gridgeo.loft  square geometry for 90° walls          — kernel
-src/sim.loft      world + player + enemies + clock + collision — kernel (no graphics)
+src/sim.loft      world + player + enemies + combat + AI + XP + stairs — kernel (no graphics)
 src/gen.loft      procedural dungeon generator           — kernel
 src/monsters|classes|races|items.loft   clean-room data tables — kernel
 src/wallgeo.loft  wall outline (rounded active; DP parked in patches/) — derived geometry
@@ -79,6 +113,14 @@ src/*test.loft    headless tests
 The `hexgeo`/`gridgeo`/`sim`/`gen`/data modules import no graphics; `view`/`story`
 are the swappable 2D front-end. That invariant is what lets the same kernel drive
 a 3D renderer (`moros_render`) later.
+
+## Docs
+
+- **[DESIGN.md](DESIGN.md)** — the full design: architecture (kernel/view split),
+  world model, monster AI / placement / level structure, the HUD sidebar & items
+  systems, and the ordered **TODO backlog** (§18a) that drives development.
+- **[LOFT_ISSUES.md](LOFT_ISSUES.md)** — loft language/interpreter bugs found while
+  building this game, each with a minimal repro, workaround, and a status tracker.
 
 ## License
 

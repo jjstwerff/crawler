@@ -18,6 +18,8 @@ KEY_S   = 115;
 KEY_A   = 97;
 KEY_D   = 100;
 KEY_E   = 101;      // use stairs (descend on '>', ascend on '<')
+KEY_DOT = 46;       // '.' wait one tick
+KEY_SPC = 32;       // Space — also wait
 KEY_ESC = 27;
 
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
@@ -42,6 +44,7 @@ fn main() {
   hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
   last = ticks();
   e_was = false;            // edge-trigger for the stairs key
+  w_was = false;            // edge-trigger for the wait key
   running = true;
   while running {
     if !graphics::gl_poll_events() {
@@ -77,6 +80,11 @@ fn main() {
         }
       }
       e_was = e_down;
+
+      // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
+      w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
+      if w_down && !w_was { sim_wait(s); }
+      w_was = w_down;
 
       sim_step(s, fwd, turn, dt);
       view_draw(painter, s, walls, hud);

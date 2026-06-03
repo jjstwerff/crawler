@@ -348,6 +348,11 @@ pub fn sim_tick(s: &Sim) {
   }
 }
 
+// Wait: advance one world tick in place (enemies act, the player doesn't move).
+pub fn sim_wait(s: &Sim) {
+  if !s.over { sim_tick(s); }
+}
+
 // Advance one frame.  fwd in {-1,0,1}, turn in {-1,0,1}, dt seconds.
 pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
   if s.over { return; }
