@@ -1,0 +1,60 @@
+// aitest — headless checks for monster awareness (P1): procedural spawns start
+// asleep; a sleeper stays put & asleep when the player is out of range; it wakes
+// when the player is within vision + line-of-sight; a NEVER_MOVE monster never
+// steps even while awake with the player in view. Deterministic.
+
+use hexgeo;
+use sim;
+use monsters;
+
+fn main() {
+  println("=== story AI test (awareness + never-move) ===");
+
+  // (1) Procedural spawn: every monster starts asleep.
+  g = sim_new_gen(1337, 5);
+  gec = sim_enemy_count(g);
+  gasleep = 0;
+  for i in 0..gec { if !sim_enemy_awake(g, i) { gasleep += 1; } }
+  ok_spawn_asleep = gec > 0 && gasleep == gec;
+
+  // Controlled scenarios on the trivial map (known geometry): enemy 0 at (10,16),
+  // interior walls along row r=9 (q 9..15) and column q=7 (r 5..12).
+
+  // (2) Asleep + player far (dist 14 > vision 6): stays asleep, does not move.
+  s = sim_new();
+  es = s.enemies; e = es[0]; e.awake = false; e.vision = 6; e.flags = 0; es[0] = e;
+  (cq, cr) = sim_enemy_cur(s, 0);
+  (fpx, fpy) = hex_to_px(10, 2);
+  s.px = fpx; s.py = fpy;
+  sim_tick(s);
+  (cq2, cr2) = sim_enemy_cur(s, 0);
+  ok_far_asleep = !sim_enemy_awake(s, 0) && cq2 == cq && cr2 == cr;
+
+  // (3) Asleep + player adjacent (dist 1, LOS): wakes.
+  s2 = sim_new();
+  es2 = s2.enemies; e2 = es2[0]; e2.awake = false; e2.vision = 6; es2[0] = e2;
+  (npx, npy) = hex_to_px(10, 15);
+  s2.px = npx; s2.py = npy;
+  sim_tick(s2);
+  ok_wake = sim_enemy_awake(s2, 0);
+
+  // (4) NEVER_MOVE awake + player visible at range 2: never steps.
+  s3 = sim_new();
+  es3 = s3.enemies; e3 = es3[0]; e3.awake = true; e3.flags = MF_NEVER_MOVE; es3[0] = e3;
+  (mq, mr) = sim_enemy_cur(s3, 0);
+  (mpx, mpy) = hex_to_px(10, 14);
+  s3.px = mpx; s3.py = mpy;
+  sim_tick(s3);
+  (mq2, mr2) = sim_enemy_cur(s3, 0);
+  ok_nevermove = mq2 == mq && mr2 == mr;
+
+  println("spawn-asleep        : {ok_spawn_asleep} ({gasleep}/{gec})");
+  println("far-stays-asleep    : {ok_far_asleep}");
+  println("wakes-when-adjacent : {ok_wake}");
+  println("never-move-holds    : {ok_nevermove}");
+  if ok_spawn_asleep && ok_far_asleep && ok_wake && ok_nevermove {
+    println("=== AI OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

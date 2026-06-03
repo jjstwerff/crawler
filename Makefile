@@ -122,10 +122,13 @@ test:
 	@echo "  [2/4] combat loop (player melee + enemy attacks) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/combattest.loft | tee /tmp/story_combat.log
 	@grep -q "COMBAT OK" /tmp/story_combat.log || { echo "    FAIL: combat loop"; exit 1; }
-	@echo "  [3/4] dungeon wiring (procedural gen + DB monsters) ..."
+	@echo "  [3/5] dungeon wiring (procedural gen + DB monsters) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/wiretest.loft | tee /tmp/story_wire.log
 	@grep -q "WIRING OK" /tmp/story_wire.log || { echo "    FAIL: dungeon wiring"; exit 1; }
-	@echo "  [4/4] compile gate (parse + bytecode) ..."
+	@echo "  [4/5] monster AI (awareness + never-move) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/aitest.loft | tee /tmp/story_ai.log
+	@grep -q "AI OK" /tmp/story_ai.log || { echo "    FAIL: monster AI"; exit 1; }
+	@echo "  [5/5] compile gate (parse + bytecode) ..."
 	@$(LOFT) --interpret --check $(LOFTFLAGS) $(SRC) >/dev/null 2>&1 || { echo "    FAIL: compile"; exit 1; }
 	@echo "  PASS"
 

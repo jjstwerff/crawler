@@ -22,6 +22,9 @@ pub struct Enemy {
   hp:    integer not null,
   maxhp: integer not null,
   dam:   integer not null,
+  vision: integer not null,   // aggro / detection range in hexes (from the DB)
+  flags:  integer not null,   // MF_* bitmask (from the DB)
+  awake:  boolean not null,   // false = asleep: won't act until it perceives you
   cr:    integer not null,    // display colour 0..255 (from the monster DB)
   cg:    integer not null,
   cb:    integer not null,
@@ -174,6 +177,51 @@ fn player_attack(s: &Sim, idx: integer) {
 
 // One world tick: each live enemy commits its move; if adjacent to the player
 // it attacks (instead of moving), else it steps toward the player.
+// Round to nearest integer (as float), correct for negatives — for cube lerp.
+// (`as integer` truncates toward zero, so bias by ±0.5 before truncating.)
+fn rnd_f(v: float) -> float {
+  base = v + 0.5;
+  if v < 0.0 { base = v - 0.5; }
+  i = base as integer;
+  i as float
+}
+
+// Hex line-of-sight: true if no solid hex blocks the line between the two hex
+// centres (endpoints excluded). Cube-coordinate interpolation + rounding.
+pub fn hex_los(s: Sim, q0: integer, r0: integer, q1: integer, r1: integer) -> boolean {
+  n = hex_distance(q0, r0, q1, r1);
+  blocked = false;
+  if n > 1 {
+    x0 = q0;
+    z0 = r0;
+    y0 = 0 - q0 - r0;
+    x1 = q1;
+    z1 = r1;
+    y1 = 0 - q1 - r1;
+    for li in 1..n {
+      t = li as float / n as float ?? 0.0;
+      fx = x0 as float + (x1 - x0) as float * t;
+      fy = y0 as float + (y1 - y0) as float * t;
+      fz = z0 as float + (z1 - z0) as float * t;
+      rx = rnd_f(fx);
+      ry = rnd_f(fy);
+      rz = rnd_f(fz);
+      dx = abs(rx - fx);
+      dy = abs(ry - fy);
+      dz = abs(rz - fz);
+      if dx > dy && dx > dz {
+        rx = 0.0 - ry - rz;
+      } else if dy > dz {
+        ry = 0.0 - rx - rz;
+      } else {
+        rz = 0.0 - rx - ry;
+      }
+      if is_wall(s, rx as integer, rz as integer) { blocked = true; }
+    }
+  }
+  !blocked
+}
+
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   (pq, pr) = px_to_hex(s.px, s.py);
@@ -183,15 +231,29 @@ pub fn sim_tick(s: &Sim) {
     if e.alive {
       e.cur_q = e.tgt_q;
       e.cur_r = e.tgt_r;
-      if hex_distance(e.cur_q, e.cur_r, pq, pr) <= 1 {
-        s.php -= e.dam;
-        e.tgt_q = e.cur_q;
-        e.tgt_r = e.cur_r;
-        if s.php <= 0 { s.over = true; }
+      d = hex_distance(e.cur_q, e.cur_r, pq, pr);
+      // Awareness: a sleeping monster wakes when the player is within its
+      // vision and in line of sight; once awake it stays awake.
+      if !e.awake && d <= e.vision && hex_los(s, e.cur_q, e.cur_r, pq, pr) {
+        e.awake = true;
+      }
+      if e.awake {
+        if d <= 1 {
+          s.php -= e.dam;            // adjacent: strike instead of moving
+          e.tgt_q = e.cur_q;
+          e.tgt_r = e.cur_r;
+          if s.php <= 0 { s.over = true; }
+        } else if (e.flags & MF_NEVER_MOVE) != 0 {
+          e.tgt_q = e.cur_q;         // stationary (molds, eyes): never steps
+          e.tgt_r = e.cur_r;
+        } else {
+          (bq, br) = best_step(s, e.cur_q, e.cur_r, pq, pr);
+          e.tgt_q = bq;
+          e.tgt_r = br;
+        }
       } else {
-        (bq, br) = best_step(s, e.cur_q, e.cur_r, pq, pr);
-        e.tgt_q = bq;
-        e.tgt_r = br;
+        e.tgt_q = e.cur_q;           // asleep: holds position
+        e.tgt_r = e.cur_r;
       }
       enemies[et] = e;
     }
@@ -315,6 +377,14 @@ pub fn sim_enemy_color(s: Sim, i: integer) -> (integer, integer, integer) {
   (ecr, ecg, ecb)
 }
 
+// Is enemy i awake (has it perceived the player)?
+pub fn sim_enemy_awake(s: Sim, i: integer) -> boolean {
+  enemies = s.enemies;
+  a = false;
+  if i < len(enemies) { e = enemies[i]; a = e.awake; }
+  a
+}
+
 // Enemy single-char map glyph (e.g. "r", "k", "o").
 pub fn sim_enemy_glyph(s: Sim, i: integer) -> text {
   enemies = s.enemies;
@@ -368,6 +438,7 @@ pub fn sim_new() -> Sim {
 
   (spx, spy) = hex_to_px(10, 10);
   e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
+    vision: 8, flags: 0, awake: true,
     cr: 200, cg: 60, cb: 50, glyph: "r", alive: true };
   enemies: vector<Enemy> = [e0];
 
@@ -411,6 +482,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     if md.m_hp > 0 {
       enemies += [Enemy { cur_q: eq, cur_r: er, tgt_q: eq, tgt_r: er,
         hp: md.m_hp, maxhp: md.m_hp, dam: md.m_dam,
+        vision: md.m_vision, flags: md.m_flags, awake: false,
         cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: md.m_glyph, alive: true }];
     }
   }
