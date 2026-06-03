@@ -13,6 +13,7 @@ TURN_SPEED = 2.6;     // radians / second
 PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.866)
 PLAYER_HP  = 30;      // starting / max player hit points (placeholder)
 PLAYER_DAM = 6;       // player melee damage per hit (placeholder)
+FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
 
 pub struct Enemy {
   cur_q: integer not null,
@@ -121,24 +122,63 @@ fn enemy_blocks(s: Sim, q: integer, r: integer) -> boolean {
   hit
 }
 
-// Greedy one-hex step from (eq,er) toward (pq,pr): best floor neighbour that
-// is not the player's own hex; stay put if nothing improves.
-fn best_step(s: Sim, eq: integer, er: integer, pq: integer, pr: integer) -> (integer, integer) {
-  best_q = eq;
-  best_r = er;
-  best_d = hex_distance(eq, er, pq, pr);
-  for bd in 0..6 {
-    (nq, nr) = hex_neighbor(eq, er, bd);
-    if !is_blocked_move(s, eq, er, nq, nr) && !(nq == pq && nr == pr) {
-      nd = hex_distance(nq, nr, pq, pr);
-      if nd < best_d {
-        best_d = nd;
-        best_q = nq;
-        best_r = nr;
+// Breadth-first distance field from (pq,pr) over reachable hexes (respecting
+// solid hexes AND edge walls via is_blocked_move). flow[idx] = path length to
+// the player; FLOW_BIG = unreachable. Recomputed each tick; monsters descend it
+// to route around walls (vs. the old greedy step that stuck on corners).
+fn compute_flow(s: Sim, pq: integer, pr: integer) -> vector<integer> {
+  n = s.lw * s.lh;
+  flow: vector<integer> = [];
+  for _ in 0..n { flow += [FLOW_BIG]; }
+  if pq >= s.qmin && pr >= s.rmin && pq < s.qmin + s.lw && pr < s.rmin + s.lh && !is_wall(s, pq, pr) {
+    start = (pr - s.rmin) * s.lw + (pq - s.qmin);
+    if start >= 0 && start < len(flow) { flow[start] = 0; }
+    frontier: vector<integer> = [];
+    frontier += [start];
+    head = 0;
+    while head < len(frontier) {
+      cur = frontier[head] ?? 0;
+      head += 1;
+      cq = s.qmin + (cur % s.lw ?? 0);
+      cr = s.rmin + (cur / s.lw ?? 0);
+      cd = flow[cur] ?? FLOW_BIG;
+      for fdir in 0..6 {
+        (nq, nr) = hex_neighbor(cq, cr, fdir);
+        if nq >= s.qmin && nr >= s.rmin && nq < s.qmin + s.lw && nr < s.rmin + s.lh && !is_blocked_move(s, cq, cr, nq, nr) {
+          nidx = (nr - s.rmin) * s.lw + (nq - s.qmin);
+          if nidx >= 0 && nidx < len(flow) {
+            cn = flow[nidx] ?? FLOW_BIG;
+            if cn > cd + 1 {
+              flow[nidx] = cd + 1;
+              frontier += [nidx];
+            }
+          }
+        }
       }
     }
   }
-  (best_q, best_r)
+  flow
+}
+
+// One step DOWN the flow gradient toward the player (routes around walls);
+// never steps onto the player's own hex. Stays put if nothing is closer.
+fn flow_step(s: Sim, flow: vector<integer>, eq: integer, er: integer, pq: integer, pr: integer) -> (integer, integer) {
+  bq = eq;
+  br = er;
+  bestd = FLOW_BIG;
+  if eq >= s.qmin && er >= s.rmin && eq < s.qmin + s.lw && er < s.rmin + s.lh {
+    ci = (er - s.rmin) * s.lw + (eq - s.qmin);
+    bestd = flow[ci] ?? FLOW_BIG;
+  }
+  for sdir in 0..6 {
+    (nq, nr) = hex_neighbor(eq, er, sdir);
+    if !is_blocked_move(s, eq, er, nq, nr) && !(nq == pq && nr == pr) && nq >= s.qmin && nr >= s.rmin && nq < s.qmin + s.lw && nr < s.rmin + s.lh {
+      nidx = (nr - s.rmin) * s.lw + (nq - s.qmin);
+      nd = flow[nidx] ?? FLOW_BIG;
+      if nd < bestd { bestd = nd; bq = nq; br = nr; }
+    }
+  }
+  (bq, br)
 }
 
 // ── Combat ───────────────────────────────────────────────────────────
@@ -231,6 +271,7 @@ pub fn hex_los(s: Sim, q0: integer, r0: integer, q1: integer, r1: integer) -> bo
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   (pq, pr) = px_to_hex(s.px, s.py);
+  flow = compute_flow(s, pq, pr);   // shared by every chasing monster this tick
   enemies = s.enemies;
   for et in 0..len(enemies) {
     e = enemies[et];
@@ -253,7 +294,7 @@ pub fn sim_tick(s: &Sim) {
           e.tgt_q = e.cur_q;         // stationary (molds, eyes): never steps
           e.tgt_r = e.cur_r;
         } else {
-          (bq, br) = best_step(s, e.cur_q, e.cur_r, pq, pr);
+          (bq, br) = flow_step(s, flow, e.cur_q, e.cur_r, pq, pr);
           e.tgt_q = bq;
           e.tgt_r = br;
         }

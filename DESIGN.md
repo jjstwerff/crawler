@@ -675,10 +675,11 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
   uniques excluded), `MF_GROUP` clusters, start-safe.
 - [x] **L1** stairs + real depth — `>`/`<` features, deterministic per-depth
   descent (HP carry, arrival stair), `E` to use stairs, DEPTH readout.
+- [x] **P2** flow-field pathing — BFS distance field from the player (respects
+  solid hexes + edge walls), recomputed per tick; monsters descend the gradient
+  and **route around walls** (no more greedy `best_step` wall-stick/clump).
 
 ### Now — make it feel like a roguelike
-- [ ] **P2** noise flow-field pathing — Dijkstra-from-player so monsters route
-  around walls (kills the greedy `best_step` wall-stick/clump). *Biggest AI gap.*
 - [ ] **H1** Hero model + **XP on kill** + level-up (HP growth); promote
   `Sim.php` → `Hero`. *The core RPG loop.*
 - [ ] **I1** floor gold + monster-death item drops + pickup (`g`); items as map
