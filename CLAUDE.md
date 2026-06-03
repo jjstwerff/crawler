@@ -53,8 +53,12 @@ Use ONLY these proven-safe shapes when touching vectors/structs:
 - Filter a `vector<struct>`: `for i in 0..len(v) { m = v[i] ?? none(); if … { out += [m] } }`.
 - Select an element: build the list, then **guarded direct index, no `??`**:
   `if i < len(v) { m = v[i]; … }`. (`v[i] ?? structfn()` can **SIGSEGV** — C1.)
-- Prefer **append** (`v += [x]`) over `[for _ in 0..n { … }]` for vectors you index
-  later (comprehension reads can return null — C5).
+- **Never grow a struct's vector field at runtime** (`s.v += [x]` and
+  capture-append-reassign both desync — C18). For a growable collection on the
+  `Sim`, pre-allocate a fixed array (`zeros(N)`) + an integer count and
+  **index-write**, exactly like `enemies` / floor-items: `n = s.fi_n; v = s.fi_q;
+  v[n] = q; s.fi_n = n + 1`. Index-writes on a captured field vector persist;
+  integer `+=` on a field persists; append / whole-field reassign don't.
 - Keep a **`&Struct`-mutating helper in the same module** as its callers
   (cross-module `&` mutation is lost — C4; e.g. `sim` has its own `SimRng`).
 - `!x` on an **integer is not logical-not** — compare `== 0` (C6). No chained `as`

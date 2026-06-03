@@ -684,10 +684,13 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
 
 - [x] **Wait** — `.`/Space advances one world tick in place (enemies act; you
   don't move).
+- [x] **I1** loot — monsters drop **gold** (auto-collected on walk-over) + a
+  chance of an **item** (rarity-weighted by depth); items render as category
+  glyphs (`$ ! ? | [ …`) and are grabbed with `g`; gold + inventory carry across
+  levels; HUD gold readout. (Floor/inv use fixed arrays + counts — runtime append
+  to a struct field is unreliable in loft, see LOFT_ISSUES C18.)
 
 ### Now — make it feel like a roguelike
-- [ ] **I1** floor gold + monster-death item drops + pickup (`g`); items as map
-  glyphs.
 - [ ] **FOV** — facing-cone field of view / fog of war.
 
 ### Next — depth & UI

@@ -41,6 +41,7 @@ Severity: **HIGH** = silent wrong behaviour or crash on ordinary code ·
 | C15 | `E0514` prebuilt-rlib rustc mismatch | env | OPEN |
 | C16 | GL 2D depth-test / no default blend func | doc | OPEN |
 | C17 | `gl_screenshot` unreliable under Xvfb | n/a | OPEN |
+| C18 | runtime append to a struct-field vector is unreliable | HIGH | OPEN |
 
 ---
 
@@ -193,6 +194,32 @@ x = (v + 0.5) as integer as float;   // Syntax error: unexpected ')'
 project assets had to be reached as `"../story/assets/Foo.ttf"`. A couple of
 relative forms also gave inconsistent hits across runs. Worth documenting (and
 ideally: also search cwd + source dir, or expose a resolved base).
+
+---
+
+## C18 — runtime append to a struct-field vector is unreliable  · HIGH
+
+Growing a `vector<…>` **field of a struct** at runtime (through `&Struct`)
+silently fails or desyncs — some appends land, sibling ones don't.
+
+```loft
+fn add(s: &Sim, q: integer) {
+  s.fi_q    += [q];   // sometimes persists...
+  s.fi_live += [1];   // ...sometimes doesn't — the parallel arrays desync
+}
+// also broken: aq = s.fi_q; aq += [q]; s.fi_q = aq;  (the reassign doesn't stick)
+```
+
+- **Observed:** after a monster died, `s.fi_q` had grown to length 2 but
+  `s.fi_live` read back empty, so floor-item reads returned null and the loot was
+  dead/invisible. Inconsistent between sibling fields in the *same* function.
+- Build-time append to a **local** vector is fine; it's the **struct-field**
+  append (and whole-field *reassignment*) through `&` that's broken.
+- **Workaround (what crawler uses):** pre-allocate fixed-size arrays + an integer
+  count and **index-write**, exactly like the working `enemies` vector —
+  `n = s.fi_n; v = s.fi_q; v[n] = q; s.fi_n = n + 1;`. Index-writes on a captured
+  field vector persist; integer-field `+=` persists; only append/whole-field
+  reassign don't. Probably the same root as **C4** (the vector field-store path).
 
 ---
 

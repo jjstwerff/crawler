@@ -12,6 +12,7 @@ use graphics;
 use hexgeo;
 use sim;
 use wallgeo;
+use items;
 
 VIEW_W   = 800.0;
 VIEW_H   = 600.0;
@@ -26,6 +27,7 @@ DIGIT_SIZE  = 20.0;  // numeric HP
 DISC_E      = 30.0;  // black backdrop disc behind enemy glyphs
 DISC_P      = 34.0;  // ... and behind the player (a touch larger)
 STAIR_SIZE  = 22.0;  // '>' / '<' stair glyphs
+ITEM_SIZE   = 20.0;  // floor item / gold glyphs
 
 // Baked text resources for the renderer (render-side only — the kernel stays
 // graphics-free). Built once after the window exists via build_hud(); if the
@@ -41,6 +43,26 @@ pub struct Hud {
   sup:    integer not null,           // '<' up-stair glyph
   dlbl:   integer not null,           // "DEPTH" label
   clbl:   integer not null,           // "CL" (character level) label
+  gtex:   integer not null,           // gold '$' glyph (floor + purse readout)
+  catex:  vector<integer> not null,   // floor-item glyph per IT_* category
+}
+
+// Roguelike map glyph for an item category (IT_*).
+fn cat_glyph(cat: integer) -> text {
+  if cat == IT_WEAPON { return "|"; }
+  if cat == IT_BOW    { return "}}"; }
+  if cat == IT_AMMO   { return "{{"; }
+  if cat == IT_ARMOR  { return "["; }
+  if cat == IT_LIGHT  { return "~"; }
+  if cat == IT_POTION { return "!"; }
+  if cat == IT_SCROLL { return "?"; }
+  if cat == IT_WAND   { return "-"; }
+  if cat == IT_STAFF  { return "_"; }
+  if cat == IT_RING   { return "="; }
+  if cat == IT_AMULET { return "\""; }
+  if cat == IT_FOOD   { return ","; }
+  if cat == IT_BOOK   { return "?"; }
+  "*"
 }
 
 // Load the font and bake the static glyph/text textures for this level.
@@ -79,7 +101,9 @@ pub fn build_hud(s: Sim) -> Hud {
   sup = 0;
   dlbl = 0;
   clbl = 0;
+  gtex = 0;
   digits: vector<integer> = [for _ in 0..10 { 0 }];
+  catex: vector<integer> = [for _ in 0..14 { 0 }];
   etex: vector<integer> = [];
   if font != 0 {
     ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
@@ -88,6 +112,10 @@ pub fn build_hud(s: Sim) -> Hud {
     sup = graphics::create_text_texture(font, "<", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
     dlbl = graphics::create_text_texture(font, "DEPTH", DIGIT_SIZE, graphics::rgba(180, 190, 210, 255));
     clbl = graphics::create_text_texture(font, "CL", DIGIT_SIZE, graphics::rgba(190, 210, 180, 255));
+    gtex = graphics::create_text_texture(font, "$", ITEM_SIZE, graphics::rgba(240, 220, 70, 255));
+    for ci in 1..14 {
+      catex[ci] = graphics::create_text_texture(font, cat_glyph(ci), ITEM_SIZE, graphics::rgba(210, 210, 180, 255));
+    }
     for d in 0..10 {
       digits[d] = graphics::create_text_texture(font, "{d}", DIGIT_SIZE, graphics::rgba(235, 235, 215, 255));
     }
@@ -99,7 +127,7 @@ pub fn build_hud(s: Sim) -> Hud {
     }
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
-    sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl }
+    sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -210,6 +238,30 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
     }
   }
 
+  // Floor loot — gold piles ('$') and dropped items (category glyph), under the
+  // tokens. Drawn only with a font (no square fallback — loot is glyph-only).
+  if hud.font != 0 {
+    fcat = hud.catex;
+    fcount = sim_floor_count(s);
+    for fl in 0..fcount {
+      if sim_floor_live(s, fl) {
+        (fwx, fwy) = sim_floor_pos(s, fl);
+        (flsx, flsy) = world_to_screen(s, fwx, fwy);
+        if flsx > -cell && flsx < VIEW_W + cell && flsy > -cell && flsy < VIEW_H + cell {
+          if sim_floor_is_gold(s, fl) {
+            draw_glyph_centered(painter, hud.font, hud.gtex, "$", ITEM_SIZE, flsx, flsy);
+          } else {
+            cat = sim_floor_cat(s, fl);
+            ctex = if cat >= 0 && cat < len(fcat) { fcat[cat] ?? 0 } else { 0 };
+            if ctex != 0 {
+              draw_glyph_centered(painter, hud.font, ctex, cat_glyph(cat), ITEM_SIZE, flsx, flsy);
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Enemies — glyph letters in their DB colour (square fallback if no font).
   ecount = sim_enemy_count(s);
   etexv = hud.etex;
@@ -259,6 +311,12 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
     clh = graphics::gl_text_height(hud.font, DIGIT_SIZE) as float + 4.0;
     graphics::draw_texture_at(painter, hud.clbl, 12.0, 40.0, clw, clh);
     draw_number(painter, hud, sim_clevel(s), 12.0 + clw + 4.0, 40.0);
+  }
+
+  // Gold purse ('$' + amount).
+  if hud.font != 0 && hud.gtex != 0 {
+    graphics::draw_texture_at(painter, hud.gtex, 12.0, 58.0, 14.0, 20.0);
+    draw_number(painter, hud, sim_gold(s), 30.0, 60.0);
   }
 
   // Depth readout (top-right): "DEPTH n".

@@ -7,6 +7,7 @@
 use hexgeo;
 use gen;
 use monsters;
+use items;
 
 MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)
 TURN_SPEED = 2.6;     // radians / second
@@ -15,6 +16,16 @@ PLAYER_DAM = 6;       // player melee damage per hit (placeholder)
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
 HERO_CON   = 16;      // starting Constitution (drives HP growth; full stat block = H2)
 MAX_CLEVEL = 50;      // character-level cap
+FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_ISSUES)
+INV_MAX    = 64;      // inventory slots
+
+// Fresh zero-filled int vector of length n (build-time append to a local works;
+// runtime append to a struct field does not — so floor/inv use fixed arrays).
+fn zeros(n: integer) -> vector<integer> {
+  v: vector<integer> = [];
+  for _ in 0..n { v += [0]; }
+  v
+}
 
 pub struct Enemy {
   cur_q: integer not null,
@@ -62,6 +73,16 @@ pub struct Sim {
   up_r:    integer not null,
   dn_q:    integer not null,   // down-stair hex
   dn_r:    integer not null,
+  rstate:  integer not null,   // drop RNG state
+  ninv:    integer not null,   // inventory count
+  inv:     vector<integer> not null,   // carried item def indices [0..ninv) (UI = I2)
+  fi_n:    integer not null,   // floor-item count
+  fi_q:    vector<integer> not null,   // floor items — hex position [0..fi_n)
+  fi_r:    vector<integer> not null,
+  fi_gold: vector<integer> not null,   // gold amount (>0 = gold pile, 0 = an item)
+  fi_cat:  vector<integer> not null,   // item category (IT_*); -1 for gold
+  fi_def:  vector<integer> not null,   // item def index; -1 for gold
+  fi_live: vector<integer> not null,   // 1 = on the floor, 0 = collected
 }
 
 // ── World queries ────────────────────────────────────────────────────
@@ -241,7 +262,53 @@ pub fn sim_award_xp(s: &Sim, amount: integer) {
   }
 }
 
-// Player hits enemy `idx` for PLAYER_DAM; on a kill, awards level-scaled XP.
+// ── Loot (gold + item drops) ─────────────────────────────────────────
+
+// Drop-RNG: advance the per-Sim LCG (same module as its caller, so the `&`
+// mutation sticks) and return a value in [lo, hi].
+fn sim_roll(s: &Sim, lo: integer, hi: integer) -> integer {
+  if hi <= lo { return lo; }
+  s.rstate = (s.rstate * 1103515245 + 12345) & 2147483647;
+  lo + (s.rstate % (hi - lo + 1) ?? 0)
+}
+
+// Add a floor entry (gold pile if gold>0, else an item with cat/def) by writing
+// into the fixed arrays at the count slot — runtime append to a struct field is
+// unreliable in loft, so we index-write like `enemies`.
+fn add_floor(s: &Sim, q: integer, r: integer, gold: integer, cat: integer, def: integer) {
+  fq = s.fi_q;
+  fr = s.fi_r;
+  fg = s.fi_gold;
+  fc = s.fi_cat;
+  fd = s.fi_def;
+  fl = s.fi_live;
+  n = s.fi_n;
+  if n >= 0 && n < len(fq) && n < len(fr) && n < len(fg) && n < len(fc) && n < len(fd) && n < len(fl) {
+    fq[n] = q;
+    fr[n] = r;
+    fg[n] = gold;
+    fc[n] = cat;
+    fd[n] = def;
+    fl[n] = 1;
+    s.fi_n = n + 1;
+  }
+}
+
+// On a kill: drop a gold pile, and sometimes a depth-appropriate item, at (q,r).
+fn drop_loot(s: &Sim, q: integer, r: integer, mlvl: integer) {
+  gamt = sim_roll(s, 1, 3) * (mlvl + 1) + sim_roll(s, 0, 4);
+  add_floor(s, q, r, gamt, -1, -1);
+  if sim_roll(s, 0, 99) < 35 {
+    itbl = item_table();
+    idx = item_choose_idx(itbl, s.depth, sim_roll(s, 1, 2000000000));
+    if idx >= 0 {
+      cat = item_cat(itbl, idx);
+      add_floor(s, q, r, 0, cat, idx);
+    }
+  }
+}
+
+// Player hits enemy `idx` for PLAYER_DAM; on a kill, awards XP and drops loot.
 fn player_attack(s: &Sim, idx: integer) {
   enemies = s.enemies;
   if idx >= 0 && idx < len(enemies) {
@@ -253,9 +320,62 @@ fn player_attack(s: &Sim, idx: integer) {
         e.alive = false;
         gain = e.xp * e.mlvl / s.clevel ?? 0;
         if gain < 1 { gain = 1; }
+        drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
       }
       enemies[idx] = e;
       if gain > 0 { sim_award_xp(s, gain); }
+    }
+  }
+}
+
+// Auto-collect any gold pile under the player (called each frame from sim_step).
+fn sim_autocollect_gold(s: &Sim) {
+  (pq, pr) = px_to_hex(s.px, s.py);
+  fq = s.fi_q;
+  fr = s.fi_r;
+  fg = s.fi_gold;
+  fl = s.fi_live;
+  n = s.fi_n;
+  for i in 0..n {
+    if (fl[i] ?? 0) == 1 {
+      q = fq[i] ?? -999;
+      r = fr[i] ?? -999;
+      amt = fg[i] ?? 0;
+      if q == pq && r == pr && amt > 0 {
+        s.gold += amt;
+        fl[i] = 0;
+      }
+    }
+  }
+}
+
+// Pick up everything under the player ('g'): gold to the purse, items to inventory.
+pub fn sim_pickup(s: &Sim) {
+  (pq, pr) = px_to_hex(s.px, s.py);
+  fq = s.fi_q;
+  fr = s.fi_r;
+  fg = s.fi_gold;
+  fd = s.fi_def;
+  fl = s.fi_live;
+  iv = s.inv;
+  n = s.fi_n;
+  for i in 0..n {
+    if (fl[i] ?? 0) == 1 {
+      q = fq[i] ?? -999;
+      r = fr[i] ?? -999;
+      if q == pq && r == pr {
+        amt = fg[i] ?? 0;
+        if amt > 0 {
+          s.gold += amt;
+        } else {
+          ni = s.ninv;
+          if ni >= 0 && ni < len(iv) {
+            iv[ni] = fd[i] ?? -1;
+            s.ninv = ni + 1;
+          }
+        }
+        fl[i] = 0;
+      }
     }
   }
 }
@@ -394,6 +514,7 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
       sim_tick(s);
     }
   }
+  sim_autocollect_gold(s);   // walking over a gold pile picks it up
 }
 
 // ── Read-only accessors for the view / tests ────────────────────────
@@ -461,6 +582,44 @@ pub fn sim_xp_frac(s: Sim) -> float {
   if f < 0.0 { f = 0.0; }
   if f > 1.0 { f = 1.0; }
   f
+}
+
+pub fn sim_inv_count(s: Sim) -> integer { s.ninv }
+pub fn sim_floor_count(s: Sim) -> integer { s.fi_n }
+
+pub fn sim_floor_live(s: Sim, i: integer) -> boolean {
+  fl = s.fi_live;
+  v = false;
+  if i < len(fl) { v = (fl[i] ?? 0) == 1; }
+  v
+}
+
+// World position of floor item i.
+pub fn sim_floor_pos(s: Sim, i: integer) -> (float, float) {
+  fq = s.fi_q;
+  fr = s.fi_r;
+  x = 0.0;
+  y = 0.0;
+  if i < len(fq) && i < len(fr) {
+    q = fq[i] ?? 0;
+    r = fr[i] ?? 0;
+    (x, y) = hex_to_px(q, r);
+  }
+  (x, y)
+}
+
+pub fn sim_floor_is_gold(s: Sim, i: integer) -> boolean {
+  fg = s.fi_gold;
+  v = false;
+  if i < len(fg) { v = (fg[i] ?? 0) > 0; }
+  v
+}
+
+pub fn sim_floor_cat(s: Sim, i: integer) -> integer {
+  fc = s.fi_cat;
+  c = 0;
+  if i < len(fc) { c = fc[i] ?? 0; }
+  c
 }
 
 pub fn sim_enemy_hp(s: Sim, i: integer) -> integer {
@@ -559,6 +718,9 @@ pub fn sim_new() -> Sim {
     php: hero_maxhp(1, HERO_CON), phpmax: hero_maxhp(1, HERO_CON), over: false,
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: 1, wseed: 0, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
+    rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
+    fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
+    fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
   }
 }
 
@@ -715,6 +877,9 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     php: hero_maxhp(1, HERO_CON), phpmax: hero_maxhp(1, HERO_CON), over: false,
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: depth, wseed: seed, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
+    rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
+    fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
+    fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
   }
 }
 
@@ -734,6 +899,9 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.xp = s.xp;
   ns.gold = s.gold;
   ns.hcon = s.hcon;
+  ns.inv = s.inv;         // carry the inventory; floor items stay on their level
+  ns.ninv = s.ninv;
+  ns.rstate = s.rstate;
   ns.heading = s.heading;
   if dir < 0 {
     (ax, ay) = hex_to_px(ns.dn_q, ns.dn_r);

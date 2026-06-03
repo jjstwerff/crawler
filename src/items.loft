@@ -147,3 +147,54 @@ pub fn items_by_cat(table: vector<ItemDef>, cat: integer) -> vector<ItemDef> {
 pub fn item_stackable(i: ItemDef) -> boolean {
   (i.i_flags & IF_STACKABLE) != 0
 }
+
+// Selection weight ∝ 1/rarity.
+fn item_weight(rarity: integer) -> integer {
+  rr = rarity;
+  if rr < 1 { rr = 1; }
+  64 / rr ?? 1
+}
+
+// Rarity-weighted pick among items eligible at depth `eff` (i_depth in [1,eff]).
+// Returns a table index, or -1 if none. Reads the struct table only via the
+// proven-safe filter shape; the weighting runs over plain int vectors.
+pub fn item_choose_idx(table: vector<ItemDef>, eff: integer, salt: integer) -> integer {
+  pidx: vector<integer> = [];
+  prar: vector<integer> = [];
+  for ii in 0..len(table) {
+    m = table[ii] ?? item_none();
+    if m.i_depth >= 1 && m.i_depth <= eff {
+      pidx += [ii];
+      prar += [item_weight(m.i_rarity)];
+    }
+  }
+  np = len(pidx);
+  res = -1;
+  if np > 0 {
+    total = 0;
+    for wi in 0..np { total += prar[wi] ?? 0; }
+    if total > 0 {
+      s = (((salt & 2147483647) | 1) * 1103515245 + 12345) & 2147483647;
+      roll = s % total ?? 0;
+      acc = 0;
+      hit = false;
+      for wj in 0..np {
+        if !hit {
+          acc += prar[wj] ?? 0;
+          if roll < acc {
+            res = pidx[wj] ?? -1;
+            hit = true;
+          }
+        }
+      }
+    }
+  }
+  res
+}
+
+// Category (IT_*) of item `idx`, or 0 if out of range.
+pub fn item_cat(table: vector<ItemDef>, idx: integer) -> integer {
+  c = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; c = m.i_cat; }
+  c
+}

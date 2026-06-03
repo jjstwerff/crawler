@@ -18,6 +18,7 @@ KEY_S   = 115;
 KEY_A   = 97;
 KEY_D   = 100;
 KEY_E   = 101;      // use stairs (descend on '>', ascend on '<')
+KEY_G   = 103;      // 'g' grab items under you (gold auto-collects)
 KEY_DOT = 46;       // '.' wait one tick
 KEY_SPC = 32;       // Space — also wait
 KEY_ESC = 27;
@@ -45,6 +46,7 @@ fn main() {
   last = ticks();
   e_was = false;            // edge-trigger for the stairs key
   w_was = false;            // edge-trigger for the wait key
+  g_was = false;            // edge-trigger for the grab key
   running = true;
   while running {
     if !graphics::gl_poll_events() {
@@ -85,6 +87,11 @@ fn main() {
       w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
       if w_down && !w_was { sim_wait(s); }
       w_was = w_down;
+
+      // Grab: 'g' picks up items under the player (gold auto-collects on walk-over).
+      g_down = graphics::gl_key_pressed(KEY_G);
+      if g_down && !g_was { sim_pickup(s); }
+      g_was = g_down;
 
       sim_step(s, fwd, turn, dt);
       view_draw(painter, s, walls, hud);
