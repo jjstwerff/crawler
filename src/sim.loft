@@ -48,6 +48,12 @@ pub struct Sim {
   php:     integer not null,   // player hit points
   phpmax:  integer not null,
   over:    boolean not null,   // game over (player died)
+  depth:   integer not null,   // dungeon level (1 = shallowest)
+  wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
+  up_q:    integer not null,   // up-stair hex (player start / arrival from below)
+  up_r:    integer not null,
+  dn_q:    integer not null,   // down-stair hex
+  dn_r:    integer not null,
 }
 
 // ── World queries ────────────────────────────────────────────────────
@@ -447,6 +453,7 @@ pub fn sim_new() -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: PLAYER_HP, phpmax: PLAYER_HP, over: false,
+    depth: 1, wseed: 0, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
   }
 }
 
@@ -507,7 +514,9 @@ fn tile_solid(tiles: vector<integer>, w: integer, h: integer, q: integer, r: int
 pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   w = 41;
   h = 41;
-  lvl = gen_dungeon(seed, w, h, 14);
+  // Per-level gen seed = mix(world seed, depth) so each depth has its own layout.
+  gseed = (seed ^ world_key_seed(1, 1, depth)) & 2147483647;
+  lvl = gen_dungeon(gseed, w, h, 14);
   tiles = lvl.g_tiles;
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
   rqs = lvl.g_rq;
@@ -526,7 +535,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   // Collect legal floor far from the player start, then sample the budget from
   // it directly (robust even when open floor is a small fraction of the map).
   table = monster_table();
-  rng = srng_seed((seed ^ 20771) & 2147483647);
+  rng = srng_seed((gseed ^ 20771) & 2147483647);
   safe = 8;                             // keep spawns this far from the start
   candq: vector<integer> = [];
   candr: vector<integer> = [];
@@ -576,10 +585,60 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     }
   }
 
+  // Stairs: up at the player start, down at the farthest reachable floor hex.
+  dnq = pq;
+  dnr = pr;
+  bestdd = -1;
+  for si in 0..ncand {
+    if si < ncand {
+      cq = candq[si] ?? pq;
+      cr = candr[si] ?? pr;
+      dd = hex_distance(cq, cr, pq, pr);
+      if dd > bestdd { bestdd = dd; dnq = cq; dnr = cr; }
+    }
+  }
+  ti_up = pr * w + pq;
+  if ti_up >= 0 && ti_up < len(tiles) { tiles[ti_up] = 3; }
+  ti_dn = dnr * w + dnq;
+  if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = 2; }
+
   Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: PLAYER_HP, phpmax: PLAYER_HP, over: false,
+    depth: depth, wseed: seed, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
   }
 }
+
+// Move between levels: dir +1 descends, -1 ascends (clamped to depth >= 1).
+// Regenerates the destination deterministically from (wseed, new depth), carries
+// the player's HP, and places them on the arrival stair (down → the new level's
+// up-stair, which is where sim_new_gen already drops the player; up → its
+// down-stair).
+pub fn sim_descend(s: Sim, dir: integer) -> Sim {
+  nd = s.depth + dir;
+  if nd < 1 { nd = 1; }
+  ns = sim_new_gen(s.wseed, nd);
+  ns.php = s.php;
+  ns.phpmax = s.phpmax;
+  ns.over = s.over;
+  ns.heading = s.heading;
+  if dir < 0 {
+    (ax, ay) = hex_to_px(ns.dn_q, ns.dn_r);
+    ns.px = ax;
+    ns.py = ay;
+  }
+  ns
+}
+
+pub fn sim_depth(s: Sim) -> integer { s.depth }
+
+// Tile under the player: 2 = down-stair, 3 = up-stair, else floor/wall.
+pub fn sim_stair_under(s: Sim) -> integer {
+  (pq, pr) = px_to_hex(s.px, s.py);
+  tile_at(s, pq, pr)
+}
+
+pub fn sim_down_hex(s: Sim) -> (integer, integer) { (s.dn_q, s.dn_r) }
+pub fn sim_up_hex(s: Sim) -> (integer, integer) { (s.up_q, s.up_r) }

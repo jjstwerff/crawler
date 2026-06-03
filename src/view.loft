@@ -25,6 +25,7 @@ DIED_SIZE   = 52.0;  // game-over banner
 DIGIT_SIZE  = 20.0;  // numeric HP
 DISC_E      = 30.0;  // black backdrop disc behind enemy glyphs
 DISC_P      = 34.0;  // ... and behind the player (a touch larger)
+STAIR_SIZE  = 22.0;  // '>' / '<' stair glyphs
 
 // Baked text resources for the renderer (render-side only — the kernel stays
 // graphics-free). Built once after the window exists via build_hud(); if the
@@ -36,6 +37,9 @@ pub struct Hud {
   digits: vector<integer> not null,   // '0'..'9' for numeric HP
   died:   integer not null,           // "YOU DIED" banner
   disc:   integer not null,           // soft-black backdrop drawn behind tokens
+  sdown:  integer not null,           // '>' down-stair glyph
+  sup:    integer not null,           // '<' up-stair glyph
+  dlbl:   integer not null,           // "DEPTH" label
 }
 
 // Load the font and bake the static glyph/text textures for this level.
@@ -70,11 +74,17 @@ pub fn build_hud(s: Sim) -> Hud {
 
   ptex = 0;
   died = 0;
+  sdown = 0;
+  sup = 0;
+  dlbl = 0;
   digits: vector<integer> = [for _ in 0..10 { 0 }];
   etex: vector<integer> = [];
   if font != 0 {
     ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
     died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
+    sdown = graphics::create_text_texture(font, ">", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
+    sup = graphics::create_text_texture(font, "<", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
+    dlbl = graphics::create_text_texture(font, "DEPTH", DIGIT_SIZE, graphics::rgba(180, 190, 210, 255));
     for d in 0..10 {
       digits[d] = graphics::create_text_texture(font, "{d}", DIGIT_SIZE, graphics::rgba(235, 235, 215, 255));
     }
@@ -85,7 +95,8 @@ pub fn build_hud(s: Sim) -> Hud {
       etex += [graphics::create_text_texture(font, g, GLYPH_SIZE, graphics::rgba(cr, cg, cb, 255))];
     }
   }
-  Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc }
+  Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
+    sdown: sdown, sup: sup, dlbl: dlbl }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -175,6 +186,12 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
         } else {
           graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.11, 0.13, 0.19, 1.0);
         }
+        // Stairs (floor-walkable) drawn as '>' / '<' glyphs on the cell.
+        if t == 2 && hud.font != 0 && hud.sdown != 0 {
+          draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
+        } else if t == 3 && hud.font != 0 && hud.sup != 0 {
+          draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
+        }
       }
     }
   }
@@ -229,6 +246,15 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0, 16.0, 0.25, 0.05, 0.05, 1.0);
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0 * hpf, 16.0, 0.20, 0.80, 0.30, 1.0);
   if hud.font != 0 { draw_number(painter, hud, hp, 240.0, 10.0); }
+
+  // Depth readout (top-right): "DEPTH n".
+  if hud.font != 0 && hud.dlbl != 0 {
+    lblw = graphics::gl_measure_text(hud.font, "DEPTH", DIGIT_SIZE) + 5.0;
+    lblh = graphics::gl_text_height(hud.font, DIGIT_SIZE) as float + 4.0;
+    lx = VIEW_W - lblw - 60.0;
+    graphics::draw_texture_at(painter, hud.dlbl, lx, 12.0, lblw, lblh);
+    draw_number(painter, hud, sim_depth(s), lx + lblw + 4.0, 10.0);
+  }
 
   // Game over: red tint + "YOU DIED" banner.
   if sim_over(s) {

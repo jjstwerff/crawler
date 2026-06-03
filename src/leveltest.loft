@@ -1,0 +1,47 @@
+// leveltest — headless checks for L1 (stairs + descent): the player starts on
+// an up-stair, a down-stair exists; descending advances depth, carries HP, and
+// lands on the new up-stair; ascending returns to the prior depth on its
+// down-stair; the same (seed, depth) regenerates identically. Deterministic.
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story level test (stairs + descent) ===");
+  s = sim_new_gen(2024, 1);
+  d1 = sim_depth(s);
+  (pq, pr) = sim_player_hex(s);
+  on_up = tile_at(s, pq, pr) == 3;
+  (dq, dr) = sim_down_hex(s);
+  has_down = tile_at(s, dq, dr) == 2;
+
+  // descend (mark HP first to check it carries)
+  s.php = 13;
+  s2 = sim_descend(s, 1);
+  d2 = sim_depth(s2);
+  (p2q, p2r) = sim_player_hex(s2);
+  on_up2 = tile_at(s2, p2q, p2r) == 3;
+  hp_carry = sim_player_hp(s2) == 13;
+
+  // ascend back to depth 1, arriving on its down-stair
+  s3 = sim_descend(s2, -1);
+  d3 = sim_depth(s3);
+  (p3q, p3r) = sim_player_hex(s3);
+  on_dn3 = tile_at(s3, p3q, p3r) == 2;
+
+  // determinism: the same (seed, depth) regenerates the same destination
+  sA = sim_descend(sim_new_gen(2024, 1), 1);
+  (aq, ar) = sim_player_hex(sA);
+  detok = aq == p2q && ar == p2r;
+  varies = !(p2q == pq && p2r == pr);   // depth changes the layout (informational)
+
+  println("d1={d1} on-up={on_up} has-down={has_down}");
+  println("d2={d2} on-up2={on_up2} hp-carry={hp_carry}");
+  println("d3={d3} on-down3={on_dn3} deterministic={detok} depth-varies={varies}");
+  ok = d1 == 1 && on_up && has_down && d2 == 2 && on_up2 && hp_carry && d3 == 1 && on_dn3 && detok;
+  if ok {
+    println("=== LEVEL OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

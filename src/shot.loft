@@ -22,13 +22,12 @@ fn main() {
   walls = build_walls(s);
   hud = build_hud(s);
 
-  // Frame the first monster: place the player ~3 units 'south' of enemy 0 so
-  // the enemy glyph sits just above the '@' (heading is up = +y).
-  if sim_enemy_count(s) > 0 {
-    (ex, ey) = sim_enemy_pos(s, 0);
-    s.px = ex;
-    s.py = ey - 3.0;
-  }
+  // Frame the down-stair: place the player ~2.5 units 'south' of it so the '>'
+  // glyph sits just above the '@' (heading is up = +y).
+  (dq, dr) = sim_down_hex(s);
+  (dx, dy) = hex_to_px(dq, dr);
+  s.px = dx;
+  s.py = dy - 2.5;
 
   for _ in 0..2 {
     graphics::gl_poll_events();

@@ -17,6 +17,7 @@ KEY_W   = 119;
 KEY_S   = 115;
 KEY_A   = 97;
 KEY_D   = 100;
+KEY_E   = 101;      // use stairs (descend on '>', ascend on '<')
 KEY_ESC = 27;
 
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
@@ -40,6 +41,7 @@ fn main() {
   walls = build_walls(s);   // smoothed wall outline, built once (static per level)
   hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
   last = ticks();
+  e_was = false;            // edge-trigger for the stairs key
   running = true;
   while running {
     if !graphics::gl_poll_events() {
@@ -58,6 +60,23 @@ fn main() {
       if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
       if graphics::gl_key_pressed(KEY_A) { turn = 1; }   // left  = CCW (heading up)
       if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
+
+      // Stairs: 'E' on a down-stair descends, on an up-stair ascends. Rebuild
+      // the wall outline + HUD (new level => new monster set / glyph textures).
+      e_down = graphics::gl_key_pressed(KEY_E);
+      if e_down && !e_was {
+        st = sim_stair_under(s);
+        if st == 2 {
+          s = sim_descend(s, 1);
+          walls = build_walls(s);
+          hud = build_hud(s);
+        } else if st == 3 && sim_depth(s) > 1 {
+          s = sim_descend(s, -1);
+          walls = build_walls(s);
+          hud = build_hud(s);
+        }
+      }
+      e_was = e_down;
 
       sim_step(s, fwd, turn, dt);
       view_draw(painter, s, walls, hud);
