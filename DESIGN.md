@@ -149,13 +149,34 @@ graphics-dependent `moros_render`.
 The hex map (§6) is the terrain — **kept** (movement, distance clock, moros 3D
 path). Walls/buildings and roads are **vector feature overlays** placed *on* it
 (not a square map, not hex-edge-locked):
-- **Buildings / walls** — laid out in a **local square grid** (`gridgeo.loft`)
-  so corners are clean 90° *by construction*, oriented to **one of 12
-  directions** (k×30°: the hex lattice's 6 edges + 6 vertices), then translated
-  to a hex anchor → straight world-space wall **segments** with **sharp
-  right-angle corners**.
-- **Roads** — finer: **24 directions** (the 12 interleaved → 15°), with
-  **rounded** corners (a corner-detect-and-round routine) for smooth turns.
+Each overlay is parameterized by two independent knobs — **direction
+resolution** (snap orientations to **12** = 30° or **24** = 15°) and **corner
+policy** (**straight/sharp** or **rounded**). The feature types are combinations:
+- **Houses / buildings** — local square layout (`gridgeo.loft`), **12 dirs**,
+  **straight + sharp 90°** corners.
+- **Roads** — polylines, **24 dirs** (the 12 interleaved → 15°), **rounded**
+  corners (corner-detect → smooth turns).
+- **Town & castle walls** — polylines, **24 dirs** (like roads, to wrap terrain
+  flexibly) but **straight + sharp** segments (like house walls, not rounded).
+
+So the **straight/sharp** routine (the parked Douglas–Peucker straightener)
+serves both house walls (12-dir) *and* town/castle walls (24-dir); the
+**rounded** routine (the active `wallgeo`) serves roads.
+
+**Junctions are their own policy, chosen by a detection pass.** Walk the wall
+graph, classify each vertex (corner / T-junction / endpoint / gate flank), and
+emit the right element per feature: **sharp miter** (houses), **rounded arc**
+(roads), or a **round tower** auto-placed at castle-wall corners/junctions and
+**linked** into the adjoining straight curtain segments (real-castle anatomy:
+round towers + straight curtain walls). These three geometries map 1:1 onto
+primitives `moros_render` already provides — `emit_wall_quad` (straight),
+`emit_thick_curved_wall` (arc), `emit_cylinder_post` (round tower/post) — so the
+3D side is already supported; the work is the detection + which-element logic.
+
+**Net framework:** an overlay = (direction resolution **12**/**24**) × straight
+segments × (**junction policy**: sharp-miter / rounded-arc / round-tower), with
+a junction-detection pass. Houses = (12, sharp); roads = (24, rounded);
+town/castle walls = (24, sharp curtains + round towers).
 
 The two wall experiments both find a home: **straighten/sharp → buildings**;
 **average/round → roads** (the rounded `wallgeo.loft` is the road smoother; the
