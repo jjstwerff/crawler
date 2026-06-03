@@ -657,6 +657,72 @@ intersection-based building corners.)
 
 ---
 
+## 18a. TODO — ordered backlog
+
+The canonical execution order (interleaves the per-section phases P*/A*/L*/H*/I*
+by dependency + playability). Tiers are rough priority bands, ordered top→bottom.
+
+### Done
+- [x] **M0** vertical slice — continuous movement, rotating egocentric view, hex
+  collision with slide + radius.
+- [x] **Combat** — bump-melee, player/enemy HP, death + game-over.
+- [x] **Dungeon wired** — `sim_new_gen` builds gen + spawns DB monsters; glyph
+  rendering (`@`/letters in colour on backdrop discs), HP bar + numeric HP,
+  "YOU DIED".
+- [x] **P1** awareness — monsters spawn asleep, wake on `m_vision` + LOS,
+  `NEVER_MOVE` holds.
+- [x] **A1** placement — budgeted scatter, `get_mon_num` (rarity/depth/deepen/OOD,
+  uniques excluded), `MF_GROUP` clusters, start-safe.
+- [x] **L1** stairs + real depth — `>`/`<` features, deterministic per-depth
+  descent (HP carry, arrival stair), `E` to use stairs, DEPTH readout.
+
+### Now — make it feel like a roguelike
+- [ ] **P2** noise flow-field pathing — Dijkstra-from-player so monsters route
+  around walls (kills the greedy `best_step` wall-stick/clump). *Biggest AI gap.*
+- [ ] **H1** Hero model + **XP on kill** + level-up (HP growth); promote
+  `Sim.php` → `Hero`. *The core RPG loop.*
+- [ ] **I1** floor gold + monster-death item drops + pickup (`g`); items as map
+  glyphs.
+- [ ] **FOV** — facing-cone field of view / fog of war.
+- [ ] **Wait** action (`.`/Space advances one tick in place).
+
+### Next — depth & UI
+- [ ] **H2** character **sidebar** (name/race/class/level/xp/gold/6 stats/AC/HP/
+  depth) + bottom status line.
+- [ ] **I2** inventory `i` / equipment `e` screens; wield/wear/takeoff (+ AC &
+  stat recompute); drop `d`.
+- [ ] **P3** monster **speed/energy** (fast monsters run you down).
+- [ ] **P4** movement modifiers — erratic, **fear/flee**, group-surround, breeder
+  multiply.
+- [ ] **Persistence** — unique-once (world-state) + **roster persistence on
+  revisit** (cleared stays cleared; descent currently regenerates fresh).
+- [ ] **Combat depth** — AC / to-hit / blow dice (expand `m_dam`); fear from a big
+  hit.
+
+### Later — systems & world
+- [ ] **P5** casters + ZAngband **realm spell pool** (bolt/ball/breath/summon/
+  heal/blink).
+- [ ] **I3/I4** level-gen objects (`get_obj_num`) + quality tiers / `apply_magic`
+  (ego); identification + flavours + use/consume effects.
+- [ ] **H3** player SP/casting, conditions + status line, hunger clock.
+- [ ] **L2** zone difficulty (`effective_level = zone + depth`).
+- [ ] **L3** wilderness **overworld** surface + town (enter/exit dungeons).
+- [ ] **L4** level profiles (cavern/maze) + special rooms (pit/nest/vault).
+- [ ] **L5** bottom-level guardians + final boss.
+- [ ] **P7 / A2 / H4 / H5 / I5** — smart/pack/doors/wall-pass; unique escorts;
+  character creation; monster health-bar/look; artifacts + encumbrance.
+
+### Eventually
+- [ ] **L6** multi-layer height model (§7); the feature-overlay processor
+  (houses → roads → castles), incl. the parked Douglas–Peucker straightener.
+- [ ] **M4** 3D browser — `moros_render::camera_follow` over the unchanged kernel;
+  single-HTML WebGL. *Blocked by `E0514` — see `LOFT_ISSUES.md` C15.*
+- [ ] **Testing tiers** — `placestats` (main-stats-style distribution harness),
+  Borg-style headless auto-player.
+- [ ] Pick a final **game title + world name** (replace the placeholders).
+
+---
+
 ## 19. Open questions
 
 - Backward glide (`S`) speed; on-screen scale; exact FOV shape.
