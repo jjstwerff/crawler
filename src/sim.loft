@@ -6,9 +6,11 @@
 
 use hexgeo;
 
-MOVE_SPEED = 3.0;     // world units / second (animation rate; clock is distance)
+MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)
 TURN_SPEED = 2.6;     // radians / second
 PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.866)
+PLAYER_HP  = 30;      // starting / max player hit points (placeholder)
+PLAYER_DAM = 6;       // player melee damage per hit (placeholder)
 
 pub struct Enemy {
   cur_q: integer not null,
@@ -16,6 +18,8 @@ pub struct Enemy {
   tgt_q: integer not null,
   tgt_r: integer not null,
   hp:    integer not null,
+  maxhp: integer not null,
+  dam:   integer not null,
   alive: boolean not null,
 }
 
@@ -32,6 +36,9 @@ pub struct Sim {
   accrued: float not null,             // remainder distance in [0, HEX_LEN)
   ticks:   integer not null,
   enemies: vector<Enemy> not null,
+  php:     integer not null,   // player hit points
+  phpmax:  integer not null,
+  over:    boolean not null,   // game over (player died)
 }
 
 // ── World queries ────────────────────────────────────────────────────
@@ -119,9 +126,48 @@ fn best_step(s: Sim, eq: integer, er: integer, pq: integer, pr: integer) -> (int
   (best_q, best_r)
 }
 
+// ── Combat ───────────────────────────────────────────────────────────
+
+// Nearest live enemy that is close (adjacent-ish) and ahead of the heading —
+// the melee target when pressing forward into it. Returns its index, or -1.
+fn front_enemy(s: Sim) -> integer {
+  fx = cos(s.heading);
+  fy = sin(s.heading);
+  reach = HEX_LEN * 1.3;
+  best = -1;
+  bestd = reach * reach;
+  enemies = s.enemies;
+  for fe in 0..len(enemies) {
+    e = enemies[fe];
+    if e.alive {
+      (ecx, ecy) = hex_to_px(e.cur_q, e.cur_r);
+      rx = ecx - s.px;
+      ry = ecy - s.py;
+      d2 = rx * rx + ry * ry;
+      dot = rx * fx + ry * fy;
+      if dot > 0.0 && d2 <= bestd { bestd = d2; best = fe; }
+    }
+  }
+  best
+}
+
+// Player hits enemy `idx` for PLAYER_DAM.
+fn player_attack(s: &Sim, idx: integer) {
+  enemies = s.enemies;
+  if idx >= 0 && idx < len(enemies) {
+    e = enemies[idx];
+    if e.alive {
+      e.hp -= PLAYER_DAM;
+      if e.hp <= 0 { e.alive = false; }
+      enemies[idx] = e;
+    }
+  }
+}
+
 // ── Clock & step ─────────────────────────────────────────────────────
 
-// One world tick: commit each enemy's pending move, then choose the next.
+// One world tick: each live enemy commits its move; if adjacent to the player
+// it attacks (instead of moving), else it steps toward the player.
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   (pq, pr) = px_to_hex(s.px, s.py);
@@ -131,9 +177,16 @@ pub fn sim_tick(s: &Sim) {
     if e.alive {
       e.cur_q = e.tgt_q;
       e.cur_r = e.tgt_r;
-      (bq, br) = best_step(s, e.cur_q, e.cur_r, pq, pr);
-      e.tgt_q = bq;
-      e.tgt_r = br;
+      if hex_distance(e.cur_q, e.cur_r, pq, pr) <= 1 {
+        s.php -= e.dam;
+        e.tgt_q = e.cur_q;
+        e.tgt_r = e.cur_r;
+        if s.php <= 0 { s.over = true; }
+      } else {
+        (bq, br) = best_step(s, e.cur_q, e.cur_r, pq, pr);
+        e.tgt_q = bq;
+        e.tgt_r = br;
+      }
       enemies[et] = e;
     }
   }
@@ -141,6 +194,7 @@ pub fn sim_tick(s: &Sim) {
 
 // Advance one frame.  fwd in {-1,0,1}, turn in {-1,0,1}, dt seconds.
 pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
+  if s.over { return; }
   if turn != 0 {
     s.heading += (turn as float) * TURN_SPEED * dt;
   }
@@ -166,9 +220,16 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
         moved_y = dy;
       }
     }
-    s.accrued += sqrt(moved_x * moved_x + moved_y * moved_y);
+    dist = sqrt(moved_x * moved_x + moved_y * moved_y);
+    // Pressing forward into an enemy = melee: advance the clock at walking pace
+    // even though the player can't move, landing a hit each tick.
+    fe = if fwd > 0 { front_enemy(s) } else { -1 };
+    sd = abs(step);
+    if fe >= 0 && dist < sd { dist = sd; }
+    s.accrued += dist;
     while s.accrued >= HEX_LEN {
       s.accrued -= HEX_LEN;
+      if fe >= 0 { player_attack(s, fe); }
       sim_tick(s);
     }
   }
@@ -220,6 +281,24 @@ pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
   (ex, ey)
 }
 
+pub fn sim_player_hp(s: Sim) -> integer { s.php }
+pub fn sim_player_hp_max(s: Sim) -> integer { s.phpmax }
+pub fn sim_over(s: Sim) -> boolean { s.over }
+
+pub fn sim_enemy_hp(s: Sim, i: integer) -> integer {
+  enemies = s.enemies;
+  v = 0;
+  if i < len(enemies) { e = enemies[i]; v = e.hp; }
+  v
+}
+
+pub fn sim_enemy_maxhp(s: Sim, i: integer) -> integer {
+  enemies = s.enemies;
+  v = 1;
+  if i < len(enemies) { e = enemies[i]; v = e.maxhp; }
+  v
+}
+
 // ── Construction ─────────────────────────────────────────────────────
 
 pub fn sim_new() -> Sim {
@@ -264,12 +343,13 @@ pub fn sim_new() -> Sim {
   }
 
   (spx, spy) = hex_to_px(10, 10);
-  e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 5, alive: true };
+  e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3, alive: true };
   enemies: vector<Enemy> = [e0];
 
   Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
+    php: PLAYER_HP, phpmax: PLAYER_HP, over: false,
   }
 }

@@ -22,12 +22,12 @@ fn main() {
   d0 = hex_distance(eq0, er0, pq0, pr0);
   println("forward start: player ({pq0},{pr0}) enemy ({eq0},{er0}) dist={d0}");
 
-  for _ in 0..240 { sim_step(s, 1, 0, 0.016); }
+  for _ in 0..36 { sim_step(s, 1, 0, 0.016); }   // short: chase, before contact
   fwd_ticks = s.ticks;
   (eq1, er1) = sim_enemy_cur(s, 0);
   (pq1, pr1) = sim_player_hex(s);
   d1 = hex_distance(eq1, er1, pq1, pr1);
-  println("after 240 forward frames -> ticks={fwd_ticks} player ({pq1},{pr1}) enemy ({eq1},{er1}) dist={d1}");
+  println("after 36 forward frames -> ticks={fwd_ticks} player ({pq1},{pr1}) enemy ({eq1},{er1}) dist={d1}");
 
   // (4) edge-wall collision: hex (12,7) has all 3 canonical edges walled.
   s = sim_new();

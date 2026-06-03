@@ -1,0 +1,36 @@
+// combattest — headless check of the melee loop (player kills enemy by bumping;
+// enemy hits back). Deterministic; no graphics.
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story combat test ===");
+  s = sim_new();
+  // Face the enemy and charge (straight 'north' would miss it in world space).
+  (ppx, ppy) = hex_to_px(10, 10);
+  (eex, eey) = hex_to_px(10, 16);
+  s.heading = atan2(eey - ppy, eex - ppx);
+  alive0 = sim_enemy_alive(s, 0);
+  hp0 = sim_player_hp(s);
+
+  // Drive forward into the enemy until it dies.
+  for _ in 0..600 { sim_step(s, 1, 0, 0.016); }
+
+  alive1 = sim_enemy_alive(s, 0);
+  hp1 = sim_player_hp(s);
+  ehp1 = sim_enemy_hp(s, 0);
+  pmax = sim_player_hp_max(s);
+  println("enemy alive: {alive0} -> {alive1} (enemy hp now {ehp1})");
+  println("player hp: {hp0} -> {hp1} (max {pmax})");
+
+  ok_kill = alive0 && !alive1;   // player's bump-melee killed the enemy
+  ok_hurt = hp1 < hp0;           // the enemy hit back while adjacent
+  println("player-kills-enemy: {ok_kill}");
+  println("enemy-hits-player : {ok_hurt}");
+  if ok_kill && ok_hurt {
+    println("=== COMBAT OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

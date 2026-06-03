@@ -95,4 +95,17 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>) {
   graphics::draw_rect_at(painter, CX - psz / 2.0, ANCHOR_Y - psz / 2.0, psz, psz, 0.95, 0.90, 0.30, 1.0);
   nsz = SCALE * 0.42;
   graphics::draw_rect_at(painter, CX - nsz / 2.0, ANCHOR_Y - psz * 0.9 - nsz, nsz, nsz, 0.30, 0.92, 0.40, 1.0);
+
+  // HUD: player HP bar (top-left, screen space).
+  hp = sim_player_hp(s);
+  hpmax = sim_player_hp_max(s);
+  hpf = hp as float / hpmax as float ?? 0.0;
+  if hpf < 0.0 { hpf = 0.0; }
+  graphics::draw_rect_at(painter, 12.0, 12.0, 220.0, 16.0, 0.25, 0.05, 0.05, 1.0);
+  graphics::draw_rect_at(painter, 12.0, 12.0, 220.0 * hpf, 16.0, 0.20, 0.80, 0.30, 1.0);
+
+  // Game over: red tint over everything (blending enabled in main).
+  if sim_over(s) {
+    graphics::draw_rect_at(painter, 0.0, 0.0, VIEW_W, VIEW_H, 0.6, 0.05, 0.05, 0.45);
+  }
 }
