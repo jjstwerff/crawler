@@ -106,3 +106,24 @@ pub fn mon_for_depth(table: vector<MonsterDef>, depth: integer) -> vector<Monste
   }
   out
 }
+
+// Deterministically pick a non-unique monster from `pool` (keyed by seed + i).
+// Returns mon_none() (m_hp == 0) if the pool is empty / all uniques.
+pub fn mon_pick(pool: vector<MonsterDef>, seed: integer, i: integer) -> MonsterDef {
+  n = len(pool);
+  res = mon_none();
+  if n > 0 {
+    base = ((seed * 1103515245 + i * 12345) & 2147483647) % n ?? 0;
+    hit = false;
+    for j in 0..n {
+      if !hit {
+        idx = (base + j) % n ?? 0;
+        if idx < len(pool) {
+          m = pool[idx];
+          if !mon_has_flag(m, MF_UNIQUE) { res = m; hit = true; }
+        }
+      }
+    }
+  }
+  res
+}

@@ -5,6 +5,8 @@
 // turning costs no distance and therefore no time.  NO graphics dependency.
 
 use hexgeo;
+use gen;
+use monsters;
 
 MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)
 TURN_SPEED = 2.6;     // radians / second
@@ -20,6 +22,10 @@ pub struct Enemy {
   hp:    integer not null,
   maxhp: integer not null,
   dam:   integer not null,
+  cr:    integer not null,    // display colour 0..255 (from the monster DB)
+  cg:    integer not null,
+  cb:    integer not null,
+  glyph: text,                // single-char map symbol (e.g. "r", "k", "o")
   alive: boolean not null,
 }
 
@@ -299,6 +305,24 @@ pub fn sim_enemy_maxhp(s: Sim, i: integer) -> integer {
   v
 }
 
+// Enemy display colour (0..255), from its monster-DB definition.
+pub fn sim_enemy_color(s: Sim, i: integer) -> (integer, integer, integer) {
+  enemies = s.enemies;
+  ecr = 200;
+  ecg = 60;
+  ecb = 50;
+  if i < len(enemies) { e = enemies[i]; ecr = e.cr; ecg = e.cg; ecb = e.cb; }
+  (ecr, ecg, ecb)
+}
+
+// Enemy single-char map glyph (e.g. "r", "k", "o").
+pub fn sim_enemy_glyph(s: Sim, i: integer) -> text {
+  enemies = s.enemies;
+  g = "r";
+  if i < len(enemies) { e = enemies[i]; g = e.glyph ?? "r"; }
+  g
+}
+
 // ── Construction ─────────────────────────────────────────────────────
 
 pub fn sim_new() -> Sim {
@@ -343,8 +367,53 @@ pub fn sim_new() -> Sim {
   }
 
   (spx, spy) = hex_to_px(10, 10);
-  e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3, alive: true };
+  e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
+    cr: 200, cg: 60, cb: 50, glyph: "r", alive: true };
   enemies: vector<Enemy> = [e0];
+
+  Sim {
+    lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
+    px: spx, py: spy, heading: PI / 2.0,
+    accrued: 0.0, ticks: 0, enemies: enemies,
+    php: PLAYER_HP, phpmax: PLAYER_HP, over: false,
+  }
+}
+
+// Procedural dungeon: rooms + corridors from gen_dungeon (world-keyed seed),
+// the player placed in room 0 and monsters drawn from the depth-appropriate
+// DB pool into the remaining rooms. Renderer-agnostic — no graphics here.
+pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
+  w = 41;
+  h = 41;
+  lvl = gen_dungeon(seed, w, h, 14);
+  tiles = lvl.g_tiles;
+  walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
+  rqs = lvl.g_rq;
+  rrs = lvl.g_rr;
+  nrm = len(rqs);
+
+  // Player in the first room.
+  pq = w / 2;
+  pr = h / 2;
+  if nrm > 0 {
+    pq = rqs[0] ?? (w / 2);
+    pr = rrs[0] ?? (h / 2);
+  }
+  (spx, spy) = hex_to_px(pq, pr);
+
+  // One monster per remaining room, picked from the depth pool.
+  pool = mon_for_depth(monster_table(), depth);
+  enemies: vector<Enemy> = [];
+  for ri in 1..nrm {
+    eq = rqs[ri] ?? 0;
+    er = rrs[ri] ?? 0;
+    md = mon_pick(pool, seed, ri);
+    if md.m_hp > 0 {
+      enemies += [Enemy { cur_q: eq, cur_r: er, tgt_q: eq, tgt_r: er,
+        hp: md.m_hp, maxhp: md.m_hp, dam: md.m_dam,
+        cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: md.m_glyph, alive: true }];
+    }
+  }
 
   Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,

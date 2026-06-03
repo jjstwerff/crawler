@@ -19,6 +19,9 @@ KEY_A   = 97;
 KEY_D   = 100;
 KEY_ESC = 27;
 
+GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
+GEN_DEPTH = 5;      // zone depth -> monster-pool difficulty
+
 fn main() {
   if !graphics::gl_create_window(WIN_W, WIN_H, "story — M0") {
     println("story: failed to create window");
@@ -32,8 +35,10 @@ fn main() {
   // enable blending for alpha. (Same setup brick-buster uses.)
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
   graphics::gl_enable(graphics::GL_BLEND);
-  s = sim_new();
+  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  s = sim_new_gen(GEN_SEED, GEN_DEPTH);   // procedural dungeon + DB monsters
   walls = build_walls(s);   // smoothed wall outline, built once (static per level)
+  hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
   last = ticks();
   running = true;
   while running {
@@ -55,7 +60,7 @@ fn main() {
       if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
 
       sim_step(s, fwd, turn, dt);
-      view_draw(painter, s, walls);
+      view_draw(painter, s, walls, hud);
       graphics::gl_swap_buffers();
     }
   }

@@ -1,0 +1,49 @@
+// wiretest — headless check that the procedural dungeon + monster spawning
+// is wired correctly: player lands on floor, rooms get monsters from the DB,
+// and every spawned monster sits on a floor hex with a glyph. Deterministic.
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story dungeon-wiring test ===");
+  s = sim_new_gen(1337, 5);
+
+  (pq, pr) = sim_player_hex(s);
+  pwall = is_wall(s, pq, pr);
+
+  ec = sim_enemy_count(s);
+  alive = 0;
+  onfloor = 0;
+  glyphed = 0;
+  for i in 0..ec {
+    if sim_enemy_alive(s, i) {
+      alive += 1;
+      (eq, er) = sim_enemy_cur(s, i);
+      if !is_wall(s, eq, er) { onfloor += 1; }
+      g = sim_enemy_glyph(s, i);
+      if len(g) > 0 { glyphed += 1; }
+    }
+  }
+  println("player hex ({pq},{pr}) in-wall={pwall}");
+  println("enemies: total={ec} alive={alive} on-floor={onfloor} glyphed={glyphed}");
+
+  // sample the first few enemies' glyph+colour for eyeballing variety
+  shown = 0;
+  for i in 0..ec {
+    if shown < 5 && sim_enemy_alive(s, i) {
+      (eq, er) = sim_enemy_cur(s, i);
+      g = sim_enemy_glyph(s, i);
+      (cr, cg, cb) = sim_enemy_color(s, i);
+      println("  enemy {i}: '{g}' at ({eq},{er}) rgb({cr},{cg},{cb})");
+      shown += 1;
+    }
+  }
+
+  ok = !pwall && alive > 0 && onfloor == alive && glyphed == alive;
+  if ok {
+    println("=== WIRING OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

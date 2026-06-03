@@ -115,11 +115,17 @@ check-native:
 	    exit 1; }
 
 test:
-	@echo "  [1/2] kernel self-test (headless, deterministic) ..."
+	@echo "  [1/4] kernel self-test (headless, deterministic) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) $(KTEST) | tee /tmp/story_selftest.log
 	@grep -q "ALL CHECKS PASS" /tmp/story_selftest.log || { \
 	    echo "    FAIL: kernel self-test did not pass"; exit 1; }
-	@echo "  [2/2] compile gate (parse + bytecode) ..."
+	@echo "  [2/4] combat loop (player melee + enemy attacks) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/combattest.loft | tee /tmp/story_combat.log
+	@grep -q "COMBAT OK" /tmp/story_combat.log || { echo "    FAIL: combat loop"; exit 1; }
+	@echo "  [3/4] dungeon wiring (procedural gen + DB monsters) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/wiretest.loft | tee /tmp/story_wire.log
+	@grep -q "WIRING OK" /tmp/story_wire.log || { echo "    FAIL: dungeon wiring"; exit 1; }
+	@echo "  [4/4] compile gate (parse + bytecode) ..."
 	@$(LOFT) --interpret --check $(LOFTFLAGS) $(SRC) >/dev/null 2>&1 || { echo "    FAIL: compile"; exit 1; }
 	@echo "  PASS"
 

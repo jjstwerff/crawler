@@ -1,0 +1,43 @@
+// shot — render one framed frame and capture it via gl_screenshot, so the
+// glyph/text rendering can be verified headlessly (run under xvfb). Not part
+// of the game; a development aid.
+
+use graphics;
+use hexgeo;
+use sim;
+use wallgeo;
+use view;
+
+fn main() {
+  if !graphics::gl_create_window(800, 600, "story — shot") {
+    println("shot: no window");
+    return;
+  }
+  painter = graphics::create_painter_2d(800.0, 600.0);
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  graphics::gl_enable(graphics::GL_BLEND);
+  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+
+  s = sim_new_gen(1337, 5);
+  walls = build_walls(s);
+  hud = build_hud(s);
+
+  // Frame the first monster: place the player ~3 units 'south' of enemy 0 so
+  // the enemy glyph sits just above the '@' (heading is up = +y).
+  if sim_enemy_count(s) > 0 {
+    (ex, ey) = sim_enemy_pos(s, 0);
+    s.px = ex;
+    s.py = ey - 3.0;
+  }
+
+  for _ in 0..2 {
+    graphics::gl_poll_events();
+    view_draw(painter, s, walls, hud);
+    graphics::gl_swap_buffers();
+  }
+  graphics::gl_poll_events();
+  view_draw(painter, s, walls, hud);
+  ok = graphics::gl_screenshot(800, 600, "/tmp/story_frame.png");
+  println("shot: screenshot ok={ok}");
+  graphics::gl_destroy_window();
+}

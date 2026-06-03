@@ -3,6 +3,10 @@
 // The world rotates around the player so the player's heading is always "up",
 // and the player is anchored ~70% down the screen (rear visibility). This is
 // the 2D stand-in for moros_render::camera_follow; the kernel is unchanged.
+//
+// Monsters render as their roguelike glyph letters (DB glyph + colour) through
+// the graphics text bridge (gl_load_font / create_text_texture / draw_texture_at),
+// falling back to coloured squares if the font cannot be loaded.
 
 use graphics;
 use hexgeo;
@@ -14,6 +18,65 @@ VIEW_H   = 600.0;
 SCALE    = 26.0;     // pixels per world unit
 CX       = 400.0;    // player screen x (centre)
 ANCHOR_Y = 420.0;    // player screen y (~70% down)
+
+GLYPH_SIZE  = 22.0;  // monster glyph point size
+PLAYER_SIZE = 26.0;  // the '@' is drawn a touch larger
+DIED_SIZE   = 52.0;  // game-over banner
+DIGIT_SIZE  = 20.0;  // numeric HP
+
+// Baked text resources for the renderer (render-side only — the kernel stays
+// graphics-free). Built once after the window exists via build_hud(); if the
+// font fails to load (font == 0) the view falls back to coloured squares.
+pub struct Hud {
+  font:   integer not null,
+  ptex:   integer not null,           // the player '@'
+  etex:   vector<integer> not null,   // one glyph texture per enemy index
+  digits: vector<integer> not null,   // '0'..'9' for numeric HP
+  died:   integer not null,           // "YOU DIED" banner
+}
+
+// Load the font and bake the static glyph/text textures for this level.
+pub fn build_hud(s: Sim) -> Hud {
+  // gl_load_font resolves relative paths against the loft --path root
+  // (LOFT_REPO), so the project-bundled font is reached as "../story/assets/...".
+  // A few fallbacks cover other run layouts; if none load, the view falls back
+  // to coloured squares. (Note: `!font` is not logical-not on an integer in
+  // loft — compare against 0 explicitly.)
+  fcands = [
+    "../story/assets/DejaVuSans-Bold.ttf",
+    "assets/DejaVuSans-Bold.ttf",
+    "story/assets/DejaVuSans-Bold.ttf",
+    "doc/assets/DejaVuSans-Bold.ttf",
+  ];
+  font = 0;
+  for fci in 0..len(fcands) {
+    if font == 0 {
+      fc = fcands[fci] ?? "";
+      f = graphics::gl_load_font(fc);
+      if f != 0 { font = f; }
+    }
+  }
+  if font == 0 { println("view: font not loaded — falling back to squares"); }
+
+  ptex = 0;
+  died = 0;
+  digits: vector<integer> = [for _ in 0..10 { 0 }];
+  etex: vector<integer> = [];
+  if font != 0 {
+    ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
+    died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
+    for d in 0..10 {
+      digits[d] = graphics::create_text_texture(font, "{d}", DIGIT_SIZE, graphics::rgba(235, 235, 215, 255));
+    }
+    ec = sim_enemy_count(s);
+    for i in 0..ec {
+      g = sim_enemy_glyph(s, i);
+      (cr, cg, cb) = sim_enemy_color(s, i);
+      etex += [graphics::create_text_texture(font, g, GLYPH_SIZE, graphics::rgba(cr, cg, cb, 255))];
+    }
+  }
+  Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died }
+}
 
 // World-plane point -> screen, rotated so the player's heading points up.
 pub fn world_to_screen(s: Sim, wx: float, wy: float) -> (float, float) {
@@ -27,6 +90,37 @@ pub fn world_to_screen(s: Sim, wx: float, wy: float) -> (float, float) {
   sx = CX + cam_x * SCALE;
   sy = ANCHOR_Y - cam_y * SCALE;
   (sx, sy)
+}
+
+// Draw a baked text texture centred on (cx, cy). create_text_texture pads the
+// canvas by 2px/side (+1 width); reproduce those dims so it isn't distorted.
+fn draw_glyph_centered(painter: graphics::Painter2D, font: integer, tex: integer,
+                       content: text, size: float, cx: float, cy: float) {
+  gw = graphics::gl_measure_text(font, content, size) + 5.0;
+  gh = graphics::gl_text_height(font, size) as float + 4.0;
+  graphics::draw_texture_at(painter, tex, cx - gw / 2.0, cy - gh / 2.0, gw, gh);
+}
+
+// Draw a non-negative integer as baked digit textures, left-aligned at (x, y).
+fn draw_number(painter: graphics::Painter2D, hud: Hud, value: integer, x: float, y: float) {
+  v = value;
+  if v < 0 { v = 0; }
+  ds: vector<integer> = [];
+  if v == 0 { ds += [0]; }
+  while v > 0 {
+    ds += [v % 10 ?? 0];
+    v = v / 10;
+  }
+  digs = hud.digits;
+  n = len(ds);
+  dw = 13.0;
+  for k in 0..n {
+    di = ds[n - 1 - k] ?? 0;
+    tx = if di < len(digs) { digs[di] ?? 0 } else { 0 };
+    if tx != 0 {
+      graphics::draw_texture_at(painter, tx, x + (k as float) * dw, y, 12.0, 20.0);
+    }
+  }
 }
 
 // Draw a line segment as a stipple of small squares (the painter only does
@@ -44,7 +138,7 @@ fn draw_segment(painter: graphics::Painter2D, x1: float, y1: float, x2: float, y
   }
 }
 
-pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>) {
+pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, hud: Hud) {
   graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
   cell = SCALE * 1.35;
   // Draw order matters (painter is last-on-top once depth-test is disabled in
@@ -79,33 +173,51 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>) {
     }
   }
 
-  // Enemies (smoothly interpolated between hex centres).
+  // Enemies — glyph letters in their DB colour (square fallback if no font).
   ecount = sim_enemy_count(s);
+  etexv = hud.etex;
   for ve in 0..ecount {
     if sim_enemy_alive(s, ve) {
       (ewx, ewy) = sim_enemy_pos(s, ve);
       (esx, esy) = world_to_screen(s, ewx, ewy);
-      msz = SCALE * 0.95;
-      graphics::draw_rect_at(painter, esx - msz / 2.0, esy - msz / 2.0, msz, msz, 0.88, 0.24, 0.20, 1.0);
+      etx = if ve < len(etexv) { etexv[ve] ?? 0 } else { 0 };
+      if hud.font != 0 && etx != 0 {
+        draw_glyph_centered(painter, hud.font, etx, sim_enemy_glyph(s, ve), GLYPH_SIZE, esx, esy);
+      } else {
+        (ecr, ecg, ecb) = sim_enemy_color(s, ve);
+        msz = SCALE * 0.95;
+        graphics::draw_rect_at(painter, esx - msz / 2.0, esy - msz / 2.0, msz, msz,
+          ecr as float / 255.0, ecg as float / 255.0, ecb as float / 255.0, 1.0);
+      }
     }
   }
 
-  // Player at the anchor, plus a "nose" showing forward (always up-screen).
+  // Player at the anchor — '@' glyph (square fallback), plus a forward "nose".
   psz = SCALE * 1.0;
-  graphics::draw_rect_at(painter, CX - psz / 2.0, ANCHOR_Y - psz / 2.0, psz, psz, 0.95, 0.90, 0.30, 1.0);
+  if hud.font != 0 && hud.ptex != 0 {
+    draw_glyph_centered(painter, hud.font, hud.ptex, "@", PLAYER_SIZE, CX, ANCHOR_Y);
+  } else {
+    graphics::draw_rect_at(painter, CX - psz / 2.0, ANCHOR_Y - psz / 2.0, psz, psz, 0.95, 0.90, 0.30, 1.0);
+  }
   nsz = SCALE * 0.42;
   graphics::draw_rect_at(painter, CX - nsz / 2.0, ANCHOR_Y - psz * 0.9 - nsz, nsz, nsz, 0.30, 0.92, 0.40, 1.0);
 
-  // HUD: player HP bar (top-left, screen space).
+  // HUD: player HP bar + numeric HP (top-left, screen space).
   hp = sim_player_hp(s);
   hpmax = sim_player_hp_max(s);
   hpf = hp as float / hpmax as float ?? 0.0;
   if hpf < 0.0 { hpf = 0.0; }
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0, 16.0, 0.25, 0.05, 0.05, 1.0);
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0 * hpf, 16.0, 0.20, 0.80, 0.30, 1.0);
+  if hud.font != 0 { draw_number(painter, hud, hp, 240.0, 10.0); }
 
-  // Game over: red tint over everything (blending enabled in main).
+  // Game over: red tint + "YOU DIED" banner.
   if sim_over(s) {
     graphics::draw_rect_at(painter, 0.0, 0.0, VIEW_W, VIEW_H, 0.6, 0.05, 0.05, 0.45);
+    if hud.font != 0 && hud.died != 0 {
+      dw = graphics::gl_measure_text(hud.font, "YOU DIED", DIED_SIZE) + 5.0;
+      dh = graphics::gl_text_height(hud.font, DIED_SIZE) as float + 4.0;
+      graphics::draw_texture_at(painter, hud.died, (VIEW_W - dw) / 2.0, (VIEW_H - dh) / 2.0, dw, dh);
+    }
   }
 }
