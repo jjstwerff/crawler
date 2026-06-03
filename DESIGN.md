@@ -200,6 +200,16 @@ step-up/stairs + layer logic). 3D: `moros_render`'s thick walls + raised hex
 surfaces + cylinder-post towers — already-present primitives, so the full castle
 (thick curtains, ramparts, towers) is renderable.
 
+**Rock faces** are the natural counterpart to castle walls: the vertical face
+where **two height layers meet** (cliffs/escarpments — §6a's height deltas).
+Unlike buildings/roads they are **derived from the terrain's layer boundaries**
+(the silhouette of an elevation step), not placed — which is where the
+silhouette-tracing finally earns its keep. Outline policy: a dedicated
+**semi-rounded** algorithm *later* (natural, irregular rock — between sharp
+building walls and smooth roads); **for now they reuse the road outline**
+(24-dir, rounded — the active `wallgeo` road smoother). Collision is the
+height/layer model (a cliff is a height delta; blocked below, walkable above).
+
 The two wall experiments both find a home: **straighten/sharp → buildings**;
 **average/round → roads** (the rounded `wallgeo.loft` is the road smoother; the
 Douglas–Peucker straightener is parked at `patches/`). Organic cave/dungeon
