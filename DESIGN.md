@@ -1,473 +1,367 @@
-# `story` — Design Document
+# crawler — Design Document
 
-**Status:** Draft / pre-implementation
-**Working name:** `story` (final game + world name TBD — see §13)
-**Last updated:** 2026-06-02
+**Status:** In development. M0 vertical slice + data foundations built; the
+2D game runs; procedural world generation underway. (Repo: `crawler`; loft
+package: `story`; final in-world name TBD.)
+**Last updated:** 2026-06-03
 
 ---
 
 ## 1. Summary
 
-`story` is a **clean-room, ZAngband-style roguelike** written in the **loft**
-language. It plays in **2D today** and is designed to become a **3D browser
-game** later, driven by the *same* renderer-agnostic **simulation kernel**.
+A **clean-room, ZAngband-style roguelike** written in the **loft** language.
+It plays in **2D today** and is built to become a **3D browser game** later,
+driven by the *same* renderer-agnostic **simulation kernel**.
 
-Its defining twist is the control + time model: the player moves and turns
-**smoothly and continuously**, enemies live on a **hex grid**, and the game
-clock is **driven by how far the player travels** — not by wall-clock time.
-
----
-
-## 2. Goals & Non-Goals
-
-### Goals
-- A **playable** roguelike — not a tech demo or a library. Something you can
-  open, drive around, fight in, and lose.
-- A **renderer-agnostic simulation kernel**: all rules/state, zero rendering.
-  The 2D view and the future 3D view are interchangeable front-ends over it.
-- **2D now → 3D browser later** with no rewrite of the kernel.
-- **Deterministic** simulation (drives testing, replay, and netcode later).
-- **No intellectual-property risk** (see §3).
-
-### Non-Goals (for now)
-- Faithfully reproducing ZAngband's exact content, balance, or square-grid feel.
-  We clone *mechanics*, not the game.
-- Multiplayer, persistence/save-scumming policy, mod support — later, if ever.
-- A bespoke 3D renderer — we reuse `moros_render` (see §4).
+Defining twist: the player moves and turns **smoothly and continuously**,
+enemies live on a **hex grid**, and the game clock is **driven by how far the
+player travels**, not by wall-clock time.
 
 ---
 
-## 3. Intellectual Property — clean-room policy
+## 2. Relationship to moros — same world, *generated* not authored
 
-**Game mechanics and systems are not copyrightable; names, art, text, and
-specific lore are.** So we copy the *systems* freely and invent all the
-*fiction*.
+The world model here — a **hex world** with per-hex height + stacked layers,
+materials, items, and walls/buildings/castles/towers/roads/rock-faces — is the
+**same rich system `moros` already details**, *but `moros` builds it by hand
+through an editor* (a long content/tooling tail). **`crawler` is the
+anti-moros:** it shares that world model (and reuses `moros_map`/`moros_render`)
+yet reaches a **working, playable foundation much faster by *generating* the
+world procedurally** instead of authoring it. Same destination world; code- and
+generation-driven path to a working game, with no editor dependency.
 
-**Banned (third-party IP):** any Tolkien name (Angband, Morgoth, Sauron,
-balrog, Nazgûl/ringwraith, ent, Shelob, the One Ring, "hobbit", …) and any
-Zelazny/Amber name (Oberon, Amberites, the Pattern, Trumps, Serpent of Chaos,
-Courts of Chaos). Use **"halfling"** not "hobbit".
-
-**Safe to reuse verbatim:** depth-based dungeon progression, XP/leveling,
-stats/HP, resistance grids, ego-items/artifacts-as-a-concept, monster
-"uniques" as a concept, spell schools, the bump-to-attack convention, the
-inventory model. The D&D-generic class/race scaffolding (warrior/mage/priest/
-rogue/ranger; human/elf/dwarf/gnome/halfling) is fine.
-
-All original content lives in data files so it is auditable and swappable.
-*(The existing `moros_*` libraries were checked and contain zero such names.)*
+Consequence that recurs throughout: **everything is procedural** (dungeons,
+buildings, towns, roads, terrain), and the engine favors a solid generated core
+over hand-authored content.
 
 ---
 
-## 4. Foundation — reuse the `moros` stack
+## 3. Goals & Non-Goals
 
-The `moros_*` loft libraries (`/home/jurjen/workspace/loft/lib/`) are a **3D
-hex-world editor stack**, not a roguelike. We reuse the parts that are already
-renderer-agnostic and 3D-capable, and build the missing simulation on top.
+**Goals**
+- A **playable** roguelike — open it, drive around, fight, lose.
+- A **renderer-agnostic simulation kernel**: all rules/state, zero rendering;
+  2D and future 3D are interchangeable front-ends.
+- **2D now → 3D browser later** with no kernel rewrite.
+- **Deterministic** simulation (testing, replay, world-keyed generation).
+- **Procedural** content throughout; **no IP risk** (§4).
 
-| Library | What it is | Our use |
-|---|---|---|
-| `moros_map` | Hex world model: per-hex height/material/walls/items, q/r/cy chunks, JSON. **No graphics dependency.** | **Reuse** as the terrain/world store. Each dungeon level = one map (or layer). |
-| `moros_render` | Hex world → 3D mesh → GLB → WebGL; `camera_follow` (third-person behind a facing player). | **Reuse later** as the 3D front-end. |
-| `moros_editor` | Undo/redo + stencils on a map. No graphics. | Optional, for authoring levels. |
-| `moros_sim` | Continuous `Player` (`pl_facing`) + `resolve_move` continuous-vs-hex collision — **real-time**, and **imports graphics**. | **Do not depend on** (it pulls graphics). Reimplement the small bit of continuous/hex collision we need, graphics-free, in the kernel. |
-| `moros_ui` | 2D editor toolbar/panels. | Not used. |
-
-**Missing — i.e. what we build:** turn/clock engine, actors with stats+HP,
-combat, field-of-view, inventory/items, dungeon generation, and the game loop.
-That is *the kernel*.
+**Non-Goals (for now)**
+- Reproducing ZAngband's exact content/balance — we clone *mechanics*.
+- Multiplayer, mods — later, if ever.
+- A bespoke 3D renderer — reuse `moros_render`.
+- A hand-authoring editor — that's moros's path, deliberately not ours.
 
 ---
 
-## 5. Architecture — kernel / presentation split
+## 4. Intellectual property — clean-room
+
+Game mechanics/systems aren't copyrightable; names, art, and specific lore are.
+We clone the **systems** and invent the **fiction**.
+
+- **Banned:** any Tolkien name (Angband, Morgoth, Sauron, balrog, Nazgûl, ent,
+  Shelob, the One Ring, "hobbit", …) and any Zelazny/Amber name (Oberon,
+  Amberites, the Pattern, Trumps, Serpent of Chaos). Use **"halfling"** not
+  "hobbit".
+- **Free to reuse:** depth progression, XP/leveling, stats/HP, resistances,
+  ego-items/artifacts and monster "uniques" *as concepts*, spell schools,
+  bump-to-attack, inventory; generic D&D race/class scaffolding.
+- Angband/ZAngband are **GPL**, so reading their source to reproduce formulas is
+  legitimate (crawler is LGPL-3.0-or-later, GPL-compatible). All original
+  content lives in swappable data files. (The `moros_*` libs contain zero such
+  names — verified.)
+
+---
+
+## 5. Architecture — kernel / view split
 
 ```
             ┌─────────────────────────────────────────────┐
-            │  story-kernel   (pure loft, NO graphics dep) │
-            │  hex world (moros_map) · continuous player · │
-            │  hex-locked enemies · distance clock ·       │
-            │  combat · FOV · items · dungeon gen          │
-            │  → exposes read-only state + step(input)     │
+            │  kernel  (pure loft, NO graphics dependency) │
+            │  hex world · continuous player · hex-locked  │
+            │  enemies · distance clock · collision ·      │
+            │  combat · FOV · items · world generation     │
+            │  → exposes read-only state + step(intent)    │
             └───────────────┬─────────────────┬───────────┘
                             │                 │
              ┌──────────────▼──────┐   ┌──────▼───────────────────┐
              │  view-2d (NOW)      │   │  view-3d (LATER)         │
-             │  graphics package:  │   │  moros_render:           │
-             │  rotate world to    │   │  camera_follow behind    │
-             │  player heading,    │   │  the player; same kernel │
-             │  glyphs/tiles, HUD  │   │  state, 3D meshes         │
+             │  graphics package;  │   │  moros_render;           │
+             │  world rotates to   │   │  camera_follow behind    │
+             │  player heading;    │   │  the player; SAME kernel │
+             │  cells/glyphs, HUD  │   │  state, 3D meshes         │
              └─────────────────────┘   └──────────────────────────┘
 ```
 
-**Hard rule:** the kernel never references a draw call, window, or input
-device. It takes an **input intent** (turn rate, move intent, action) plus a
-frame delta, advances state, and exposes **read-only state** (player pose,
-visible hexes, actor list with interpolation, log messages). Swapping renderers
-must require zero kernel changes.
+**Hard rule:** the kernel never calls a draw/window/input API. It takes an
+**input intent** + frame delta, advances state, and exposes **read-only state**.
+Swapping renderers requires zero kernel changes. (The `hexgeo`/`sim`/`gen`/data
+modules import no graphics; `view`/`story` are the swappable front-end.)
 
-**Spatial model:** the kernel works in a **continuous 2D plane over an axial
-hex grid**. Player position is a float `(x, y)` on that plane + a heading
-angle. Height (the 3rd dimension) is **purely a rendering concern** pulled from
-`moros_map` by the 3D view; the kernel is 2D. The kernel needs a small
-**graphics-free hex-geometry module** (axial/cube coords, neighbors, distance,
-`world↔hex`, hex line) — written in pure loft, not borrowed from the
-graphics-dependent `moros_render`.
+**Reused from moros:** `moros_map` (hex world store, JSON, no graphics) and
+`moros_render` (hex→3D mesh→GLB→WebGL, `camera_follow`, thick walls, curved
+walls, cylinder posts, raised surfaces). We do **not** depend on `moros_sim`
+(it imports graphics) — the small continuous/hex collision we need is
+reimplemented graphics-free in the kernel.
 
 ---
 
-## 6. World model
+## 6. World model — hex terrain
 
-- A dungeon **level** is a `moros_map` populated by the generator (§11): floor
-  hexes, wall edges, doorways, stairs down/up, items, spawn points.
-- Coordinates: **axial `(q, r)`** for hexes; continuous `(x, y)` for the player.
-- **Hex layout = moros's default.** Reuse its constants and mappings verbatim so
-  the kernel and `moros_render` agree: offset-rows at unit size, with
-  `HEX_WIDTH = √3`, `HEX_ROW_HEIGHT = 1.5`, `x = q·√3 + (r mod 2)·(√3/2)`,
-  `z = r·1.5`, and moros's 6 axial neighbor offsets. *Caveat:* the geometry is
-  actually **pointy-top** (a vertex points up/down, flat edges left/right) —
-  moros's own comments mislabel it "flat-top"; defer to `hex_to_world`, not the
-  label.
-- **"Hex length" `L`** = center-to-center distance between adjacent hexes
-  `= HEX_WIDTH = √3` (all 6 neighbors equidistant). `L` is the unit of the game
-  clock (§8), and the clock accrues **path length travelled** — wiggling costs
-  time; net displacement is irrelevant.
-- **Two kinds of wall** (moros's model, both supported):
-  1. **Solid full-hex wall** — a non-walkable hex cell (the classic Angband
-     granite block); this is the primary, original-game look.
-  2. **Edge walls** — thin barriers on a hex *edge* (doorways, railings).
-     Stored on 3 canonical edges per hex (N/NE/SE); the other 3 edges belong
-     to the neighbour (so each physical edge is stored once).
-  A move A→B is blocked if **B is solid** *or* the **shared A–B edge** carries
-  a wall — this is moros's `blocked_by_wall` collision, applied to the
-  continuous player as it crosses a hex boundary.
-- 3D later: full-hex walls become raised hex columns; edge walls feed
-  `moros_render`'s `emit_wall_quad` along the edge. 2D now: full-hex walls are
-  filled cells; edge walls are short segments between the edge's two corners.
+- **Coordinates:** axial `(q, r)` for hexes; continuous `(x, y)` for the player.
+- **Hex layout = moros's default:** `HEX_WIDTH = √3`, `HEX_ROW_HEIGHT = 1.5`.
+  *Caveat:* the geometry is **pointy-top** (vertex up/down, flat edges
+  left/right) despite moros's comments mislabeling it "flat-top" — defer to the
+  function. (`hexgeo.loft` works in clean axial coords; converts to moros offset
+  coords at the moros_map boundary.)
+- **"Hex length" `L = √3`** (all 6 neighbors equidistant) = the unit of the
+  game clock (§11). The clock accrues **path length travelled** (wiggling costs
+  time).
+- **Two collision-level wall kinds** (moros's model): **solid full-hex walls**
+  (non-walkable cells — Angband granite) and **edge walls** (thin barriers on a
+  hex edge, stored on the 3 canonical edges N/NE/SE; the other 3 belong to the
+  neighbor). A move A→B is blocked if **B is solid** or the **shared edge** is
+  walled — `is_blocked_move`, with axis-separated **sliding** + a **collision
+  radius** (already built in `sim.loft`).
 
-### 6c. Walls & roads as feature overlays on the hex map (current model)
+---
 
-The hex map (§6) is the terrain — **kept** (movement, distance clock, moros 3D
-path). Walls/buildings and roads are **vector feature overlays** placed *on* it
-(not a square map, not hex-edge-locked):
-Each overlay is parameterized by two independent knobs — **direction
-resolution** (snap orientations to **12** = 30° or **24** = 15°) and **corner
-policy** (**straight/sharp** or **rounded**). The feature types are combinations:
-- **Houses / buildings** — local square layout (`gridgeo.loft`), **12 dirs**,
-  **straight + sharp 90°** corners.
-- **Roads** — polylines, **24 dirs** (the 12 interleaved → 15°), **rounded**
-  corners (corner-detect → smooth turns).
-- **Town & castle walls** — polylines, **24 dirs** (like roads, to wrap terrain
-  flexibly) but **straight + sharp** segments (like house walls, not rounded).
+## 7. Height & layers (mirrors `moros_map`)
 
-So the **straight/sharp** routine (the parked Douglas–Peucker straightener)
-serves both house walls (12-dir) *and* town/castle walls (24-dir); the
-**rounded** routine (the active `wallgeo`) serves roads.
+The terrain is ultimately a **stack of layers (`cy`)** with a **per-hex centre
+height (`h_height`)** — exactly `moros_map`'s shape, so the kernel carries the
+fields and `moros_render` draws them (`y = h_height·HEIGHT_SCALE`, slopes via
+`emit_slope_face`, layers stacked). Additive terrain data, 1:1 with `moros_map`
+→ free 3D hand-off. **Height deltas between adjacent hexes are slopes/cliffs**
+(→ rock faces, §9). Surfaced for later: step-up limit + climb cost vs. the
+clock; height-aware FOV; layer traversal (stairs); the 2D view shows one layer
+at a time (height as shading).
 
-**Junctions are their own policy, chosen by a detection pass.** Walk the wall
-graph, classify each vertex (corner / T-junction / endpoint / gate flank), and
-emit the right element per feature: **sharp miter** (houses), **rounded arc**
-(roads), or a **round tower** auto-placed at castle-wall corners/junctions and
-**linked** into the adjoining straight curtain segments (real-castle anatomy:
-round towers + straight curtain walls). These three geometries map 1:1 onto
-primitives `moros_render` already provides — `emit_wall_quad` (straight),
-`emit_thick_curved_wall` (arc), `emit_cylinder_post` (round tower/post) — so the
-3D side is already supported; the work is the detection + which-element logic.
+---
 
-**Net framework:** an overlay = (direction resolution **12**/**24**) × straight
-segments × (**junction policy**: sharp-miter / rounded-arc / round-tower), with
-a junction-detection pass. Houses = (12, sharp); roads = (24, rounded);
-town/castle walls = (24, sharp curtains + round towers).
+## 8. World structure — wilderness overworld + dungeons
+
+A **wilderness overworld** (a large surface hex map — terrain, height, towns,
+dungeon entrances) you travel across continuously, plus **dungeons** (separate
+descending hex maps) entered from it. The overworld *is* a `moros_map`;
+`moros_render` draws both in 3D. The kernel gains a **current map** +
+**transitions** (enter/descend/ascend/recall); the view treats overworld and
+dungeon identically.
+
+- **World-keyed + persistent.** Every place is generated **deterministically
+  from a position-seed** (`gen.world_key_seed(wx,wy,depth)`); once visited, its
+  **state is persisted** (monsters/items/changes) so re-entry restores it —
+  rewarding travel. Same machinery for overworld and dungeons; persistence via
+  `moros_map` JSON per visited level.
+- **Zone-based difficulty + shallow dungeons.** Each region has a **zone
+  difficulty** (ZAngband's "law"); dungeons are **shallow**, monsters drawn at
+  **effective level = zone difficulty + sub-level** (not pure descent).
+  Progression is mainly **horizontal** (travel to harder zones). Preserves
+  Angband monster-selection (`monsters.loft` `m_depth` + `mon_for_depth`, fed
+  the zone-derived level) and fixes ZAngband's "no incentive to travel" weakness.
+
+---
+
+## 9. Feature overlays — walls, buildings, castles, roads, rock faces
+
+The hex terrain (§6–7) is the simulation truth. Walls/buildings/roads/rock-faces
+are **one outline engine** producing **render geometry** over that terrain.
+
+**One processor, parameterized per feature:**
+- **Input** — run/polylines, either *placed* (houses, roads, walls) or
+  *derived from terrain* (rock faces = layer-boundary silhouettes; organic caves
+  = solid/floor silhouette).
+- **Knobs** — **direction resolution** (snap to **12** = 30° or **24** = 15°)
+  and **junction policy** (**sharp-miter** / **rounded-arc** / **semi-rounded** /
+  **round-tower**).
+- **Output** — render geometry only (segments / arcs / towers / raised surfaces)
+  → 2D now, `moros_render` in 3D.
+
+| Feature | Source | Dir | Junction / outline |
+|---|---|---|---|
+| Houses/buildings | placed (square local, `gridgeo`) | 12 | sharp 90° |
+| Roads | placed | 24 | rounded (smooth turns) |
+| Town/castle walls | placed | 24 | sharp curtains + **round towers** at corners |
+| Rock faces | terrain layer boundary | 24 | road-rounded **now** → **semi-rounded later** |
+
+- **Buildings** are laid out in a **local square grid** (`gridgeo.loft`) so
+  corners are clean 90° by construction, then oriented to one of **12 directions**
+  (k×30°: the hex lattice's 6 edges + 6 vertices) and placed at a hex anchor.
+- **Castle curtain walls are 2 hexes wide** → a **walkable rampart top** +
+  **battlements** (parapet). A castle wall is therefore a **height feature**
+  (§7): solid at ground, walkable on the elevated top (reached by stairs/gate
+  tower); **round towers** rise to wall-walk height and link the rampart runs.
+- **Both wall experiments have homes:** the parked Douglas–Peucker **straightener
+  → buildings & castle walls** (sharp); the active averaging/Laplacian `wallgeo`
+  **→ roads & (for now) rock faces** (rounded). The three geometries map 1:1 onto
+  `moros_render` primitives that already exist — `emit_wall_quad` (straight),
+  `emit_thick_curved_wall` (arc), `emit_cylinder_post` (round tower/post),
+  raised surfaces (ramparts) — so the 3D side is largely free.
 
 **Collision stays on the hex grid; the overlay is render-only.** Towers keep
-their own **hex**, and walls use the **3 canonical hex edge-walls** (`h_wall_*`).
-So collision is the existing hex model — solid cells + edge walls + tower hexes,
-resolved by `is_blocked_move` (+ sliding/radius), already built in `sim.loft`.
-The continuous player never collides against the pretty overlay segments; it
-collides against hex cells/edges. The 12/24-dir straight walls, round towers,
-and rounded roads are the **render** of that hex wall/tower data (the view
-detects towers at curtain-wall junctions and draws them round; `moros_render`
-does it in 3D). Clean split: **kernel = hex collision truth; view = the pretty
-overlay derived from it.**
-
-**Castle curtain walls are 2 hexes wide** — thick enough for a **walkable top
-(rampart / wall-walk)** and **battlements** (crenellated parapet on the outer
-edge). So a castle wall is a **height feature (§6a)**: the 2-hex band is
-solid/impassable at ground level but **walkable on top**, an elevated layer
-reached by stairs or a gate-tower, with the parapet providing cover/blocking up
-there. Towers rise to the wall-walk height and link the rampart runs. Collision
-is still the hex model — just with height (blocked below, walkable above, via the
-step-up/stairs + layer logic). 3D: `moros_render`'s thick walls + raised hex
-surfaces + cylinder-post towers — already-present primitives, so the full castle
-(thick curtains, ramparts, towers) is renderable.
-
-**Rock faces** are the natural counterpart to castle walls: the vertical face
-where **two height layers meet** (cliffs/escarpments — §6a's height deltas).
-Unlike buildings/roads they are **derived from the terrain's layer boundaries**
-(the silhouette of an elevation step), not placed — which is where the
-silhouette-tracing finally earns its keep. Outline policy: a dedicated
-**semi-rounded** algorithm *later* (natural, irregular rock — between sharp
-building walls and smooth roads); **for now they reuse the road outline**
-(24-dir, rounded — the active `wallgeo` road smoother). Collision is the
-height/layer model (a cliff is a height delta; blocked below, walkable above).
-
-The two wall experiments both find a home: **straighten/sharp → buildings**;
-**average/round → roads** (the rounded `wallgeo.loft` is the road smoother; the
-Douglas–Peucker straightener is parked at `patches/`). Organic cave/dungeon
-walls (silhouette of solid hex regions) remain an optional separate style. The
-continuous player collides with the overlay **segments**; the hex terrain is the
-floor underneath.
-
-### 6a. Full world model (target — mirrors `moros_map`)
-
-The terrain is ultimately a **stack of layers (`cy`) with a per-hex centre
-height (`h_height`)**, exactly `moros_map`'s shape — so the kernel just carries
-the fields and `moros_render` draws them (`y = h_height * HEIGHT_SCALE`, slopes
-via `emit_slope_face`, layers stacked). This grows the *terrain* data
-(height + layer index), but it's additive and 1:1 with `moros_map` (free 3D
-hand-off). Walls are the **silhouette of solid hex regions** (Angband's
-carved-from-rock model): trace the solid/open boundary per layer, straighten
-the contour to the 12 directions (averaging the per-hex wobble, mitring real
-corners — a pure mesh-layer pass, **no wall-data change**), and extrude each
-face from its floor height to the ceiling. Height *deltas* between adjacent
-floor hexes are slopes/cliffs, not walls. The 12-direction straightening is a
-2D op per layer; height only sets the y-extrusion.
-
-Surfaced for later milestones: step-up limit + climb cost vs. the distance
-clock; height-aware FOV (tall hexes block sight); layer traversal (stairs) and
-what the 2D view shows (one layer at a time, height as shading).
-
-### 6b. World structure — wilderness overworld + dungeons (ZAngband-style)
-
-The world is a **wilderness overworld** — a large surface hex map (terrain,
-height, towns, dungeon entrances) you travel across continuously — plus
-**dungeons** (separate hex maps of descending levels) entered from points on it.
-This matches `moros_map` directly: the overworld *is* a `moros_map` and can be
-**hand-authored in the moros editor + loaded as JSON** (hand-crafted overworld +
-procedural dungeons), and `moros_render` draws both in 3D. The continuous-player
-+ distance-clock model applies on the overworld too (glide across terrain,
-distance ticks the clock, wilderness encounters). The kernel gains a **current
-map** + **transitions** (enter dungeon, descend/ascend, recall) — additive over
-the world model; the view treats overworld and dungeon identically, only the map
-swaps. This is an M2/M3 system; M0/M1 stay on a single dungeon test map.
-
-**Source-of-truth for logic (decided):** **hybrid** — **modern Angband (4.2.x)**
-for the core engine *and* the **monster & object rules/data** (`monster.txt` /
-`object.txt` flag sets, resistances, ego/affixes, combat, AI, stats, HP,
-XP/leveling, FOV — cleanest to reproduce faithfully); **ZAngband** for **world
-structure & flavor** (wilderness now; realm-based magic + the full ZAngband
-**spell pool**; mutations later). Mechanics are GPL/free to clone; only names
-stay clean-room (§3).
-
-**Difficulty model — zone-based + shallow dungeons (decided direction):**
-ZAngband's wilderness already carries per-location difficulty (its "law"
-parameter). We lean into it: each overworld region has a **zone difficulty**,
-and dungeons are **shallow** (a handful of levels) whose monsters are drawn at
-an **effective level = zone difficulty + dungeon sub-level** — not pure descent
-depth. Progression is mainly **horizontal** (travel to harder zones) with short
-vertical dungeons on top. This preserves Angband's monster-selection logic
-(native depth / rarity / out-of-depth, via `monsters.loft`'s `m_depth` +
-`mon_for_depth`) — we just feed it the zone-derived level (no DB change). Bonus:
-it fixes ZAngband's biggest wilderness weakness (no incentive to travel), since
-reaching new zones *is* the difficulty curve. Zone difficulty is authored in the
-moros editor (or derived from distance-from-start / terrain).
-
-**Spell ↔ monster/object compatibility:** compatible. Both are Angband-derived,
-so every spell (player or monster) resolves as an *effect/projection* the
-target resists and saves against, and that can affect objects. ZAngband
-supplies the spell **catalog** (realms × books × spells + mana/fail/level +
-each spell's effect); execution runs through modern Angband's
-effect/projection/resistance/save machinery. Work needed: map ZAngband's
-element/effect types → modern projections, and implement the few ZAngband-unique
-effects (Chaos/Trump/Death). Monster casting stays modern; the player's magic is
-the ZAngband realm system; they meet at the shared effect layer. Consequence:
-the current `monsters.loft`/`items.loft` are placeholders to **align to modern
-Angband's `monster.txt`/`object.txt`** — which is also what makes them
-spell-ready (resist/type flags are what spells query).
+their own **hex**; walls use the **3 canonical hex edge-walls** (`h_wall_*`);
+2-hex castle walls + cliffs use **height**. The continuous player collides
+against **hex cells / edges / height**, never the pretty overlay segments.
+**Kernel = hex collision truth; view = pretty overlay derived from it.**
 
 ---
 
-## 7. Actors
+## 10. Actors
 
-### Player — continuous
-- State: continuous position `(x, y)`, continuous heading θ, plus derived
-  *current hex* (the hex containing `(x, y)`).
-- Moves and rotates **smoothly** (see §9). Occupies whichever hex contains its
-  position; combat/adjacency use that hex, not the sub-hex offset.
-
-### Enemies — hex-locked
-- Logical position is always a **hex center** `(q, r)`. They move **one hex per
-  tick** and **animate smoothly** between centers.
-- They **attack into the whole hex** the player currently occupies — you cannot
-  dodge a melee by hugging a hex edge.
-- Smooth glide is **keyed to the player's accrued distance**, not wall-clock
-  (see §8): as the player covers a hex-length, each moving enemy slides one hex.
+- **Player (continuous):** float `(x,y)` + heading θ; derived *current hex* is
+  used for combat/adjacency.
+- **Enemies (hex-locked):** logical position is a hex centre; move **one hex per
+  tick**, animate smoothly between centres (interpolation keyed to the player's
+  accrued distance); attack into the **whole hex** the player occupies.
 
 ---
 
-## 8. The distance-driven clock — core mechanic
+## 11. The distance-driven clock
 
-**The player's accumulated travel distance is the master clock.**
-
-- Maintain `accrued` = total path distance the player has translated.
-- Each time `accrued` crosses a multiple of `L` (one hex-length), fire **one
-  world tick**: every enemy decides and commits one hex step / attack, status
-  effects advance, regen ticks, etc.
-- **Turning covers zero distance ⇒ advances zero ticks.** That is precisely why
-  "turning is free in time." Standing still (or only turning) **freezes** the
-  world.
-- The fractional progress `frac = (accrued mod L) / L ∈ [0,1)` drives enemy
-  glide interpolation, so the player and enemies animate in lockstep with **no
-  wall-clock dependence** → fully deterministic.
-- **Wait** action advances exactly one tick in place (needed for regen / luring
-  monsters, since standing still otherwise stops time).
-
-This makes the sim a turn engine wearing a real-time coat: smooth to play,
-discrete and deterministic underneath.
+The player's accumulated **travel distance** is the master clock. Every **`L`
+(one hex-length)** travelled fires **one world tick** (enemies act, status/regen
+advance). **Turning covers zero distance ⇒ zero ticks** ("turning is free");
+standing still freezes the world. Enemy glide interpolation = `(accrued mod L)/L`
+→ fully deterministic, no wall-clock dependence. A **wait** action advances one
+tick in place. A turn engine wearing a real-time coat.
 
 ---
 
-## 9. Controls & camera
+## 12. Controls, camera, FOV
 
-### Controls (all analog / held; release stops **immediately** — no inertia)
-| Key | Action | Costs time? |
-|---|---|---|
-| `W` | glide forward along heading | yes (distance ticks the clock) |
-| `S` | glide backward (no turn) | yes |
-| `A` | turn left, continuous | **no** |
-| `D` | turn right, continuous | **no** |
-| `.` / `Space` | wait one tick in place | yes (1 tick) |
-| *(bump)* | glide forward into an enemy's hex = melee attack | yes (1 tick) |
+**Controls** (analog/held; release stops immediately, no inertia):
+`W`/`S` glide forward/back (cost time), `A`/`D` turn (free), `.`/`Space` wait,
+bump-forward-into-enemy = melee. Heading is a continuous float (the "30°" is
+turn *feel*, not quantization).
 
-Heading is a **continuous float at any angle** — there is no 30° quantization;
-the "30°" we discussed is just turn *rate/feel*. Turning rate and glide speed
-are real-time (for animation); only **distance** advances the game clock.
+**Camera — egocentric, forward-biased:** the world rotates around the player so
+heading is always "up"; player anchored **~70% down** the screen (rear-visibility
+margin). 3D later = `moros_render::camera_follow`.
 
-### Camera — egocentric, forward-biased
-- The **world rotates around the player** so the player's heading is always
-  "up" the screen. The player never visually spins; the world does.
-- The player is anchored **~70% down the screen** (not the bottom edge) so
-  there is a margin of **rear visibility** — something creeping up behind you
-  can be seen.
-- 3D later: this is exactly `moros_render::camera_follow` (third-person behind
-  the facing player). Same model, different projection.
-
-### Field of view
-- **Wide forward arc** (you see far ahead) **+ a short all-around radius** (you
-  always see immediately adjacent hexes, including behind). Net effect:
-  exploration is directional and tense; a distant enemy can flank you unseen,
-  but cannot pounce from point-blank without warning.
+**FOV:** wide forward arc + short all-around radius — directional, tense
+exploration; distant flankers unseen, point-blank rear always seen.
 
 ---
 
-## 10. Combat, FOV & initial defaults
+## 13. Source of truth for logic — hybrid
 
-Decisions made to keep the first build moving; revisit during tuning:
-- **Bump-to-melee:** moving forward into an occupied enemy hex is the attack.
-- **Monster speed:** everyone moves 1 hex/tick to start. Add an Angband-style
-  speed multiplier later (fast monsters cover >1 hex per player hex-length).
-- **FOV:** forward arc + small all-around radius, recomputed per tick (and
-  visually per frame from the player's continuous pose).
-- **Combat math:** placeholder (attack vs. AC + damage roll) in the first
-  slice; the real stat/resistance system lands with §11.
-
----
-
-## 11. Roguelike systems (clean-room, roadmap-level)
-
-Cloned ZAngband-style systems, all original-named and data-driven:
-- **Descent:** numbered dungeon levels of increasing depth; stairs up/down;
-  depth scales danger and loot.
-- **Stats & progression:** core attributes, HP/mana, XP and levels, classes,
-  races (generic D&D scaffolding).
-- **Items:** weapons/armor/consumables, ego-items and artifacts (original
-  names + effects), identify, inventory & equip slots.
-- **Monsters:** a data table of monster types with stats/behaviors and
-  original "unique" bosses; spawn by depth.
-- **Magic:** spell schools / spellbooks, resistances and elements.
-- **Detection/utility:** mapping, detection, teleport — classic roguelike kit.
-
-These are explicitly *later* milestones; the kernel is structured so each plugs
-in as a system over the same state.
+- **Modern Angband (4.2.x)** for the **core engine + monster/object rules/data**
+  (`monster.txt`/`object.txt` flags, resistances, ego/affixes; combat to-hit/
+  damage, stats, HP, XP/leveling, FOV, monster AI) — cleanest to reproduce
+  faithfully.
+- **ZAngband** for **world structure & flavor:** wilderness overworld (§8),
+  **realm-based magic + the full spell pool** (~7 realms × 4 books × 8 spells;
+  classes pick 1–2 realms), mutations later.
+- **Spells ↔ monster/object rules are compatible:** every spell resolves as an
+  effect/projection the target resists + saves against; ZAngband supplies the
+  spell catalog, modern Angband the execution machinery. A small effect-type map
+  + a few ZAngband-unique effects (Chaos/Trump/Death) bridge them.
+- **Skills** = derived Angband values (not a skill tree).
+- The placeholder values in the data tables (§14) will be **re-derived from the
+  real source** as each system lands. Reproduce logic faithfully; only names are
+  clean-room.
 
 ---
 
-## 12. Loft package layout
+## 14. Content — data tables + procedural generation
 
-A loft package (`loft.toml` + `src/*.loft`), run against the loft toolchain
-with `--lib /home/jurjen/workspace/loft/lib/` for `moros_map` / `graphics`.
+Static catalogs are **loft data modules** (struct + table builder + helpers);
+the runtime character is a struct; saves are JSON (loft struct round-trip).
+
+- **`monsters.loft`** — 32 monsters (depth 1–25) + 4 original uniques (final boss
+  *Maug*); stat/AI-flag fields. *(placeholder → align to `monster.txt`.)*
+- **`classes.loft`** (8), **`races.loft`** (10, halfling-not-hobbit + original
+  "highborn"), **`items.loft`** (54 base kinds across all categories).
+- **`gen.loft`** — procedural dungeon generator (rooms + corridors, connectivity
+  verified, deterministic LCG, `world_key_seed`). Grows: room types, vaults,
+  buildings, towns, wilderness.
+- **`gridgeo.loft`** — square basis for 90° building/wall layouts (§9).
+- **To build:** `spells.loft` (ZAngband realm pool), a `Hero` struct + character
+  creation, the feature-overlay processor (§9), combat/FOV/HUD.
+
+---
+
+## 15. Package layout (actual)
 
 ```
-story/
-├── loft.toml                 # [dependencies] moros_map, graphics (view only)
-├── DESIGN.md
-└── src/
-    ├── story.loft            # entry: window + game loop, wires kernel↔view
-    ├── kernel/               # NO graphics import anywhere under here
-    │   ├── hexgeo.loft       # axial/cube hex math, world↔hex, line, neighbors
-    │   ├── world.loft        # level state over moros_map; FOV
-    │   ├── player.loft       # continuous pose + distance accrual
-    │   ├── actors.loft       # hex-locked enemies, stats/HP, AI step
-    │   ├── clock.loft        # distance→tick driver
-    │   ├── combat.loft       # attack/damage resolution
-    │   ├── items.loft        # inventory/equip (later)
-    │   └── gen.loft          # dungeon generation
-    └── view2d/
-        └── render2d.loft     # graphics: world-rotation, glyphs/tiles, HUD, input→intent
+crawler/  (loft package "story")
+├── loft.toml · loft.lock · Makefile · README.md · DESIGN.md
+├── patches/            # parked diffs (wallgeo Douglas–Peucker) + README w/ hashes
+├── tools/snap.sh       # Xvfb screenshot helper (make shot)
+└── src/                # flat; kernel modules import NO graphics
+    ├── hexgeo.loft     # hex geometry (axial)            — kernel
+    ├── gridgeo.loft    # square geometry for 90° walls   — kernel
+    ├── sim.loft        # world + player + enemies + clock + collision — kernel
+    ├── gen.loft        # procedural dungeon generator     — kernel
+    ├── monsters/classes/races/items.loft  # data tables   — kernel
+    ├── wallgeo.loft    # wall outline (rounded active; DP parked) — derived geo
+    ├── view.loft       # 2D egocentric renderer           — view
+    ├── story.loft      # entry: window + loop + input      — view
+    └── *test.loft      # selftest/montest/deftest/gentest/gridtest (headless)
 ```
 
-`use <name>;` imports a dependency or sibling module; `use` lines precede all
-other declarations. **The `kernel/` tree must not `use graphics;`** — that is
-the invariant that keeps 2D and 3D interchangeable.
+`use <name>;` imports a dependency or sibling module. **No `kernel/` tree
+imports graphics** — the invariant that keeps 2D/3D interchangeable.
 
 ---
 
-## 13. Build & run
+## 16. Build & run
 
-Toolchain is prebuilt at `loft/target/release/loft`.
+loft toolchain at `loft/target/release/loft`; deps resolved via
+`--lib …/loft/lib/`. Use the loft-style **Makefile** (LOFT_REPO defaults to
+`../loft`):
 
 ```sh
-# 2D, native:
-loft --native-release --path /home/jurjen/workspace/loft/ \
-     --lib /home/jurjen/workspace/loft/lib/  story/src/story.loft
-
-# 2D, single-HTML for the browser:
-loft --html story.html --path /home/jurjen/workspace/loft/ \
-     --lib /home/jurjen/workspace/loft/lib/  story/src/story.loft
+make play     # run in a window          make test   # headless self-tests + compile gate
+make game     # single-HTML browser build make check  # quiet parse+bytecode gate
+make shot     # Xvfb screenshot           make help   # all targets
 ```
 
-(`--path` must end in `/`. See loft's Makefile `play`/`game` targets; the
-brick-buster game at `loft/tools/brick-buster/` is the reference.)
-
-**Naming TODO:** pick an original game title and a world name (replaces every
-"Angband/Amber"-shaped slot). Until then, `story` is the placeholder.
+(`--path` must end in `/`. Sandbox here can't grab the GL window — the user is
+the visual verifier; headless logic is fully testable.)
 
 ---
 
-## 14. Milestones
+## 17. Current state — what's built
 
-- **M0 — Vertical slice (first build):** generated hex room/corridor map;
-  hold `W`/`A`/`D` to glide and rotate the world around you (player anchored
-  ~70% down); one hex-locked enemy that ticks forward each hex-length you
-  travel; collision with walls; quit on Escape. Proves the kernel↔view split
-  and the distance clock end-to-end.
-- **M1 — Combat loop:** bump-to-melee, HP/death, the wait action, a HUD, FOV
-  (forward arc + rear radius), game-over.
-- **M2 — Roguelike depth:** stairs + multi-level descent, a monster data table,
-  basic items + inventory, stat/XP/leveling.
-- **M3 — Systems:** magic/resistances, ego-items/artifacts, detection kit,
-  monster speed multiplier.
-- **M4 — 3D browser:** swap in `moros_render::camera_follow` over the unchanged
-  kernel; ship a single-HTML WebGL build.
+- **M0 vertical slice** runs: generated hex map, continuous WASD with the
+  rotating egocentric view, one hex-locked enemy ticking on travel distance,
+  **collision with sliding + radius**, quit on Esc.
+- **Data foundations:** monsters / classes / races / items tables (clean-room,
+  tested, warning-clean).
+- **Procedural generator** (`gen.loft`): rooms + corridors, connectivity-verified,
+  world-keyed — not yet wired into the live game.
+- **Walls:** active `wallgeo.loft` = averaged/rounded silhouette (runs; the game
+  is playable). The Douglas–Peucker straightener is **parked** at
+  `patches/wallgeo-douglas-peucker.diff` (compiles, runtime-broken in the current
+  loft interpreter — a nested-vector store panic — pending loft master fixes;
+  base `60d523c`, source `8fcedc3`, replay in `patches/README.md`).
+- **Headless tests** all green (`make test`, gentest, gridtest, deftest, montest).
 
 ---
 
-## 15. Open questions / deferred decisions
+## 18. Milestones
 
-- **Backward glide (`S`):** same speed as forward, or slower? Does it tick the
-  clock identically? (Assumed: yes, identical.)
-- **On-screen scale:** pixels per hex in the 2D view (view-only tuning).
-- **FOV exact shape:** arc half-angle, forward range, rear radius — tuning.
-- **Monster turn order** within a single tick (simultaneous vs. sequenced).
-- **Diagonal-of-continuous-movement:** what "current hex" means exactly on hex
-  boundaries (tie-break rule).
-- **Save/determinism boundary:** seed handling for reproducible runs.
+- **M0 — vertical slice** ✅ (built; visual confirm pending from user).
+- **M1 — combat loop:** bump-melee, HP/death, wait, HUD, facing-cone FOV,
+  game-over. Wire `gen` into the live game; spawn from `monsters` by zone level.
+- **M2 — progression & world:** `Hero` struct + character creation (race/class/
+  stats), inventory/equip from `items`; stairs + world-keyed multi-level
+  descent; the feature-overlay processor (houses → roads → castles).
+- **M3 — systems:** ZAngband realm magic (`spells.loft`), resistances,
+  ego-items/artifacts, detection kit, monster speed; rock faces (semi-rounded).
+- **M4 — 3D browser:** swap in `moros_render::camera_follow` (+ thick walls /
+  towers / raised ramparts) over the unchanged kernel; ship single-HTML WebGL.
+
+(Two threads wait on the loft master merge: the `wallgeo` runtime fix, then
+intersection-based building corners.)
+
+---
+
+## 19. Open questions
+
+- Backward glide (`S`) speed; on-screen scale; exact FOV shape.
+- Monster turn order within a tick (simultaneous vs. sequenced).
+- "Current hex" tie-break on hex boundaries; save/determinism seed boundary.
+- Naming: pick an original game title + world name (replaces "Angband/Amber"
+  slots); `story`/`crawler` are placeholders.
