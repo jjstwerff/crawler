@@ -12,7 +12,9 @@ use items;
 MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)
 TURN_SPEED = 2.6;     // radians / second
 PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.866)
-PLAYER_DAM = 6;       // player melee damage per hit (placeholder)
+PLAYER_DAM = 6;       // player base melee damage per hit (before the level-ratio cap)
+COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
+COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
 HERO_CON   = 16;      // starting Constitution (full stat block = H2; HP is class-uniform, not con-driven)
 HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
@@ -311,13 +313,32 @@ fn drop_loot(s: &Sim, q: integer, r: integer, mlvl: integer) {
   }
 }
 
-// Player hits enemy `idx` for PLAYER_DAM; on a kill, awards XP and drops loot.
+// Combat damage multiplier (percent) from the attacker↔defender level gap, capped
+// BOTH ways: past ±COMBAT_DELTA_CAP levels the gap stops mattering, so level shifts a
+// fight by at most ±(CAP*STEP)% — difficulty is skill, not level (§3a #2). Symmetric:
+// mult(a,b) + mult(b,a) == 200. Monsters attack through the SAME function (the mirror).
+pub fn combat_mult_pct(att_lvl: integer, def_lvl: integer) -> integer {
+  d = att_lvl - def_lvl;
+  if d > COMBAT_DELTA_CAP { d = COMBAT_DELTA_CAP; }
+  if d < 0 - COMBAT_DELTA_CAP { d = 0 - COMBAT_DELTA_CAP; }
+  100 + d * COMBAT_STEP
+}
+
+// Apply the level-ratio cap to a base hit, never below 1: you always chip, and nothing
+// is ever fully negated (the no-100%-immunity rule, §3a #3).
+pub fn capped_dmg(base: integer, att_lvl: integer, def_lvl: integer) -> integer {
+  v = base * combat_mult_pct(att_lvl, def_lvl) / 100 ?? 0;
+  if v < 1 { v = 1; }
+  v
+}
+
+// Player hits enemy `idx` for capped melee damage; on a kill, awards XP and drops loot.
 fn player_attack(s: &Sim, idx: integer) {
   enemies = s.enemies;
   if idx >= 0 && idx < len(enemies) {
     e = enemies[idx];
     if e.alive {
-      e.hp -= PLAYER_DAM;
+      e.hp -= capped_dmg(PLAYER_DAM, s.clevel, e.mlvl);
       gain = 0;
       if e.hp <= 0 {
         e.alive = false;
@@ -450,7 +471,7 @@ pub fn sim_tick(s: &Sim) {
       }
       if e.awake {
         if d <= 1 {
-          s.php -= e.dam;            // adjacent: strike instead of moving
+          s.php -= capped_dmg(e.dam, e.mlvl, s.clevel);   // adjacent: strike (same ratio cap, mirrored)
           e.tgt_q = e.cur_q;
           e.tgt_r = e.cur_r;
           if s.php <= 0 { s.over = true; }

@@ -8,7 +8,7 @@ use hexgeo;
 use sim;
 
 fn main() {
-  println("=== story curve test (gentle + fair HP) ===");
+  println("=== story curve + ratio-cap test (G2) ===");
 
   s = sim_new();
   cl0 = sim_clevel(s);            // 1
@@ -36,9 +36,21 @@ fn main() {
   spread = clA > cl0 && clB > clA;
   linear = spread && (hpA - hp0) * (clB - clA) == (hpB - hpA) * (clA - cl0);
 
+  // ── G2 ratio cap: level shifts a fight by a bounded %, symmetric, never to 0 (§3a #2) ──
+  cap_eq    = combat_mult_pct(10, 10) == 100;          // equal level -> no level bonus
+  cap_hi    = combat_mult_pct(110, 10);                // far over-level, capped
+  cap_lo    = combat_mult_pct(10, 110);                // far under-level, capped
+  cap_bound = cap_hi <= 148 && cap_lo >= 52 && cap_hi > 100 && cap_lo < 100;
+  cap_sym   = combat_mult_pct(7, 3) + combat_mult_pct(3, 7) == 200;
+  cap_mono  = combat_mult_pct(11, 10) > 100 && combat_mult_pct(9, 10) < 100;
+  // never fully negated (>=1 chip), and over-levelling helps but stays bounded:
+  cap_chip  = capped_dmg(1, 10, 110) >= 1 && capped_dmg(20, 110, 10) > 20;
+  capok = cap_eq && cap_bound && cap_sym && cap_mono && cap_chip;
+
   println("curve: L{cl0}={hp0}  L{clA}={hpA}  L{clB}={hpB}  Lcap{clM}={hpM}");
   println("grew={grew} monotonic={mono} gentle(<8x)={gentle} linear={linear}");
-  if grew && mono && gentle && linear {
+  println("cap: eq={cap_eq} hi={cap_hi} lo={cap_lo} bound={cap_bound} sym={cap_sym} mono={cap_mono} chip={cap_chip}");
+  if grew && mono && gentle && linear && capok {
     println("=== CURVE OK ===");
   } else {
     println("=== FAIL ===");

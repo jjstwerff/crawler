@@ -88,6 +88,9 @@ Souls-grade fair challenge, no permadeath.**
      *efficient, skilled* play — knowledge is progression (Zelda "find the weakness") —
      but it's **never required**; with extra levels you can **ignore the weakness and
      grind it down the hard way**. Raw level is always a fallback — fair, never walled.
+     All of this is **tuning, not redesign**: we keep Angband's monster *bones* (stats,
+     resists/vulns, behaviours, the data) and only adjust numbers/curve — monsters never
+     need a fundamental rework, so the original set ports straight in.
 3. **Progression is mostly lateral, from items.** Power and identity come from the
    *kit* you find, not your level. Items are **sidegrades + capabilities +
    tradeoffs**, not a linear +N ladder — no gear treadmill to grind, and two

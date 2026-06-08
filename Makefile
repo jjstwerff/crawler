@@ -137,7 +137,7 @@ test:
 	@echo "  [7/10] hero (XP + level-up) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/herotest.loft | tee /tmp/story_hero.log
 	@grep -q "HERO OK" /tmp/story_hero.log || { echo "    FAIL: hero"; exit 1; }
-	@echo "  [8/10] curve (gentle + fair HP) ..."
+	@echo "  [8/10] curve + ratio cap (gentle, fair, capped) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/curvetest.loft | tee /tmp/story_curve.log
 	@grep -q "CURVE OK" /tmp/story_curve.log || { echo "    FAIL: curve"; exit 1; }
 	@echo "  [9/10] items (gold + drops + pickup) ..."
