@@ -145,6 +145,16 @@ Souls-grade fair challenge, no permadeath.**
      `i_weight` + `i_cost`.) The limit also seeds a **high-value capacity tier** —
      backpacks, a pack-horse, a cart — that raises how much you can haul (more loot →
      more gold → more at stake): valuable items worth protecting in their own right.
+     **On death these don't come back with you** — your horse / cart (and the bulk loot
+     they haul) **stay at the death spot**, not transported to the respawn; only your
+     *person* (worn + personally-carried + half your gold) returns. So the capacity tier
+     is a **bigger stake than the gold grave** — recover the vehicle *and* its cargo by
+     trekking back — and it's exactly the gold-rich prize a group bands together to
+     reclaim from a deadly spot. The abandoned vehicle is **never auto-destroyed** —
+     monsters don't attack it while you're away, so it is never a *permanent* loss — but
+     it must be **fetched**: travel back and lead it home (a group can help in MP). The
+     stake is the retrieval trip, not the item. (Respawn already drops the rest; the
+     personal/hauled split lands with the carry-limit + capacity items.)
 6. **No factions / NPCs.** The entity set stays Angband's — monsters · items · dungeon
    · uniques. Quests / motifs (future, see BUNDLE.md) are *structure over* those
    pools, never a social sim. A "captive" (a rescued princess) is a special passive
