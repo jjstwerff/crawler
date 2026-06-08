@@ -98,7 +98,7 @@ Keep shrinking before filing.)*
 | C16 | GL 2D depth-test / no default blend func | doc | by-design — not filed |
 | C17 | `gl_screenshot` unreliable under Xvfb | n/a | test-env — not filed |
 | C18 | runtime append to a struct-field vector unreliable | HIGH | → loft#248 (comment; emergent) |
-| C19 | `hash<K[k]>` lookup keys.rs index-OOB under store pressure (wallgeo DP build) | HIGH | **filed loft#290** (`wa:clean` — line-intersection walls) |
+| C19 | `hash<K[k]>` keys.rs OOB (DP build) **+** active `build_walls` `store.rs:473` "Incomplete record" via startup-cache round-trip (cross-source `main_vector<T>` synthetic-wrapper binding dropped) | HIGH | **loft#290** — **FIXED by e2315c0** (loft2 `bugfix-json-surrogate-bom`, stamps wrappers `source=0`); verified clean gate 10/10 + selftest/walltest 10/10 hammer. **Pending merge to `../loft`** (default toolchain still panics) |
 
 Existing upstream issues that overlap our family (for reference): **#248**
 (constructor-return → CONST_STORE → read-only write), **#250** (nested-vector
