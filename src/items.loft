@@ -198,3 +198,34 @@ pub fn item_cat(table: vector<ItemDef>, idx: integer) -> integer {
   if idx >= 0 && idx < len(table) { m = table[idx]; c = m.i_cat; }
   c
 }
+
+// Field accessors by table index (guarded direct index — the C1-safe shape).
+pub fn item_slot(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_slot; }
+  v
+}
+pub fn item_ac(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_ac; }
+  v
+}
+pub fn item_dd(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_dd; }
+  v
+}
+pub fn item_ds(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_ds; }
+  v
+}
+
+// Table index of the item with `key`, or -1 if none.
+pub fn item_index(table: vector<ItemDef>, key: text) -> integer {
+  for ii in 0..len(table) {
+    it = table[ii] ?? item_none();
+    if it.i_key == key { return ii; }
+  }
+  -1
+}

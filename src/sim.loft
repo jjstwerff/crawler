@@ -22,6 +22,7 @@ HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few�
 MAX_CLEVEL = 50;      // character-level cap
 FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_ISSUES)
 INV_MAX    = 64;      // inventory slots
+NUM_SLOTS  = 12;      // equipment slots, indexed by SLOT_* (0 = SLOT_NONE, 11 = SLOT_AMULET)
 
 // Fresh zero-filled int vector of length n (build-time append to a local works;
 // runtime append to a struct field does not — so floor/inv use fixed arrays).
@@ -80,6 +81,9 @@ pub struct Sim {
   rstate:  integer not null,   // drop RNG state
   ninv:    integer not null,   // inventory count
   inv:     vector<integer> not null,   // carried item def indices [0..ninv) (UI = I2)
+  eq:      vector<integer> not null,   // equipped item: defidx+1 per SLOT_* slot (0 = empty)
+  wdam:    integer not null,           // cached melee damage (PLAYER_DAM + equipped weapon)
+  pac:     integer not null,           // cached armour class (sum equipped i_ac) — feeds HP + DR
   fi_n:    integer not null,   // floor-item count
   fi_q:    vector<integer> not null,   // floor items — hex position [0..fi_n)
   fi_r:    vector<integer> not null,
@@ -254,16 +258,109 @@ fn xp_for_level(lvl: integer) -> integer {
   (lvl - 1) * (lvl - 1) * 10
 }
 
-// Award XP and level up while the threshold is met; each level grows max HP and
-// heals the gained amount.
+// ── Equipment (G3): wield items; effects feed combat + HP ────────────
+// Equipment is lateral progression (§3a #3): a weapon raises melee damage, armour
+// adds HP and reduces incoming damage. Derived stats are cached (wdam/pac) and
+// refreshed only on equip/unequip/level-up, so combat reads fields — not item_table —
+// per hit. (Percentage / typed-resist modifiers + the metal/cloth spell-cost axis
+// layer on later; this slice is the wield mechanic + flat weapon/armour effects.)
+
+// Recompute cached weapon damage, armour class, and max HP from the equipped slots.
+// Same module as its &-callers (C4). AC feeds BOTH max HP (heavy armour = tanky — the
+// fighter's compensation, §3a #3) and damage reduction.
+fn refresh_stats(s: &Sim) {
+  itbl = item_table();
+  eq = s.eq;
+  ac = 0;
+  for sl in 0..NUM_SLOTS {
+    e = eq[sl] ?? 0;
+    if e > 0 { ac += item_ac(itbl, e - 1); }
+  }
+  wd = PLAYER_DAM;
+  w = eq[SLOT_WEAPON] ?? 0;
+  if w > 0 {
+    dd = item_dd(itbl, w - 1);
+    ds = item_ds(itbl, w - 1);
+    if dd > 0 && ds > 0 { wd += dd * (ds + 1) / 2 ?? 0; }   // average weapon roll
+  }
+  s.wdam = wd;
+  s.pac = ac;
+  oldmax = s.phpmax;
+  newmax = hero_maxhp(s.clevel) + ac;
+  if newmax > oldmax { s.php += newmax - oldmax; }   // donning armour grants the HP
+  if s.php > newmax { s.php = newmax; }
+  if s.php < 1 { s.php = 1; }
+  s.phpmax = newmax;
+}
+
+// Reduce an incoming hit by armour class as a never-100% percentage (§3a #2/#3:
+// nothing fully negated): dmg * 100 / (100 + ac), floored at 1.
+fn apply_dr(dmg: integer, ac: integer) -> integer {
+  v = dmg * 100 / (100 + ac) ?? dmg;
+  if v < 1 { v = 1; }
+  v
+}
+
+// Equip the inventory item at index `ii` into its slot; any displaced item returns to
+// that inventory slot, else the slot is removed (compacted). Recomputes stats.
+pub fn sim_equip(s: &Sim, ii: integer) {
+  iv = s.inv;
+  if ii < 0 || ii >= s.ninv || ii >= len(iv) { return; }
+  defidx = iv[ii] ?? -1;
+  if defidx < 0 { return; }
+  itbl = item_table();
+  sl = item_slot(itbl, defidx);
+  eq = s.eq;
+  if sl <= 0 || sl >= len(eq) { return; }   // not wieldable / out of range
+  prev = eq[sl] ?? 0;
+  eq[sl] = defidx + 1;
+  if prev > 0 {
+    iv[ii] = prev - 1;                       // swap: displaced item takes the slot
+  } else {
+    n = s.ninv;
+    for k in ii..(n - 1) {
+      if k + 1 < len(iv) { iv[k] = iv[k + 1] ?? -1; }   // remove: shift down
+    }
+    s.ninv = n - 1;
+  }
+  refresh_stats(s);
+}
+
+// Unequip slot `sl` back to inventory (if room). Recomputes stats.
+pub fn sim_unequip(s: &Sim, sl: integer) {
+  eq = s.eq;
+  if sl <= 0 || sl >= len(eq) { return; }
+  e = eq[sl] ?? 0;
+  if e == 0 { return; }
+  iv = s.inv;
+  n = s.ninv;
+  if n >= 0 && n < len(iv) {
+    iv[n] = e - 1;
+    s.ninv = n + 1;
+  }
+  eq[sl] = 0;
+  refresh_stats(s);
+}
+
+// Seed the class-as-kit starting loadout (BUNDLE.md): a dagger + soft leather armour,
+// equipped. A single generic kit for now; per-class kits arrive with classes.
+pub fn sim_starting_loadout(s: &Sim) {
+  itbl = item_table();
+  di = item_index(itbl, "dagger");
+  ai = item_index(itbl, "soft_leather_armor");
+  eq = s.eq;
+  if di >= 0 && SLOT_WEAPON < len(eq) { eq[SLOT_WEAPON] = di + 1; }
+  if ai >= 0 && SLOT_BODY < len(eq) { eq[SLOT_BODY] = ai + 1; }
+  refresh_stats(s);
+}
+
+// Award XP and level up while the threshold is met; each level refreshes derived
+// stats (max HP grows by the gentle per-level step; current HP gains the delta).
 pub fn sim_award_xp(s: &Sim, amount: integer) {
   if amount > 0 { s.xp += amount; }
   while s.clevel < MAX_CLEVEL && s.xp >= xp_for_level(s.clevel + 1) {
     s.clevel += 1;
-    oldmax = s.phpmax;
-    newmax = hero_maxhp(s.clevel);
-    s.phpmax = newmax;
-    s.php += newmax - oldmax;
+    refresh_stats(s);
   }
 }
 
@@ -338,7 +435,7 @@ fn player_attack(s: &Sim, idx: integer) {
   if idx >= 0 && idx < len(enemies) {
     e = enemies[idx];
     if e.alive {
-      e.hp -= capped_dmg(PLAYER_DAM, s.clevel, e.mlvl);
+      e.hp -= capped_dmg(s.wdam, s.clevel, e.mlvl);
       gain = 0;
       if e.hp <= 0 {
         e.alive = false;
@@ -471,7 +568,7 @@ pub fn sim_tick(s: &Sim) {
       }
       if e.awake {
         if d <= 1 {
-          s.php -= capped_dmg(e.dam, e.mlvl, s.clevel);   // adjacent: strike (same ratio cap, mirrored)
+          s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.clevel), s.pac);  // strike: ratio cap, then armour DR
           e.tgt_q = e.cur_q;
           e.tgt_r = e.cur_r;
           if s.php <= 0 { s.over = true; }
@@ -609,6 +706,19 @@ pub fn sim_xp_frac(s: Sim) -> float {
 }
 
 pub fn sim_inv_count(s: Sim) -> integer { s.ninv }
+
+// ── Equipment queries (HUD + tests) ──────────────────────────────────
+pub fn sim_player_dam(s: Sim) -> integer { s.wdam }   // melee damage (base + weapon)
+pub fn sim_player_ac(s: Sim) -> integer { s.pac }     // armour class (HP + damage-reduction)
+// Item def index equipped in `slot`, or -1 if empty.
+pub fn sim_equipped(s: Sim, slot: integer) -> integer {
+  eq = s.eq;
+  e = eq[slot] ?? 0;
+  if e > 0 { return e - 1; }
+  -1
+}
+// Damage `raw` would deal after the player's armour DR (never below 1).
+pub fn sim_mitigate(s: Sim, raw: integer) -> integer { apply_dr(raw, s.pac) }
 pub fn sim_floor_count(s: Sim) -> integer { s.fi_n }
 
 pub fn sim_floor_live(s: Sim, i: integer) -> boolean {
@@ -763,6 +873,7 @@ pub fn sim_new() -> Sim {
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: 1, wseed: 0, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
+    eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
   }
@@ -914,7 +1025,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   ti_dn = dnr * w + dnq;
   if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = 2; }
 
-  Sim {
+  s = Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
@@ -922,9 +1033,12 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: depth, wseed: seed, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
+    eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
-  }
+  };
+  sim_starting_loadout(s);   // every new character starts with its class kit (§3a #4)
+  s
 }
 
 // Move between levels: dir +1 descends, -1 ascends (clamped to depth >= 1).
@@ -945,6 +1059,9 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.hcon = s.hcon;
   ns.inv = s.inv;         // carry the inventory; floor items stay on their level
   ns.ninv = s.ninv;
+  ns.eq = s.eq;           // carry equipment + its cached effects across levels
+  ns.wdam = s.wdam;
+  ns.pac = s.pac;
   ns.rstate = s.rstate;
   ns.heading = s.heading;
   if dir < 0 {

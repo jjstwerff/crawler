@@ -115,35 +115,38 @@ check-native:
 	    exit 1; }
 
 test:
-	@echo "  [1/10] kernel self-test (headless, deterministic) ..."
+	@echo "  [1/11] kernel self-test (headless, deterministic) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) $(KTEST) | tee /tmp/story_selftest.log
 	@grep -q "ALL CHECKS PASS" /tmp/story_selftest.log || { \
 	    echo "    FAIL: kernel self-test did not pass"; exit 1; }
-	@echo "  [2/10] combat loop (player melee + enemy attacks) ..."
+	@echo "  [2/11] combat loop (player melee + enemy attacks) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/combattest.loft | tee /tmp/story_combat.log
 	@grep -q "COMBAT OK" /tmp/story_combat.log || { echo "    FAIL: combat loop"; exit 1; }
-	@echo "  [3/10] dungeon wiring (procedural gen + DB monsters) ..."
+	@echo "  [3/11] dungeon wiring (procedural gen + DB monsters) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/wiretest.loft | tee /tmp/story_wire.log
 	@grep -q "WIRING OK" /tmp/story_wire.log || { echo "    FAIL: dungeon wiring"; exit 1; }
-	@echo "  [4/10] monster AI (awareness + never-move) ..."
+	@echo "  [4/11] monster AI (awareness + never-move) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/aitest.loft | tee /tmp/story_ai.log
 	@grep -q "AI OK" /tmp/story_ai.log || { echo "    FAIL: monster AI"; exit 1; }
-	@echo "  [5/10] placement (budget + weighted + start-safe) ..."
+	@echo "  [5/11] placement (budget + weighted + start-safe) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/placetest.loft | tee /tmp/story_place.log
 	@grep -q "PLACEMENT OK" /tmp/story_place.log || { echo "    FAIL: placement"; exit 1; }
-	@echo "  [6/10] levels (stairs + descent) ..."
+	@echo "  [6/11] levels (stairs + descent) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/leveltest.loft | tee /tmp/story_level.log
 	@grep -q "LEVEL OK" /tmp/story_level.log || { echo "    FAIL: levels"; exit 1; }
-	@echo "  [7/10] hero (XP + level-up) ..."
+	@echo "  [7/11] hero (XP + level-up) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/herotest.loft | tee /tmp/story_hero.log
 	@grep -q "HERO OK" /tmp/story_hero.log || { echo "    FAIL: hero"; exit 1; }
-	@echo "  [8/10] curve + ratio cap (gentle, fair, capped) ..."
+	@echo "  [8/11] curve + ratio cap (gentle, fair, capped) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/curvetest.loft | tee /tmp/story_curve.log
 	@grep -q "CURVE OK" /tmp/story_curve.log || { echo "    FAIL: curve"; exit 1; }
-	@echo "  [9/10] items (gold + drops + pickup) ..."
+	@echo "  [9/11] items (gold + drops + pickup) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/itemtest.loft | tee /tmp/story_item.log
 	@grep -q "ITEM OK" /tmp/story_item.log || { echo "    FAIL: items"; exit 1; }
-	@echo "  [10/10] compile gate (parse + bytecode) ..."
+	@echo "  [10/11] equipment (wield + effects) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/equiptest.loft | tee /tmp/story_equip.log
+	@grep -q "EQUIP OK" /tmp/story_equip.log || { echo "    FAIL: equipment"; exit 1; }
+	@echo "  [11/11] compile gate (parse + bytecode) ..."
 	@$(LOFT) --interpret --check $(LOFTFLAGS) $(SRC) >/dev/null 2>&1 || { echo "    FAIL: compile"; exit 1; }
 	@echo "  PASS"
 

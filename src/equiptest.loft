@@ -1,0 +1,52 @@
+// equiptest — G3 equipment: wield items and have them matter (§3a #3 lateral
+// progression). A weapon raises melee damage; armour adds HP and reduces incoming
+// damage (never to 0); unequip reverts; re-equipping from inventory restores. Uses
+// sim_new_gen (the real-game constructor, which seeds the starting kit). Deterministic.
+
+use hexgeo;
+use sim;
+use items;
+
+fn main() {
+  println("=== story equip test (G3: wield + effects) ===");
+  s = sim_new_gen(1234, 1);            // procedural start, with the starting loadout
+
+  dam_eq = sim_player_dam(s);          // base + dagger
+  ac_eq  = sim_player_ac(s);           // soft leather i_ac
+  hp_eq  = sim_player_hp_max(s);       // hero_maxhp(1) + ac
+  mit_armored = sim_mitigate(s, 20);   // < 20 (armour DR)
+  wpn_on = sim_equipped(s, SLOT_WEAPON) >= 0;
+  bdy_on = sim_equipped(s, SLOT_BODY) >= 0;
+
+  // remove armour: max HP drops, DR gone
+  sim_unequip(s, SLOT_BODY);
+  hp_noarm = sim_player_hp_max(s);
+  ac_noarm = sim_player_ac(s);
+  mit_bare = sim_mitigate(s, 20);
+
+  // remove weapon: damage drops to unarmed
+  sim_unequip(s, SLOT_WEAPON);
+  dam_bare = sim_player_dam(s);
+
+  // re-equip both from inventory (unequip pushed them there); equip routes by slot
+  sim_equip(s, 0);
+  sim_equip(s, 0);
+  dam_re = sim_player_dam(s);
+  ac_re  = sim_player_ac(s);
+
+  load_ok    = wpn_on && bdy_on && ac_eq > 0;
+  armor_hp   = hp_eq > hp_noarm && ac_noarm == 0;
+  armor_dr   = mit_armored < mit_bare && mit_bare == 20 && mit_armored >= 1;  // never 100%
+  weapon_ok  = dam_eq > dam_bare;
+  reequip_ok = dam_re > dam_bare && ac_re > 0;
+
+  println("loadout: dam={dam_eq} ac={ac_eq} hp={hp_eq} mit20={mit_armored}");
+  println("bare:    dam={dam_bare} hp={hp_noarm} ac={ac_noarm} mit20={mit_bare}");
+  println("reequip: dam={dam_re} ac={ac_re}");
+  println("load={load_ok} armor-hp={armor_hp} armor-dr={armor_dr} weapon={weapon_ok} reequip={reequip_ok}");
+  if load_ok && armor_hp && armor_dr && weapon_ok && reequip_ok {
+    println("=== EQUIP OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}
