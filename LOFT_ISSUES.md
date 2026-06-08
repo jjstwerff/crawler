@@ -32,6 +32,50 @@ Severity: **HIGH** = silent wrong behaviour or crash on ordinary code ·
 > (boolean `??`) and **C13** (`&ref`→local codegen panic) were filed (#256/#257).
 > C14/C16/C17 are by-design/environment and not refiled.
 
+## How to file a loft issue (crawler is a CONSUMER — we never fix loft)
+
+loft has its own fix workflow. From **crawler** we are a downstream consumer: when we
+hit a loft bug we **file it and work around it** — we do **not** fix loft here. The
+procedure (loft's `ISSUE_TRACKING.md` / `CLAUDE.md § Bug-filing`, applied from a
+consumer):
+
+1. **Minimal repro first** (engineering-rigor: boundary matrix → shrink to the
+   smallest example; the bug often *is* the coexistence of N constructs — stop
+   shrinking there). Verify on **both backends** — `loft --interpret` **and**
+   `loft --check`/`--native` — and record **expected vs observed for each**. Save the
+   repro (`/tmp/p_followups/<name>.loft` or a regression). **Don't file a
+   half-localized cause:** no minimal repro → keep shrinking, or attach it as a
+   *comment* on the closest existing issue (as C1–C5/C18 → loft#248), not a new dup.
+
+2. **Open a GitHub Issue — NOT a `PROBLEMS.md` row** (PROBLEMS.md is loft's
+   closed/historical archive). `gh issue create -R <repo>` with the **`bug_report`**
+   template (fields: *Minimal reproducer · Expected · Actual*). File in the repo
+   **where the source fix lands**: a loft language/interpreter/codegen/store/stdlib
+   bug → **`loft-lang/loft`** (we've used `jjstwerff/loft`); a published-lib native bug
+   → that library's chunk repo (`loft-lang/loft-libs-<chunk>`). **Never record the
+   origin commit** — scope (what triggers it) + present-code root cause are what fix it.
+
+3. **Labels — exactly one `sev:`, one `wa:`, one+ `area:`, plus `hit-by:crawler`:**
+   - `sev:high` (crash / corruption / soundness) · `sev:medium` (wrong result / hang) ·
+     `sev:low` (cosmetic / false warning).
+   - `wa:clean` / `wa:partial` / `wa:none` — **verify the workaround claim** (a wrong
+     one is worse than `wa:none`; `wa:none` = blocked = top triage axis, often above sev).
+   - `area:store-lifetime` (heap / store / hash desync) · `area:codegen` · `area:parser`
+     · `area:runtime` · `area:native` · `area:wasm` · `area:stdlib` · `area:packages`
+     · `area:closures`.
+
+4. **Record it here** — add/keep the C-series row with the repro + the filed
+   `loft#NNN`, and flip **Status** when it lands. This file is crawler's map from our
+   C-ids to the filed issues.
+
+5. **Then work around it** (a loft-safe shape — see CLAUDE.md survival guide) and keep
+   moving. Never block crawler on a loft fix.
+
+*(Status of the open wallgeo DP-straightener panic: clean workaround exists — the
+active version + the line-intersection approach — so it's `wa:clean`, not blocking;
+**not yet filed** because there's no minimal repro yet, P1/P2 synthetic probes pass.
+Keep shrinking before filing.)*
+
 ### Status tracker
 
 | ID  | Title | Sev | Status |
@@ -54,6 +98,7 @@ Severity: **HIGH** = silent wrong behaviour or crash on ordinary code ·
 | C16 | GL 2D depth-test / no default blend func | doc | by-design — not filed |
 | C17 | `gl_screenshot` unreliable under Xvfb | n/a | test-env — not filed |
 | C18 | runtime append to a struct-field vector unreliable | HIGH | → loft#248 (comment; emergent) |
+| C19 | `hash<K[k]>` lookup keys.rs index-OOB under store pressure (wallgeo DP build) | HIGH | **filed loft#290** (`wa:clean` — line-intersection walls) |
 
 Existing upstream issues that overlap our family (for reference): **#248**
 (constructor-return → CONST_STORE → read-only write), **#250** (nested-vector

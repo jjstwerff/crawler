@@ -35,3 +35,20 @@ Next steps when revisited (also in DESIGN / memory): fix the runtime panic
 each corner at the **intersection of its two adjoining wall lines** rather than
 on the original hex vertex. (May be moot if the map moves to a 90° grid, where
 wall silhouettes are already straight with right-angle corners.)
+
+**2026-06-08 — rigorous re-test (engineering-rigor skill); two corrections:**
+1. The **active/rounded `wallgeo.loft` is healthy** — `build_walls` runs headless
+   with no panic (`sim_new` → 241 segs, `sim_new_gen(1234,1)` → 586). An earlier
+   "panic at `wallgeo:302`" was a **stale build artifact** (the DP version's cached
+   bytecode), not a real regression — the instrument's calibration trap.
+2. The nested-vector fix is **necessary but NOT sufficient.** After swapping the
+   corner graph's `inc: vector<integer>` for scalar slots (`deg` + `i0..i3`), the DP
+   version **still panics** — now a `keys.rs` index-OOB (the lookup hash desyncs:
+   corners grew to 241, hash len 18). But the **active version uses the same
+   `hash<CornerRef[ck]>` + struct-field-append pattern and does NOT panic** — so the
+   residual fault is **DP-specific, not the shared store pattern**. Root cause still
+   unknown; needs a **boundary-matrix minimal repro** before filing upstream (don't
+   file a half-localized cause). Until then the DP straightener stays parked, and
+   "nicer walls" should come from **refining the active version** (e.g. a
+   12/24-direction snap — aligned with the placement-direction model) rather than
+   resurrecting this diff.

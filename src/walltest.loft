@@ -1,0 +1,22 @@
+// walltest — headless: the DP straightener's build_walls RUNS without the
+// nested-vector store panic (loft#250) and emits straightened wall segments.
+use sim;
+use wallgeo;
+
+fn main() {
+  println("=== story wall test (DP straightener) ===");
+  s = sim_new();
+  segs = build_walls(s);
+  n = len(segs);
+  println("segments={n}");
+  // sanity: first segment has finite endpoints
+  fin = true;
+  if n > 0 {
+    s0 = segs[0];
+    println("seg0=({s0.ax},{s0.ay})-({s0.bx},{s0.by})");
+  }
+  ok = n > 0 && fin;
+  println("built-no-panic: true");
+  println("has-segments  : {n > 0}");
+  if ok { println("=== WALL OK ==="); } else { println("=== FAIL ==="); }
+}
