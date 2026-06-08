@@ -662,6 +662,26 @@ pub fn sim_enemy_glyph(s: Sim, i: integer) -> text {
   g
 }
 
+// World-space angle the enemy faces: its current move (cur→tgt), or — when it
+// isn't moving — toward the player. Feeds the rotating sprite (the view snaps it
+// to the 12-direction model). Hex-locked, so a moving facing is one of 6 dirs.
+pub fn sim_enemy_facing(s: Sim, i: integer) -> float {
+  enemies = s.enemies;
+  a = PI / 2.0;
+  if i >= 0 && i < len(enemies) {
+    e = enemies[i];
+    if e.tgt_q != e.cur_q || e.tgt_r != e.cur_r {
+      (cx, cy) = hex_to_px(e.cur_q, e.cur_r);
+      (tx, ty) = hex_to_px(e.tgt_q, e.tgt_r);
+      a = atan2(ty - cy, tx - cx);
+    } else {
+      (ecx, ecy) = hex_to_px(e.cur_q, e.cur_r);
+      a = atan2(s.py - ecy, s.px - ecx);
+    }
+  }
+  a
+}
+
 // ── Construction ─────────────────────────────────────────────────────
 
 pub fn sim_new() -> Sim {
