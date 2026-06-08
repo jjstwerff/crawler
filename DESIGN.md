@@ -123,6 +123,28 @@ Souls-grade fair challenge, no permadeath.**
    gen — a checkpoint stores `{depth, position, stats, inventory, seed}` and re-derives
    the level. Save points double as goals (quest nodes later). A permadeath *mode*
    could return; the default is friendly.
+   - **Souls-style stake — gold only (the one thing you can lose).** On death a
+     percentage of your **gold** (`GRAVE_PCT`, start 50%) is left as a **grave marker at
+     the death spot**; respawn at the checkpoint, then make the risky trip back to
+     reclaim it. In **single-player**, **die again first and it's forfeit** (one grave at
+     a time — the bloodstain tension). In **multiplayer** the rule softens: graves
+     **persist** (lose half, it stays even if you die again — graves accumulate, any
+     player can claim them) — a later, non-rewrite variant (the grave is owner-less data
+     either way). Because graves pile up where players keep dying — the hard-to-reach,
+     deadly spots — those places turn **gold-rich**, an emergent reason to **form a
+     group** and clear them out together (positive-sum, still no PvP). **Gold only —
+     never items / XP / levels** — so it stings but is
+     **never progression-blocking** (the stake you value, not one that walls you). The
+     grave is **owner-less** (any character can claim it — co-op-friendly) and there is
+     **no PvP**. The grave persists across the level regen and re-materialises when you
+     return to that depth. *Why the stake bites:* characters have a **hauling
+     (carry-weight) limit**, so loot must be **sold to a merchant** — or **bartered with
+     players** (MP) — to become gold. Gold is therefore *earned, converted loot*, not
+     abstract currency; losing it is losing real hauling-and-selling effort. (Carry limit
+     + merchants + barter are economy systems — later; ItemDef already carries
+     `i_weight` + `i_cost`.) The limit also seeds a **high-value capacity tier** —
+     backpacks, a pack-horse, a cart — that raises how much you can haul (more loot →
+     more gold → more at stake): valuable items worth protecting in their own right.
 6. **No factions / NPCs.** The entity set stays Angband's — monsters · items · dungeon
    · uniques. Quests / motifs (future, see BUNDLE.md) are *structure over* those
    pools, never a social sim. A "captive" (a rescued princess) is a special passive

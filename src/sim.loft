@@ -23,6 +23,8 @@ MAX_CLEVEL = 50;      // character-level cap
 FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_ISSUES)
 INV_MAX    = 64;      // inventory slots
 NUM_SLOTS  = 12;      // equipment slots, indexed by SLOT_* (0 = SLOT_NONE, 11 = SLOT_AMULET)
+SAVE_INTERVAL = 3;    // a save-point level every 3 levels (depth 1, 4, 7, …) — checkpoint respawn
+GRAVE_PCT  = 50;      // % of gold left on a grave at the death spot (Souls stake — §3a #5)
 
 // Fresh zero-filled int vector of length n (build-time append to a local works;
 // runtime append to a struct field does not — so floor/inv use fixed arrays).
@@ -73,6 +75,11 @@ pub struct Sim {
   gold:    integer not null,   // gold (income arrives with items, I1)
   hcon:    integer not null,   // Constitution — drives HP growth
   depth:   integer not null,   // dungeon level (1 = shallowest)
+  save_depth: integer not null,   // checkpoint: deepest save-point level reached (respawn target)
+  grave_depth: integer not null,  // death-stake grave: depth / hex / gold (0 gold = no grave).
+  grave_q:     integer not null,  //   SP keeps one grave (re-death forfeits it); MP would hold a
+  grave_r:     integer not null,  //   list (owner-less, persistent) — a later, non-rewrite variant.
+  grave_gold:  integer not null,
   wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
   up_r:    integer not null,
@@ -313,13 +320,13 @@ pub fn sim_equip(s: &Sim, ii: integer) {
   eq = s.eq;
   if sl <= 0 || sl >= len(eq) { return; }   // not wieldable / out of range
   prev = eq[sl] ?? 0;
-  eq[sl] = defidx + 1;
+  if sl < len(eq) { eq[sl] = defidx + 1; }
   if prev > 0 {
-    iv[ii] = prev - 1;                       // swap: displaced item takes the slot
+    if ii < len(iv) { iv[ii] = prev - 1; }   // swap: displaced item takes the slot
   } else {
     n = s.ninv;
     for k in ii..(n - 1) {
-      if k + 1 < len(iv) { iv[k] = iv[k + 1] ?? -1; }   // remove: shift down
+      if k >= 0 && k + 1 < len(iv) { iv[k] = iv[k + 1] ?? -1; }   // remove: shift down
     }
     s.ninv = n - 1;
   }
@@ -338,7 +345,7 @@ pub fn sim_unequip(s: &Sim, sl: integer) {
     iv[n] = e - 1;
     s.ninv = n + 1;
   }
-  eq[sl] = 0;
+  if sl < len(eq) { eq[sl] = 0; }
   refresh_stats(s);
 }
 
@@ -595,6 +602,23 @@ pub fn sim_wait(s: &Sim) {
 }
 
 // Advance one frame.  fwd in {-1,0,1}, turn in {-1,0,1}, dt seconds.
+// Reclaim the grave's gold by standing on the death spot at its depth (any character —
+// owner-less, no PvP). Called each frame from sim_step.
+fn sim_reclaim_grave(s: &Sim) {
+  if s.grave_gold <= 0 { return; }
+  if s.depth != s.grave_depth { return; }
+  (pq, pr) = px_to_hex(s.px, s.py);
+  if pq == s.grave_q && pr == s.grave_r {
+    s.gold += s.grave_gold;
+    s.grave_gold = 0;
+  }
+}
+
+// Grant gold (quest / reward income; also used by tests).
+pub fn sim_grant_gold(s: &Sim, amt: integer) {
+  if amt > 0 { s.gold += amt; }
+}
+
 pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
   if s.over { return; }
   if turn != 0 {
@@ -636,6 +660,7 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
     }
   }
   sim_autocollect_gold(s);   // walking over a gold pile picks it up
+  sim_reclaim_grave(s);      // standing on your grave reclaims its staked gold
 }
 
 // ── Read-only accessors for the view / tests ────────────────────────
@@ -871,7 +896,8 @@ pub fn sim_new() -> Sim {
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
-    depth: 1, wseed: 0, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
+    depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
+    grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
@@ -1031,7 +1057,8 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
-    depth: depth, wseed: seed, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
+    depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
+    grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
@@ -1046,6 +1073,12 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
 // the player's HP, and places them on the arrival stair (down → the new level's
 // up-stair, which is where sim_new_gen already drops the player; up → its
 // down-stair).
+// A level is a save point at depths 1, 1+SAVE_INTERVAL, … (the home/bed is depth 1).
+fn is_save_depth(d: integer) -> integer {
+  if (d % SAVE_INTERVAL ?? 0) == 1 { return 1; }
+  0
+}
+
 pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   nd = s.depth + dir;
   if nd < 1 { nd = 1; }
@@ -1064,6 +1097,12 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.pac = s.pac;
   ns.rstate = s.rstate;
   ns.heading = s.heading;
+  ns.save_depth = s.save_depth;                                          // carry the checkpoint
+  if is_save_depth(nd) != 0 && nd > ns.save_depth { ns.save_depth = nd; }  // advance at save points
+  ns.grave_depth = s.grave_depth;   // carry the death-stake grave across levels
+  ns.grave_q = s.grave_q;
+  ns.grave_r = s.grave_r;
+  ns.grave_gold = s.grave_gold;
   if dir < 0 {
     (ax, ay) = hex_to_px(ns.dn_q, ns.dn_r);
     ns.px = ax;
@@ -1072,7 +1111,41 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns
 }
 
+// Respawn after death — NOT permadeath (§3a #5): rebuild the last save-point level and
+// keep the character (level/XP/gold/items/equipment), full-healed. The dive is lost (the
+// save-point level regenerates; the dungeon state explored since is discarded).
+pub fn sim_respawn(s: Sim) -> Sim {
+  rs = sim_new_gen(s.wseed, s.save_depth);
+  rs.clevel = s.clevel;
+  rs.xp = s.xp;
+  rs.hcon = s.hcon;
+  // Souls stake: leave GRAVE_PCT% of gold as a grave at the death spot. SP keeps one
+  // grave, so a fresh death forfeits any prior one (MP would append — §3a #5).
+  drop = s.gold * GRAVE_PCT / 100 ?? 0;
+  rs.gold = s.gold - drop;
+  (dq, dr) = px_to_hex(s.px, s.py);
+  rs.grave_depth = s.depth;
+  rs.grave_q = dq;
+  rs.grave_r = dr;
+  rs.grave_gold = drop;
+  rs.inv = s.inv;
+  rs.ninv = s.ninv;
+  rs.eq = s.eq;
+  rs.wdam = s.wdam;
+  rs.pac = s.pac;
+  rs.phpmax = s.phpmax;
+  rs.php = s.phpmax;          // full heal on respawn
+  rs.save_depth = s.save_depth;
+  rs.over = false;
+  rs
+}
+
 pub fn sim_depth(s: Sim) -> integer { s.depth }
+pub fn sim_save_depth(s: Sim) -> integer { s.save_depth }   // checkpoint depth (respawn target)
+pub fn sim_grave_gold(s: Sim) -> integer { s.grave_gold }   // gold staked on the grave (0 = none)
+pub fn sim_grave_depth(s: Sim) -> integer { s.grave_depth } // depth the grave is on
+pub fn sim_grave_q(s: Sim) -> integer { s.grave_q }         // grave hex (for the view marker)
+pub fn sim_grave_r(s: Sim) -> integer { s.grave_r }
 
 // Tile under the player: 2 = down-stair, 3 = up-stair, else floor/wall.
 pub fn sim_stair_under(s: Sim) -> integer {
