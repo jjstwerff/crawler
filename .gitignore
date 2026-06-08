@@ -2,7 +2,7 @@
 .loft/
 **/.loft/
 *.wasm
-native-auto/            # generated Rust from the --check / native backend
+native-auto/
 
 # generated game builds
 /story.html
