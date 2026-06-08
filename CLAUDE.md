@@ -46,6 +46,40 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
 - **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
   Xvfb is positionally off — LOFT_ISSUES C17). Verify *logic* headlessly; the
   **user is the visual verifier**. A `src/shot.loft` aid exists but trust the user.
+- **2D sprites → the `draw` skill** (loft repo `.claude/skills/draw`, 2D
+  `sketch/draw.py`): used to author the game's **simple 2D sprites** — the mob/item
+  presentations (and other 2D art), upgrading the text-glyph placeholders. **2D only —
+  we do not rely on the 3D path.** Workflow: iterate a sprite with the skill (it
+  outputs a PNG to a tmp dir + a cheap text report), then copy the final PNG into
+  `assets/` for the game to load as a texture and composite where the glyph was. The
+  PNG output is reviewable, so Claude *can* self-critique the sprite (the loop closes
+  here); the **user still verifies how it composites in the live frame**. Also handy
+  for setting a visual target (wall aesthetic, palette). Not the runtime renderer; not
+  for HUD/UI layout.
+- **Sprite done-criterion — real-world, verifiable forms.** Ground each sprite in a
+  real-world creature/object (a spider, an ant, …) and **stop when a *cold read* names
+  it uniquely** as that form ("spider", not "some bug") — unique recognizability is
+  "finished for the game"; don't over-render past it (clarity has an optimum). It's
+  verifiable (the draw skill's recognition critic runs the test) and clean-room (real
+  forms, not IP creatures). **Monsters also need a visible *legitimate attack means*** (a
+  biter shows fangs, a clawer shows claws) matching its combat — no pass without it;
+  and all monster sprites use a **locked orientation: attack/front = up**, uniform
+  across monsters (never varies per monster). **Mood/affect is out of scope** — run
+  only the *recognition* critic (+ the attack + orientation checks); per-token feeling
+  isn't evaluated (atmosphere comes from the scene / light / audio, not the icon).
+  *(3D — out of scope for now — would extend this with
+  **scale + proportion** checks via the metric/multi-view channel; 2D sprites need
+  only the unique-recognition test.)*
+- **Sprite scale = the creature's body, not its box.** Size a creature by its **core
+  mass** relative to the existing player/enemy scale; thin appendages (legs, antennae,
+  tail) count *less* and may **overhang** the cell. A wide-legged spider is sized by
+  its body — the legs spill past the footprint, not shrink the body to fit the box.
+- **Sprite QA — two tiers + test-driven redraw.** (1) *Recognition* (above) — Claude
+  judges it per-sprite at authoring time from the PNG. (2) *Theme coherence* — does it
+  fit the set's overall look — is judged **in-game during playtesting** (the user's
+  call; it only shows in context). Flagged off-theme sprites get **adjusted/redrawn**.
+  Keep the editable `.draw` sources in `assets/sprites/src/` so a redraw is a quick
+  edit + re-render, not from scratch.
 - Commits: branch **`combat`** (not `main`); end messages with
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Push only
   when asked.

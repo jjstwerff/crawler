@@ -790,7 +790,25 @@ progression. Order matters; each is small + headless-tested where it's kernel lo
   straightener (crisp straight runs + sharp corners) by refactoring the corner
   graph's nested-vector field → flat scalar edge slots (the loft#250 workaround noted
   in `patches/README`), then place corners at adjoining-line intersections. *Rounded
-  vs sharp is your visual call.* (Graphics-only; `wallgeo`/`view`.)
+  vs sharp is your visual call.* (Graphics-only; `wallgeo`/`view`.) First set the
+  **wall aesthetic target** with the `draw` skill — compose + cold-critique a
+  reference egocentric view so "nice" is concrete (a checkable look) before coding.
+- [ ] **Mob/item sprites** *(parallel art track — doesn't block the progression
+  work)* — author **clean flat-icon** 2D sprites with the `draw` skill (`sketch/draw.py`)
+  → PNG in `assets/sprites/` → `graphics::gl_load_texture` (confirmed, graphics.loft:864)
+  → composite where the glyph was (`etex[]`/`catex[]` in `view`). **Ground each in a
+  real-world, verifiable form** (spider, ant, …); a sprite is **done when a cold read
+  names it uniquely** as that form (unique recognizability = finished; don't
+  over-render). Start with one mob + one item to lock style + the load path, then
+  expand across `monsters`/`items`. 2D only. All sprites are **single static** images;
+  the only animated one (later) is the **main character**, which gets a few **stance**
+  frames (idle / reach-thrust / side-slash) driven by the attack-on-push swing.
+  Refinement is **test-driven**: keep `.draw` sources in `assets/sprites/src/`;
+  playtest flags off-theme sprites → adjust/redraw (recognition is the per-sprite bar,
+  theme coherence is judged in-game). Monster sprites must show a **legit attack means**
+  (spider → fangs) and use a **locked orientation — attack = up, uniform across
+  monsters**. Scale a creature by its **body/core, not the sprite bbox** — thin
+  appendages (legs, antennae) count less and overhang the cell.
 - [ ] **G2 gentle curve** — flatten the level curve + cap the player↔monster power
   ratio both ways (§3a #2): retune `hero_maxhp`/`xp_for_level`/damage; `curvetest`.
 - [ ] **G3 equipment + starting loadout** — wield/effects so **items are the
