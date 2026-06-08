@@ -11,7 +11,7 @@ make play     # native window (W/S glide, A/D turn, E stairs, . wait, Esc quit)
 make test     # headless deterministic gate — RUN THIS before committing
 make check    # quiet compile-only gate (parse + bytecode), no display
 make shot     # one Xvfb frame -> story.png  (positionally unreliable, see below)
-make game     # single-file story.html (WebGL) — currently blocked by E0514
+make game     # single-file story.html (WebGL) — unblocked (E0514 resolved, LOFT_ISSUES C15)
 ```
 
 Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
