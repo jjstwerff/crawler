@@ -81,6 +81,13 @@ Souls-grade fair challenge, no permadeath.**
    from under-levelling, nothing earlier goes trivial. The cap makes difficulty
    **fair/skill-gated, not easy**: a tough fight stays tough, it just can't be won or
    lost on raw level alone. (Tunes down §12a's curve / §10a difficulty.)
+   - **Monsters mirror the item model (#3).** Their damage output, HP, and
+     **resistances/vulnerabilities** scale as **percentage + flat, never 100%** — no
+     monster is fully immune or one-note. **Vulnerabilities are a learnable shortcut,
+     not a gate:** hitting a monster the way it's weak (the right damage type) is the
+     *efficient, skilled* play — knowledge is progression (Zelda "find the weakness") —
+     but it's **never required**; with extra levels you can **ignore the weakness and
+     grind it down the hard way**. Raw level is always a fallback — fair, never walled.
 3. **Progression is mostly lateral, from items.** Power and identity come from the
    *kit* you find, not your level. Items are **sidegrades + capabilities +
    tradeoffs**, not a linear +N ladder — no gear treadmill to grind, and two
