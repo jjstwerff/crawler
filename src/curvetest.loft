@@ -1,0 +1,46 @@
+// curvetest — G2: a gentle, FAIR level curve. Max HP is class-INDEPENDENT (a pure
+// function of character level — every class gets the same HP; durability is gear, not
+// class — §3a #3) and grows gently: the whole-game span is a few×, not 10×+ (§3a #2).
+// Asserts the curve grows, is monotonic, is linear (constant per-level), and stays
+// gentle. Deterministic.
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story curve test (gentle + fair HP) ===");
+
+  s = sim_new();
+  cl0 = sim_clevel(s);            // 1
+  hp0 = sim_player_hp_max(s);     // hero_maxhp(1)
+
+  // Two more samples up the curve (sim_award_xp levels while the threshold holds).
+  sim_award_xp(s, 200);
+  clA = sim_clevel(s);
+  hpA = sim_player_hp_max(s);
+
+  sim_award_xp(s, 2000);
+  clB = sim_clevel(s);
+  hpB = sim_player_hp_max(s);
+
+  // A fresh hero pushed to the level cap — the whole-game span.
+  s2 = sim_new();
+  sim_award_xp(s2, 2000000000);
+  clM = sim_clevel(s2);
+  hpM = sim_player_hp_max(s2);
+
+  grew   = hpM > hp0;
+  mono   = hpA >= hp0 && hpB >= hpA && hpM >= hpB;
+  gentle = hpM < hp0 * 8;                         // a few×, well under the 10× line (§3a #2)
+  // linear / constant per-level (the class-independent slope), cross-multiplied:
+  spread = clA > cl0 && clB > clA;
+  linear = spread && (hpA - hp0) * (clB - clA) == (hpB - hpA) * (clA - cl0);
+
+  println("curve: L{cl0}={hp0}  L{clA}={hpA}  L{clB}={hpB}  Lcap{clM}={hpM}");
+  println("grew={grew} monotonic={mono} gentle(<8x)={gentle} linear={linear}");
+  if grew && mono && gentle && linear {
+    println("=== CURVE OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

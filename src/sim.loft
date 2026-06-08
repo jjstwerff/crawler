@@ -14,7 +14,9 @@ TURN_SPEED = 2.6;     // radians / second
 PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.866)
 PLAYER_DAM = 6;       // player melee damage per hit (placeholder)
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
-HERO_CON   = 16;      // starting Constitution (drives HP growth; full stat block = H2)
+HERO_CON   = 16;      // starting Constitution (full stat block = H2; HP is class-uniform, not con-driven)
+HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
+HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few×, not 10×+
 MAX_CLEVEL = 50;      // character-level cap
 FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_ISSUES)
 INV_MAX    = 64;      // inventory slots
@@ -236,11 +238,12 @@ fn front_enemy(s: Sim) -> integer {
 
 // ── Hero progression (XP / level / HP) ───────────────────────────────
 
-fn con_bonus(con: integer) -> integer { (con - 10) / 2 ?? 0 }
-
-// Max HP at a character level (deterministic; per-class hit dice arrive in H2).
-fn hero_maxhp(clevel: integer, con: integer) -> integer {
-  20 + clevel * (6 + con_bonus(con))
+// Max HP at a character level. Class-INDEPENDENT by design: every class gets the
+// same HP (fair progression — §3a #3). Tankiness is lateral gear, not a class lock:
+// heavy/metal armour adds HP% (and raises spell-cost%) in G3. Gentle curve (§3a #2):
+// modest per-level growth so a run spans a few×, not 10×+.
+fn hero_maxhp(clevel: integer) -> integer {
+  HERO_HP_BASE + clevel * HERO_HP_PER_LEVEL
 }
 
 // Total XP required to be AT a character level (quadratic growth).
@@ -256,7 +259,7 @@ pub fn sim_award_xp(s: &Sim, amount: integer) {
   while s.clevel < MAX_CLEVEL && s.xp >= xp_for_level(s.clevel + 1) {
     s.clevel += 1;
     oldmax = s.phpmax;
-    newmax = hero_maxhp(s.clevel, s.hcon);
+    newmax = hero_maxhp(s.clevel);
     s.phpmax = newmax;
     s.php += newmax - oldmax;
   }
@@ -735,7 +738,7 @@ pub fn sim_new() -> Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
-    php: hero_maxhp(1, HERO_CON), phpmax: hero_maxhp(1, HERO_CON), over: false,
+    php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: 1, wseed: 0, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
@@ -894,7 +897,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
-    php: hero_maxhp(1, HERO_CON), phpmax: hero_maxhp(1, HERO_CON), over: false,
+    php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
     depth: depth, wseed: seed, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),

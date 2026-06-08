@@ -9,7 +9,7 @@ fn main() {
   println("=== story hero test (XP + level-up) ===");
   s = sim_new();
   cl0 = sim_clevel(s);            // 1
-  hp0max = sim_player_hp_max(s);  // hero_maxhp(1, 16)
+  hp0max = sim_player_hp_max(s);  // hero_maxhp(1) — class-uniform
   before_hp = sim_player_hp(s);   // full at start
   xp0 = sim_xp(s);                // 0
 

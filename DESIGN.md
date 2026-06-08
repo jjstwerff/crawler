@@ -86,6 +86,17 @@ Souls-grade fair challenge, no permadeath.**
    tradeoffs**, not a linear +N ladder — no gear treadmill to grind, and two
    characters at the same depth play differently. Equipment/effects is the linchpin
    mechanic.
+   - **HP is class-uniform** (fair); durability comes from **gear**, not class. The
+     uniform HP base is set by **G2**; the gear modifiers below land with equipment (**G3**).
+   - **Items stay relevant** — the same philosophy as the monster-relevance cap (#2).
+     Modifiers mix three kinds so no item type obsoletes the rest and the pool stays
+     varied: **percentage** (scales with level — always proportionally relevant),
+     **flat** (matters most early, never zero), and **damage-reduction** (a defensive
+     layer that interacts with the monster curve). Combine freely for variety.
+   - **Canonical axis — armour vs casting.** **Metal armour** → **+HP%** *and*
+     **+spell-cost%** (tanky, dear spells — the fighter's compensation for not casting
+     cheaply); **magic cloth** → **−spell-cost%** (cheap spells, little HP — the
+     caster's reason to stay light); plain gear sits between. More axes/types later.
 4. **Class = a soft start, not a path.** A class is a **mild stat tilt + a starting
    equipment kit** that seeds a playstyle — and the kit is swappable, so class is
    where you *begin*, not a lock-in. Shrinks classes/races to tilt + kit data (no
