@@ -65,8 +65,12 @@ step toward the 3D/WebGL build (the stated goal). Not throwaway.
 - **R2 — Sprite atlas.** Pack mob/item sprites (the `tools/draw.py` atlas — already on its
   roadmap) into one `SpriteSheet`; `draw_sprite` by index. Replaces per-sprite
   `draw_texture_at`.
-- **R3 — Shader FOV.** Feed the kernel visibility set as a texture/attribute; a shader
-  dims/discards by FOV state (replaces CPU per-hex gating).
+- **R3 — Shader FOV.** ✅ **Proven** (`src/gpushot.loft`): a per-hex visibility texture
+  (`lw×lh`, R = brightness from `sim_hex_state`, uploaded via `gl_upload_canvas`) sampled
+  in the fragment shader — **discards unseen, dims remembered**. The static VBO bakes each
+  hex's visibility-UV into the unused **normal slot (loc1)**, so only the small texture
+  updates per frame. Captured to PNG: fog gates correctly. (R2 sprite-atlas + the live
+  `view_draw` swap remain.)
 - **R4 — (optional) post-fx.** Framebuffer + `gl_draw_fullscreen_quad` for lighting /
   vignette / the light-radius falloff.
 
