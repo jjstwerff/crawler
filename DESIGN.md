@@ -54,6 +54,65 @@ over hand-authored content.
 
 ---
 
+## 3a. Design direction — accessible action-roguelite ("Angband bones, friendly tuning")
+
+crawler clones Angband's **systems** (§4, §13) but deliberately departs from its
+*feel*: the numbers, death model, and class weight are tuned for an **accessible,
+Zelda-flavoured action-roguelite**, not a faithful Angband difficulty clone. **These
+pillars are the authority where they conflict with "reproduce Angband numbers"
+(§13)** — systems faithful, tuning friendly.
+
+1. **Procedural, never authored.** Content is generated; hand-designed set-pieces are
+   moros's path (§3 Non-Goals). crawler's richness comes from procedural variety +
+   systemic mechanics, not authored layouts.
+2. **Gentle vertical progression.** Levels/depth still make you stronger, but the
+   curve is *much* shallower than Angband's (a run's span ≈ a few×, not 10×+), and
+   the player↔monster power ratio is **capped both ways** — nothing is unreachable
+   from under-levelling, nothing earlier goes trivial. (Tunes down §12a's curve /
+   §10a difficulty.)
+3. **Progression is mostly lateral, from items.** Power and identity come from the
+   *kit* you find, not your level. Items are **sidegrades + capabilities +
+   tradeoffs**, not a linear +N ladder — no gear treadmill to grind, and two
+   characters at the same depth play differently. Equipment/effects is the linchpin
+   mechanic.
+4. **Class = a soft start, not a path.** A class is a **mild stat tilt + a starting
+   equipment kit** that seeds a playstyle — and the kit is swappable, so class is
+   where you *begin*, not a lock-in. Shrinks classes/races to tilt + kit data (no
+   deep per-class mechanics).
+5. **Checkpoint respawn, not permadeath.** Procedurally-placed **save points** (auto,
+   no button) are your foothold; death respawns you there (keep XP/items/progress,
+   restore position + HP). Leverages deterministic gen — a checkpoint stores
+   `{depth, position, stats, inventory, seed}` and re-derives the level. Save points
+   double as near-term goals (and quest nodes later). A permadeath *mode* could
+   return; the default is friendly.
+6. **No factions / NPCs.** The entity set stays Angband's — monsters · items · dungeon
+   · uniques. Quests / motifs (future, see BUNDLE.md) are *structure over* those
+   pools, never a social sim. A "captive" (a rescued princess) is a special passive
+   monster/object.
+7. **Lean inputs.** Attack-on-push (you strike what you face by moving into it),
+   bump-to-open doors — capabilities are added without piling on buttons.
+8. **Engaging onboarding — a novelty curve, not just a difficulty curve.** The biggest
+   fix vs Angband: its early floors are dull because the *mechanical richness is
+   back-loaded to depth* — you commute, you don't discover. Here every early floor
+   **introduces something** — a mechanic, an item capability, an enemy behaviour, a
+   hazard — as an interesting *first*, taught by play, never a tutorial wall, never an
+   empty filler floor. The gentle curve (#2) + lateral items (#3) are what *let* early
+   content be genuinely interesting instead of trivial or lethal. Delivered
+   procedurally via **composed encounters** (Angband's pits / nests / themed packs /
+   guardian setups / aftermath generation — procedural, not authored) + systemic
+   mechanics firing early. *Implementation leans lightly-baked* — a soft rule that
+   early floors each surface one new mechanic — exact pacing to tune.
+9. **Angband bones, friendly tuning** (the umbrella). Keep the systems (combat
+   resolution, monster/item rules, FOV, AI); make the *experience* — curve, death,
+   class weight, onboarding — welcoming. The build order doubles as the onboarding
+   curriculum: each addition debuts a mechanic engagingly.
+
+> Stencils / bundles / castles / quests / motifs (BUNDLE.md, STENCILS.md) are the
+> *authored* content architecture — moros-side / future. crawler's near-term is
+> procedural + these pillars.
+
+---
+
 ## 4. Intellectual property — clean-room
 
 Game mechanics/systems aren't copyrightable; names, art, and specific lore are.
@@ -549,6 +608,9 @@ weight applies the speed penalty.
 - The placeholder values in the data tables (§14) will be **re-derived from the
   real source** as each system lands. Reproduce logic faithfully; only names are
   clean-room.
+- **Tuning departs by design (§3a):** the *curve*, *death model* (checkpoint respawn,
+  not permadeath), and *class weight* are deliberately friendlier than Angband —
+  systems reproduced faithfully, numbers tuned for accessibility.
 
 ---
 

@@ -35,8 +35,11 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   **names are original** — NEVER use Tolkien (Angband, Morgoth, Sauron, balrog,
   Nazgûl, ent; use "halfling" not "hobbit") or Zelazny/Amber (Oberon, Amberites,
   Trumps) names.
-- **Follow Angband logic.** Reproduce real Angband (4.2 core + ZAngband wilderness/
-  realms) mechanics & numbers; only names/lore are clean-room.
+- **Follow Angband logic, tune for accessibility.** Reproduce real Angband (4.2 core
+  + ZAngband wilderness/realms) *systems/mechanics* faithfully — but the *curve*,
+  *death model* (checkpoint respawn, not permadeath), and *class weight* are
+  deliberately friendlier (see **DESIGN §3a** — "Angband bones, friendly tuning").
+  Only names/lore are clean-room.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
   (currently 8/8: self, combat, wiring, ai, placement, levels, hero, compile).
   Keep it **warning-clean**.

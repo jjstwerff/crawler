@@ -256,6 +256,39 @@ single door's behavior all the way up to a world-spanning secret organism.
   the structs to `lavition_stencil` / `hex_*` (a `use`-swap); editor-authored bundles
   via lavition plugins.
 
+## Seeding content from Angband — reproduce, don't import
+
+Angband's vaults / room-templates / destroyed-level generation are **already
+proto-bundles**: a layout grid + a legend mapping glyphs to terrain / monsters /
+objects — exactly the stencil + legend format (we modelled it on `vault.txt`). The
+base catalogs already work this way: `monsters.loft` / `items.loft` are clean-room
+Angband-faithful tables. So "bundles based on the Angband data set" is the path we're
+already on.
+
+**But: reproduce the patterns + numbers, author original content — do NOT import the
+data files verbatim.** Angband's named content is Tolkien-derived, which is exactly
+what CLAUDE.md's clean-room rule excludes. Use Angband as a **spec**: a vault's
+dimensions / rarity / depth / content-mix and the generation *logic* are reproduced
+faithfully; the glyphs resolve to **our** pool keys (original monsters / items /
+lore). Reference, not copy.
+
+### Environmental storytelling — the "aftermath" bundle
+The "blown-up floor with evidence of what happened" is a strong first showcase:
+- **Faithful basis** — Angband's destroyed-level / cataclysm generation (blast areas,
+  rubble): reproduce the mechanic (a per-level chance of a destroyed region) + its
+  numbers.
+- **Our enrichment** — a stencil whose *contents* imply a past event: scorch / rubble
+  terrain + specific **evidence** items placed by the legend (a shattered weapon,
+  scattered treasure, a slain creature's drops). The story is **spatial / implicit**,
+  read from the arrangement — no text-lore or NPC system (base-game scope). A light
+  touch (a dropped scroll) is fine; a dialogue/lore tree is not.
+- **Tiers it uses** — a stencil now; an "aftermath" **set** (varied wreckage) and a
+  recurring **motif** (one disaster scarring several places) later.
+
+**Build-order fit:** S1-level content — a single-layer stencil with a *specific-key*
+legend (S1's link pass already resolves it), plus maybe one new terrain code (scorch
+/ rubble). No new machinery; a vivid first bundle once S1 lands.
+
 ## loft feasibility — sanity check
 
 **Verdict: feasible.** Every tier decomposes onto shapes already proven in the tree
