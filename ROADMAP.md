@@ -54,6 +54,12 @@ Build in order; each is small + headless-tested where it's kernel logic.
   door, a capability item, a fleeing pack, a save point, a hazard) so the early game
   *teaches itself* instead of being filler — a novelty curve, not just a difficulty one.
 - **Persistence** — cleared-stays-cleared on revisit (distinct from G4 respawn).
+- **Full-GPU 2D renderer** (**RENDER.md**) — world VBO + sprite atlas + shader FOV
+  replace per-frame immediate emission; folds in the `tools/draw.py` atlas and is the
+  `moros_render` 3D-bridge groundwork. One focused task, *after* the kernel FOV (which is
+  renderer-agnostic and feeds both paths). All primitives confirmed present in
+  `graphics.loft` (`gl_upload_vertices`, `SpriteSheet`/`draw_sprite`, `gl_load_texture`,
+  shaders + `mat4` uniforms).
 
 ## Phase 3 — the world → **M-World** (player-chosen difficulty, §3a #9)
 
