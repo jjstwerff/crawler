@@ -28,18 +28,31 @@ subdivision is what lets both faces be **straight in many directions**.
 2. Take the wall's two **face lines** — inner and outer, parallel, offset by the wall
    **thickness**, each snapped to the 12/24-direction set. (Thinnest wall = the faces
    coincide → a single line.)
-3. Classify each small triangle: **inside the inner face** (→ room floor), **outside the
-   outer face** (→ exterior floor), or **between the faces** (the wall band — for the
-   thin case, the triangles the single line straddles).
-4. **Eliminate the full inside and full outside triangles** — both become traversable
+3. Classify each triangle **by its three vertices** (not its centroid — that's the bug
+   that drops half the triangles where a wall falls between lattice rows): a triangle is
+   **room** only if **all three** vertices are inside the inner face; **exterior** only if
+   **all three** are outside the outer face.
+4. **Eliminate those full-inside and full-outside triangles** — both become traversable
    floor.
-5. **Keep the band between the faces — that IS the wall.** One triangle thin or two hexes
-   thick, it traces straight faces. A closed polygon in → a walled room. **Corners are
-   intrinsic** where two walls' bands meet.
+5. **Every remaining triangle — any the band passes through — IS the wall.** One triangle
+   thin or two hexes thick, it's the collision/volume truth. A closed polygon in → a
+   walled room.
 
-That's the entire straightener: the wall is *the triangles between two straight face
-lines*. No outline walk, no vertex merging, no angle math — just per-triangle side-of-line
-tests. Exact at the triangle resolution; a finer lattice → straighter.
+This band is **exact** and complete (no gaps), and it's the **collision data**. Walls in
+the 3 lattice directions also come out **visually straight** straight away. Walls in other
+directions get a clean band too, but their *faces* sawtooth — those need the next pass.
+
+## Center-of-lines pass — straighten the non-aligned walls
+
+The band is collision-correct, but a wall not in a lattice direction has **sawtooth
+faces**. The center-of-lines pass straightens the *render* (the collision band is
+untouched): per wall segment, take the band's **centerline** (the segment's own
+direction) and offset by ±half-thickness for the two visible faces; **corners are the
+miter intersection of adjacent segments' face lines**. A door is a span left open on one
+segment; its jambs come out *nearly* straight (the band's regular sawtooth still shows at
+the opening) — good enough for now, perfectible later with a **pattern-matching pass** on
+the regular sawtooth. This is far simpler than collapsing a hex zig-zag because the band's
+sawtooth is *regular* (the user's "center of lines, far simpler model").
 
 ## Why this model (vs the alternatives)
 
@@ -73,11 +86,21 @@ Caves are carved, castles are built — the renderer carries both.
 - Record the band in the binary wall data as non-traversable so collision matches the
   render exactly — there's no solid interior to reason about.
 
-## Open (pin at implementation)
+## Validated (2D prototype)
 
-- Exact subdivision layout + count (the 3-per-edge triangulation; flat-top vs pointy-top).
-- Face-line offsets for the standard thicknesses (1 triangle, 1 hex, 2 hexes) + the two
-  render faces.
-- How the wall lines / building polygon (+ interior walls) are specified (12/24-dir snap).
+Rendered + corner-tested in 2D (Python reference, `tools/wallproto`): lattice-aligned
+rhombus (auto-straight), axis rectangle (90° sides straightened by the center-of-lines
+pass), thin → ~1-hex → thick walls, and a door (real collision gap in the band + clean
+jambs in the straightened render). **Corner tests pass:** rect corners exactly 90°,
+rhombus 60°/120°, miter offsets correct, the band covers every corner. The vertex-based
+straddle rule (step 3) was the fix for the earlier "top wall misses half its triangles".
+
+## Open (pin at the loft port)
+
 - loft-safe representation — flat per-triangle flag arrays + index-writes (no nested
   vectors / no struct-field hash; cf. loft#290).
+- How the wall lines / building polygon (+ interior walls, doors) are specified — the
+  12/24-direction snap, from a stencil.
+- Exact subdivision layout + count vs the hex grid (the 3-per-edge triangulation;
+  pointy-top, to match crawler's hexgeo).
+- The two render faces carried to 3D (the band's volume).
