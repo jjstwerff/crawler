@@ -29,6 +29,7 @@ fn main() {
   (dx, dy) = hex_to_px(dq, dr);
   s.px = dx;
   s.py = dy - 2.5;
+  sim_compute_fov(s);   // FOV gates the view now; without this everything renders hidden
 
   for _ in 0..2 {
     graphics::gl_poll_events();

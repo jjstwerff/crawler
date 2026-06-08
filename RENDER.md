@@ -56,9 +56,12 @@ step toward the 3D/WebGL build (the stated goal). Not throwaway.
 
 ## Staged plan (a focused task **after** the kernel FOV)
 
-- **R1 — World mesh.** Build the floor + wall geometry into one VBO per level
-  (`gl_upload_vertices`); draw each frame with a camera `mat4` (the rotate-around-player
-  view.loft now does on the CPU). Replaces per-hex immediate emission.
+- **R1 — World mesh.** ✅ **Proven** (`src/gpushot.loft`): the depth-1 dungeon renders as
+  one VBO + one shader + one `gl_draw`, the camera `mat4` folding `world_to_screen`
+  (rotate-by-π/2−heading · scale 26 · centre 400/420 · px→NDC), captured to PNG. Verified
+  loop = render → `gl_screenshot` → read PNG. **Stride-10 vertex layout** (pos=loc0,
+  normal=loc1, **color=loc2** — the native `gl_upload_vertices` convention). Next: drive
+  it from the live level + replace `view_draw`'s per-hex floor loop.
 - **R2 — Sprite atlas.** Pack mob/item sprites (the `tools/draw.py` atlas — already on its
   roadmap) into one `SpriteSheet`; `draw_sprite` by index. Replaces per-sprite
   `draw_texture_at`.
