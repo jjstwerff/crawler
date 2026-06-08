@@ -42,6 +42,12 @@ The **kernel** (`sim_compute_fov` + `sim_hex_state`) computes the visibility *se
 shader **dims** remembered hexes and **discards** unseen ones. Immediate mode consumes
 the same set via `sim_hex_state` per hex. So the kernel FOV is built once, reused by both.
 
+**Directed light.** Sight is *directional*: full `VISION_RADIUS` straight ahead, falling
+off (forward-biased) to `NEAR_RADIUS` behind — a forward-pointed lamp. So **turning aims
+your light** (a real tactical choice, extra reason to turn). Later the radius comes from
+the equipped light item; coloured/animated falloff + a soft light-cone gradient is a
+shader job (R4 post-fx) — the kernel just yields the boolean visible/seen set.
+
 ## The moros bridge
 
 This retained `Vertex`/`Triangle` model *is* `moros_render`'s (`emit_hex_surface`,

@@ -1,0 +1,46 @@
+// fovtest — FOV (facing-cone fog-of-war). You see a cone in your heading by line of
+// sight (+ an always-visible near bubble); hexes outside the cone aren't visible; a hex
+// seen and then turned away from becomes *remembered* (not visible, not unseen).
+// Deterministic; uses the trivial map. (Visibility set is renderer-agnostic — RENDER.md.)
+
+use hexgeo;
+use sim;
+
+fn main() {
+  println("=== story FOV test (facing-cone + memory) ===");
+  s = sim_new();
+
+  // Face the enemy hex (10,16) — clear LOS from the start on the trivial map.
+  (ppx, ppy) = hex_to_px(10, 10);
+  (eex, eey) = hex_to_px(10, 16);
+  s.heading = atan2(eey - ppy, eex - ppx);
+  sim_compute_fov(s);
+
+  own_vis   = sim_hex_state(s, 10, 10) == 2;    // your own hex is always visible
+  front_vis = sim_hex_state(s, 10, 16) == 2;    // 6 ahead — lit by the directed lamp
+  back_hidden = sim_hex_state(s, 10, 4) == 0;   // 6 behind, same distance — almost no sight backward
+
+  // The cone limits view: some hexes visible, some hidden (not the whole map).
+  hidden = 0;
+  visible = 0;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      st = sim_hex_state(s, s.qmin + gq, s.rmin + gr);
+      if st == 0 { hidden += 1; }
+      if st == 2 { visible += 1; }
+    }
+  }
+  limited = hidden > 0 && visible > 0;
+
+  // Memory: (10,16) was lit ahead; turn ~180° and it must become *remembered* (seen, not lit).
+  s.heading = s.heading + 3.14159;
+  sim_compute_fov(s);
+  remembered = sim_hex_state(s, 10, 16) == 1;
+
+  println("own={own_vis} front={front_vis} back_hidden={back_hidden} hidden={hidden} visible={visible} remembered={remembered}");
+  if own_vis && front_vis && back_hidden && limited && remembered {
+    println("=== FOV OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

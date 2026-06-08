@@ -257,16 +257,20 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
       (wx, wy) = hex_to_px(q, r);
       (hsx, hsy) = world_to_screen(s, wx, wy);
       if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
-        if t == 1 {
-          graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.15, 0.14, 0.13, 1.0);
-        } else {
-          graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.80, 0.745, 0.59, 1.0);
-        }
-        // Stairs (floor-walkable) drawn as '>' / '<' glyphs on the cell.
-        if t == 2 && hud.font != 0 && hud.sdown != 0 {
-          draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
-        } else if t == 3 && hud.font != 0 && hud.sup != 0 {
-          draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
+        fst = sim_hex_state(s, q, r);          // FOV: 2 visible, 1 remembered, 0 unseen
+        if fst != 0 {
+          fd = if fst == 2 { 1.0 } else { 0.45 };   // remembered hexes drawn dimmed
+          if t == 1 {
+            graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.15 * fd, 0.14 * fd, 0.13 * fd, 1.0);
+          } else {
+            graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.80 * fd, 0.745 * fd, 0.59 * fd, 1.0);
+          }
+          // Stairs drawn only when the cell is currently visible.
+          if fst == 2 && t == 2 && hud.font != 0 && hud.sdown != 0 {
+            draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
+          } else if fst == 2 && t == 3 && hud.font != 0 && hud.sup != 0 {
+            draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
+          }
         }
       }
     }
@@ -277,9 +281,13 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   for wsi in 0..len(walls) {
     if wsi < len(walls) {
       seg = walls[wsi];
-      (s1x, s1y) = world_to_screen(s, seg.ax, seg.ay);
-      (s2x, s2y) = world_to_screen(s, seg.bx, seg.by);
-      draw_segment(painter, s1x, s1y, s2x, s2y, 0.92, 0.82, 0.45);
+      wst = sim_hex_state_at(s, (seg.ax + seg.bx) / 2.0, (seg.ay + seg.by) / 2.0);
+      if wst != 0 {
+        wd = if wst == 2 { 1.0 } else { 0.45 };   // remembered walls dimmed; unseen skipped
+        (s1x, s1y) = world_to_screen(s, seg.ax, seg.ay);
+        (s2x, s2y) = world_to_screen(s, seg.bx, seg.by);
+        draw_segment(painter, s1x, s1y, s2x, s2y, 0.92 * wd, 0.82 * wd, 0.45 * wd);
+      }
     }
   }
 
@@ -292,7 +300,8 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
       if sim_floor_live(s, fl) {
         (fwx, fwy) = sim_floor_pos(s, fl);
         (flsx, flsy) = world_to_screen(s, fwx, fwy);
-        if flsx > -cell && flsx < VIEW_W + cell && flsy > -cell && flsy < VIEW_H + cell {
+        if flsx > -cell && flsx < VIEW_W + cell && flsy > -cell && flsy < VIEW_H + cell
+          && sim_hex_state_at(s, fwx, fwy) != 0 {   // loot shown once seen (you remember it)
           if sim_floor_is_gold(s, fl) {
             draw_glyph_centered(painter, hud.font, hud.gtex, "$", ITEM_SIZE, flsx, flsy);
           } else {
@@ -313,6 +322,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   for ve in 0..ecount {
     if sim_enemy_alive(s, ve) {
       (ewx, ewy) = sim_enemy_pos(s, ve);
+      if sim_hex_state_at(s, ewx, ewy) == 2 {   // enemies shown only when currently in view (they move)
       (esx, esy) = world_to_screen(s, ewx, ewy);
       etx = if ve < len(etexv) { etexv[ve] ?? 0 } else { 0 };
       eg = sim_enemy_glyph(s, ve);
@@ -336,6 +346,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
         graphics::draw_rect_at(painter, esx - msz / 2.0, esy - msz / 2.0, msz, msz,
           ecr as float / 255.0, ecg as float / 255.0, ecb as float / 255.0, 1.0);
       }
+      }   // close the in-view gate
     }
   }
 

@@ -25,6 +25,8 @@ INV_MAX    = 64;      // inventory slots
 NUM_SLOTS  = 12;      // equipment slots, indexed by SLOT_* (0 = SLOT_NONE, 11 = SLOT_AMULET)
 SAVE_INTERVAL = 3;    // a save-point level every 3 levels (depth 1, 4, 7, …) — checkpoint respawn
 GRAVE_PCT  = 50;      // % of gold left on a grave at the death spot (Souls stake — §3a #5)
+VISION_RADIUS = 10;   // FOV radius DIRECTLY AHEAD — a directed lamp; later from the equipped light
+NEAR_RADIUS = 1;      // always-visible bubble (own + adjacent); also the sight radius behind you
 
 // Fresh zero-filled int vector of length n (build-time append to a local works;
 // runtime append to a struct field does not — so floor/inv use fixed arrays).
@@ -61,6 +63,8 @@ pub struct Sim {
   rmin:    integer not null,
   tiles:   vector<integer> not null,   // hex kind: 0 floor, 1 solid full-hex wall
   walls:   vector<integer> not null,   // edge walls: idx = hex*3 + edge(0=N,1=NE,2=SE)
+  seen:    vector<integer> not null,   // FOV memory: 1 = hex ever seen (revealed map; lost on death)
+  vis:     vector<integer> not null,   // FOV current: 1 = hex visible this frame (recomputed)
   px:      float not null,
   py:      float not null,
   heading: float not null,             // radians; forward = (cos,sin)
@@ -557,6 +561,69 @@ pub fn hex_los(s: Sim, q0: integer, r0: integer, q1: integer, r1: integer) -> bo
   !blocked
 }
 
+// ── Field of view (FOV / fog-of-war) ─────────────────────────────────
+// DIRECTED light: your sight radius depends on the angle to your heading — full
+// VISION_RADIUS straight ahead, falling off to NEAR_RADIUS behind you (a forward-pointed
+// lamp), by line of sight, plus an always-visible NEAR_RADIUS bubble. So turning points
+// your light — a real choice. `vis` is recomputed each call; `seen` accumulates the
+// revealed map (memory; fresh per level → lost on death). The view (or a test) calls
+// this; the visibility set is renderer-agnostic (immediate or GPU — RENDER.md).
+pub fn sim_compute_fov(s: &Sim) {
+  vis = s.vis;
+  seen = s.seen;
+  (pq, pr) = px_to_hex(s.px, s.py);
+  hx = cos(s.heading);
+  hy = sin(s.heading);
+  nearf = NEAR_RADIUS as float;
+  visf = VISION_RADIUS as float;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      idx = gr * s.lw + gq;
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      v = 0;
+      d = hex_distance(pq, pr, q, r);
+      if d <= NEAR_RADIUS {
+        v = 1;                                         // always-visible bubble (your feet)
+      } else if d <= VISION_RADIUS {
+        (cxp, cyp) = hex_to_px(q, r);
+        dx = cxp - s.px;
+        dy = cyp - s.py;
+        ln = sqrt(dx * dx + dy * dy);
+        if ln > 0.0 {
+          dot = (dx * hx + dy * hy) / ln ?? 0.0;        // -1 behind .. +1 ahead
+          fwd = (dot + 1.0) / 2.0 ?? 0.0;               // 0 behind .. 1 ahead
+          eff = nearf + (visf - nearf) * fwd * fwd;     // directed-lamp falloff (forward-biased)
+          if (d as float) <= eff && hex_los(s, pq, pr, q, r) { v = 1; }
+        }
+      }
+      if idx >= 0 && idx < len(vis) { vis[idx] = v; }
+      if v != 0 && idx >= 0 && idx < len(seen) { seen[idx] = 1; }
+    }
+  }
+}
+
+// Render state of a hex: 2 = visible now, 1 = remembered (seen before), 0 = unseen.
+pub fn sim_hex_state(s: Sim, q: integer, r: integer) -> integer {
+  gq = q - s.qmin;
+  gr = r - s.rmin;
+  if gq < 0 || gq >= s.lw || gr < 0 || gr >= s.lh { return 0; }
+  idx = gr * s.lw + gq;
+  vis = s.vis;
+  v = vis[idx] ?? 0;
+  if v != 0 { return 2; }
+  seen = s.seen;
+  sn = seen[idx] ?? 0;
+  if sn != 0 { return 1; }
+  0
+}
+
+// FOV render state at a world position — convenience for the view (enemies/items/walls).
+pub fn sim_hex_state_at(s: Sim, wx: float, wy: float) -> integer {
+  (q, r) = px_to_hex(wx, wy);
+  sim_hex_state(s, q, r)
+}
+
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   (pq, pr) = px_to_hex(s.px, s.py);
@@ -892,6 +959,7 @@ pub fn sim_new() -> Sim {
 
   Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
+    seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
@@ -1053,6 +1121,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
 
   s = Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
+    seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,

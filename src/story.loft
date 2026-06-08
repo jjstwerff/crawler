@@ -99,6 +99,7 @@ fn main() {
         walls = build_walls(s);
         hud = build_hud(s);
       }
+      sim_compute_fov(s);          // directed-light FOV: recompute visibility for this frame
       view_draw(painter, s, walls, hud);
       graphics::gl_swap_buffers();
     }
