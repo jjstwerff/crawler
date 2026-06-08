@@ -182,7 +182,9 @@ traversal-gating) now; layer gameplay depth on top once it's proven.
    deferred view swap.
 2. **The "24 directions"** — `hex_walls`' 24 (6 edges × 4 sub-segments per hex) or
    24 compass bearings (k·15°)? Both land on 24; pick the canonical parameterization
-   + the mapping between them.
+   + the mapping between them. **→ crawler is validating this**: the rotating-spider
+   test is the first probe; the model is **12-dir (k×30°) for stencils/items/creatures
+   + 24-dir (k×15°) for walls/roads/rivers**, resolved here as one coherent set.
 3. **Footprint scale** — tower = 1 hex? building = N×M hexes? Multi-hex stencils need
    a footprint *shape*, not just `w×h`. How does a `w×h` grid map onto hex addressing
    (offset vs axial)?

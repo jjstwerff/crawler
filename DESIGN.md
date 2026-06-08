@@ -793,6 +793,26 @@ progression. Order matters; each is small + headless-tested where it's kernel lo
   vs sharp is your visual call.* (Graphics-only; `wallgeo`/`view`.) First set the
   **wall aesthetic target** with the `draw` skill — compose + cold-critique a
   reference egocentric view so "nice" is concrete (a checkable look) before coding.
+- [ ] **Floor + wall tone** *(core look; do with G1)* — floor = warm **yellowish aged
+  stone** (original Roman granite/travertine, *not* modern pure-white); walls
+  **dark-toned**. `view` colours; forward-compatible with either bright-letters-on-disc
+  (now) or the later dark-token palette.
+
+*The cave-spider PoC proved the pipeline + locked the sprite rules (CLAUDE.md). We
+**integrate that first spider now** (it has a role — a dark silhouette **rotated to its
+movement direction**), but **do not mass-produce** the 100+ catalog: letters stay for
+everything else. **Next** sprite, *after the first bundle builds*: the **main character
+as a fighter** with sword-swing stances on push/attack.*
+*Rotation fits the **12/24-direction model** — 12 (k×30°) for stencils/items/creatures
+(the spider), 24 (k×15°) for walls/roads/rivers — and crawler is the **testbed
+validating that coherent set** (§9; STENCILS.md Q2). The graphics `draw_texture_rot`
+primitive takes a general angle; callers snap to 12 or 24. The primitive is
+**rotate + (optional) scale + translate** — the moros placement transforms (orientation
++ scale); a creature/item can be placed rotated *and* scaled. (This is the moros
+item rotation/scale feature, native in 3D, proven first in 2D here.)*
+- [ ] **Dark-token palette + drop the disc** *(bonus; with sprites)* — almost-black
+  monster silhouettes read on the light floor; drop the soft-black token disc. Colour
+  reserved for clothed/armoured creatures.
 - [ ] **Mob/item sprites** *(parallel art track — doesn't block the progression
   work)* — author **clean flat-icon** 2D sprites with the `draw` skill (`sketch/draw.py`)
   → PNG in `assets/sprites/` → `graphics::gl_load_texture` (confirmed, graphics.loft:864)
@@ -825,6 +845,11 @@ progression. Order matters; each is small + headless-tested where it's kernel lo
 → G1–FOV = a working, progression-bearing game. Onboarding (§3a #8) then rides these
 as per-level "firsts"; the per-class **starting quest** (BUNDLE.md, classes-are-
 bundles) is its authored/future form.
+
+*Later (efficiency): pack mobs/items into a **sprite-sheet atlas** (one texture) —
+the engine already has `create_sprite_sheet`/`draw_sprite_at`; add atlas-composition to
+`tools/draw.py` then. (Rotated atlas-sprites = combine the rotated-MVP with sub-texture
+UVs.) Now: one PNG per sprite via `gl_load_texture`.*
 
 ### Next — depth, texture & UI
 - [ ] **Doors** — bump-to-open (closed/locked/jammed); block LOS + move; `gen`

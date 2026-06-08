@@ -46,8 +46,11 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
 - **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
   Xvfb is positionally off — LOFT_ISSUES C17). Verify *logic* headlessly; the
   **user is the visual verifier**. A `src/shot.loft` aid exists but trust the user.
-- **2D sprites → the `draw` skill** (loft repo `.claude/skills/draw`, 2D
-  `sketch/draw.py`): used to author the game's **simple 2D sprites** — the mob/item
+- **2D sprites → the `draw` skill** (method: loft `.claude/skills/draw`; **tool:
+  crawler's own `tools/draw.py`** — copied from the skill's `sketch/draw.py` and
+  extended: `Background transparent` now, rotation/atlas next. Built to be extractable
+  as a **reusable 2D sprite library** — 3D/moros is the goal, but the 2D stack stands
+  on its own for 2D-preferring devs): used to author the game's **simple 2D sprites** — the mob/item
   presentations (and other 2D art), upgrading the text-glyph placeholders. **2D only —
   we do not rely on the 3D path.** Workflow: iterate a sprite with the skill (it
   outputs a PNG to a tmp dir + a cheap text report), then copy the final PNG into
@@ -64,12 +67,24 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   forms, not IP creatures). **Monsters also need a visible *legitimate attack means*** (a
   biter shows fangs, a clawer shows claws) matching its combat — no pass without it;
   and all monster sprites use a **locked orientation: attack/front = up**, uniform
-  across monsters (never varies per monster). **Mood/affect is out of scope** — run
+  across monsters (never varies per monster) — authored facing **up** so the engine can
+  **rotate** each sprite to the monster's movement/facing at runtime (uniform up-authoring
+  is what makes that clean). **Mood/affect is out of scope** — run
   only the *recognition* critic (+ the attack + orientation checks); per-token feeling
   isn't evaluated (atmosphere comes from the scene / light / audio, not the icon).
   *(3D — out of scope for now — would extend this with
   **scale + proportion** checks via the metric/multi-view channel; 2D sprites need
   only the unique-recognition test.)*
+- **Readability + palette — dark monsters on a light floor.** Floor is **light** — warm
+  **yellowish aged stone** (original Roman granite/travertine, *not* modern pure-white)
+  — walls **dark-toned**, monsters/tokens are **almost-black silhouettes** (the menacing,
+  high-attention look) read against the light floor. **Colour is reserved for clothed /
+  armoured creatures**; plain creatures are near-black. **No internal light/dark
+  patterns** on a monster (out of scope) — detail reads by *silhouette shape* (a
+  spider's fangs are points in the outline, not pale marks; no pale eyes). The current
+  bright glyphs become **dark**, and the soft-black token disc is **dropped** (a dark
+  token reads on the light floor; a dark disc would bury it). **Critique sprites on a
+  light background (the floor), not dark.**
 - **Sprite scale = the creature's body, not its box.** Size a creature by its **core
   mass** relative to the existing player/enemy scale; thin appendages (legs, antennae,
   tail) count *less* and may **overhang** the cell. A wide-legged spider is sized by
