@@ -89,10 +89,13 @@ Souls-grade fair challenge, no permadeath.**
    - **HP is class-uniform** (fair); durability comes from **gear**, not class. The
      uniform HP base is set by **G2**; the gear modifiers below land with equipment (**G3**).
    - **Items stay relevant** — the same philosophy as the monster-relevance cap (#2).
-     Modifiers mix three kinds so no item type obsoletes the rest and the pool stays
-     varied: **percentage** (scales with level — always proportionally relevant),
-     **flat** (matters most early, never zero), and **damage-reduction** (a defensive
-     layer that interacts with the monster curve). Combine freely for variety.
+     Modifiers mix kinds so no item type obsoletes the rest and the pool stays varied:
+     **percentage** (scales with level — always proportionally relevant), **flat**
+     (matters most early, never zero), and **damage-reduction** — general or **per
+     damage-type** (fire/cold/…) resistances, each a **percentage + a modest flat** cut,
+     **never 100%** (no full immunity — every damage type stays a threat, the same
+     relevance cap as monsters in #2). Modelled on **Angband's resist / ego-item
+     system**, friendly-tuned (capped, no immunity). Combine freely for variety.
    - **Canonical axis — armour vs casting.** **Metal armour** → **+HP%** *and*
      **+spell-cost%** (tanky, dear spells — the fighter's compensation for not casting
      cheaply); **magic cloth** → **−spell-cost%** (cheap spells, little HP — the
