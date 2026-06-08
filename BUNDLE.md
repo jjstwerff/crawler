@@ -27,6 +27,34 @@ variants / expansions are bundles layered on top. A bundle carries three things:
 Bundles **compose into one pool**: load base + active bundles, merge by key, resolve
 cross-references. A bundle references what's already in the pool *and* extends it.
 
+## Bundles compose — and the entry point is a bundle too
+
+**Bundles link to other bundles via scripts (routines).** A bundle's hooks can
+reference content and trigger behaviour in *other* bundles, so bundles form a graph,
+not a flat pile — a class bundle hooks into the world bundle; a quest bundle into the
+content it gates. (Cross-bundle refs resolve through the same key→index link pass;
+the script layer is the routine pool.)
+
+**The starting class is itself a bundle.** A class isn't a special-cased data row —
+it's the **entry-point bundle**, packaging:
+- its **starting house/bed** — the home base and **first save point** (death returns
+  here until deeper save points are found; pillar #5),
+- its **starting kit** (lateral items that seed the playstyle — pillars #3/#4),
+- a **mild stat tilt**,
+- a **starting quest** that onboards the player *from that class's perspective* — the
+  novelty-curve onboarding (pillar #8), class-flavoured,
+- **script-links** into the world / content bundles.
+
+So "pick a class" = "load a class bundle", using the same machinery as everything
+else — the cleanest expression of pillars #4 (class = soft start), #3 (items =
+progression) and #8 (engaging onboarding): your opening *is* a bundle.
+
+**Near-term reconciliation (hybrid).** The full class-bundle (starting quest,
+script-linking) is the *authored / future* realization (moros-side, like the rest of
+this doc). Near-term the build seeds it minimally — a **starting loadout + stat tilt**
+(in the equipment slice) shaped to become a class-bundle later — so the entry point is
+migratable, not rebuilt.
+
 ## Two common pools
 
 The whole design rests on splitting content into a **data pool** and a **behavior

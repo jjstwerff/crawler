@@ -48,7 +48,11 @@ over hand-authored content.
 
 **Non-Goals (for now)**
 - Reproducing ZAngband's exact content/balance — we clone *mechanics*.
-- Multiplayer, mods — later, if ever.
+- Multiplayer — not now, but the pillars (§3a) deliberately leave the **door open**:
+  no permadeath, persistent characters, a shared seed-deterministic zone-world, a flat
+  curve (veterans + newcomers co-op without one trivializing the other), and the
+  `loft-libs-net` substrate make it a *later addition, not a rewrite*. Mods — later, if
+  ever.
 - A bespoke 3D renderer — reuse `moros_render`.
 - A hand-authoring editor — that's moros's path, deliberately not ours.
 
@@ -62,14 +66,21 @@ Zelda-flavoured action-roguelite**, not a faithful Angband difficulty clone. **T
 pillars are the authority where they conflict with "reproduce Angband numbers"
 (§13)** — systems faithful, tuning friendly.
 
+**Accessible ≠ easy.** À la Dark Souls, we lift *permadeath and grind*, not the
+*challenge*: the game can be genuinely hard. Difficulty lives in skill, combat,
+hazards, and the lose-the-dive stakes (#5) — never in stat-gates, RNG instakills, or a
+permadeath tax. The identity in one line: **Zelda's exploration + capability feel,
+Souls-grade fair challenge, no permadeath.**
+
 1. **Procedural, never authored.** Content is generated; hand-designed set-pieces are
    moros's path (§3 Non-Goals). crawler's richness comes from procedural variety +
    systemic mechanics, not authored layouts.
 2. **Gentle vertical progression.** Levels/depth still make you stronger, but the
    curve is *much* shallower than Angband's (a run's span ≈ a few×, not 10×+), and
    the player↔monster power ratio is **capped both ways** — nothing is unreachable
-   from under-levelling, nothing earlier goes trivial. (Tunes down §12a's curve /
-   §10a difficulty.)
+   from under-levelling, nothing earlier goes trivial. The cap makes difficulty
+   **fair/skill-gated, not easy**: a tough fight stays tough, it just can't be won or
+   lost on raw level alone. (Tunes down §12a's curve / §10a difficulty.)
 3. **Progression is mostly lateral, from items.** Power and identity come from the
    *kit* you find, not your level. Items are **sidegrades + capabilities +
    tradeoffs**, not a linear +N ladder — no gear treadmill to grind, and two
@@ -80,11 +91,14 @@ pillars are the authority where they conflict with "reproduce Angband numbers"
    where you *begin*, not a lock-in. Shrinks classes/races to tilt + kit data (no
    deep per-class mechanics).
 5. **Checkpoint respawn, not permadeath.** Procedurally-placed **save points** (auto,
-   no button) are your foothold; death respawns you there (keep XP/items/progress,
-   restore position + HP). Leverages deterministic gen — a checkpoint stores
-   `{depth, position, stats, inventory, seed}` and re-derives the level. Save points
-   double as near-term goals (and quest nodes later). A permadeath *mode* could
-   return; the default is friendly.
+   no button) are footholds; the **first is the class's starting house/bed** (part of
+   the class bundle). Death respawns you at the **last save point reached** — so death
+   costs the *dive, not the character*: you **keep your character** (XP, items) but
+   **lose exploration progress** (revealed map + dungeon state since that point; you
+   re-dive from there — deeper save points limit re-traversal). Leverages deterministic
+   gen — a checkpoint stores `{depth, position, stats, inventory, seed}` and re-derives
+   the level. Save points double as goals (quest nodes later). A permadeath *mode*
+   could return; the default is friendly.
 6. **No factions / NPCs.** The entity set stays Angband's — monsters · items · dungeon
    · uniques. Quests / motifs (future, see BUNDLE.md) are *structure over* those
    pools, never a social sim. A "captive" (a rescued princess) is a special passive
@@ -102,10 +116,27 @@ pillars are the authority where they conflict with "reproduce Angband numbers"
    guardian setups / aftermath generation — procedural, not authored) + systemic
    mechanics firing early. *Implementation leans lightly-baked* — a soft rule that
    early floors each surface one new mechanic — exact pacing to tune.
-9. **Angband bones, friendly tuning** (the umbrella). Keep the systems (combat
+9. **Player-chosen difficulty — gentle ↔ harsh zones.** The world spreads danger
+   *horizontally* (§10a: `zone_danger + depth`), not as a forced level ladder. Because
+   the player↔monster ratio is capped and gating is skill- not stat-based (#2), harsh
+   zones are *attemptable, not walled* — so the player **sets their own progression
+   curve** by where they go: cruise the gentle zones, or dive into a harsh one for
+   risk/reward (better lateral gear, faster progress). Lose-the-dive death (#5) makes
+   venturing a fair gamble; save points are the footholds that let you push. Zelda-open
+   world, Souls-optional-hard. (Realized by L2 zone-difficulty / L3 overworld — a
+   *later* milestone; near-term G1–FOV is single-dungeon.)
+10. **Angband bones, friendly tuning** (the umbrella). Keep the systems (combat
    resolution, monster/item rules, FOV, AI); make the *experience* — curve, death,
    class weight, onboarding — welcoming. The build order doubles as the onboarding
    curriculum: each addition debuts a mechanic engagingly.
+
+**Forward-compatible — multiplayer (later; §3 Non-Goals).** The same choices that give
+player-chosen difficulty keep the door open for a *later* multiplayer addition: no
+permadeath + home/save-point respawn (persistent characters, long sessions); a shared
+**seed-deterministic, bundle-defined world** (every client generates the same world —
+cheap sync); a flat curve (different-skill players co-op without trivializing); and a
+renderer-agnostic, data-only kernel that can run **server-authoritative** over the
+existing `loft-libs-net` (server / game_protocol). Not built now; not designed against.
 
 > Stencils / bundles / castles / quests / motifs (BUNDLE.md, STENCILS.md) are the
 > *authored* content architecture — moros-side / future. crawler's near-term is
@@ -752,21 +783,45 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
   levels; HUD gold readout. (Floor/inv use fixed arrays + counts — runtime append
   to a struct field is unreliable in loft, see LOFT_ISSUES C18.)
 
-### Now — make it feel like a roguelike
-- [ ] **FOV** — facing-cone field of view / fog of war.
+### Now — graphics cleanup, then a playable game with progression (§3a)
+*Walls first, then the fastest path to a working game with real (mostly lateral)
+progression. Order matters; each is small + headless-tested where it's kernel logic.*
+- [ ] **G1 walls** — nicer wall rendering: land the parked Douglas–Peucker
+  straightener (crisp straight runs + sharp corners) by refactoring the corner
+  graph's nested-vector field → flat scalar edge slots (the loft#250 workaround noted
+  in `patches/README`), then place corners at adjoining-line intersections. *Rounded
+  vs sharp is your visual call.* (Graphics-only; `wallgeo`/`view`.)
+- [ ] **G2 gentle curve** — flatten the level curve + cap the player↔monster power
+  ratio both ways (§3a #2): retune `hero_maxhp`/`xp_for_level`/damage; `curvetest`.
+- [ ] **G3 equipment + starting loadout** — wield/effects so **items are the
+  progression** (§3a #3/#4): a few equip slots + stat recompute; a starting loadout
+  (seeds the future class-bundle, BUNDLE.md); first lateral-item tuning of
+  `items.loft` (sidegrades + capability flags, not +N). Subsumes I2's equip half.
+- [ ] **G4 save points + respawn** — checkpoints (auto, no button) replace permadeath
+  (§3a #5); first = the class's **home/bed**. Death → last save point: **keep
+  character (XP/items), lose exploration** (map + dive re-derive from the seed);
+  `savetest`.
+- [ ] **FOV** — facing-cone field of view / fog of war (exploration; built on
+  `hex_los`).
 
-### Next — depth & UI
-- [ ] **H2** character **sidebar** (name/race/class/level/xp/gold/6 stats/AC/HP/
-  depth) + bottom status line.
-- [ ] **I2** inventory `i` / equipment `e` screens; wield/wear/takeoff (+ AC &
-  stat recompute); drop `d`.
+→ G1–FOV = a working, progression-bearing game. Onboarding (§3a #8) then rides these
+as per-level "firsts"; the per-class **starting quest** (BUNDLE.md, classes-are-
+bundles) is its authored/future form.
+
+### Next — depth, texture & UI
+- [ ] **Doors** — bump-to-open (closed/locked/jammed); block LOS + move; `gen`
+  placement. (Lean input; pairs with FOV.)
+- [ ] **Combat juice** — knockback on hit + **fear/flee** (P4 subset) via the flow
+  field; no new buttons. (Combat polish — no hurry.)
+- [ ] **H2** character **sidebar** (name/race/class/level/xp/gold/stats/AC/HP/depth) +
+  status line.
+- [ ] **I2 (UI half)** inventory `i` / equipment `e` screens; drop `d` (equip
+  *mechanic* ships in G3).
 - [ ] **P3** monster **speed/energy** (fast monsters run you down).
-- [ ] **P4** movement modifiers — erratic, **fear/flee**, group-surround, breeder
-  multiply.
-- [ ] **Persistence** — unique-once (world-state) + **roster persistence on
-  revisit** (cleared stays cleared; descent currently regenerates fresh).
-- [ ] **Combat depth** — AC / to-hit / blow dice (expand `m_dam`); fear from a big
-  hit.
+- [ ] **P4 (rest)** movement modifiers — erratic, group-surround, breeder multiply.
+- [ ] **Persistence** — unique-once + **roster persistence on revisit** (distinct from
+  G4's respawn; cross-session disk save/load rides the loft own-format serializer).
+- [ ] **Combat depth** — AC / to-hit / blow dice (expand `m_dam`).
 
 ### Later — systems & world
 - [ ] **P5** casters + ZAngband **realm spell pool** (bolt/ball/breath/summon/
