@@ -280,8 +280,8 @@ fields and `moros_render` draws them (`y = h_height·HEIGHT_SCALE`, slopes via
 `emit_slope_face`, layers stacked). Additive terrain data, 1:1 with `moros_map`
 → free 3D hand-off. **Height deltas between adjacent hexes are slopes/cliffs**
 (→ rock faces, §9). Surfaced for later: step-up limit + climb cost vs. the
-clock; height-aware FOV; layer traversal (stairs); the 2D view shows one layer
-at a time (height as shading).
+clock; height-aware FOV; layer traversal (**stairs → §8a**, a 3D-build item); the 2D
+view shows one layer at a time (height as shading).
 
 ---
 
@@ -305,6 +305,52 @@ dungeon identically.
   Progression is mainly **horizontal** (travel to harder zones). Preserves
   Angband monster-selection (`monsters.loft` `m_depth` + `mon_for_depth`, fed
   the zone-derived level) and fixes ZAngband's "no incentive to travel" weakness.
+
+---
+
+## 8a. Stairs & level transitions (moros-aligned) — *locked design, for the 3D build*
+
+**Not near-term.** This is **3D-version work** — parked here and linked (§7 "layer
+traversal", §18a Eventually) so it's ready when we build the 3D/`moros_render` path; the
+2D game keeps its current simple stairs. Probed `../moros` (the 3D target) and `../dryopea`
+for stair designs (2026-06-09); `../Dryopea` is the Dryopea language, not a game (nothing to
+take). **moros is the source**, and crawler is already aligned on the key axis. When built,
+the transition *pairing* is an exact-invariant **protocol**, so plot the concrete end-result
+(which `>` maps to which arrival `<`) and pin it *before* coding (the `design-protocol`
+skill — generative/constructive case).
+
+**The moros model — a stair is a *material*; depth is the layer `cy`.**
+- A stair is a **floor material carrying a `StairKind`** (`LINEAR | SPIRAL | GRAND_ARC`)
+  plus a `climbable` category flag — **not** a separate entity. The stair *is* the tile.
+- **Depth = the vertical chunk coordinate `cy`** (§7): each level is an independent hex
+  grid at a different `cy`, regenerated from `(seed, cy)`. **crawler's `(wseed, depth)`
+  already *is* this** — so we lock `depth ↔ cy` as one axis (no rework; just the name).
+- The per-hex **`h_height`** (§7) carries the step delta; `moros_render` emits the 3D
+  stair geometry from `StairKind` + height — **spiral** stairs around a **newel** column,
+  **grand-arc** stairs along an **arc_pivot** radius marker. **The 2D view ignores
+  kind/height** (a stair stays a `>`/`<` glyph as today); the metadata is kernel data =
+  forward-insurance, so enabling moros 3D stairs later needs no kernel change.
+- **`moros_init` pattern** (the user's aside): palette-first — `well_known_materials /
+  walls / items` → load map → init state; no global boot. crawler's analog (the
+  `monsters`/`items` DBs loaded before `sim_new_gen`) is **already this shape** — no change.
+
+**Angband enrichments to adopt when built:**
+- **Multiple stairs per level**, intentionally placed (real Angband scatters several
+  `>`/`<`) — replaces today's single `>` (farthest floor hex) + single `<` (start). The
+  immediate exploration/authenticity win.
+- **A transition lands you on the matching arrival stair** (descend a `>` → arrive on a
+  `<`), as today — but with several stairs the **pairing** (which `>` → which arrival `<`)
+  is the exact-invariant to pin first (concrete end-result before code).
+- *(optional, from `../dryopea`'s free-landing)* **player-chosen descent** — pick which
+  `>` to take; richer than one forced exit. Also its **carryover-between-areas** echoes
+  §3a's hauling model.
+- **`StairKind` + height** added to the kernel as **data-only** fields now (2D ignores
+  them) so the 3D stair-geometry bridge is wired ahead of need.
+
+**Current 2D baseline (what this enriches):** tile kind `2 = down`, `3 = up`; one `>` at
+the farthest reachable floor hex, one `<` at the player start; `sim_descend(dir)`
+regenerates `(wseed, depth)` and drops the player on the arrival stair. Per-(cy/depth)
+level-state persistence (§8) restores a level on re-entry.
 
 ---
 
@@ -938,6 +984,10 @@ UVs.) Now: one PNG per sprite via `gl_load_texture`.*
 ### Eventually
 - [ ] **L6** multi-layer height model (§7); the feature-overlay processor
   (houses → roads → castles), incl. the parked Douglas–Peucker straightener.
+- [ ] **Stairs & level transitions** (**§8a**) — moros-aligned: stair-as-material +
+  `StairKind` (linear/spiral/grand-arc) + per-hex height, `depth ↔ cy`, multiple stairs,
+  transition pairing (pin the end-result first). Rides the 3D build (M4) + L6; the 2D game
+  keeps its simple stairs until then.
 - [ ] **M4** 3D browser — `moros_render::camera_follow` over the unchanged kernel;
   single-HTML WebGL. *Blocked by `E0514` — see `LOFT_ISSUES.md` C15.*
 - [ ] **Testing tiers** — `placestats` (main-stats-style distribution harness),
