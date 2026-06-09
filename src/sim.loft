@@ -26,6 +26,8 @@ FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_IS
 INV_MAX    = 64;      // inventory slots
 NUM_SLOTS  = 12;      // equipment slots, indexed by SLOT_* (0 = SLOT_NONE, 11 = SLOT_AMULET)
 SAVE_INTERVAL = 3;    // a save-point level every 3 levels (depth 1, 4, 7, …) — checkpoint respawn
+DEPTH_MAX  = 64;      // dungeon depths the per-level persistence store addresses
+MAX_SPAWNS = 32;      // per-depth cap on stored dead-spawn indices (a level carries ~15)
 GRAVE_PCT  = 50;      // % of gold left on a grave at the death spot (Souls stake — §3a #5)
 VISION_RADIUS = 10;   // FOV radius DIRECTLY AHEAD — a directed lamp; later from the equipped light
 // Monster perception channels — how the player knows a monster is there (best channel wins).
@@ -129,6 +131,10 @@ pub struct Sim {
   fi_cat:  vector<integer> not null,   // item category (IT_*); -1 for gold
   fi_def:  vector<integer> not null,   // item def index; -1 for gold
   fi_live: vector<integer> not null,   // 1 = on the floor, 0 = collected
+  // Per-level persistence (deterministic base + delta): dead-spawn indices captured when you leave
+  // a level, replayed on re-entry. Compact fixed blocks indexed by depth (dd_idx[depth*MAX_SPAWNS+k]).
+  dd_idx:  vector<integer> not null,
+  dd_n:    vector<integer> not null,   // dead count per depth (overwritten each time you leave)
   room_q0: vector<integer> not null,   // room rects (axial) — wall straightener snaps to their
   room_r0: vector<integer> not null,   //   exact rhombus side-lines; empty = pure-smooth fallback
   room_w:  vector<integer> not null,
@@ -1088,6 +1094,43 @@ pub fn sim_apply_dead(s: &Sim, dead: vector<integer>) {
   }
 }
 
+// Store a level's death delta into its per-depth block (OVERWRITE — no growth, bounded).
+pub fn sim_store_dead(s: &Sim, depth: integer, dead: vector<integer>) {
+  if depth < 0 || depth >= DEPTH_MAX { return; }
+  di = s.dd_idx;
+  dn = s.dd_n;
+  base = depth * MAX_SPAWNS;
+  cnt = 0;
+  for k in 0..len(dead) {
+    i = dead[k] ?? -1;
+    if i >= 0 && cnt < MAX_SPAWNS && (base + cnt) < len(di) {
+      di[base + cnt] = i;
+      cnt = cnt + 1;
+    }
+  }
+  if depth >= 0 && depth < len(dn) { dn[depth] = cnt; }
+}
+
+// Replay a level's stored death delta onto its freshly regenerated spawns (on re-entry).
+pub fn sim_apply_stored_dead(s: &Sim, depth: integer) {
+  if depth < 0 || depth >= DEPTH_MAX { return; }
+  dn = s.dd_n;
+  c = dn[depth] ?? 0;
+  di = s.dd_idx;
+  enemies = s.enemies;
+  base = depth * MAX_SPAWNS;
+  for k in 0..c {
+    if (base + k) < len(di) {
+      i = di[base + k] ?? -1;
+      if i >= 0 && i < len(enemies) {
+        e = enemies[i];
+        e.alive = false;
+        enemies[i] = e;
+      }
+    }
+  }
+}
+
 pub fn sim_enemy_alive(s: Sim, i: integer) -> boolean {
   enemies = s.enemies;
   alive = false;
@@ -1373,6 +1416,7 @@ pub fn sim_new() -> Sim {
     eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
+    dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
     room_q0: [], room_r0: [], room_w: [], room_h: [],   // hand-built level: no rooms → pure smooth
   }
 }
@@ -1543,6 +1587,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
+    dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
     room_q0: rq0s, room_r0: rr0s, room_w: rws, room_h: rhs,
   };
   sim_starting_loadout(s);   // every new character starts with its class kit (§3a #4)
@@ -1564,6 +1609,13 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   nd = s.depth + dir;
   if nd < 1 { nd = 1; }
   ns = sim_new_gen(s.wseed, nd);
+  // Per-level persistence: carry the delta store, record the level we're leaving (its dead
+  // spawns), then replay the destination depth's stored deaths onto its fresh spawns. A
+  // never-visited depth has an empty block, so this is a no-op and generation is unchanged.
+  ns.dd_idx = s.dd_idx;
+  ns.dd_n = s.dd_n;
+  sim_store_dead(ns, s.depth, sim_dead_indices(s));
+  sim_apply_stored_dead(ns, nd);
   ns.php = s.php;
   ns.phpmax = s.phpmax;
   ns.over = s.over;

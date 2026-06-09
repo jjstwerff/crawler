@@ -36,8 +36,22 @@ fn main() {
   natural1 = b1q == n1q && b1r == n1r;             // survivor reset to its natural place
   skipped = sim_enemy_alive(back, 3) && sim_enemy_alive(back, ne - 1);  // skipped rooms still full
 
+  // Descend-integrated store (sim_descend): clear monsters on level 2, leave (ascend) and return
+  // (descend) -- the clears persist through the round trip; an uncleared monster is back at its post.
+  a = sim_new_gen(seed, 1);
+  lvl2 = sim_descend(a, 1);
+  ne2 = sim_enemy_count(lvl2);
+  sim_apply_dead(lvl2, [0, 2]);            // clear monsters 0 and 2 on level 2
+  up = sim_descend(lvl2, -1);              // ascend -> captures level 2's clears into the store
+  back = sim_descend(up, 1);               // descend back to level 2 -> replays them
+  rt0 = !sim_enemy_alive(back, 0);
+  rt2 = !sim_enemy_alive(back, 2);
+  rt1 = sim_enemy_alive(back, 1);          // an uncleared monster is back at its post
+  descend_ok = ne2 >= 3 && rt0 && rt2 && rt1;
+
   println("enemies={ne} delta(dead)={len(delta)} moved-while-played={moved}");
-  println("re-enter: 0dead={dead0} 2dead={dead2} 1alive={alive1} 1natural={natural1} skipped-full={skipped}");
-  ok = len(delta) == 2 && dead0 && dead2 && alive1 && natural1 && skipped;
+  println("re-enter (manual): 0dead={dead0} 2dead={dead2} 1alive={alive1} 1natural={natural1} skipped-full={skipped}");
+  println("descend round-trip (lvl2 clear 0,2 -> ascend -> return): 0dead={rt0} 2dead={rt2} 1alive={rt1}");
+  ok = len(delta) == 2 && dead0 && dead2 && alive1 && natural1 && skipped && descend_ok;
   if ok { println("=== PERSIST OK ==="); } else { println("=== FAIL ==="); }
 }
