@@ -46,6 +46,8 @@ pub struct Hud {
   clbl:   integer not null,           // "CL" (character level) label
   gtex:   integer not null,           // gold '$' glyph (floor + purse readout)
   catex:  vector<integer> not null,   // floor-item glyph per IT_* category
+  stair_up: integer not null,         // '<' up-stair sprite (stepped, wider+white)
+  stair_dn: integer not null,         // '>' down-stair sprite (stepped, narrower+dark)
 }
 
 // Roguelike map glyph for an item category (IT_*).
@@ -67,6 +69,28 @@ fn cat_glyph(cat: integer) -> text {
 }
 
 // Load the font and bake the static glyph/text textures for this level.
+// Load a sprite PNG by filename, trying the cwd-relative layouts gl_load_texture
+// resolves against (the same set as the font). Returns 0 if none load (caller
+// falls back to a glyph). gl_load_texture returns a GL id >= 1, or null/0 on failure.
+fn load_sprite(fname: text) -> integer {
+  cands = [
+    "assets/sprites/{fname}",
+    "../crawler/assets/sprites/{fname}",
+    "crawler/assets/sprites/{fname}",
+    "../story/assets/sprites/{fname}",
+    "story/assets/sprites/{fname}",
+  ];
+  tex = 0;
+  for ci in 0..len(cands) {
+    if tex == 0 {
+      c = cands[ci] ?? "";
+      t = graphics::gl_load_texture(c);
+      if t != null && t != 0 { tex = t; }
+    }
+  }
+  tex
+}
+
 pub fn build_hud(s: Sim) -> Hud {
   // gl_load_font resolves relative paths against the loft --path root
   // (LOFT_REPO), so the project-bundled font is reached as "../story/assets/...".
@@ -102,22 +126,10 @@ pub fn build_hud(s: Sim) -> Hud {
   dcv.fill_circle(32, 32, 31, graphics::rgba(0, 0, 0, 230));
   disc = graphics::gl_upload_canvas(dcv.data, 64, 64);
 
-  // cave-spider sprite (transparent PNG); cwd-relative, same layouts as the font.
-  scands = [
-    "assets/sprites/cave_spider.png",
-    "../crawler/assets/sprites/cave_spider.png",
-    "crawler/assets/sprites/cave_spider.png",
-    "../story/assets/sprites/cave_spider.png",
-    "story/assets/sprites/cave_spider.png",
-  ];
-  spider = 0;
-  for sci in 0..len(scands) {
-    if spider == 0 {
-      sc = scands[sci] ?? "";
-      sp = graphics::gl_load_texture(sc);
-      if sp != null && sp != 0 { spider = sp; }   // GL texture id (>=1); null/0 = failed
-    }
-  }
+  // Sprites (transparent PNGs) via the cwd-relative loader; 0 => fall back to a glyph.
+  spider   = load_sprite("cave_spider.png");
+  stair_up = load_sprite("up_stair.png");     // '<' stepped staircase (wider+white)
+  stair_dn = load_sprite("down_stair.png");   // '>' stepped staircase (narrower+dark)
 
   ptex = 0;
   died = 0;
@@ -151,7 +163,8 @@ pub fn build_hud(s: Sim) -> Hud {
     }
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
-    spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex }
+    spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
+    stair_up: stair_up, stair_dn: stair_dn }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -382,10 +395,19 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
         (wx, wy) = hex_to_px(q, r);
         (hsx, hsy) = world_to_screen(s, wx, wy);
         if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
-          if t == 2 && hud.font >= 0 && hud.sdown != 0 {
-            draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
-          } else if t == 3 && hud.font >= 0 && hud.sup != 0 {
-            draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
+          ssz = cell * 0.92;
+          if t == 2 {
+            if hud.stair_dn != 0 {
+              graphics::draw_texture_at(painter, hud.stair_dn, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
+            } else if hud.font >= 0 && hud.sdown != 0 {
+              draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
+            }
+          } else if t == 3 {
+            if hud.stair_up != 0 {
+              graphics::draw_texture_at(painter, hud.stair_up, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
+            } else if hud.font >= 0 && hud.sup != 0 {
+              draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
+            }
           }
         }
       }
