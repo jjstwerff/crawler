@@ -26,7 +26,8 @@ KEY_SPC = 32;       // Space — also wait
 KEY_ESC = 27;
 
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
-GEN_DEPTH = 1;      // starting level: depth 1 (rats/mice/bats/centipedes)
+GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
+                    // walk onto the entrance to descend into the dungeon (depth 1: rats/bats/…)
 
 fn main() {
   if !graphics::gl_create_window(WIN_W, WIN_H, "story — M0") {

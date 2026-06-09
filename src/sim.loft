@@ -1561,6 +1561,27 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     }
   }
 
+  // The surface's spawning crystal + its knot (SLICE step 3, rough v1: pre-placed, no runtime
+  // growth). A stationary crystal a few steps west of the start, ringed by a small knot of weak
+  // (depth-1) monsters it has "spawned" — the entrance is to the east, so the player chooses to
+  // engage the crystal or head straight in.
+  if depth == 0 {
+    ctbl = monster_table();
+    cx = pq - 6;
+    cy = pr;
+    cd = mon_find(ctbl, "spawn_crystal");
+    if cd.m_hp > 0 {
+      enemies += [mk_enemy(cd, cx, cy)];
+      for gk in 0..4 {
+        (gq, gr) = hex_neighbor(cx, cy, gk);
+        wk = mon_choose(ctbl, 1, (gseed ^ ((gk + 1) * 2654435761)) & 2147483647);
+        if wk.m_hp > 0 && !tile_solid(tiles, w, h, gq, gr) && !occupied_hex(enemies, gq, gr) {
+          enemies += [mk_enemy(wk, gq, gr)];
+        }
+      }
+    }
+  }
+
   // Stairs: up at the player start, down at the farthest reachable floor hex.
   dnq = pq;
   dnr = pr;

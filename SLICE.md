@@ -19,21 +19,21 @@ the bestiary, loot, level up, descend deeper → die → **respawn at the checkp
 
 ## Steps  (each small, additive, gated, headless-testable — gate stays green throughout)
 
-- [ ] **1. Surface place (depth 0 = the desert).** Special-case `sim_new_gen` at depth 0: an
+- [x] **1. Surface place (depth 0 = the desert).** Special-case `sim_new_gen` at depth 0: an
   all-floor open expanse, player at centre, no rooms/corridors. Reuses the tile grid + FOV.
   *Test:* depth 0 generates open, player placed.
-- [ ] **2. The entrance.** Place a **down-stair** a few hexes from the player; walking onto it
+- [x] **2. The entrance.** Place a **down-stair** a few hexes from the player; walking onto it
   descends `0 → 1` into the classic beginner dungeon. Reuses walk-onto-stairs + `sim_descend`
   (persistence already works). *Test:* descend 0→1 lands in the dungeon.
-- [ ] **3. The spawning crystal.** A crystal feature beside the player. **Rough v1: pre-place a
+- [x] **3. The spawning crystal.** A crystal feature beside the player. **Rough v1: pre-place a
   small knot of weak monsters around it at gen** (reads as "the crystal's spawn"; reuses placement;
   **zero runtime growth**). *Test:* the crystal's monsters are present on the surface.
   - *v1.1 (later):* a live ticking spawner needs the enemy array to become a fixed-cap + count
     store (a C18-safe refactor) before it can grow at runtime.
-- [ ] **4. Open on the surface.** `story.loft` / `sim_new` starts the player at **depth 0** with
+- [x] **4. Open on the surface.** `story.loft` / `sim_new` starts the player at **depth 0** with
   the crystal + entrance (instead of dungeon depth 1); the chosen character bundle still applies
   its kit. *Verify:* `make play` opens on the surface.
-- [ ] **5. Ship it.** Confirm `make game` → `story.html` builds and the loop plays end-to-end
+- [x] **5. Ship it.** Confirm `make game` → `story.html` builds and the loop plays end-to-end
   (surface → descend → fight/loot/level → die → respawn). Existing HUD + checkpoint-respawn give it
   shape; optional rough **score = deepest depth reached**.
 
@@ -52,3 +52,18 @@ the bestiary, loot, level up, descend deeper → die → **respawn at the checkp
 `make game` produces a `story.html` where a player can: start on the desert, reach the entrance,
 descend, fight + loot + level, die, respawn, and keep going. Rough art (glyphs), melee-only
 threat, no surface beyond the open desert — but a real, coherent loop.
+
+## Status — SHIPPABLE ✅
+All 5 steps done. `make game` builds `story.html` (~2.9 MB, the WebGL single-file). Headless
+`surfacetest` proves the surface (open, crystal+knot of 5, entrance) + descend into the populated
+dungeon; the whole gate stays green.
+
+- **Build note:** the WebGL build (`--html`) compiles with the rustup-default toolchain (rustc
+  1.96), so loft's wasm `libloft.rlib` must be built with the same — loft2 pins `stable` (1.95),
+  so rebuild it with `cargo +1.96.0 build --release --target wasm32-unknown-unknown --lib
+  --no-default-features --features random` in `../loft2` if `make game` ever hits E0514 again.
+- **Visual check is the user's:** the sandbox can't reliably screenshot the GL frame — the
+  headless logic is proven; how the desert / crystal / entrance actually *look* in `make play` /
+  `story.html` is yours to confirm.
+- **v1.1 follow-ups:** live ticking crystal spawner (needs the enemy array as a fixed-cap store),
+  the inert floating-eye fix, monster special attacks, the world-bundle link.

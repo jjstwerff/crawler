@@ -9,7 +9,8 @@ fn main() {
   surf = sim_new_gen(777, 0);
   d0 = sim_depth(surf);
   openc = !is_wall(surf, 20, 20) && !is_wall(surf, 25, 15) && !is_wall(surf, 15, 25);  // all floor
-  empty = sim_enemy_count(surf) == 0;
+  nc = sim_enemy_count(surf);
+  knot = nc >= 1 && nc < 10;                     // the spawning crystal + its small knot (not a dungeon)
   nostair = sim_stair_under(surf) == 0;          // standing on open ground, not a stair
 
   sim_teleport(surf, 23, 20);                    // the entrance sits at centre+3 east (w=41 -> 23,20)
@@ -20,8 +21,8 @@ fn main() {
   walled = is_wall(dung, 0, 0);                  // the dungeon has rock (the surface has none)
   populated = sim_enemy_count(dung) > 0;
 
-  println("surface: depth={d0} open={openc} empty={empty} no-stair-underfoot={nostair} entrance={entrance}");
+  println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} entrance={entrance}");
   println("descend: depth={d1} walled={walled} populated={populated}");
-  ok = d0 == 0 && openc && empty && nostair && entrance && d1 == 1 && walled && populated;
+  ok = d0 == 0 && openc && knot && nostair && entrance && d1 == 1 && walled && populated;
   if ok { println("=== SURFACE OK ==="); } else { println("=== FAIL ==="); }
 }
