@@ -178,7 +178,9 @@ def render(tiles,w,h,panels,fname,title=""):
 if __name__=="__main__":
     out=os.path.join(os.path.dirname(__file__),"out"); os.makedirs(out,exist_ok=True)
     W,H=30,22
-    layouts={"2room_corr":[(4,4,6,5),(18,12,7,6)], "3room":[(3,3,5,5),(16,4,7,5),(10,13,8,6)]}
+    layouts={"2room_corr":[(4,4,6,5),(18,12,7,6)], "3room":[(3,3,5,5),(16,4,7,5),(10,13,8,6)],
+             # Angband-density: distinct non-overlapping rooms + chain corridors (mirrors gen.loft)
+             "angband":[(3,3,5,4),(13,3,6,5),(22,4,5,5),(4,11,6,5),(14,12,5,4),(23,13,6,5)]}
     for name,rooms in layouts.items():
         tiles,rects=gen(W,H,rooms)
         raw=boundary_edges(tiles,W,H)

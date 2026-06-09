@@ -48,21 +48,39 @@ pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> Gen
   rww: vector<integer> = [];
   rhh: vector<integer> = [];
 
-  // Rooms — axial rectangles carved from the rock, kept off the border.
+  // Rooms — axial rectangles carved from the rock, kept off the border. Angband
+  // look: reject a candidate that overlaps an existing room (with a 1-cell rock
+  // margin) so rooms stay distinct rectangles and corridors do the connecting.
   for _ in 0..tries {
     rw = rng_range(rng, 4, 8);
     rh = rng_range(rng, 4, 8);
     q0 = rng_range(rng, 1, w - rw - 2);
     r0 = rng_range(rng, 1, h - rh - 2);
-    for cr in r0..(r0 + rh) {
-      for cq in q0..(q0 + rw) {
-        ri = cr * w + cq;
-        if ri >= 0 && ri < len(tiles) { tiles[ri] = 0; }
+    ok = true;
+    nplaced = len(rq0);
+    for ei in 0..nplaced {
+      if ei < nplaced {
+        eq = rq0[ei] ?? 0;
+        er = rr0[ei] ?? 0;
+        ew = rww[ei] ?? 0;
+        eh = rhh[ei] ?? 0;
+        // axis-aligned overlap test in axial space, expanded by the 1-cell margin
+        if q0 - 1 < eq + ew && q0 + rw + 1 > eq && r0 - 1 < er + eh && r0 + rh + 1 > er {
+          ok = false;
+        }
       }
     }
-    rq += [q0 + rw / 2];
-    rr += [r0 + rh / 2];
-    rq0 += [q0]; rr0 += [r0]; rww += [rw]; rhh += [rh];
+    if ok {
+      for cr in r0..(r0 + rh) {
+        for cq in q0..(q0 + rw) {
+          ri = cr * w + cq;
+          if ri >= 0 && ri < len(tiles) { tiles[ri] = 0; }
+        }
+      }
+      rq += [q0 + rw / 2];
+      rr += [r0 + rh / 2];
+      rq0 += [q0]; rr0 += [r0]; rww += [rw]; rhh += [rh];
+    }
   }
 
   // Corridors — greedy hex walk connecting each room centre to the next, so the

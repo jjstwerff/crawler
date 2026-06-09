@@ -1038,7 +1038,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   h = 41;
   // Per-level gen seed = mix(world seed, depth) so each depth has its own layout.
   gseed = (seed ^ world_key_seed(1, 1, depth)) & 2147483647;
-  lvl = gen_dungeon(gseed, w, h, 14);
+  lvl = gen_dungeon(gseed, w, h, 24);   // more tries: overlap-rejection thins them to distinct rooms
   tiles = lvl.g_tiles;
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
   rqs = lvl.g_rq;
