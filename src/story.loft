@@ -27,7 +27,9 @@ KEY_SPC = 32;       // Space — also wait
 KEY_ESC = 27;
 KEY_C   = 99;       // 'c' — open/close the character page
 KEY_I   = 105;      // 'i' — open/close the inventory page
-KEY_1   = 49;       // '1'..'9' — character page: spend a stat point; inventory: use/wield item N
+KEY_1   = 49;       // '1'..'9' — in play: use quick-slot N; char page: spend a stat; inv: use/wield N
+KEY_Q   = 113;      // 'q' — quick-slot active Q (fire the launcher)
+KEY_E   = 101;      // 'e' — quick-slot active E (spell — later)
 
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
 GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
@@ -69,6 +71,7 @@ fn main() {
   pg: vector<integer> = []; // baked character-page line textures (rebuilt on open + each spend)
   c_was = false;            // edge-trigger for the page toggle
   spend_was = false;        // edge-trigger for the 1-9 number keys (shared by both pages)
+  qs_was = false;           // edge-trigger for the quick-slot keys (1-9 / Q / E in normal play)
   inv_open = false;         // inventory overlay (I): also pauses the world
   pg_inv: vector<integer> = [];   // baked inventory line textures (rebuilt on open + use/wield)
   i_was = false;            // edge-trigger for the inventory toggle
@@ -119,6 +122,18 @@ fn main() {
         spend_was = sdn;
       } else {
         spend_was = false;
+
+      // Quick-slots: 1-9 / Q / E use the bound item (consumable -> use_item, launcher -> sim_fire).
+      // Edge-triggered so a held key fires once. The bar reads live, so no rebake is needed.
+      qslot = -1;
+      for ki in 0..9 {
+        if graphics::gl_key_pressed(KEY_1 + ki) { qslot = ki; }
+      }
+      if graphics::gl_key_pressed(KEY_Q) { qslot = QS_Q; }
+      if graphics::gl_key_pressed(KEY_E) { qslot = QS_E; }
+      qdn = qslot >= 0;
+      if qdn && !qs_was { use_slot(s, qslot); }
+      qs_was = qdn;
 
       fwd = 0;
       turn = 0;

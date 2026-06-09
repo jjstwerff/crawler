@@ -29,6 +29,8 @@ DISC_E      = 30.0;  // black backdrop disc behind enemy glyphs
 DISC_P      = 34.0;  // ... and behind the player (a touch larger)
 STAIR_SIZE  = 22.0;  // '>' / '<' stair glyphs
 ITEM_SIZE   = 20.0;  // floor item / gold glyphs
+SIDEBAR_W   = 190.0; // left character bar width (HP/SP, stats, quick-slots — Angband's known spot)
+SB_SIZE     = 15.0;  // sidebar label / item-name point size
 
 // Baked text resources for the renderer (render-side only — the kernel stays
 // graphics-free). Built once after the window exists via build_hud(); if the
@@ -50,6 +52,13 @@ pub struct Hud {
   stair_up: integer not null,         // '<' up-stair sprite (stepped, wider+white)
   stair_dn: integer not null,         // '>' down-stair sprite (stepped, narrower+dark)
   panel:  integer not null,           // dark backdrop for the character page overlay
+  itex:   vector<integer> not null,   // item display name per def index (quick-slot + inventory)
+  statlbl: vector<integer> not null,  // the 6 stat labels "STR".."CHR" (sidebar)
+  hplbl:  integer not null,           // "HP" sidebar label
+  splbl:  integer not null,           // "SP" sidebar label (reserved row)
+  qlbl:   integer not null,           // active-slot "Q" key label
+  elbl:   integer not null,           // active-slot "E" key label
+  dash:   integer not null,           // dim "-" for an empty quick-slot
 }
 
 // Roguelike map glyph for an item category (IT_*).
@@ -147,6 +156,13 @@ pub fn build_hud(s: Sim) -> Hud {
   digits: vector<integer> = [for _ in 0..10 { 0 }];
   catex: vector<integer> = [for _ in 0..14 { 0 }];
   etex: vector<integer> = [];
+  itex: vector<integer> = [];
+  statlbl: vector<integer> = [for _ in 0..6 { 0 }];
+  hplbl = 0;
+  splbl = 0;
+  qlbl = 0;
+  elbl = 0;
+  dash = 0;
   if font >= 0 {
     ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
     died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
@@ -167,10 +183,26 @@ pub fn build_hud(s: Sim) -> Hud {
       (cr, cg, cb) = sim_enemy_color(s, i);
       etex += [graphics::create_text_texture(font, g, GLYPH_SIZE, graphics::rgba(cr, cg, cb, 255))];
     }
+    // Sidebar labels (static) + one display-name texture per item def (used by the quick-slots
+    // and the inventory column) — baked once so the always-visible bar never churns textures.
+    hplbl = graphics::create_text_texture(font, "HP", SB_SIZE, graphics::rgba(210, 150, 150, 255));
+    splbl = graphics::create_text_texture(font, "SP", SB_SIZE, graphics::rgba(150, 170, 215, 255));
+    qlbl  = graphics::create_text_texture(font, "Q", SB_SIZE, graphics::rgba(225, 215, 160, 255));
+    elbl  = graphics::create_text_texture(font, "E", SB_SIZE, graphics::rgba(225, 215, 160, 255));
+    dash  = graphics::create_text_texture(font, "-", SB_SIZE, graphics::rgba(110, 115, 125, 255));
+    snames = ["STR", "INT", "WIS", "DEX", "CON", "CHR"];
+    for si in 0..6 {
+      statlbl[si] = graphics::create_text_texture(font, snames[si] ?? "", SB_SIZE, graphics::rgba(190, 195, 175, 255));
+    }
+    itbl = item_table();
+    for ii in 0..len(itbl) {
+      itex += [graphics::create_text_texture(font, item_name(itbl, ii), SB_SIZE, graphics::rgba(220, 220, 205, 255))];
+    }
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
     spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
-    stair_up: stair_up, stair_dn: stair_dn, panel: panel }
+    stair_up: stair_up, stair_dn: stair_dn, panel: panel, itex: itex, statlbl: statlbl,
+    hplbl: hplbl, splbl: splbl, qlbl: qlbl, elbl: elbl, dash: dash }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -376,6 +408,91 @@ fn build_vis_texture(s: Sim) -> integer {
   graphics::gl_upload_canvas(pix, s.lw, s.lh)
 }
 
+// Draw a baked text texture at its NATURAL size (measure width + text height) so it stays crisp.
+fn sb_text(painter: graphics::Painter2D, hud: Hud, tex: integer, str: text, x: float, y: float) {
+  if tex == 0 { return; }
+  w = graphics::gl_measure_text(hud.font, str, SB_SIZE);
+  h = graphics::gl_text_height(hud.font, SB_SIZE) as float;
+  graphics::draw_texture_at(painter, tex, x, y, w, h);
+}
+
+// The left character bar (Angband's known spot): HP (with the SP row reserved beneath it), the 6
+// base stats, then the 11 quick-slots (1-9 then Q/E). Drawn every frame from pre-baked textures +
+// draw_number — no per-frame baking — so it tracks HP/ammo/slots live. Q shows the bow + arrows-left.
+fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
+  if hud.panel != 0 { graphics::draw_texture_at(painter, hud.panel, 0.0, 0.0, SIDEBAR_W, VIEW_H); }
+  if hud.font < 0 { return; }
+  itbl = item_table();
+  pad = 10.0;
+  barx = pad + 24.0;
+  barw = SIDEBAR_W - barx - pad;
+
+  // HP bar + number, with the SP row reserved (dim) beneath it for when spell-points land.
+  hp = sim_player_hp(s);
+  hpmax = sim_player_hp_max(s);
+  hpf = hp as float / hpmax as float ?? 0.0;
+  if hpf < 0.0 { hpf = 0.0; }
+  if hpf > 1.0 { hpf = 1.0; }
+  sb_text(painter, hud, hud.hplbl, "HP", pad, 11.0);
+  graphics::draw_rect_at(painter, barx, 13.0, barw, 13.0, 0.25, 0.05, 0.05, 1.0);
+  graphics::draw_rect_at(painter, barx, 13.0, barw * hpf, 13.0, 0.20, 0.80, 0.30, 1.0);
+  draw_number(painter, hud, hp, barx + 4.0, 9.0);
+  sb_text(painter, hud, hud.splbl, "SP", pad, 31.0);
+  graphics::draw_rect_at(painter, barx, 33.0, barw, 8.0, 0.10, 0.12, 0.20, 1.0);
+
+  // CL + gold on one row, the XP bar under them.
+  if hud.clbl != 0 {
+    graphics::draw_texture_at(painter, hud.clbl, pad, 49.0, 16.0, 15.0);
+    draw_number(painter, hud, sim_clevel(s), pad + 20.0, 47.0);
+  }
+  if hud.gtex != 0 {
+    graphics::draw_texture_at(painter, hud.gtex, pad + 74.0, 47.0, 11.0, 17.0);
+    draw_number(painter, hud, sim_gold(s), pad + 88.0, 47.0);
+  }
+  xpf = sim_xp_frac(s);
+  graphics::draw_rect_at(painter, pad, 68.0, SIDEBAR_W - 2.0 * pad, 5.0, 0.10, 0.10, 0.22, 1.0);
+  graphics::draw_rect_at(painter, pad, 68.0, (SIDEBAR_W - 2.0 * pad) * xpf, 5.0, 0.45, 0.45, 0.85, 1.0);
+
+  // The 6 base stats (label + value).
+  snames = ["STR", "INT", "WIS", "DEX", "CON", "CHR"];
+  skeys  = ["str", "int", "wis", "dex", "con", "chr"];
+  slbl = hud.statlbl;
+  sy = 84.0;
+  for i in 0..6 {
+    t = if i < len(slbl) { slbl[i] ?? 0 } else { 0 };
+    sb_text(painter, hud, t, snames[i] ?? "", pad, sy);
+    draw_number(painter, hud, sim_stat(s, skeys[i] ?? ""), pad + 46.0, sy - 2.0);
+    sy += 20.0;
+  }
+
+  // The 11 quick-slots: number/Q/E key, the bound item's name, and a count (quiver for the
+  // launcher, stack size for a consumable). An empty slot shows a dim dash.
+  qy = sy + 8.0;
+  for k in 0..QS_N {
+    if k < 9 {
+      draw_number(painter, hud, k + 1, pad, qy - 2.0);
+    } else if k == QS_Q {
+      sb_text(painter, hud, hud.qlbl, "Q", pad, qy);
+    } else {
+      sb_text(painter, hud, hud.elbl, "E", pad, qy);
+    }
+    nx = pad + 18.0;
+    defidx = sim_qs_def(s, k);
+    if defidx >= 0 && defidx < len(hud.itex) {
+      nm = item_name(itbl, defidx);
+      sb_text(painter, hud, hud.itex[defidx] ?? 0, nm, nx, qy);
+      cnt = sim_qs_count(s, k);
+      if item_cat(itbl, defidx) == IT_BOW || cnt > 1 {
+        nw = graphics::gl_measure_text(hud.font, nm, SB_SIZE);
+        draw_number(painter, hud, cnt, nx + nw + 6.0, qy - 2.0);
+      }
+    } else {
+      sb_text(painter, hud, hud.dash, "-", nx, qy);
+    }
+    qy += 18.0;
+  }
+}
+
 pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, hud: Hud, wprog: integer, wvao: integer) {
   graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
   cell = SCALE * 1.35;
@@ -505,31 +622,8 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   nsz = SCALE * 0.42;
   graphics::draw_rect_at(painter, CX - nsz / 2.0, ANCHOR_Y - psz * 0.9 - nsz, nsz, nsz, 0.30, 0.92, 0.40, 1.0);
 
-  // HUD: player HP bar + numeric HP (top-left, screen space).
-  hp = sim_player_hp(s);
-  hpmax = sim_player_hp_max(s);
-  hpf = hp as float / hpmax as float ?? 0.0;
-  if hpf < 0.0 { hpf = 0.0; }
-  graphics::draw_rect_at(painter, 12.0, 12.0, 220.0, 16.0, 0.25, 0.05, 0.05, 1.0);
-  graphics::draw_rect_at(painter, 12.0, 12.0, 220.0 * hpf, 16.0, 0.20, 0.80, 0.30, 1.0);
-  if hud.font >= 0 { draw_number(painter, hud, hp, 240.0, 10.0); }
-
-  // XP bar (under the HP bar) + character level.
-  xpf = sim_xp_frac(s);
-  graphics::draw_rect_at(painter, 12.0, 30.0, 220.0, 6.0, 0.10, 0.10, 0.22, 1.0);
-  graphics::draw_rect_at(painter, 12.0, 30.0, 220.0 * xpf, 6.0, 0.45, 0.45, 0.85, 1.0);
-  if hud.font >= 0 && hud.clbl != 0 {
-    clw = graphics::gl_measure_text(hud.font, "CL", DIGIT_SIZE) + 5.0;
-    clh = graphics::gl_text_height(hud.font, DIGIT_SIZE) as float + 4.0;
-    graphics::draw_texture_at(painter, hud.clbl, 12.0, 40.0, clw, clh);
-    draw_number(painter, hud, sim_clevel(s), 12.0 + clw + 4.0, 40.0);
-  }
-
-  // Gold purse ('$' + amount).
-  if hud.font >= 0 && hud.gtex != 0 {
-    graphics::draw_texture_at(painter, hud.gtex, 12.0, 58.0, 14.0, 20.0);
-    draw_number(painter, hud, sim_gold(s), 30.0, 60.0);
-  }
+  // The left character bar: HP (room for SP), CL/gold/XP, the 6 base stats, the 11 quick-slots.
+  draw_sidebar(painter, s, hud);
 
   // Depth readout (top-right): "DEPTH n".
   if hud.font >= 0 && hud.dlbl != 0 {
