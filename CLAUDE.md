@@ -17,6 +17,18 @@ make game     # single-file story.html (WebGL) — unblocked (E0514 resolved, LO
 Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
+## Design / debug protocol (exact-invariant work)
+
+For **geometry / caching / serialization / store-lifetime / protocols** the correct
+design is an **exact invariant**, not an open space. Don't approximate or symptom-chase
+toward it. **Get a CONCRETE plotted end-result first** (the exact target output/state for
+one specific input — the model grasps concrete examples far better than abstract specs;
+ask the user to plot it, or propose a candidate end-state and confirm), **then** name the
+invariant (caching → *round-trip = identity*), **pin a test**, and only then code. Tell
+that this went wrong: *a small fix behind a large discovery cost* (the triangle-wall saga;
+the loft2 `data.rs` cache fix). Anchor (Angband/real/moros) + reuse one model by symmetry.
+Case log + mechanism study (growing, → a skill): **DESIGN-PROTOCOL.md**.
+
 ## Architecture invariant (do not break)
 
 **Kernel** modules import **no graphics** — `hexgeo`, `gridgeo`, `sim`, `gen`,
