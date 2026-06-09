@@ -1231,6 +1231,8 @@ pub fn sim_stair_under(s: Sim) -> integer {
   (pq, pr) = px_to_hex(s.px, s.py);
   tile_at(s, pq, pr)
 }
+// (sim_player_hex — the player's current hex, used by the walk-onto-stairs
+//  edge-trigger — already defined above near the enemy/FOV accessors.)
 
 pub fn sim_down_hex(s: Sim) -> (integer, integer) { (s.dn_q, s.dn_r) }
 pub fn sim_up_hex(s: Sim) -> (integer, integer) { (s.up_q, s.up_r) }

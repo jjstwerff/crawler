@@ -4,7 +4,10 @@
 // intents, and draws the egocentric 2D view. The kernel (sim/hexgeo) is the
 // reusable core; this file and view.loft are the swappable 2D front-end.
 //
-// Controls: W glide forward · S glide back · A/D turn (free) · Esc quit.
+// Controls: W glide forward · S glide back · A/D turn (free) · walk onto a
+// stair to change level (no button) · . / Space wait · g grab · Esc quit.
+// E and Q are intentionally FREE — reserved for upcoming character actions
+// (fire arrow / cast spell); that's why stairs are taken by walking, not a key.
 
 use graphics;
 use sim;
@@ -17,7 +20,6 @@ KEY_W   = 119;
 KEY_S   = 115;
 KEY_A   = 97;
 KEY_D   = 100;
-KEY_E   = 101;      // use stairs (descend on '>', ascend on '<')
 KEY_G   = 103;      // 'g' grab items under you (gold auto-collects)
 KEY_DOT = 46;       // '.' wait one tick
 KEY_SPC = 32;       // Space — also wait
@@ -46,9 +48,10 @@ fn main() {
   wprog = make_world_shader();   // GPU terrain shader (global, built once)
   wvao = build_world_vbo(s);     // GPU terrain VBO (rebuilt on each level change)
   last = ticks();
-  e_was = false;            // edge-trigger for the stairs key
   w_was = false;            // edge-trigger for the wait key
   g_was = false;            // edge-trigger for the grab key
+  (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
+                                  // standing on it doesn't fire (walk-onto edge-trigger)
   running = true;
   while running {
     if !graphics::gl_poll_events() {
@@ -68,27 +71,6 @@ fn main() {
       if graphics::gl_key_pressed(KEY_A) { turn = 1; }   // left  = CCW (heading up)
       if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
 
-      // Stairs: 'E' on a down-stair descends, on an up-stair ascends. Rebuild
-      // the wall outline + HUD (new level => new monster set / glyph textures).
-      e_down = graphics::gl_key_pressed(KEY_E);
-      if e_down && !e_was {
-        st = sim_stair_under(s);
-        if st == 2 {
-          s = sim_descend(s, 1);
-          walls = build_walls(s);
-          hud = build_hud(s);
-          graphics::gl_delete_vao(wvao);
-          wvao = build_world_vbo(s);
-        } else if st == 3 && sim_depth(s) > 1 {
-          s = sim_descend(s, -1);
-          walls = build_walls(s);
-          hud = build_hud(s);
-          graphics::gl_delete_vao(wvao);
-          wvao = build_world_vbo(s);
-        }
-      }
-      e_was = e_down;
-
       // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
       w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
       if w_down && !w_was { sim_wait(s); }
@@ -106,6 +88,33 @@ fn main() {
         hud = build_hud(s);
         graphics::gl_delete_vao(wvao);
         wvao = build_world_vbo(s);
+        (sq, sr) = sim_player_hex(s);   // re-arm on the respawn stair
+      } else {
+        // Walk onto a stair to change level. Edge-trigger: fire only when ENTERING
+        // a new hex that is a stair, so arriving ON the destination stair doesn't
+        // bounce you straight back (you step off, then re-entering fires again).
+        (cq, cr) = sim_player_hex(s);
+        if cq != sq || cr != sr {
+          stt = sim_stair_under(s);
+          if stt == 2 {                       // '>' down
+            s = sim_descend(s, 1);
+            walls = build_walls(s);
+            hud = build_hud(s);
+            graphics::gl_delete_vao(wvao);
+            wvao = build_world_vbo(s);
+            (sq, sr) = sim_player_hex(s);     // arm on the arrival stair
+          } else if stt == 3 && sim_depth(s) > 1 {   // '<' up (no overworld above depth 1 yet)
+            s = sim_descend(s, -1);
+            walls = build_walls(s);
+            hud = build_hud(s);
+            graphics::gl_delete_vao(wvao);
+            wvao = build_world_vbo(s);
+            (sq, sr) = sim_player_hex(s);
+          } else {
+            sq = cq;
+            sr = cr;
+          }
+        }
       }
       sim_compute_fov(s);          // directed-light FOV: recompute visibility for this frame
       view_draw(painter, s, walls, hud, wprog, wvao);
