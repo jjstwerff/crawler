@@ -1,0 +1,23 @@
+// roomtest — the rooms bundle -> registry pipeline. tools/gen_bundles.py scans the kind:"rooms"
+// bundles and emits src/rooms_gen.loft (the default room set + how corridors connect them); this
+// verifies the registry is well-formed and carries the staple rectangle + the connection model.
+// (gen.loft consuming this registry is the deliberate next step — see the commit notes.)
+use rooms_gen;
+
+fn main() {
+  println("=== story rooms test (rooms bundle -> registry) ===");
+  rt = room_table();
+  n = len(rt);
+  println("room types: {n}  connect={room_connect_mode()}/{room_connect_graph()} loops={room_connect_loops()}");
+  ok = n >= 4 && room_connect_mode() == "corridors" && room_connect_graph() == "chain";
+  haverect = false;
+  for i in 0..n {
+    if i < n {
+      rd = rt[i];
+      if rd.rk == "rect" { haverect = true; }
+      if rd.w_min <= 0 || rd.w_max < rd.w_min { ok = false; }
+      if rd.h_min <= 0 || rd.h_max < rd.h_min || rd.weight <= 0 { ok = false; }
+    }
+  }
+  if ok && haverect { println("=== ROOMS OK ==="); } else { println("=== FAIL ==="); }
+}

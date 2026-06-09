@@ -201,6 +201,9 @@ test:
 	@python3 tools/gen_bundles.py >/dev/null
 	@$(LOFT) --interpret $(LOFTFLAGS) src/bundletest.loft | tee /tmp/story_bundle.log
 	@grep -q "BUNDLE OK" /tmp/story_bundle.log || { echo "    FAIL: bundles"; exit 1; }
+	@echo "  [rooms] rooms bundle -> room registry ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/roomtest.loft | tee /tmp/story_rooms.log
+	@grep -q "ROOMS OK" /tmp/story_rooms.log || { echo "    FAIL: rooms"; exit 1; }
 	@echo "  [items] item-use (Explorer potions: heal + custom detect) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/itemusetest.loft | tee /tmp/story_itemuse.log
 	@grep -q "ITEM-USE OK" /tmp/story_itemuse.log || { echo "    FAIL: item-use"; exit 1; }

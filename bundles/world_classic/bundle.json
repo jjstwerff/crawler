@@ -1,0 +1,20 @@
+{
+  "key": "classic",
+  "name": "Classic Dungeon",
+  "kind": "world",
+  "desc": "A world bundle is a linkable PLACE. This one supplies the classic Angband-style dungeon ROOMS and how corridors connect them. A separate world bundle (a spawn rule -- 'build an Angband-style dungeon') will LINK to this place by key; world bundles can grow sibling sections later (monster spawns, terrain, level features).",
+  "rooms": {
+    "connect": {
+      "mode": "corridors",
+      "graph": "chain",
+      "extra_loops": 0
+    },
+    "list": [
+      { "key": "rect",     "shape": "rect",     "w_min": 4, "w_max": 8,  "h_min": 4, "h_max": 8,  "weight": 50, "desc": "A plain rectangular room (the staple)." },
+      { "key": "large",    "shape": "rect",     "w_min": 9, "w_max": 14, "h_min": 7, "h_max": 11, "weight": 10, "desc": "A large hall." },
+      { "key": "cross",    "shape": "cross",    "w_min": 5, "w_max": 9,  "h_min": 5, "h_max": 9,  "weight": 15, "desc": "A plus/cross-shaped room (two overlapping rects)." },
+      { "key": "overlap",  "shape": "overlap",  "w_min": 5, "w_max": 9,  "h_min": 5, "h_max": 9,  "weight": 15, "desc": "Two overlapping rectangles." },
+      { "key": "pillared", "shape": "pillared", "w_min": 7, "w_max": 12, "h_min": 6, "h_max": 9,  "weight": 10, "desc": "A large room with regular pillars." }
+    ]
+  }
+}
