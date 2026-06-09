@@ -60,7 +60,7 @@ pub struct Enemy {
   flags:  integer not null,   // MF_* bitmask (from the DB)
   awake:  boolean not null,   // false = asleep: won't act until it perceives you
   speed:  integer not null,   // energy banked per clock tick = ENERGY_STEP + m_speed
-  energy: integer not null,   // action-credit bank; >= ENERGY_STEP spends one step/attack
+  energy: integer not null,   // action-credit saved toward the next step (the 0..9 leftover between ticks)
   cr:    integer not null,    // display colour 0..255 (from the monster DB)
   cg:    integer not null,
   cb:    integer not null,
