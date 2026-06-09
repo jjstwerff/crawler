@@ -31,7 +31,7 @@ ITEM_SIZE   = 20.0;  // floor item / gold glyphs
 
 // Baked text resources for the renderer (render-side only — the kernel stays
 // graphics-free). Built once after the window exists via build_hud(); if the
-// font fails to load (font == 0) the view falls back to coloured squares.
+// font fails to load (font < 0) the view falls back to coloured squares.
 pub struct Hud {
   font:   integer not null,
   ptex:   integer not null,           // the player '@'
@@ -73,21 +73,27 @@ pub fn build_hud(s: Sim) -> Hud {
   // A few fallbacks cover other run layouts; if none load, the view falls back
   // to coloured squares. (Note: `!font` is not logical-not on an integer in
   // loft — compare against 0 explicitly.)
+  // gl_load_font reads relative to the process cwd. Try the common run layouts; the
+  // first is `make play` from the repo root. (Resolution is cwd-based, not --path-based.)
   fcands = [
+    "assets/DejaVuSans-Bold.ttf",            // cwd = repo root (normal `make play`)
+    "../crawler/assets/DejaVuSans-Bold.ttf", // cwd = a sibling dir
+    "crawler/assets/DejaVuSans-Bold.ttf",    // cwd = workspace
     "../story/assets/DejaVuSans-Bold.ttf",
-    "assets/DejaVuSans-Bold.ttf",
     "story/assets/DejaVuSans-Bold.ttf",
     "doc/assets/DejaVuSans-Bold.ttf",
   ];
-  font = 0;
+  // A loaded font is a valid index >= 0 (often 0 — the first font). gl_load_font returns
+  // null on read failure / -1 on parse failure, so the "not loaded" sentinel is -1, NOT 0.
+  font = -1;
   for fci in 0..len(fcands) {
-    if font == 0 {
+    if font < 0 {
       fc = fcands[fci] ?? "";
       f = graphics::gl_load_font(fc);
-      if f != 0 { font = f; }
+      if f != null && f >= 0 { font = f; }
     }
   }
-  if font == 0 { println("view: font not loaded — falling back to squares"); }
+  if font < 0 { println("view: font not loaded — falling back to squares"); }
 
   // A soft-black backdrop disc, baked once and drawn behind every token so the
   // glyph letters read clearly against the dungeon floor. Baked at 64px and
@@ -96,10 +102,12 @@ pub fn build_hud(s: Sim) -> Hud {
   dcv.fill_circle(32, 32, 31, graphics::rgba(0, 0, 0, 230));
   disc = graphics::gl_upload_canvas(dcv.data, 64, 64);
 
-  // cave-spider sprite (transparent PNG); same --path resolution as the font.
+  // cave-spider sprite (transparent PNG); cwd-relative, same layouts as the font.
   scands = [
-    "../story/assets/sprites/cave_spider.png",
     "assets/sprites/cave_spider.png",
+    "../crawler/assets/sprites/cave_spider.png",
+    "crawler/assets/sprites/cave_spider.png",
+    "../story/assets/sprites/cave_spider.png",
     "story/assets/sprites/cave_spider.png",
   ];
   spider = 0;
@@ -107,7 +115,7 @@ pub fn build_hud(s: Sim) -> Hud {
     if spider == 0 {
       sc = scands[sci] ?? "";
       sp = graphics::gl_load_texture(sc);
-      if sp != 0 { spider = sp; }
+      if sp != null && sp != 0 { spider = sp; }   // GL texture id (>=1); null/0 = failed
     }
   }
 
@@ -121,7 +129,7 @@ pub fn build_hud(s: Sim) -> Hud {
   digits: vector<integer> = [for _ in 0..10 { 0 }];
   catex: vector<integer> = [for _ in 0..14 { 0 }];
   etex: vector<integer> = [];
-  if font != 0 {
+  if font >= 0 {
     ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
     died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
     sdown = graphics::create_text_texture(font, ">", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
@@ -372,9 +380,9 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
         (wx, wy) = hex_to_px(q, r);
         (hsx, hsy) = world_to_screen(s, wx, wy);
         if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
-          if t == 2 && hud.font != 0 && hud.sdown != 0 {
+          if t == 2 && hud.font >= 0 && hud.sdown != 0 {
             draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
-          } else if t == 3 && hud.font != 0 && hud.sup != 0 {
+          } else if t == 3 && hud.font >= 0 && hud.sup != 0 {
             draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
           }
         }
@@ -399,7 +407,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
 
   // Floor loot — gold piles ('$') and dropped items (category glyph), under the
   // tokens. Drawn only with a font (no square fallback — loot is glyph-only).
-  if hud.font != 0 {
+  if hud.font >= 0 {
     fcat = hud.catex;
     fcount = sim_floor_count(s);
     for fl in 0..fcount {
@@ -443,7 +451,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
         etheta = s.heading - efq * estep;
         espz = SCALE * 2.6;                    // sized to the body; legs overhang
         draw_texture_rot(painter, hud.spider, esx, esy, espz, espz, etheta);
-      } else if hud.font != 0 && etx != 0 {
+      } else if hud.font >= 0 && etx != 0 {
         draw_disc(painter, hud.disc, esx, esy, DISC_E);
         draw_glyph_centered(painter, hud.font, etx, eg, GLYPH_SIZE, esx, esy);
       } else {
@@ -458,7 +466,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
 
   // Player at the anchor — '@' glyph (square fallback), plus a forward "nose".
   psz = SCALE * 1.0;
-  if hud.font != 0 && hud.ptex != 0 {
+  if hud.font >= 0 && hud.ptex != 0 {
     draw_disc(painter, hud.disc, CX, ANCHOR_Y, DISC_P);
     draw_glyph_centered(painter, hud.font, hud.ptex, "@", PLAYER_SIZE, CX, ANCHOR_Y);
   } else {
@@ -474,13 +482,13 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   if hpf < 0.0 { hpf = 0.0; }
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0, 16.0, 0.25, 0.05, 0.05, 1.0);
   graphics::draw_rect_at(painter, 12.0, 12.0, 220.0 * hpf, 16.0, 0.20, 0.80, 0.30, 1.0);
-  if hud.font != 0 { draw_number(painter, hud, hp, 240.0, 10.0); }
+  if hud.font >= 0 { draw_number(painter, hud, hp, 240.0, 10.0); }
 
   // XP bar (under the HP bar) + character level.
   xpf = sim_xp_frac(s);
   graphics::draw_rect_at(painter, 12.0, 30.0, 220.0, 6.0, 0.10, 0.10, 0.22, 1.0);
   graphics::draw_rect_at(painter, 12.0, 30.0, 220.0 * xpf, 6.0, 0.45, 0.45, 0.85, 1.0);
-  if hud.font != 0 && hud.clbl != 0 {
+  if hud.font >= 0 && hud.clbl != 0 {
     clw = graphics::gl_measure_text(hud.font, "CL", DIGIT_SIZE) + 5.0;
     clh = graphics::gl_text_height(hud.font, DIGIT_SIZE) as float + 4.0;
     graphics::draw_texture_at(painter, hud.clbl, 12.0, 40.0, clw, clh);
@@ -488,13 +496,13 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   }
 
   // Gold purse ('$' + amount).
-  if hud.font != 0 && hud.gtex != 0 {
+  if hud.font >= 0 && hud.gtex != 0 {
     graphics::draw_texture_at(painter, hud.gtex, 12.0, 58.0, 14.0, 20.0);
     draw_number(painter, hud, sim_gold(s), 30.0, 60.0);
   }
 
   // Depth readout (top-right): "DEPTH n".
-  if hud.font != 0 && hud.dlbl != 0 {
+  if hud.font >= 0 && hud.dlbl != 0 {
     lblw = graphics::gl_measure_text(hud.font, "DEPTH", DIGIT_SIZE) + 5.0;
     lblh = graphics::gl_text_height(hud.font, DIGIT_SIZE) as float + 4.0;
     lx = VIEW_W - lblw - 60.0;
@@ -505,7 +513,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   // Game over: red tint + "YOU DIED" banner.
   if sim_over(s) {
     graphics::draw_rect_at(painter, 0.0, 0.0, VIEW_W, VIEW_H, 0.6, 0.05, 0.05, 0.45);
-    if hud.font != 0 && hud.died != 0 {
+    if hud.font >= 0 && hud.died != 0 {
       dw = graphics::gl_measure_text(hud.font, "YOU DIED", DIED_SIZE) + 5.0;
       dh = graphics::gl_text_height(hud.font, DIED_SIZE) as float + 4.0;
       graphics::draw_texture_at(painter, hud.died, (VIEW_W - dw) / 2.0, (VIEW_H - dh) / 2.0, dw, dh);
