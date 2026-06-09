@@ -24,6 +24,7 @@ GLYPH_SIZE  = 22.0;  // monster glyph point size
 PLAYER_SIZE = 26.0;  // the '@' is drawn a touch larger
 DIED_SIZE   = 52.0;  // game-over banner
 DIGIT_SIZE  = 20.0;  // numeric HP
+CHARPAGE_SIZE = 18.0; // character-page text lines
 DISC_E      = 30.0;  // black backdrop disc behind enemy glyphs
 DISC_P      = 34.0;  // ... and behind the player (a touch larger)
 STAIR_SIZE  = 22.0;  // '>' / '<' stair glyphs
@@ -48,6 +49,7 @@ pub struct Hud {
   catex:  vector<integer> not null,   // floor-item glyph per IT_* category
   stair_up: integer not null,         // '<' up-stair sprite (stepped, wider+white)
   stair_dn: integer not null,         // '>' down-stair sprite (stepped, narrower+dark)
+  panel:  integer not null,           // dark backdrop for the character page overlay
 }
 
 // Roguelike map glyph for an item category (IT_*).
@@ -126,6 +128,10 @@ pub fn build_hud(s: Sim) -> Hud {
   dcv.fill_circle(32, 32, 31, graphics::rgba(0, 0, 0, 230));
   disc = graphics::gl_upload_canvas(dcv.data, 64, 64);
 
+  // A near-opaque dark panel, baked once + drawn stretched as the character-page backdrop.
+  pcv = graphics::canvas(8, 8, graphics::rgba(12, 14, 20, 235));
+  panel = graphics::gl_upload_canvas(pcv.data, 8, 8);
+
   // Sprites (transparent PNGs) via the cwd-relative loader; 0 => fall back to a glyph.
   spider   = load_sprite("cave_spider.png");
   stair_up = load_sprite("up_stair.png");     // '<' stepped staircase (wider+white)
@@ -164,7 +170,7 @@ pub fn build_hud(s: Sim) -> Hud {
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
     spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
-    stair_up: stair_up, stair_dn: stair_dn }
+    stair_up: stair_up, stair_dn: stair_dn, panel: panel }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -542,5 +548,64 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
       dh = graphics::gl_text_height(hud.font, DIED_SIZE) as float + 4.0;
       graphics::draw_texture_at(painter, hud.died, (VIEW_W - dw) / 2.0, (VIEW_H - dh) / 2.0, dw, dh);
     }
+  }
+}
+
+// ── The Character Page (SLICE Tier-1): sheet + glossary + stat level-up ──────────────
+// One overlay (toggled by 'C') that shows the character, explains each line, and is where the
+// player SPENDS banked stat points (press 1-6). Shared view => native GL *and* WebGL both show it.
+// Lines are baked once (build_charpage, on open/spend), then drawn (draw_charpage) — no per-frame
+// texture churn. The line strings are derived from the Sim, so the same `s` gives the same layout.
+fn charpage_lines(s: Sim) -> vector<text> {
+  st = sim_stat(s, "str"); it = sim_stat(s, "int"); wi = sim_stat(s, "wis");
+  dx = sim_stat(s, "dex"); cn = sim_stat(s, "con"); ch = sim_stat(s, "chr");
+  out: vector<text> = [];
+  out += ["CHARACTER    level {sim_clevel(s)}    XP {sim_xp(s)}"];
+  out += ["HP {sim_player_hp(s)}/{sim_player_hp_max(s)}    save {sim_player_save(s)}%    melee +{sim_skill_melee(s)}    stealth {sim_skill_stealth(s)}"];
+  out += ["stat points: {sim_stat_points(s)}   (press 1-6 to spend; a stat rises once per 3 levels)"];
+  out += ["  1  STR {st}    sharpens melee damage"];
+  out += ["  2  INT {it}    spells / devices (later)"];
+  out += ["  3  WIS {wi}    willpower / faith (later)"];
+  out += ["  4  DEX {dx}    stealth: sneak closer unseen"];
+  out += ["  5  CON {cn}    saving throw + hit points"];
+  out += ["  6  CHR {ch}    prices / charisma (later)"];
+  out += ["save% resists magic and never reaches 100.    C closes."];
+  out
+}
+
+// Bake the character-page line textures (call on open + after each spend).
+pub fn build_charpage(s: Sim, font: integer) -> vector<integer> {
+  out: vector<integer> = [];
+  if font >= 0 {
+    lines = charpage_lines(s);
+    for i in 0..len(lines) {
+      ln = lines[i] ?? "";
+      out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
+    }
+  }
+  out
+}
+
+// Draw the character page: dark backdrop + the baked lines, stacked.
+pub fn draw_charpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>) {
+  if hud.panel != 0 {
+    graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
+  }
+  if hud.font < 0 { return; }
+  lines = charpage_lines(s);
+  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 10.0;
+  y = 60.0;
+  n = len(pg);
+  for i in 0..n {
+    if i < len(lines) {
+      ln = lines[i] ?? "";
+      t = pg[i] ?? 0;
+      if t != 0 {
+        w = graphics::gl_measure_text(hud.font, ln, CHARPAGE_SIZE);
+        h = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 4.0;
+        graphics::draw_texture_at(painter, t, 60.0, y, w, h);
+      }
+    }
+    y += lh;
   }
 }
