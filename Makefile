@@ -225,6 +225,9 @@ test:
 	@echo "  [depth] beginner-dungeon spawn pool is depth-gentle (no lich at 1-3) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/depthtest.loft | tee /tmp/story_depth.log
 	@grep -q "DEPTH OK" /tmp/story_depth.log || { echo "    FAIL: depth"; exit 1; }
+	@echo "  [ranged] launcher fire action (bow + ammo -> shoot) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/rangedtest.loft | tee /tmp/story_ranged.log
+	@grep -q "RANGED OK" /tmp/story_ranged.log || { echo "    FAIL: ranged"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

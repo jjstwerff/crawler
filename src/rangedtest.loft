@@ -1,0 +1,31 @@
+// rangedtest — the launcher fire ACTION (sim_fire), independent of the input scheme (a quick-slot
+// Q/E or 1-9 will trigger it). Equip a bow in SLOT_BOW, carry ammo, face an enemy so it is SEEN,
+// then fire: damage = ammo dice * launcher multiplier + shooting skill (auto-hit-capped like melee);
+// ammo is consumed; a kill awards XP. With no launcher equipped it is a no-op.
+use sim;
+
+fn main() {
+  println("=== story ranged test (launcher + ammo -> fire) ===");
+  nb = sim_new();
+  no_bow = sim_fire(nb);                    // no launcher equipped -> 0
+
+  s = sim_new();
+  sim_equip_by_key(s, "short_bow");         // launcher in SLOT_BOW
+  for _ in 0..4 { sim_give_item(s, "arrow"); }
+  (e0x, e0y) = sim_enemy_pos(s, 0);
+  s.heading = atan2(e0y - s.py, e0x - s.px);   // face the enemy so it is in the lit FOV (SEEN)
+  sim_compute_fov(s);
+  inv0 = sim_inv_count(s);
+  fired = 0;
+  killed = false;
+  for _ in 0..5 {
+    fr = sim_fire(s);
+    if fr >= 3 { fired = fired + 1; }
+    if fr == 4 { killed = true; }
+  }
+  inv1 = sim_inv_count(s);
+
+  println("no-bow={no_bow}  shots-landed={fired} killed={killed} ammo {inv0}->{inv1}");
+  ok = no_bow == 0 && fired >= 1 && killed && inv1 < inv0;
+  if ok { println("=== RANGED OK ==="); } else { println("=== FAIL ==="); }
+}
