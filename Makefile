@@ -201,6 +201,9 @@ test:
 	@python3 tools/gen_bundles.py >/dev/null
 	@$(LOFT) --interpret $(LOFTFLAGS) src/bundletest.loft | tee /tmp/story_bundle.log
 	@grep -q "BUNDLE OK" /tmp/story_bundle.log || { echo "    FAIL: bundles"; exit 1; }
+	@echo "  [bundle-defs] world bundle enemies/items -> catalog merge ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/bundledeftest.loft | tee /tmp/story_bundledef.log
+	@grep -q "BUNDLEDEF OK" /tmp/story_bundledef.log || { echo "    FAIL: bundle-defs"; exit 1; }
 	@echo "  [rooms] rooms bundle -> room registry ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/roomtest.loft | tee /tmp/story_rooms.log
 	@grep -q "ROOMS OK" /tmp/story_rooms.log || { echo "    FAIL: rooms"; exit 1; }

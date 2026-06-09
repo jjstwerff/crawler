@@ -1,0 +1,19 @@
+// desert_surprise bundle — ENEMY definitions (authored content; edit this file to change the
+// quest's monsters). The engine merges these into the game catalog via the generated bundle_defs
+// aggregator + catalog.loft — NO engine source changes, so the bundle stays shareable. Defs use the
+// engine's vocabulary only: the MonsterDef record + the MF_* flags from `monsters`.
+use monsters;
+
+pub fn enemies() -> vector<MonsterDef> {
+  t: vector<MonsterDef> = [];
+  // Ssirath, the Coiled Crown — the capstone naga boss, coiled on the round throne at the third
+  // deep. MF_UNIQUE keeps her out of the random pool (the bundle's placement seats her on the
+  // throne); tuned hard-but-fair for a depth-3 character with bow / potions / kiting.
+  t += [MonsterDef { m_key: "ssirath", m_name: "Ssirath, the Coiled Crown", m_glyph: "n", m_cr: 80, m_cg: 200, m_cb: 120, m_depth: 3, m_rarity: 0, m_hp: 55, m_ac: 12, m_speed: 5, m_dam: 6, m_vision: 14, m_xp: 70, m_flags: MF_UNIQUE }];
+  // Her brood — the snakes released UP the levels once she dies. They never enter the random spawn
+  // pool (the engine's pool reads only the base monster_table; these live solely in the merged
+  // catalog and are placed by the bundle's infestation rule), so they appear only on the way OUT.
+  t += [MonsterDef { m_key: "sand_adder", m_name: "sand adder", m_glyph: "J", m_cr: 210, m_cg: 190, m_cb: 90, m_depth: 1, m_rarity: 1, m_hp: 5, m_ac: 5, m_speed: 5, m_dam: 2, m_vision: 7, m_xp: 2, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "dust_viper", m_name: "dust viper", m_glyph: "J", m_cr: 170, m_cg: 150, m_cb: 120, m_depth: 2, m_rarity: 1, m_hp: 9, m_ac: 7, m_speed: 5, m_dam: 4, m_vision: 8, m_xp: 5, m_flags: MF_NONE }];
+  t
+}

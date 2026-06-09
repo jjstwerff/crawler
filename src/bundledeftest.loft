@@ -1,0 +1,34 @@
+// bundledeftest — proves the bundle->catalog merge: the desert_surprise bundle's enemy + item
+// definitions (authored in bundles/desert_surprise/ds_*.loft, NOT in the engine catalogs) resolve
+// in game_monsters()/game_items(), AND the engine's base content is still present (the merge is
+// additive, base is a prefix). This is the foundation the quest's placement/grant build on.
+use catalog;
+use monsters;
+use items;
+
+fn main() {
+  println("=== story bundle-def test (desert_surprise enemies + items merge into the catalog) ===");
+  gm = game_monsters();
+  gi = game_items();
+
+  // the bundle's own content (lives in bundles/desert_surprise/, never in monsters.loft/items.loft)
+  naga  = mon_find(gm, "ssirath");
+  adder = mon_find(gm, "sand_adder");
+  viper = mon_find(gm, "dust_viper");
+  scroll = item_index(gi, "sealed_orders");
+
+  // engine base content still resolves (additive merge, base table is a prefix)
+  rat    = mon_find(gm, "giant_rat");
+  potion = item_index(gi, "potion_cure_light");
+
+  // the bundle monsters are NOT in the base pool (so they never random-spawn)
+  base_naga = mon_find(monster_table(), "ssirath");
+
+  println("naga.hp={naga.m_hp} adder.hp={adder.m_hp} viper.hp={viper.m_hp}  scroll={scroll} quest={item_is_quest(gi, scroll)}");
+  println("base: rat.hp={rat.m_hp} potion={potion}  naga-in-base-pool?={base_naga.m_hp}");
+  ok = naga.m_hp > 0 && adder.m_hp > 0 && viper.m_hp > 0
+    && scroll >= 0 && item_is_quest(gi, scroll)
+    && rat.m_hp > 0 && potion >= 0
+    && base_naga.m_hp == 0;          // bundle boss absent from the base pool -> no random spawn
+  if ok { println("=== BUNDLEDEF OK ==="); } else { println("=== FAIL ==="); }
+}

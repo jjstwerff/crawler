@@ -35,6 +35,7 @@ pub const SLOT_AMULET = 11;
 
 pub const IF_NONE      = 0;
 pub const IF_STACKABLE = 1;
+pub const IF_QUEST     = 2;    // a quest keepsake: never auto-slotted/consumed; inspect for its lore
 
 pub struct ItemDef {
   i_key: text, i_name: text, i_glyph: text,
@@ -238,6 +239,17 @@ pub fn item_name(table: vector<ItemDef>, idx: integer) -> text {
 pub fn item_power(table: vector<ItemDef>, idx: integer) -> integer {
   v = 0;
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_power; }
+  v
+}
+pub fn item_desc(table: vector<ItemDef>, idx: integer) -> text {
+  v = "";
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_desc; }
+  v
+}
+// A quest keepsake (IF_QUEST): never auto-slotted/consumed; the view shows its lore on inspect.
+pub fn item_is_quest(table: vector<ItemDef>, idx: integer) -> boolean {
+  v = false;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = (m.i_flags & IF_QUEST) != 0; }
   v
 }
 

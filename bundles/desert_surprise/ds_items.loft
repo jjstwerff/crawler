@@ -1,0 +1,11 @@
+// desert_surprise bundle — ITEM definitions (authored content). Merged into the game catalog the
+// same way as the enemies. Uses only the engine vocabulary from `items`: the ItemDef record, the
+// IT_*/SLOT_* categories, and the IF_QUEST flag (a keepsake — never auto-slotted/consumed, inspected
+// for its lore). i_depth 0 keeps it out of the random drop pool; the bundle grants it at the start.
+use items;
+
+pub fn items() -> vector<ItemDef> {
+  t: vector<ItemDef> = [];
+  t += [ItemDef { i_key: "sealed_orders", i_name: "Sealed Orders", i_glyph: "?", i_cr: 120, i_cg: 200, i_cb: 130, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 1, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "Orders in a hand you do not know. Go down. What coils beneath the third deep must not be left to wake -- you will know the throne when the dust begins to hiss. No name, no seal-ring -- only a smear of dry green scale." }];
+  t
+}

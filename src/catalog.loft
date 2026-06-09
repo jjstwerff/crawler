@@ -1,0 +1,24 @@
+// catalog — the GAME catalogs = engine base tables + every active bundle's contributed defs
+// (bundle_defs, generated). Consumers read game_monsters()/game_items() so bundle content is
+// first-class. The base table is a PREFIX of the merged one (base defs keep their indices, so any
+// stored defidx stays valid); bundle defs append after. The random pools deliberately stay on the
+// base tables (monster_table/item_table) — bundle monsters/items never random-spawn/drop unless a
+// bundle's own placement rule puts them there. This is the engine's merge MECHANISM; the content
+// is all bundle-side.
+use monsters;
+use items;
+use bundle_defs;
+
+pub fn game_monsters() -> vector<MonsterDef> {
+  t = monster_table();
+  src = bundle_monsters();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}
+
+pub fn game_items() -> vector<ItemDef> {
+  t = item_table();
+  src = bundle_items();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}

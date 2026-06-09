@@ -1,0 +1,11 @@
+{
+  "key": "desert_surprise",
+  "name": "Desert Surprise",
+  "kind": "world",
+  "links": "classic",
+  "enemies": "ds_enemies",
+  "items": "ds_items",
+  "stencils": "ds_stencils",
+  "placement": "ds_placement",
+  "desc": "A scoped quest OVERLAY on the classic dungeon (it links 'classic', injects its own content, and reverts to the plain dungeon below its scope). Self-contained: editing THIS folder tailors the quest -- no engine source changes, so it can be shared and a friend plays it against an unchanged game. The errand: sealed orders send you down to a naga's round throne on the third deep; killing Ssirath, the Coiled Crown unleashes her snake brood up the way out."
+}
