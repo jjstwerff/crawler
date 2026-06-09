@@ -19,6 +19,7 @@ FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
 HERO_CON   = 16;      // starting Constitution (full stat block = H2; HP is class-uniform, not con-driven)
 NUM_STATS  = 6;       // STR, INT, WIS, DEX, CON, CHR
 ST_STR     = 0;       // STR's index in the stat vectors (feeds the melee skill)
+ST_DEX     = 3;       // DEX's index in the stat vectors (feeds the stealth skill)
 ST_CON     = 4;       // CON's index in the stat vectors (see stat_index)
 HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
 HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few×, not 10×+
@@ -614,6 +615,15 @@ pub fn sim_skill_melee(s: Sim) -> integer {
   b
 }
 
+// Passive STEALTH skill — from character level + effective DEX. 0 at the baseline; it SHRINKS the
+// range at which a monster notices you (its effective vision in the awareness check), so a stealthy
+// (high-level / high-DEX) character can slip closer before waking sleepers. refresh-free (derived).
+pub fn sim_skill_stealth(s: Sim) -> integer {
+  b = (s.clevel - 1) / 3 + (stat_eff(s, ST_DEX) - HERO_CON);
+  if b < 0 { b = 0; }
+  b
+}
+
 // Move the player to hex (q,r) — level placement / arrival / scripted movement.
 pub fn sim_teleport(s: &Sim, q: integer, r: integer) {
   (tx, ty) = hex_to_px(q, r);
@@ -993,6 +1003,7 @@ pub fn sim_tick(s: &Sim) {
   if s.detect_t > 0 { s.detect_t = s.detect_t - 1; }   // monster-detection decays
   (pq, pr) = px_to_hex(s.px, s.py);
   flow = compute_flow(s, pq, pr);   // shared by every chasing monster this tick
+  pstealth = sim_skill_stealth(s);  // shrinks each monster's wake range this tick
   enemies = s.enemies;
   for et in 0..len(enemies) {
     e = enemies[et];
@@ -1012,7 +1023,9 @@ pub fn sim_tick(s: &Sim) {
         d = hex_distance(e.cur_q, e.cur_r, pq, pr);
         // Awareness: a sleeping monster wakes when the player is within its
         // vision and in line of sight; once awake it stays awake.
-        if !e.awake && d <= e.vision && hex_los(s, e.cur_q, e.cur_r, pq, pr) {
+        evis = e.vision - pstealth;        // stealth shrinks how near the player must be to wake it
+        if evis < 1 { evis = 1; }          // but it always notices an adjacent / attacking player
+        if !e.awake && d <= evis && hex_los(s, e.cur_q, e.cur_r, pq, pr) {
           e.awake = true;
         }
         if e.awake {

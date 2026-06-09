@@ -18,10 +18,28 @@ fn main() {
   str_skill = sim_skill_melee(s);
   str_dam = sim_player_dam(s);
 
+  // STEALTH: 0 at baseline; a monster within vision wakes at level 1, but a high-stealth (high
+  // level) character can stand the same distance and it stays asleep (its wake range is shrunk).
+  lo = sim_new();
+  st_lo = sim_skill_stealth(lo);              // level 1 -> 0
+  sim_set_awake(lo, 0, false);                // (the arena enemy starts awake; lull it)
+  for _ in 0..3 { sim_tick(lo); }
+  woke_lo = sim_enemy_awake(lo, 0);           // within vision + LOS -> re-wakes
+
+  hi = sim_new();
+  sim_award_xp(hi, 100000);                   // level hard -> big stealth
+  st_hi = sim_skill_stealth(hi);
+  sim_set_awake(hi, 0, false);
+  for _ in 0..3 { sim_tick(hi); }
+  woke_hi = sim_enemy_awake(hi, 0);           // wake range shrunk to ~adjacent -> stays asleep
+  stealth_ok = st_lo == 0 && st_hi > 0 && woke_lo && !woke_hi;
+
   println("melee skill: base={base_skill} after-levels={lvl_skill} after-+STR={str_skill}");
   println("player dam:  base={base_dam} after-levels={lvl_dam} after-+STR={str_dam}");
+  println("stealth:     base={st_lo} leveled={st_hi}  woke(lo/hi)={woke_lo}/{woke_hi}");
   ok = base_skill == 0
     && lvl_skill > base_skill && lvl_dam > base_dam
-    && str_skill > lvl_skill && str_dam > lvl_dam;
+    && str_skill > lvl_skill && str_dam > lvl_dam
+    && stealth_ok;
   if ok { println("=== SKILL OK ==="); } else { println("=== FAIL ==="); }
 }
