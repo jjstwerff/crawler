@@ -71,3 +71,11 @@ pub fn damage(self: Player, s: &Sim, amount: integer, kind: text) {
 pub fn teleport(self: Player, s: &Sim, q: integer, r: integer) {
   sim_teleport(s, q, r);
 }
+
+// Turn the player to face hex (q,r) — facing an NPC or a scripted event.
+// TODO: use SPARINGLY — it takes heading control from the player. And it must NOT be
+// instant: ease/animate the turn over a short time (a scripted rotate), not the snap this
+// stub does. Wire the smooth turn when the cutscene/event timing layer lands.
+pub fn face(self: Player, s: &Sim, q: integer, r: integer) {
+  sim_face(s, q, r);
+}

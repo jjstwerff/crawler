@@ -426,9 +426,26 @@ pub fn sim_heal(s: &Sim, amount: integer) {
 // today it is generic HP loss + death, mirroring melee.
 pub fn sim_damage(s: &Sim, amount: integer, kind: text) {
   dmg = amount;
-  if false { dmg = dmg + len(kind); }   // touch kind; damage-type system lands later
+  if kind == "physical" {
+    dmg = apply_dr(amount, s.pac);          // armour soaks physical blows (existing AC DR)
+  } else {
+    sv = sim_player_save(s);                // a saving throw resists magic/elemental effects
+    cut = amount * sv / 100 ?? 0;
+    dmg = amount - cut;
+    if dmg < 1 { dmg = 1; }                 // never fully negated — save is capped < 100%
+  }
   s.php = s.php - dmg;
   if s.php <= 0 { s.php = 0; s.over = true; }
+}
+
+// The player's saving throw (% resist for magic/elemental damage). Grows with character
+// level, equipped armour (AC), and Constitution — so gearing up and stat upgrades both help.
+// Capped below 100% (friendly but fair — never total immunity; §3a).
+pub fn sim_player_save(s: Sim) -> integer {
+  sv = 5 + s.clevel + s.pac / 4 + s.hcon / 3;
+  if sv > 75 { sv = 75; }
+  if sv < 0 { sv = 0; }
+  sv
 }
 
 // Move the player to hex (q,r) — level placement / arrival / scripted movement.
@@ -436,6 +453,12 @@ pub fn sim_teleport(s: &Sim, q: integer, r: integer) {
   (tx, ty) = hex_to_px(q, r);
   s.px = tx;
   s.py = ty;
+}
+
+// Turn the player to face hex (q,r) — NPC interactions, scripted events.
+pub fn sim_face(s: &Sim, q: integer, r: integer) {
+  (tx, ty) = hex_to_px(q, r);
+  s.heading = atan2(ty - s.py, tx - s.px);
 }
 
 // Radius of the equipped light (its i_power), or 0 if none. Feeds the FOV sight radius

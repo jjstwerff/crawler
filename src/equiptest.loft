@@ -50,8 +50,21 @@ fn main() {
   pl.equip(ps, "everbright_torch");           // -> equipment (light slot)
   pl.grant_stat(ps, "con", 2);                // -> statistic
   pl.grant_skill(ps, "stealth", 1);           // stub today — must not crash
+  pl.equip(ps, "soft_leather_armor");         // armour -> AC -> raises the saving throw
+  pl.grant_gold(ps, 25);
+  pl.grant_xp(ps, 5);
+  pl.teleport(ps, 5, 5);
+  pl.face(ps, 6, 6);
   inv1 = sim_inv_count(ps);
-  player_api_ok = inv1 > inv0 && sim_equipped(ps, SLOT_LIGHT) >= 0 && sim_light_radius(ps) >= 12;
+  // Saving throws + damage reduction (functional): equipment + CON raise the save; magic
+  // (fire) is resisted by it, never to 0; physical is soaked by AC; heal clamps to max.
+  sv = sim_player_save(ps);
+  hp_b = sim_player_hp(ps);
+  pl.damage(ps, 10, "fire");                  // reduced by the save, never to 0
+  fire_taken = hp_b - sim_player_hp(ps);
+  pl.heal(ps, 1000);
+  save_ok = sv > 6 && fire_taken >= 1 && fire_taken < 10 && sim_player_hp(ps) == sim_player_hp_max(ps);
+  player_api_ok = inv1 > inv0 && sim_equipped(ps, SLOT_LIGHT) >= 0 && sim_light_radius(ps) >= 12 && save_ok;
 
   println("loadout: dam={dam_eq} ac={ac_eq} hp={hp_eq} mit20={mit_armored}");
   println("bare:    dam={dam_bare} hp={hp_noarm} ac={ac_noarm} mit20={mit_bare}");
