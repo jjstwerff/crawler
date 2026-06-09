@@ -76,6 +76,67 @@ dungeon; the whole gate stays green.
   floating eye + the casters); player status conditions; the live ticking crystal spawner (needs the
   enemy array as a fixed-cap store); the world-bundle link.
 
+## What's still missing IN THE BUILT SLICE (reachable now — surface + depth 1-3)
+
+Grounded in what the player can ACTUALLY hit in the current build: the items that drop at
+`i_depth ≤ 3`, the monsters that spawn at `m_depth ≤ 3`, and the screens you can open. Deeper
+content (casters from d9+, the lich, recall/town/etc.) is correctly out of scope and lives in the
+Tier backlog below — NOT here. Each line says what exists, what's missing, and the build size.
+
+### 1. Finish the item UI — the Inventory hub (reachable: press `I`)
+The quick-slot bar + `1`-`9`/`Q`/`E` use are DONE (gate 22/22). The other half is unbuilt; the `I`
+screen is still the old flat list.
+- [ ] **Equipped-locations column** beside the carried list (every `SLOT_*` + its item or `-`).
+- [ ] **2nd ring slot** `SLOT_RING2` (kernel: `NUM_SLOTS` 12→13, the L/R pair) — the only multi-location case.
+- [ ] **Enter-equips** the highlighted carried item to its `item_slot` (ring → first free L/R; both full → swap).
+- [ ] **WASD reslot** — highlight an item, press `1`-`9`/`Q`/`E` to `sim_qs_bind` it (kernel primitive ready).
+- [ ] **drop / examine** the highlighted item.
+
+### 2. Use-item effects for the drops that REACH depth 1-3 (reachable: you find these)
+Today `use_item` fires only 2 of 20 usables (cure-light heal, detect-monsters). At slice depth these
+also drop and currently do NOTHING when used:
+- [ ] **scroll_phase_door** (d1) → short random teleport. **Buildable NOW** — `Player.teleport` exists.
+- [ ] **A device use-path** — wands/staves aren't even ROUTED to a use verb (auto-slot routes only
+  POTION/SCROLL/FOOD). Add device use (charges + aim), then:
+  - [ ] **staff_detection** (d3) → detect monsters (reuse `Player.reveal_monsters`). Buildable once routed.
+  - [ ] **staff_light** (d1) → illuminate a radius (needs a light pulse).
+  - [ ] **wand_magic_bolt** (d3) → aimed bolt damage (reuse `sim_fire`'s auto-aim + capped damage).
+- [ ] **Inert-until-system drops (still appear at d1-3)** — must at least not fail silently (→ §3):
+  scroll_identify (d1, needs the unknown-item/ID system), ration_of_food (d1, needs hunger),
+  the 3 spellbooks (d1, need spellcasting + a casting class). Build the systems later; **message now.**
+
+### 3. A message / notification log (reachable: EVERY action)
+There is **no message system at all** — no "you hit", "you found …", "you reached level N", and
+crucially no **"nothing happens"** when an inert item is used. Smallest system, biggest clarity win;
+it is the prerequisite that makes §2's deferred items honest instead of silently dead.
+- [ ] A rolling message line/area (shared view) + a `sim_msg`-style kernel queue (fixed-cap, C18-safe).
+- [ ] Wire the obvious events: hit/kill, pickup, level-up, item-used / nothing-happens, fire / no-target.
+
+### 4. Monster mechanics that SPAWN at depth 0-3 (reachable: these appear)
+The only special-mechanic monsters in range — everything deeper is out of scope:
+- [ ] **floating_eye paralysing gaze** (d3, `MF_CASTER`, `dam 0`, currently inert). Needs the
+  **monster→player status direction** — the timed-status engine exists only player→monster today.
+  This is the slice's one real "special attack" + unlocks player status conditions.
+- [ ] **`MF_BREEDER` actually breeds** — giant_rat / white_mouse / grey_mold (d1-2) + Skarn the unique.
+  The flag is decorative now; breeding needs the enemy array's fixed-cap spawn path (same store the
+  crystal needs).
+- [ ] **spawn_crystal runtime spawning** (d0 surface — the "Crystal Descent" centerpiece). v1 is a
+  static blob; it should periodically emit weak monsters from its knot.
+- [ ] **`MF_ERRATIC` movement** — giant_bat (d1) moves erratically; the flag is ignored today. (Minor.)
+
+### 5. Levelling feedback (reachable: you level up)
+The deferrable banked stat-choice works; what's missing is the *cue*:
+- [ ] **"you reached level N"** (uses §3's message log).
+- [ ] An in-browser hint that a stat point is bankable (the spend is silent now) — e.g. a `+` on the
+  Character-Page glyph / a sidebar pip.
+
+### 6. (Needs shallow CONTENT to manifest) Item stat requirements + bonuses
+The gear-juggling puzzle (Tier-1 design) **cannot occur yet** — no current item carries a req or a
++stat. To make it reachable in the slice: add `i_req_stat`/`i_req_val` + `i_stat`/`i_stat_bonus`
+fields, a **4th equipment layer** in `refresh_stats` (effective stat = cur + temp + equipment), a
+requirement check on the *effective* value, and at least one shallow **STR-gated weapon** + one
+**+STR ring** so the juggle actually shows up. Edge: removing the enabler while the gated item is worn.
+
 ## Beyond the slice — making the full Angband experience functional
 
 The slice proves the loop; these turn it into the full game. Each item notes what EXISTS vs what
