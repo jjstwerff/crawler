@@ -128,6 +128,24 @@ sheet**, the **glossary** (a one-line explanation beside every term), and the **
 - *Weapon* "melee damage" · *Armour* "AC: more HP + damage reduction" · *Light* "vision radius"
   · *Potion/Scroll/Food* "use from inventory."
 
+### The Quick-slot bar — streamlined item use (1-9 + Q/E)
+Replaces Angband's per-type use-commands (q/r/a/u/z/f/v) with ONE uniform model: a bar of **11
+quick-slots — `1`-`9` plus two ACTIVE slots `Q`/`E`** — each holding a usable item; pressing the key
+activates it via the right kernel action (consumable → `use_item`, launcher → `sim_fire`, spell →
+cast later). The actions exist + are tested; this is the input/HUD layer over them.
+
+- **Auto-slot on first pickup** (good first experience): the first time you grab a usable item it
+  fills the next free slot — no manual assignment to start. `Q`/`E` are the two "active" slots for
+  the repeated-action items (the launcher, a spell). Manual re-slotting (from the inventory screen)
+  is a later nicety.
+- **Side-bar HUD** shows the 11 slots + their items. Room is fine — stats live in the top corners,
+  so a bottom hot-bar (1-9 then Q E, left-to-right) or a right-edge column fits 800×600.
+- **Reconciles today's 1-9 use:** number keys become quick-use in normal play; the Character Page
+  keeps 1-6 for *spend* (menu-local); the Inventory screen becomes *assign / re-slot*.
+- **Build:** a per-player slot array + auto-assign on pickup (`sim_pickup`/`sim_give_item`) + the
+  press-to-use dispatch + the side-bar render (shared view → both platforms; look is user-verified).
+  Kernel actions ready: `use_item`, `sim_fire`.
+
 ### Tier 2 — threat & survival (the dungeon gets teeth)
 - **Monster special attacks.** Casters cast; breath, drain (stat/XP), steal, paralyse, poison —
   per-monster *blows* with effect + element. Today melee-only; `MF_CASTER` is decorative, the
