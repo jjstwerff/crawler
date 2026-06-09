@@ -2,7 +2,6 @@
 // hero up, growing max HP and healing the gained amount; killing a monster in
 // combat awards XP. Deterministic.
 
-use hexgeo;
 use sim;
 
 fn main() {
@@ -25,12 +24,16 @@ fn main() {
   ok_healed = hp1 > before_hp;
   ok_xp = xp1 == 100;
 
-  // Combat awards XP: charge and kill the trivial-map enemy.
+  // Combat awards XP: charge and kill the trivial-map enemy (re-aim each frame so the
+  // charge homes in on the moving enemy — coordinate-agnostic, like combattest).
   s2 = sim_new();
-  (ppx, ppy) = hex_to_px(10, 10);
-  (eex, eey) = hex_to_px(10, 16);
-  s2.heading = atan2(eey - ppy, eex - ppx);
-  for _ in 0..600 { sim_step(s2, 1, 0, 0.016); }
+  for _ in 0..600 {
+    if sim_enemy_alive(s2, 0) {
+      (epx, epy) = sim_enemy_pos(s2, 0);
+      s2.heading = atan2(epy - s2.py, epx - s2.px);
+    }
+    sim_step(s2, 1, 0, 0.016);
+  }
   dead = !sim_enemy_alive(s2, 0);
   killxp = sim_xp(s2);
   ok_killxp = dead && killxp > 0;

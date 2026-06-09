@@ -1,21 +1,25 @@
 // combattest — headless check of the melee loop (player kills enemy by bumping;
 // enemy hits back). Deterministic; no graphics.
 
-use hexgeo;
 use sim;
 
 fn main() {
   println("=== story combat test ===");
   s = sim_new();
-  // Face the enemy and charge (straight 'north' would miss it in world space).
-  (ppx, ppy) = hex_to_px(10, 10);
-  (eex, eey) = hex_to_px(10, 16);
-  s.heading = atan2(eey - ppy, eex - ppx);
   alive0 = sim_enemy_alive(s, 0);
   hp0 = sim_player_hp(s);
 
-  // Drive forward into the enemy until it dies.
-  for _ in 0..600 { sim_step(s, 1, 0, 0.016); }
+  // Charge the enemy: re-aim at its (possibly moving) world position each frame, glide
+  // in, and bump-melee until it dies. Coordinate-agnostic — works for any hex layout
+  // (the old fixed-heading version was hand-tuned to the axial diagonal and missed a
+  // sidestepping enemy once the grid became odd-r offset).
+  for _ in 0..600 {
+    if sim_enemy_alive(s, 0) {
+      (epx, epy) = sim_enemy_pos(s, 0);
+      s.heading = atan2(epy - s.py, epx - s.px);
+    }
+    sim_step(s, 1, 0, 0.016);
+  }
 
   alive1 = sim_enemy_alive(s, 0);
   hp1 = sim_player_hp(s);

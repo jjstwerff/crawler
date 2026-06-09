@@ -2,16 +2,18 @@
 // pile, sometimes an item); walking over gold auto-collects it; 'g' (sim_pickup)
 // grabs items under the player. Deterministic.
 
-use hexgeo;
 use sim;
 
 fn main() {
   println("=== story item test (gold + drops + pickup) ===");
   s = sim_new();
-  (ppx, ppy) = hex_to_px(10, 10);
-  (eex, eey) = hex_to_px(10, 16);
-  s.heading = atan2(eey - ppy, eex - ppx);
-  for _ in 0..600 { sim_step(s, 1, 0, 0.016); }
+  for _ in 0..600 {            // charge + kill, re-aiming each frame (coordinate-agnostic)
+    if sim_enemy_alive(s, 0) {
+      (epx, epy) = sim_enemy_pos(s, 0);
+      s.heading = atan2(epy - s.py, epx - s.px);
+    }
+    sim_step(s, 1, 0, 0.016);
+  }
 
   dead = !sim_enemy_alive(s, 0);
   fc = sim_floor_count(s);          // total drops created (gold + any item)
