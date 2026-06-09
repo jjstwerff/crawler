@@ -22,3 +22,9 @@ pub fn room_table() -> vector<RoomDef> {
 pub fn room_connect_mode() -> text { "corridors" }
 pub fn room_connect_graph() -> text { "chain" }
 pub fn room_connect_loops() -> integer { 0 }
+
+// The dungeon depth range this place provides; start = the default (shallowest) entry,
+// max = deepest. The actual entry depth is a parameter, so a more dangerous top area
+// can link in and start deeper (any level in [start, max]).
+pub fn world_depth_start() -> integer { 1 }
+pub fn world_depth_max() -> integer { 50 }

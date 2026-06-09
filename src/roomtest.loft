@@ -8,8 +8,9 @@ fn main() {
   println("=== story rooms test (rooms bundle -> registry) ===");
   rt = room_table();
   n = len(rt);
-  println("room types: {n}  connect={room_connect_mode()}/{room_connect_graph()} loops={room_connect_loops()}");
+  println("room types: {n}  connect={room_connect_mode()}/{room_connect_graph()} loops={room_connect_loops()}  depth={world_depth_start()}..{world_depth_max()}");
   ok = n >= 4 && room_connect_mode() == "corridors" && room_connect_graph() == "chain";
+  ok = ok && world_depth_start() == 1 && world_depth_max() > world_depth_start();   // beginner dungeon: entry level 1
   haverect = false;
   for i in 0..n {
     if i < n {

@@ -8,6 +8,7 @@
 // renders as cells now and through wallgeo / moros_render later.
 
 use hexgeo;
+use rooms_gen;   // the world bundle's room registry (RoomDef table + how rooms connect)
 
 GEN_MASK = 2147483647;   // 2^31 - 1
 
@@ -51,9 +52,21 @@ pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> Gen
   // Rooms — axial rectangles carved from the rock, kept off the border. Angband
   // look: reject a candidate that overlaps an existing room (with a 1-cell rock
   // margin) so rooms stay distinct rectangles and corridors do the connecting.
+  // The staple rectangle's size bounds come from the world bundle's room registry
+  // (src/rooms_gen.loft, generated from bundles/world_classic). Same values today (4..8), so the
+  // RNG draw order is unchanged and generation stays byte-identical. Reading the table draws no
+  // RNG. (Weighted multi-type selection + the cross/overlap/pillared carves are the next step.)
+  rwmin = 4; rwmax = 8; rhmin = 4; rhmax = 8;
+  rdefs = room_table();
+  for ri0 in 0..len(rdefs) {
+    if ri0 < len(rdefs) {
+      rd = rdefs[ri0];
+      if rd.rk == "rect" { rwmin = rd.w_min; rwmax = rd.w_max; rhmin = rd.h_min; rhmax = rd.h_max; }
+    }
+  }
   for _ in 0..tries {
-    rw = rng_range(rng, 4, 8);
-    rh = rng_range(rng, 4, 8);
+    rw = rng_range(rng, rwmin, rwmax);
+    rh = rng_range(rng, rhmin, rhmax);
     q0 = rng_range(rng, 1, w - rw - 2);
     r0 = rng_range(rng, 1, h - rh - 2);
     ok = true;
@@ -83,9 +96,10 @@ pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> Gen
     }
   }
 
-  // Corridors — greedy hex walk connecting each room centre to the next, so the
-  // whole level is one connected component.
+  // Corridors — greedy hex walk connecting each room centre to the next, so the whole level is
+  // one connected component. The connection model comes from the world bundle's registry.
   nrm = len(rq);
+  if room_connect_mode() == "corridors" {
   for ci in 0..nrm {
     if ci + 1 < nrm {
       aq = rq[ci] ?? 0;
@@ -114,6 +128,7 @@ pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> Gen
       ce = br * w + bq;
       if ce >= 0 && ce < len(tiles) { tiles[ce] = 0; }
     }
+  }
   }
 
   GenLevel { g_w: w, g_h: h, g_tiles: tiles, g_rq: rq, g_rr: rr,

@@ -2,7 +2,8 @@
   "key": "classic",
   "name": "Classic Dungeon",
   "kind": "world",
-  "desc": "A world bundle is a linkable PLACE. This one supplies the classic Angband-style dungeon ROOMS and how corridors connect them. A separate world bundle (a spawn rule -- 'build an Angband-style dungeon') will LINK to this place by key; world bundles can grow sibling sections later (monster spawns, terrain, level features).",
+  "desc": "A world bundle is a linkable PLACE. This one supplies the classic Angband-style dungeon: a BEGINNER dungeon whose default entry is level 1 (depth.start). A more dangerous top area can LINK to it and enter deeper -- any level in [start, max] (the entry depth is just the depth arg generation already takes). Rooms section = the room set + connections; sibling sections (monster spawns, terrain, level features) come later.",
+  "depth": { "start": 1, "max": 50 },
   "rooms": {
     "connect": {
       "mode": "corridors",
