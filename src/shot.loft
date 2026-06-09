@@ -21,6 +21,8 @@ fn main() {
   s = sim_new_gen(1337, 5);
   walls = build_walls(s);
   hud = build_hud(s);
+  wprog = make_world_shader();
+  wvao = build_world_vbo(s);
   sim_award_xp(s, 35);   // (shot only) show the XP bar partway + a higher CL
 
   // Frame the down-stair: place the player ~2.5 units 'south' of it so the '>'
@@ -33,11 +35,11 @@ fn main() {
 
   for _ in 0..2 {
     graphics::gl_poll_events();
-    view_draw(painter, s, walls, hud);
+    view_draw(painter, s, walls, hud, wprog, wvao);
     graphics::gl_swap_buffers();
   }
   graphics::gl_poll_events();
-  view_draw(painter, s, walls, hud);
+  view_draw(painter, s, walls, hud, wprog, wvao);
   ok = graphics::gl_screenshot(800, 600, "/tmp/story_frame.png");
   println("shot: screenshot ok={ok}");
   graphics::gl_destroy_window();

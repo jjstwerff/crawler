@@ -242,33 +242,139 @@ fn draw_texture_rot(painter: graphics::Painter2D, tex: integer,
   graphics::gl_draw(painter.p2_vao, 6);
 }
 
-pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, hud: Hud) {
+// ── GPU world renderer (RENDER.md R1/R3): terrain as a persistent VBO, fog on the GPU ──
+WHALF = 0.675;   // half a cell in world units (cell = SCALE*1.35 px)
+
+WVERT = `
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aVisUV;
+layout (location = 2) in vec4 aColor;
+uniform mat4 uMVP;
+out vec3 vColor;
+out vec2 vVisUV;
+void main() {{
+  vColor = aColor.rgb;
+  vVisUV = aVisUV.xy;
+  gl_Position = uMVP * vec4(aPos.xy, 0.0, 1.0);
+}}
+`;
+
+WFRAG = `
+#version 330 core
+in vec3 vColor;
+in vec2 vVisUV;
+out vec4 FragColor;
+uniform sampler2D uVis;
+void main() {{
+  float vis = texture(uVis, vVisUV).r;
+  if (vis < 0.02) discard;
+  FragColor = vec4(vColor * vis, 1.0);
+}}
+`;
+
+// Compile the world-terrain shader once (global; pass the program to view_draw).
+pub fn make_world_shader() -> integer {
+  graphics::gl_create_shader(WVERT, WFRAG)
+}
+
+// World→clip mat4 (column-major), folding world_to_screen + the px→NDC map.
+fn world_cam_mat4(s: Sim) -> vector<float> {
+  phi = PI / 2.0 - s.heading;
+  cc = cos(phi);
+  ss = sin(phi);
+  hw = VIEW_W / 2.0;
+  hh = VIEW_H / 2.0;
+  sxw = SCALE / hw;
+  syw = SCALE / hh;
+  a = sxw * cc;
+  b = 0.0 - sxw * ss;
+  c = syw * ss;
+  d = syw * cc;
+  e = CX / hw - 1.0 - sxw * (s.px * cc - s.py * ss);
+  f = 1.0 - ANCHOR_Y / hh - syw * (s.px * ss + s.py * cc);
+  [a, c, 0.0, 0.0,  b, d, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  e, f, 0.0, 1.0]
+}
+
+// Per-level terrain VBO: one quad/hex, stride 10 (pos · visUV-in-normal · color).
+fn build_world_mesh(s: Sim) -> vector<single> {
+  buf: vector<single> = [];
+  one = 1.0 as single;
+  zz = 0.0 as single;
+  lwf = s.lw as float;
+  lhf = s.lh as float;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      t = tile_at(s, q, r);
+      cr = 0.80; cg = 0.745; cb = 0.59;
+      if t == 1 { cr = 0.15; cg = 0.14; cb = 0.13; }
+      cR = cr as single; cG = cg as single; cB = cb as single;
+      U = ((gq as float + 0.5) / lwf) as single;
+      V = ((gr as float + 0.5) / lhf) as single;
+      (wx, wy) = hex_to_px(q, r);
+      X0 = (wx - WHALF) as single; X1 = (wx + WHALF) as single;
+      Y0 = (wy - WHALF) as single; Y1 = (wy + WHALF) as single;
+      buf += [X0, Y0, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X1, Y0, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X1, Y1, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X0, Y0, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X1, Y1, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X0, Y1, zz, U, V, zz, cR, cG, cB, one];
+    }
+  }
+  buf
+}
+
+// Build the per-level terrain VBO (rebuild on each level change). Vertex count is
+// deterministic: 6 * lw * lh.
+pub fn build_world_vbo(s: Sim) -> integer {
+  graphics::gl_upload_vertices(build_world_mesh(s), 10)
+}
+
+// Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
+fn build_vis_texture(s: Sim) -> integer {
+  pix: vector<integer> = [];
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      st = sim_hex_state(s, s.qmin + gq, s.rmin + gr);
+      bb = 0;
+      if st == 2 { bb = 255; } else if st == 1 { bb = 115; }
+      pix += [graphics::rgba(bb, 0, 0, 255)];
+    }
+  }
+  graphics::gl_upload_canvas(pix, s.lw, s.lh)
+}
+
+pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, hud: Hud, wprog: integer, wvao: integer) {
   graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
   cell = SCALE * 1.35;
-  // Draw order matters (painter is last-on-top once depth-test is disabled in
-  // main): terrain first, then enemies, then the player on top.
 
-  // Terrain hexes (drawn as tiles at their rotated screen positions).
+  // Terrain: one GPU draw of the per-level VBO; the shader applies FOV from a tiny
+  // per-hex visibility texture (discards unseen, dims remembered).
+  vistex = build_vis_texture(s);
+  mat = world_cam_mat4(s);
+  graphics::gl_use_shader(wprog);
+  graphics::gl_set_uniform_mat4(wprog, "uMVP", mat);
+  graphics::gl_bind_texture(vistex, 0);
+  graphics::gl_set_uniform_int(wprog, "uVis", 0);
+  graphics::gl_draw(wvao, 6 * s.lw * s.lh);
+  graphics::gl_delete_texture(vistex);
+
+  // Stair glyphs (the floor/wall tiles are the GPU mesh now; only glyphs stay immediate).
   for vr in 0..s.lh {
     for vq in 0..s.lw {
       q = s.qmin + vq;
       r = s.rmin + vr;
       t = tile_at(s, q, r);
-      (wx, wy) = hex_to_px(q, r);
-      (hsx, hsy) = world_to_screen(s, wx, wy);
-      if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
-        fst = sim_hex_state(s, q, r);          // FOV: 2 visible, 1 remembered, 0 unseen
-        if fst != 0 {
-          fd = if fst == 2 { 1.0 } else { 0.45 };   // remembered hexes drawn dimmed
-          if t == 1 {
-            graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.15 * fd, 0.14 * fd, 0.13 * fd, 1.0);
-          } else {
-            graphics::draw_rect_at(painter, hsx - cell / 2.0, hsy - cell / 2.0, cell, cell, 0.80 * fd, 0.745 * fd, 0.59 * fd, 1.0);
-          }
-          // Stairs drawn only when the cell is currently visible.
-          if fst == 2 && t == 2 && hud.font != 0 && hud.sdown != 0 {
+      if (t == 2 || t == 3) && sim_hex_state(s, q, r) == 2 {
+        (wx, wy) = hex_to_px(q, r);
+        (hsx, hsy) = world_to_screen(s, wx, wy);
+        if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
+          if t == 2 && hud.font != 0 && hud.sdown != 0 {
             draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
-          } else if fst == 2 && t == 3 && hud.font != 0 && hud.sup != 0 {
+          } else if t == 3 && hud.font != 0 && hud.sup != 0 {
             draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
           }
         }

@@ -43,6 +43,8 @@ fn main() {
   s = sim_new_gen(GEN_SEED, GEN_DEPTH);   // procedural dungeon + DB monsters
   walls = build_walls(s);   // smoothed wall outline, built once (static per level)
   hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
+  wprog = make_world_shader();   // GPU terrain shader (global, built once)
+  wvao = build_world_vbo(s);     // GPU terrain VBO (rebuilt on each level change)
   last = ticks();
   e_was = false;            // edge-trigger for the stairs key
   w_was = false;            // edge-trigger for the wait key
@@ -75,10 +77,14 @@ fn main() {
           s = sim_descend(s, 1);
           walls = build_walls(s);
           hud = build_hud(s);
+          graphics::gl_delete_vao(wvao);
+          wvao = build_world_vbo(s);
         } else if st == 3 && sim_depth(s) > 1 {
           s = sim_descend(s, -1);
           walls = build_walls(s);
           hud = build_hud(s);
+          graphics::gl_delete_vao(wvao);
+          wvao = build_world_vbo(s);
         }
       }
       e_was = e_down;
@@ -98,9 +104,11 @@ fn main() {
         s = sim_respawn(s);
         walls = build_walls(s);
         hud = build_hud(s);
+        graphics::gl_delete_vao(wvao);
+        wvao = build_world_vbo(s);
       }
       sim_compute_fov(s);          // directed-light FOV: recompute visibility for this frame
-      view_draw(painter, s, walls, hud);
+      view_draw(painter, s, walls, hud, wprog, wvao);
       graphics::gl_swap_buffers();
     }
   }

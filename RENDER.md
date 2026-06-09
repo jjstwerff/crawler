@@ -60,8 +60,12 @@ step toward the 3D/WebGL build (the stated goal). Not throwaway.
   one VBO + one shader + one `gl_draw`, the camera `mat4` folding `world_to_screen`
   (rotate-by-π/2−heading · scale 26 · centre 400/420 · px→NDC), captured to PNG. Verified
   loop = render → `gl_screenshot` → read PNG. **Stride-10 vertex layout** (pos=loc0,
-  normal=loc1, **color=loc2** — the native `gl_upload_vertices` convention). Next: drive
-  it from the live level + replace `view_draw`'s per-hex floor loop.
+  normal=loc1, **color=loc2** — the native `gl_upload_vertices` convention).
+  **✅ Now LIVE in `view_draw`** — the terrain draws from the per-level VBO + FOV texture
+  (one `gl_draw`); `story.loft` builds the shader once and the VBO per level (freed +
+  rebuilt on descend/respawn), the vis-texture is created+freed each frame (no leaks).
+  Painter draws stairs/walls/sprites/HUD on top — verified at parity with the immediate
+  renderer. **Only R2 (sprite atlas) remains.**
 - **R2 — Sprite atlas.** Pack mob/item sprites (the `tools/draw.py` atlas — already on its
   roadmap) into one `SpriteSheet`; `draw_sprite` by index. Replaces per-sprite
   `draw_texture_at`.
