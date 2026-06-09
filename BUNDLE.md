@@ -80,6 +80,29 @@ and the calling world's reach stops where the overlay's scope ends.
 *Concrete-now vs authored-later:* the scanner + the `classic` rooms registry exist today;
 `gen.loft` consuming the registry, the link mechanism, and the overlays are the staged next steps.
 
+## Persistence — deterministic base + delta; quest items are death-bound
+
+A place's layout is a pure function of its seed, so it is **never stored** — only the **delta**
+(what diverged) is: dead spawns, taken/dropped floor items, opened features, tombstones. On
+re-entry, regenerate + replay the delta. Survivors return to their **natural** place (positions
+are not persisted by default — cheap; location/HP/effects can join the delta later). The store is
+a **compact, per-area, fixed-per-depth block** that expands on entry: pristine areas cost nothing,
+re-leaving a depth **overwrites** its block (no growth/compaction), and the whole thing is bounded
+by *activity*, not world size — a deeply-cleared dungeon is single-digit KB. *(Proven as a
+round-trip = identity invariant in `persisttest`; wiring it through `sim_descend` is the next step.)*
+
+**Floor items:** only **important / quest** items persist; simple loot decays on leave
+(Angband-like). Quest items are never pruned from a block (they bump simple ones for a slot).
+
+**Quest items are death-bound (anti-exploit).** A quest item is treated differently from normal
+loot: on death it **drops automatically and stays in its origin dungeon** (a never-pruned
+`IF_QUEST` floor-delta at the death spot) — checkpoint-respawn carries normal loot but **never** a
+quest item. So a player cannot **force into a place they should not be** (e.g. a deep entry from a
+dangerous top area, since the entry depth is just a parameter), **grab a crucial item, and suicide
+back to a safe checkpoint with it.** The only way to remove a quest item from its dungeon is to
+leave **alive, the intended way** (survive the exit / complete the quest). This extends the
+souls-stake (gold staked on death, `grave_*`) up to the quest layer.
+
 ## Two common pools
 
 The whole design rests on splitting content into a **data pool** and a **behavior
