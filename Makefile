@@ -37,8 +37,13 @@
 #
 # Configuration (override on the command line, e.g. make play LOFT_REPO=...):
 #
-#   LOFT_REPO=<dir>   Location of the loft toolchain + its lib/ directory.
-#                     Defaults to ../loft relative to this Makefile.
+#   (default)         Run the system-installed `loft` (on PATH): it self-locates
+#                     its stdlib (/usr/local/share/loft) and auto-loads registry
+#                     libraries (e.g. `graphics`, declared in loft.toml) on `use` —
+#                     so NO sibling loft repo is needed. Keep it current with
+#                     `make install` in the loft repo; verify with `make loft-doctor`.
+#   LOFT_REPO=<dir>   Instead run that repo's freshly-built binary with its explicit
+#                     --path/--lib — for testing an in-progress loft (e.g. ../loft2).
 #
 # This project is the renderer-agnostic `story` kernel (src/sim.loft,
 # src/hexgeo.loft) plus a swappable 2D front-end (src/view.loft,
@@ -46,19 +51,26 @@
 # is a real rule — scroll to its name to see exactly what it does.
 # =======================================================================
 
-# Location of the loft language toolchain.  The story package is run by the
-# loft binary with --path (for the standard library) and --lib (to resolve
-# the `graphics` package); it has no toolchain of its own.
-LOFT_REPO ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../loft)
-LOFT      := $(LOFT_REPO)/target/release/loft
-LOFTFLAGS := --path $(LOFT_REPO)/ --lib $(LOFT_REPO)/lib/
+# Toolchain selection (see Configuration above). Default = the system-installed
+# `loft` with NO --path/--lib (it self-locates its stdlib and auto-loads `use`d
+# registry libs). LOFT_REPO=<dir> switches to that repo's binary + explicit flags.
+ifeq ($(strip $(LOFT_REPO)),)
+  LOFT      := loft
+  LOFTFLAGS :=
+else
+  LOFT      := $(LOFT_REPO)/target/release/loft
+  LOFTFLAGS := --path $(LOFT_REPO)/ --lib $(LOFT_REPO)/lib/
+endif
+
+# Which loft repo `make loft-doctor` compares the installed binary against.
+REF_REPO ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../loft2)
 
 SRC   := src/story.loft       # game entry (window + loop)
 KTEST := src/selftest.loft    # headless kernel self-test
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot fmt clean all
+.PHONY: help play game serve test check check-native shot fmt clean all loft-doctor
 
 # Default target: print the overview above.
 help:
@@ -72,10 +84,10 @@ all: fmt check
 
 play:
 	@echo "  [1/2] checking loft toolchain ..."
-	@test -x "$(LOFT)" || { \
-	    echo "    FAIL: loft binary not found at $(LOFT)"; \
-	    echo "    build it:  ( cd $(LOFT_REPO) && cargo build --release --bin loft )"; \
-	    echo "    or point at it: make play LOFT_REPO=/path/to/loft"; \
+	@command -v $(LOFT) >/dev/null 2>&1 || { \
+	    echo "    FAIL: loft not found ($(LOFT))."; \
+	    echo "    Install it:  ( cd ../loft && make install )   then: make loft-doctor"; \
+	    echo "    Or use a repo build:  make play LOFT_REPO=../loft2"; \
 	    exit 1; }
 	@echo "  [2/2] launching story (Esc to quit) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) $(SRC)
@@ -84,7 +96,7 @@ play:
 
 game:
 	@echo "  [1/3] checking loft toolchain ..."
-	@test -x "$(LOFT)" || { echo "    FAIL: loft binary not found at $(LOFT)"; exit 1; }
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "    FAIL: loft not found ($(LOFT)) — see 'make loft-doctor', or LOFT_REPO=../loft2"; exit 1; }
 	@echo "  [2/3] compiling story -> $(HTML) ..."
 	@$(LOFT) --html $(HTML) $(LOFTFLAGS) $(SRC) >/tmp/story_html.log 2>&1 || { \
 	    echo "    FAIL: --html build — see /tmp/story_html.log"; \
@@ -110,9 +122,28 @@ check-native:
 	@echo "  compiling (native Rust codegen gate) ..."
 	@$(LOFT) --check $(LOFTFLAGS) $(SRC) || { \
 	    echo "    FAIL: native compile."; \
-	    echo "    If E0514 (rustc version mismatch): rebuild loft —"; \
-	    echo "      ( cd $(LOFT_REPO) && cargo build --release )"; \
+	    echo "    If E0514 (rustc version mismatch): reinstall/rebuild loft —"; \
+	    echo "      ( cd ../loft && make install )   or   make check-native LOFT_REPO=../loft2"; \
 	    exit 1; }
+
+# Is the installed `loft` current + working?  Compares the installed binary against a
+# loft repo build (REF_REPO, default ../loft2 — the same `cmp` the installer uses) and
+# runs a headless smoke.  STALE/FAIL → refresh: `make install` in that repo (needs sudo).
+loft-doctor:
+	@echo "  installed : $$(command -v loft 2>/dev/null || echo MISSING)  ($$(loft --version 2>/dev/null))"
+	@if [ -x "$(REF_REPO)/target/release/loft" ]; then \
+	    if cmp -s /usr/local/bin/loft "$(REF_REPO)/target/release/loft" 2>/dev/null; then \
+	        echo "  binary    : UP-TO-DATE (byte-identical to $(REF_REPO) build)"; \
+	    else \
+	        echo "  binary    : STALE — differs from $(REF_REPO)/target/release/loft"; \
+	        echo "              refresh:  ( cd $(REF_REPO) && make install )   # needs sudo"; \
+	    fi; \
+	else \
+	    echo "  binary    : (nothing to compare at $(REF_REPO); build: cd $(REF_REPO) && cargo build --release)"; \
+	fi
+	@printf "  smoke     : "; loft --interpret --check $(KTEST) </dev/null >/dev/null 2>&1 \
+	    && echo "OK — installed loft runs the kernel headlessly (no --path/--lib)" \
+	    || echo "FAIL — installed loft errors (usually a stale stdlib; run the refresh above)"
 
 test:
 	@echo "  [1/13] kernel self-test (headless, deterministic) ..."
@@ -164,10 +195,10 @@ shot:
 	        echo "  shot: missing '$$t' — install: apt install xvfb xdotool imagemagick"; \
 	        exit 1; }; \
 	done
-	@test -x "$(LOFT)" || { echo "  shot: loft binary not found at $(LOFT)"; exit 1; }
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  shot: loft not found ($(LOFT))"; exit 1; }
 	@echo "  capturing one frame under Xvfb -> $(SHOT) ..."
 	@xvfb-run -a -s "-screen 0 800x600x24" \
-	    tools/snap.sh "$(SHOT)" "$(LOFT)" "$(SRC)" "$(LOFT_REPO)" || { \
+	    tools/snap.sh "$(SHOT)" "$(LOFT)" "$(SRC)" "$(LOFTFLAGS)" || { \
 	    echo "  shot: FAILED"; exit 1; }
 	@echo "  wrote $(abspath $(SHOT))"
 

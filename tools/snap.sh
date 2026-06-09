@@ -7,17 +7,19 @@
 # (a near no-op on a real display).  Intended to be run via `make shot`,
 # which wraps this in `xvfb-run`.
 #
-# Args: $1 = output png   $2 = loft binary   $3 = entry .loft   $4 = loft repo
+# Args: $1 = output png   $2 = loft binary   $3 = entry .loft   $4 = loft flags
+#       ($4 is the --path/--lib string for repo mode, or empty for an installed loft)
 set +e
 
 OUT="${1:?output png path required}"
 LOFT="${2:?loft binary required}"
 SRC="${3:?entry .loft required}"
-REPO="${4:?loft repo required}"
+FLAGS="${4-}"
 
 export LIBGL_ALWAYS_SOFTWARE=1
 
-"$LOFT" --interpret --path "$REPO/" --lib "$REPO/lib/" "$SRC" >/tmp/story_shot.log 2>&1 &
+# shellcheck disable=SC2086  # FLAGS must word-split into --path/--lib (empty = installed)
+"$LOFT" --interpret $FLAGS "$SRC" >/tmp/story_shot.log 2>&1 &
 PID=$!
 
 # Poll for the window to appear (max ~12s), bailing early if loft died.
