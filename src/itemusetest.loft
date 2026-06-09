@@ -1,0 +1,39 @@
+// itemusetest — the item-use vertical slice: the Explorer starts with two single-use potions,
+// exercised directly through the use-routine (src/itemfx.loft):
+//   1) a DEFAULT-effect heal potion — take damage, drink it, HP recovers, potion is consumed;
+//   2) a CUSTOM-script detect-monsters potion (bundles/explorer/items/) — drink it, monster
+//      detection turns on, the potion is consumed, and detection expires after its duration.
+use sim;
+use items;
+use player;
+use bundles;
+use itemfx;
+
+fn main() {
+  println("=== story item-use test (Explorer potions: heal + detect) ===");
+  s = sim_new_gen(7, 1);
+  bundle_activate(s, "explorer");      // the Explorer's load-script gives both potions
+  pl = player_new(0);
+
+  // 1) take damage, then drink the cure potion to heal
+  pl.damage(s, 18, "physical");
+  hp_hurt = sim_player_hp(s);
+  hslot = sim_find_item(s, "potion_cure_light");
+  used_heal = use_item(s, hslot);
+  hp_healed = sim_player_hp(s);
+  heal_gone = sim_find_item(s, "potion_cure_light") < 0;
+  heal_ok = used_heal && hp_healed > hp_hurt && heal_gone;
+
+  // 2) drink the custom-script detect potion -> detection on, consumed, then expires
+  dslot = sim_find_item(s, "potion_detect_monsters");
+  used_det = use_item(s, dslot);
+  detect_on = sim_detect_active(s);
+  det_gone = sim_find_item(s, "potion_detect_monsters") < 0;
+  for i in 0..40 { sim_tick(s); }      // run past the 30-turn detection window
+  detect_off = !sim_detect_active(s);
+  detect_ok = used_det && detect_on && det_gone && detect_off;
+
+  println("heal:   hurt={hp_hurt} healed={hp_healed} consumed={heal_gone}");
+  println("detect: on={detect_on} consumed={det_gone} expired={detect_off}");
+  if heal_ok && detect_ok { println("=== ITEM-USE OK ==="); } else { println("=== FAIL ==="); }
+}

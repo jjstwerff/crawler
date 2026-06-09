@@ -100,6 +100,8 @@ pub fn item_table() -> vector<ItemDef> {
   t += [ItemDef { i_key: "everbright_torch", i_name: "Everbright Torch", i_glyph: "~", i_cr: 255, i_cg: 244, i_cb: 205, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 25, i_rarity: 5, i_weight: 25, i_cost: 6000, i_dd: 0, i_ds: 0, i_ac: 1, i_power: 12, i_flags: IF_NONE, i_desc: "A torch that never burns down, blazing with a clear white light to radius 12 — the deep explorer's prize." }];
   // ── potions (i_power = effect magnitude) ──
   t += [ItemDef { i_key: "potion_cure_light", i_name: "Potion of Cure Light Wounds", i_glyph: "!", i_cr: 220, i_cg: 120, i_cb: 120, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 4, i_cost: 15, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 15, i_flags: IF_STACKABLE, i_desc: "Heals minor wounds." }];
+  // i_power = detect duration in turns; its effect is a CUSTOM script (bundles/explorer/items/).
+  t += [ItemDef { i_key: "potion_detect_monsters", i_name: "Potion of Detect Monsters", i_glyph: "!", i_cr: 120, i_cg: 120, i_cb: 230, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 2, i_rarity: 2, i_weight: 4, i_cost: 35, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 30, i_flags: IF_STACKABLE, i_desc: "Reveals nearby monsters through walls for a time." }];
   t += [ItemDef { i_key: "potion_cure_serious", i_name: "Potion of Cure Serious Wounds", i_glyph: "!", i_cr: 220, i_cg: 90, i_cb: 90, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 5, i_rarity: 1, i_weight: 4, i_cost: 40, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 30, i_flags: IF_STACKABLE, i_desc: "Heals serious wounds." }];
   t += [ItemDef { i_key: "potion_healing", i_name: "Potion of Healing", i_glyph: "!", i_cr: 240, i_cg: 60, i_cb: 60, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 20, i_rarity: 2, i_weight: 4, i_cost: 300, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 300, i_flags: IF_STACKABLE, i_desc: "Restores a great deal of health." }];
   t += [ItemDef { i_key: "potion_speed", i_name: "Potion of Speed", i_glyph: "!", i_cr: 120, i_cg: 220, i_cb: 220, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 10, i_rarity: 3, i_weight: 4, i_cost: 500, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 10, i_flags: IF_STACKABLE, i_desc: "Hastens the drinker." }];
@@ -221,6 +223,16 @@ pub fn item_dd(table: vector<ItemDef>, idx: integer) -> integer {
 pub fn item_ds(table: vector<ItemDef>, idx: integer) -> integer {
   v = 0;
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_ds; }
+  v
+}
+pub fn item_key(table: vector<ItemDef>, idx: integer) -> text {
+  v = "";
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_key; }
+  v
+}
+pub fn item_power(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_power; }
   v
 }
 

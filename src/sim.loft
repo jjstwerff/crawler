@@ -86,6 +86,7 @@ pub struct Sim {
   stat_cur:   vector<integer> not null,
   stat_tmp:   vector<integer> not null,
   stat_tmp_t: vector<integer> not null,
+  detect_t:   integer not null,   // monster-detection (see-through-walls) turns remaining
   depth:   integer not null,   // dungeon level (1 = shallowest)
   save_depth: integer not null,   // checkpoint: deepest save-point level reached (respawn target)
   grave_depth: integer not null,  // death-stake grave: depth / hex / gold (0 gold = no grave).
@@ -393,6 +394,41 @@ pub fn sim_give_item(s: &Sim, key: text) {
     s.ninv = n + 1;
   }
 }
+
+// Inventory slot -> item key (for use/inspect routines). "" if empty or out of range.
+pub fn sim_inv_key(s: Sim, slot: integer) -> text {
+  iv = s.inv;
+  if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
+  defidx = iv[slot] ?? -1;
+  item_key(item_table(), defidx)
+}
+
+// First inventory slot holding item `key`, or -1.
+pub fn sim_find_item(s: Sim, key: text) -> integer {
+  itbl = item_table();
+  target = item_index(itbl, key);
+  if target < 0 { return -1; }
+  iv = s.inv;
+  for i in 0..s.ninv {
+    if i < len(iv) && (iv[i] ?? -1) == target { return i; }
+  }
+  -1
+}
+
+// Remove one item from inventory slot `slot` (shift the tail down) — a single-use consume.
+pub fn sim_consume_inv(s: &Sim, slot: integer) {
+  iv = s.inv;
+  n = s.ninv;
+  if slot < 0 || slot >= n { return; }
+  for k in slot..(n - 1) {
+    if k >= 0 && k + 1 < len(iv) { iv[k] = iv[k + 1] ?? -1; }
+  }
+  s.ninv = n - 1;
+}
+
+// Monster detection (see-through-walls) for `turns` ticks; decays in sim_tick.
+pub fn sim_reveal_monsters(s: &Sim, turns: integer) { s.detect_t = turns; }
+pub fn sim_detect_active(s: Sim) -> boolean { s.detect_t > 0 }
 
 // Equip an item (by key) into its own slot, then refresh derived stats.
 pub fn sim_equip_by_key(s: &Sim, key: text) {
@@ -844,6 +880,7 @@ pub fn sim_tick(s: &Sim) {
     t = ttv[si] ?? 0;
     if t > 0 { ttv[si] = t - 1; }
   }
+  if s.detect_t > 0 { s.detect_t = s.detect_t - 1; }   // monster-detection decays
   (pq, pr) = px_to_hex(s.px, s.py);
   flow = compute_flow(s, pq, pr);   // shared by every chasing monster this tick
   enemies = s.enemies;
@@ -1182,7 +1219,7 @@ pub fn sim_new() -> Sim {
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0,
-    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
+    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
@@ -1350,7 +1387,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0,
-    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
+    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
@@ -1388,6 +1425,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.stat_cur = s.stat_cur;
   ns.stat_tmp = s.stat_tmp;
   ns.stat_tmp_t = s.stat_tmp_t;
+  ns.detect_t = s.detect_t;     // detection keeps ticking down across a level change
   ns.inv = s.inv;         // carry the inventory; floor items stay on their level
   ns.ninv = s.ninv;
   ns.eq = s.eq;           // carry equipment + its cached effects across levels

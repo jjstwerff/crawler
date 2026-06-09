@@ -1,0 +1,12 @@
+// Custom item effect — the Explorer's Potion of Detect Monsters.
+//
+// This is the "script attached to a custom item": it lives WITH the item, inside the owning
+// character bundle (bundles/explorer/items/), and does whatever it likes through the Player
+// effect API. The use-routine (src/itemfx.loft) dispatches here when the potion is drunk.
+use sim;
+use player;
+
+// Reveal nearby monsters through walls for a while (the potion's i_power = 30 turns).
+pub fn apply(s: &Sim, p: Player) {
+  p.reveal_monsters(s, 30);
+}

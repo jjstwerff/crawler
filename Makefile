@@ -64,7 +64,7 @@ endif
 
 # Character bundles live in bundles/<name>/; add each as a lib dir so the generated
 # src/bundles.loft can `use` them. Auto-discovered — drop a bundle dir and it's included.
-LOFTFLAGS := $(LOFTFLAGS) $(addprefix --lib ,$(wildcard bundles/*/))
+LOFTFLAGS := $(LOFTFLAGS) $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
 
 # Which loft repo `make loft-doctor` compares the installed binary against.
 REF_REPO ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../loft2)
@@ -201,6 +201,9 @@ test:
 	@python3 tools/gen_bundles.py >/dev/null
 	@$(LOFT) --interpret $(LOFTFLAGS) src/bundletest.loft | tee /tmp/story_bundle.log
 	@grep -q "BUNDLE OK" /tmp/story_bundle.log || { echo "    FAIL: bundles"; exit 1; }
+	@echo "  [items] item-use (Explorer potions: heal + custom detect) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/itemusetest.loft | tee /tmp/story_itemuse.log
+	@grep -q "ITEM-USE OK" /tmp/story_itemuse.log || { echo "    FAIL: item-use"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

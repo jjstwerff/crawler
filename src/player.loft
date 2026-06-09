@@ -87,6 +87,11 @@ pub fn teleport(self: Player, s: &Sim, q: integer, r: integer) {
   sim_teleport(s, q, r);
 }
 
+// Reveal monsters (see them through walls) for `turns` ticks — detection items/spells.
+pub fn reveal_monsters(self: Player, s: &Sim, turns: integer) {
+  sim_reveal_monsters(s, turns);
+}
+
 // Turn the player to face hex (q,r) — facing an NPC or a scripted event.
 // TODO: use SPARINGLY — it takes heading control from the player. And it must NOT be
 // instant: ease/animate the turn over a short time (a scripted rotate), not the snap this

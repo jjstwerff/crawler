@@ -1,0 +1,40 @@
+// itemfx — the "use an item" verb + the effect dispatch (the use potion/scroll/food routine).
+//
+// LAYERING: this sits in the API layer, ABOVE the kernel (it calls sim_* accessors to read the
+// inventory and consume the item) and it drives effects through the Player API (player.loft) +
+// per-item scripts. The view calls use_item() on a use-key; the kernel never imports this.
+//
+// EFFECTS are scripts: a DEFAULT effect (cure potions heal by their i_power — data-driven) or a
+// CUSTOM script that ships with the item inside its bundle (the Explorer's detect-monsters
+// potion → bundles/explorer/items/). This hand-written dispatch is the precursor to a scanned
+// gen_items.py index (one arm per usable item, exactly like the bundles index).
+use sim;
+use items;
+use player;
+use potion_detect_monsters;
+
+// Use the consumable in inventory slot `slot`: run its effect, then consume one on success.
+// Returns whether anything happened (so the view can message "nothing happens" otherwise).
+pub fn use_item(s: &Sim, slot: integer) -> boolean {
+  key = sim_inv_key(s, slot);
+  if key == "" { return false; }
+  p = player_new(0);
+  fired = item_effect(s, p, key);
+  if fired { sim_consume_inv(s, slot); }
+  fired
+}
+
+// Effect dispatch by item key. Default cure potions heal by their i_power (data-driven); the
+// Explorer's detect-monsters potion runs its CUSTOM script.
+fn item_effect(s: &Sim, p: Player, key: text) -> boolean {
+  if key == "potion_cure_light" {
+    itbl = item_table();
+    p.heal(s, item_power(itbl, item_index(itbl, key)));
+    return true;
+  }
+  if key == "potion_detect_monsters" {
+    potion_detect_monsters::apply(s, p);   // custom script (bundles/explorer/items/)
+    return true;
+  }
+  false
+}

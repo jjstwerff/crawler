@@ -12,6 +12,7 @@ pub fn activate(s: &Sim, p: Player) {
   p.equip(s, "short_sword");
   p.equip(s, "soft_leather_armor");
   p.equip(s, "cloak");
-  p.give_item(s, "potion_cure_light");
+  p.give_item(s, "potion_cure_light");        // a heal in a pinch (default effect)
+  p.give_item(s, "potion_detect_monsters");   // his own brew — see monsters through walls (custom script)
   p.grant_stat(s, "con", 1);             // hardy far-traveller
 }
