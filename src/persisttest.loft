@@ -1,0 +1,43 @@
+// persisttest — dungeon persistence as "deterministic base + a stored death delta", and the
+// round-trip = identity invariant. We clear some monsters, let a survivor wander off its natural
+// spot, persist ONLY the dead set, then regenerate the level from the same seed and replay the
+// delta: the killed stay dead, the survivor is back at its NATURAL place, and the rooms we skipped
+// are still full -- ready to be cleaned out on the return trip.
+use sim;
+
+fn main() {
+  println("=== story persist test (deterministic base + death delta; round-trip = identity) ===");
+  seed = 4242;
+
+  // Natural: a fresh level -- every monster at its spawn.
+  fresh = sim_new_gen(seed, 1);
+  ne = sim_enemy_count(fresh);
+  (n1q, n1r) = sim_enemy_cur(fresh, 1);            // monster 1's natural position
+
+  // Played: the level as the player left it -- cleared 0 and 2; monster 1 chased and moved off
+  // its natural spot. Only DEATHS are persisted; the chase position is not.
+  played = sim_new_gen(seed, 1);
+  sim_apply_dead(played, [0, 2]);                  // player killed monsters 0 and 2
+  sim_set_awake(played, 1, true);
+  for _ in 0..5 { sim_tick(played); }
+  (p1q, p1r) = sim_enemy_cur(played, 1);
+  moved = p1q != n1q || p1r != n1r;                // (informational) it left its natural place
+
+  // Persist: the delta is just the dead set.
+  delta = sim_dead_indices(played);
+
+  // Re-enter: regenerate from the SAME seed, replay the delta.
+  back = sim_new_gen(seed, 1);
+  sim_apply_dead(back, delta);
+  (b1q, b1r) = sim_enemy_cur(back, 1);
+  dead0 = !sim_enemy_alive(back, 0);
+  dead2 = !sim_enemy_alive(back, 2);
+  alive1 = sim_enemy_alive(back, 1);
+  natural1 = b1q == n1q && b1r == n1r;             // survivor reset to its natural place
+  skipped = sim_enemy_alive(back, 3) && sim_enemy_alive(back, ne - 1);  // skipped rooms still full
+
+  println("enemies={ne} delta(dead)={len(delta)} moved-while-played={moved}");
+  println("re-enter: 0dead={dead0} 2dead={dead2} 1alive={alive1} 1natural={natural1} skipped-full={skipped}");
+  ok = len(delta) == 2 && dead0 && dead2 && alive1 && natural1 && skipped;
+  if ok { println("=== PERSIST OK ==="); } else { println("=== FAIL ==="); }
+}

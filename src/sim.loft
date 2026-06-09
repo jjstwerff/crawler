@@ -1060,6 +1060,34 @@ pub fn sim_player_hex(s: Sim) -> (integer, integer) { px_to_hex(s.px, s.py) }
 
 pub fn sim_enemy_count(s: Sim) -> integer { len(s.enemies) }
 
+// ---- Dungeon persistence: deterministic base + a stored DEATH delta --------------------------
+// A level is a pure function of its seed (world_key_seed -> gen), so the layout + surviving
+// monsters (at their natural spawns) come free on re-entry. The ONLY thing persisted is what
+// diverged: which spawns died. sim_dead_indices extracts that delta; sim_apply_dead replays it
+// onto a freshly regenerated level. Round-trip = identity. (Location/HP/effects/taken-items/
+// tombstones can join the delta later for deeper persistence — death-only is the cheap default.)
+pub fn sim_dead_indices(s: Sim) -> vector<integer> {
+  enemies = s.enemies;
+  out: vector<integer> = [];
+  for i in 0..len(enemies) {
+    e = enemies[i];
+    if !e.alive { out += [i]; }
+  }
+  out
+}
+
+pub fn sim_apply_dead(s: &Sim, dead: vector<integer>) {
+  enemies = s.enemies;
+  for k in 0..len(dead) {
+    i = dead[k] ?? -1;
+    if i >= 0 && i < len(enemies) {
+      e = enemies[i];
+      e.alive = false;
+      enemies[i] = e;
+    }
+  }
+}
+
 pub fn sim_enemy_alive(s: Sim, i: integer) -> boolean {
   enemies = s.enemies;
   alive = false;

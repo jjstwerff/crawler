@@ -213,6 +213,9 @@ test:
 	@echo "  [status] timed statuses (slow / stun, pre-calc expiry) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/statustest.loft | tee /tmp/story_status.log
 	@grep -q "STATUS OK" /tmp/story_status.log || { echo "    FAIL: status"; exit 1; }
+	@echo "  [persist] dungeon delta round-trip (death-only; regenerate + replay) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/persisttest.loft | tee /tmp/story_persist.log
+	@grep -q "PERSIST OK" /tmp/story_persist.log || { echo "    FAIL: persist"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
