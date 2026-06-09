@@ -156,6 +156,22 @@ cast later). The actions exist + are tested; this is the input/HUD layer over th
   platforms; look is user-verified). Slot bindings persist across descents like inventory.
   Kernel actions ready: `use_item`, `sim_fire`.
 
+### The Inventory screen — carried + equip + reslot (one hub)
+The `I` screen is the single item hub (confirmed layout). **Carried items list on the LEFT** (WASD
+moves the cursor); the **EQUIPPED locations list on the RIGHT** — every worn location + its item (or
+`-`): Weapon, Bow, Body, Shield, Head, Hands, Feet, Cloak, Light, **Ring L / Ring R**, Amulet. The
+equipped column always shows ALL locations (empty = `-`) so the player sees what can be filled.
+- **Enter equips** the highlighted carried item to its `item_slot` location. A **ring fills the first
+  free of L/R** (both full → swaps the worn one) — so the only multi-location case is visible +
+  chooseable on the one screen.
+- **`1`-`9` / `Q` / `E` bind** the highlighted item to that quick-slot (the manual reslot, same
+  `bind(slot, def)` primitive as auto-slot).
+- **Two ring locations** (faithful Angband): the kernel gains a second ring slot (`SLOT_RING2`, the
+  L/R pair); the rest of `eq[]` is unchanged.
+- **For-now vs later:** the labeled two-column list is chosen because it **reads the clearest** for the
+  slice; a richer equip view (a paper-doll silhouette with items placed on the body) is a later
+  upgrade — a natural fit for the 2D-sprite-library goal, layered on the same kernel `eq[]` state.
+
 ### Tier 2 — threat & survival (the dungeon gets teeth)
 - **Monster special attacks.** Casters cast; breath, drain (stat/XP), steal, paralyse, poison —
   per-monster *blows* with effect + element. Today melee-only; `MF_CASTER` is decorative, the
