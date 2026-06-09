@@ -21,7 +21,7 @@ NUM_STATS  = 6;       // STR, INT, WIS, DEX, CON, CHR
 ST_CON     = 4;       // CON's index in the stat vectors (see stat_index)
 HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
 HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few×, not 10×+
-STAT_GAIN_EVERY   = 3;  // +1 to every stat each 3rd character level (gentle stat growth, §3a)
+STAT_COOLDOWN     = 3;  // a given stat can rise at most once per 3 character levels (player-chosen)
 MAX_CLEVEL = 50;      // character-level cap
 FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_ISSUES)
 INV_MAX    = 64;      // inventory slots
@@ -107,6 +107,11 @@ pub struct Sim {
   stat_cur:   vector<integer> not null,
   stat_tmp:   vector<integer> not null,
   stat_tmp_t: vector<integer> not null,
+  // Player-chosen stat growth (never forced): each level-up BANKS one point here; the player
+  // spends it whenever they like (sim_raise_stat), deferring until needed. stat_grown_at[i] = the
+  // clevel stat i last rose (0 = never), enforcing the once-per-STAT_COOLDOWN-levels cap.
+  stat_pts:   integer not null,
+  stat_grown_at: vector<integer> not null,
   detect_t:   integer not null,   // monster-detection (see-through-walls) turns remaining
   depth:   integer not null,   // dungeon level (1 = shallowest)
   save_depth: integer not null,   // checkpoint: deepest save-point level reached (respawn target)
@@ -631,19 +636,39 @@ pub fn sim_award_xp(s: &Sim, amount: integer) {
   if amount > 0 { s.xp += amount; }
   while s.clevel < MAX_CLEVEL && s.xp >= xp_for_level(s.clevel + 1) {
     s.clevel += 1;
-    // Level-up rewards (§3a friendly): every STAT_GAIN_EVERY levels each stat grows by 1, and the
-    // character is restored to full — a felt breather after the fight that levelled you.
-    if (s.clevel % STAT_GAIN_EVERY ?? 0) == 0 {
-      mx = s.stat_max;
-      cu = s.stat_cur;
-      for si in 0..NUM_STATS {
-        mx[si] = (mx[si] ?? 0) + 1;
-        cu[si] = (cu[si] ?? 0) + 1;
-      }
-    }
-    refresh_stats(s);
-    s.php = s.phpmax;   // level-up heals to full
+    refresh_stats(s);   // max HP grows with level (hero_maxhp); the gained HP is granted
+    s.stat_pts += 1;    // BANK a stat-growth point — never auto-spent; the player picks when ready
   }
+}
+
+// Spend a banked stat point on `stat` (player-chosen growth). Succeeds only if a point is banked
+// AND the stat is off cooldown (last rose >= STAT_COOLDOWN levels ago). Returns whether it applied,
+// so a deferred hoard of points can be timed + spread, but never dumped into one stat.
+pub fn sim_raise_stat(s: &Sim, stat: text) -> boolean {
+  i = stat_index(stat);
+  if i < 0 || s.stat_pts <= 0 { return false; }
+  ga = s.stat_grown_at;
+  last = ga[i] ?? 0;
+  if last != 0 && (s.clevel - last) < STAT_COOLDOWN { return false; }   // on cooldown
+  mx = s.stat_max; mx[i] = (mx[i] ?? 0) + 1;
+  cu = s.stat_cur; cu[i] = (cu[i] ?? 0) + 1;
+  ga[i] = s.clevel;
+  s.stat_pts = s.stat_pts - 1;
+  refresh_stats(s);
+  true
+}
+
+// Banked stat-growth points awaiting the player's choice (0 = none pending).
+pub fn sim_stat_points(s: Sim) -> integer { s.stat_pts }
+
+// Can the player raise `stat` right now? (a point is banked and the stat is off cooldown) — for
+// the level-up choice UI to enable / grey out each stat.
+pub fn sim_can_raise_stat(s: Sim, stat: text) -> boolean {
+  i = stat_index(stat);
+  if i < 0 || s.stat_pts <= 0 { return false; }
+  ga = s.stat_grown_at;
+  last = ga[i] ?? 0;
+  last == 0 || (s.clevel - last) >= STAT_COOLDOWN
 }
 
 // ── Loot (gold + item drops) ─────────────────────────────────────────
@@ -1421,7 +1446,8 @@ pub fn sim_new() -> Sim {
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0,
-    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS), detect_t: 0,
+    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
+    stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
@@ -1619,7 +1645,8 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0,
-    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS), detect_t: 0,
+    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
+    stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
@@ -1665,6 +1692,8 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.stat_cur = s.stat_cur;
   ns.stat_tmp = s.stat_tmp;
   ns.stat_tmp_t = s.stat_tmp_t;
+  ns.stat_pts = s.stat_pts;             // carry banked stat points + their cooldowns across levels
+  ns.stat_grown_at = s.stat_grown_at;
   ns.detect_t = s.detect_t;     // detection keeps ticking down across a level change
   ns.inv = s.inv;         // carry the inventory; floor items stay on their level
   ns.ninv = s.ninv;
@@ -1696,6 +1725,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.xp = s.xp;
   rs.stat_max = s.stat_max;     // keep innate stats + any permanent drain across death;
   rs.stat_cur = s.stat_cur;     // temporary modifiers reset (fresh from sim_new_gen) on respawn
+  rs.stat_pts = s.stat_pts;             // banked stat points + cooldowns survive death (progression)
+  rs.stat_grown_at = s.stat_grown_at;
   // Souls stake: leave GRAVE_PCT% of gold as a grave at the death spot. SP keeps one
   // grave, so a fresh death forfeits any prior one (MP would append — §3a #5).
   drop = s.gold * GRAVE_PCT / 100 ?? 0;

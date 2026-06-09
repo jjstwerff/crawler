@@ -49,6 +49,12 @@ pub fn buff_stat(self: Player, s: &Sim, stat: text, n: integer, turns: integer) 
   sim_buff_stat(s, stat, n, turns);
 }
 
+// Spend a banked level-up point to raise a stat (player-chosen growth; the player defers + times
+// these). Capped at once per STAT_COOLDOWN levels per stat. Returns whether it applied.
+pub fn raise_stat(self: Player, s: &Sim, stat: text) -> boolean {
+  sim_raise_stat(s, stat)
+}
+
 // Teach in a class skill (melee/bow/device/disarm/stealth). The per-player skill store
 // lands with the skill system; the API is stable from the start so scripts/events written
 // today keep working unchanged.
