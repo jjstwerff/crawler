@@ -13,6 +13,9 @@ A **clean-room, ZAngband-style roguelike** written in the **loft** language.
 The **2D game is first-class and complete in its own right** (some players prefer
 2D); the *same* renderer-agnostic **simulation kernel** also drives an **optional 3D
 browser build**, added for those who want it — **3D is additive, not the destination**.
+This also keeps the game **reachable on lesser / low-power devices**: a phone screen
+renders the 2D version cleanly, where 3D would only distract. 3D is for desktops / big
+screens — plus an opt-in **viewing mode** to admire a scenic backdrop when one's worth it.
 
 Defining twist: the player moves and turns **smoothly and continuously**,
 enemies live on a **hex grid**, and the game clock is **driven by how far the
