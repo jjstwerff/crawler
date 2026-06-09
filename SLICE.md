@@ -65,8 +65,16 @@ dungeon; the whole gate stays green.
 - **Visual check is the user's:** the sandbox can't reliably screenshot the GL frame — the
   headless logic is proven; how the desert / crystal / entrance actually *look* in `make play` /
   `story.html` is yours to confirm.
-- **v1.1 follow-ups:** live ticking crystal spawner (needs the enemy array as a fixed-cap store),
-  the inert floating-eye fix, monster special attacks, the world-bundle link.
+- **Principle — content stays faithful; build SYSTEMS to realize it** (CLAUDE.md). Things that
+  look "inert" are SYSTEM gaps, never content to nerf: the floating eye keeps `dam 0` + its gaze —
+  we build the gaze (special-attacks), we do NOT give it a bite; a Scroll of Teleport stays a
+  teleport — we build the use-effect path, we do NOT make it do nothing. So the backlog below is
+  *systems*, and every monster/item is authored to its true Angband design now.
+- **v1.1 follow-ups (all SYSTEMS):** the full use-item effect dispatch + its supporting systems
+  (heal/teleport/detect exist; speed→haste, restore→restore_stat next; identify/recall/mapping/food
+  need ID/recall/mapping/hunger); monster special attacks (gaze/cast/breath/drain → realizes the
+  floating eye + the casters); player status conditions; the live ticking crystal spawner (needs the
+  enemy array as a fixed-cap store); the world-bundle link.
 
 ## Beyond the slice — making the full Angband experience functional
 

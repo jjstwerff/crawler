@@ -60,10 +60,9 @@ pub fn monster_table() -> vector<MonsterDef> {
   t += [MonsterDef { m_key: "cave_spider", m_name: "cave spider", m_glyph: "S", m_cr: 90, m_cg: 90, m_cb: 200, m_depth: 3, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 10, m_dam: 2, m_vision: 8, m_xp: 3, m_flags: MF_GROUP }];
   t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "C", m_cr: 180, m_cg: 140, m_cb: 70, m_depth: 3, m_rarity: 1, m_hp: 6, m_ac: 7, m_speed: 5, m_dam: 3, m_vision: 10, m_xp: 3, m_flags: MF_GROUP }];
   t += [MonsterDef { m_key: "goblin", m_name: "goblin", m_glyph: "g", m_cr: 100, m_cg: 160, m_cb: 90, m_depth: 3, m_rarity: 1, m_hp: 9, m_ac: 10, m_speed: 0, m_dam: 4, m_vision: 9, m_xp: 4, m_flags: MF_GROUP }];
-  // m_dam 2 = a weak bite when you stand adjacent (it never moves). Its real threat — a paralysing
-  // gaze — is the Tier-2 special-attack system; until then it is a stationary low-risk XP source,
-  // not an inert tile. (MF_CASTER stays as the marker for that future gaze.)
-  t += [MonsterDef { m_key: "floating_eye", m_name: "floating eye", m_glyph: "e", m_cr: 240, m_cg: 220, m_cb: 60, m_depth: 3, m_rarity: 2, m_hp: 11, m_ac: 3, m_speed: 0, m_dam: 2, m_vision: 5, m_xp: 5, m_flags: MF_NEVER_MOVE | MF_CASTER }];
+  // Faithful design: 0 melee, its threat is a paralysing GAZE (the Tier-2 special-attack system).
+  // Do NOT give it a stand-in bite — implement the gaze instead.
+  t += [MonsterDef { m_key: "floating_eye", m_name: "floating eye", m_glyph: "e", m_cr: 240, m_cg: 220, m_cb: 60, m_depth: 3, m_rarity: 2, m_hp: 11, m_ac: 3, m_speed: 0, m_dam: 0, m_vision: 5, m_xp: 5, m_flags: MF_NEVER_MOVE | MF_CASTER }];
   // ── mid (4-10) ──
   t += [MonsterDef { m_key: "giant_frog", m_name: "giant frog", m_glyph: "R", m_cr: 90, m_cg: 200, m_cb: 90, m_depth: 4, m_rarity: 1, m_hp: 14, m_ac: 8, m_speed: 0, m_dam: 4, m_vision: 7, m_xp: 5, m_flags: MF_NONE }];
   t += [MonsterDef { m_key: "orc", m_name: "orc", m_glyph: "o", m_cr: 90, m_cg: 150, m_cb: 70, m_depth: 4, m_rarity: 1, m_hp: 16, m_ac: 12, m_speed: 0, m_dam: 5, m_vision: 10, m_xp: 6, m_flags: MF_GROUP }];

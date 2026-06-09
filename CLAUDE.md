@@ -60,6 +60,12 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   *death model* (checkpoint respawn, not permadeath), and *class weight* are
   deliberately friendlier (see **DESIGN §3a** — "Angband bones, friendly tuning").
   Only names/lore are clean-room.
+- **Content is authored to its FULL design; build SYSTEMS to realize it — never nerf
+  content to fit a half-built engine.** A monster/item keeps its true mechanic (a floating
+  eye = 0 melee + a paralysing gaze; a Scroll of Teleport teleports) even if the system
+  that powers it isn't built yet — then build that system. Do NOT give the eye a stand-in
+  bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
+  *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
   (currently 8/8: self, combat, wiring, ai, placement, levels, hero, compile).
   Keep it **warning-clean**.
