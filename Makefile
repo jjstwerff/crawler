@@ -204,6 +204,9 @@ test:
 	@echo "  [items] item-use (Explorer potions: heal + custom detect) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/itemusetest.loft | tee /tmp/story_itemuse.log
 	@grep -q "ITEM-USE OK" /tmp/story_itemuse.log || { echo "    FAIL: item-use"; exit 1; }
+	@echo "  [clock] monster energy/speed (1.0x vs 1.5x) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/clocktest.loft | tee /tmp/story_clock.log
+	@grep -q "CLOCK OK" /tmp/story_clock.log || { echo "    FAIL: clock"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

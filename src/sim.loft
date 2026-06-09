@@ -34,6 +34,8 @@ pub const SENSE_HEAR = 1;   // heard — an awake monster nearby, even out of si
 pub const SENSE_FEEL = 2;   // felt — position known through walls (detection / telepathy)
 pub const SENSE_SEE  = 3;   // seen — in the lit field of view
 HEAR_RADIUS = 6;      // an awake monster within this is "heard" when not seen
+pub const ENERGY_STEP = 10;   // action cost in energy points; a monster banks (10 + m_speed) per
+                              // tick and spends 10 per step/attack — m_speed +5 => 1.5 actions/tick
 NEAR_RADIUS = 1;      // always-visible bubble (own + adjacent); also the sight radius behind you
 
 // Fresh zero-filled int vector of length n (build-time append to a local works;
@@ -57,6 +59,8 @@ pub struct Enemy {
   vision: integer not null,   // aggro / detection range in hexes (from the DB)
   flags:  integer not null,   // MF_* bitmask (from the DB)
   awake:  boolean not null,   // false = asleep: won't act until it perceives you
+  speed:  integer not null,   // energy banked per clock tick = ENERGY_STEP + m_speed
+  energy: integer not null,   // action-credit bank; >= ENERGY_STEP spends one step/attack
   cr:    integer not null,    // display colour 0..255 (from the monster DB)
   cg:    integer not null,
   cb:    integer not null,
@@ -931,31 +935,39 @@ pub fn sim_tick(s: &Sim) {
   for et in 0..len(enemies) {
     e = enemies[et];
     if e.alive {
-      e.cur_q = e.tgt_q;
-      e.cur_r = e.tgt_r;
-      d = hex_distance(e.cur_q, e.cur_r, pq, pr);
-      // Awareness: a sleeping monster wakes when the player is within its
-      // vision and in line of sight; once awake it stays awake.
-      if !e.awake && d <= e.vision && hex_los(s, e.cur_q, e.cur_r, pq, pr) {
-        e.awake = true;
-      }
-      if e.awake {
-        if d <= 1 {
-          s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.clevel), s.pac);  // strike: ratio cap, then armour DR
-          e.tgt_q = e.cur_q;
-          e.tgt_r = e.cur_r;
-          if s.php <= 0 { s.over = true; }
-        } else if (e.flags & MF_NEVER_MOVE) != 0 {
-          e.tgt_q = e.cur_q;         // stationary (molds, eyes): never steps
-          e.tgt_r = e.cur_r;
-        } else {
-          (bq, br) = flow_step(s, flow, e.cur_q, e.cur_r, pq, pr);
-          e.tgt_q = bq;
-          e.tgt_r = br;
+      // Clock-driven speed: bank this tick's energy, spend ENERGY_STEP per action. So a normal
+      // monster (speed 10) acts once per tick (keeps pace with the player); a +5 monster banks
+      // 15 -> 1 action this tick, 2 the next (1.5x). Leftover energy carries over.
+      e.energy = e.energy + e.speed;
+      nsteps = e.energy / ENERGY_STEP;
+      e.energy = e.energy - nsteps * ENERGY_STEP;
+      for _ in 0..nsteps {
+        e.cur_q = e.tgt_q;
+        e.cur_r = e.tgt_r;
+        d = hex_distance(e.cur_q, e.cur_r, pq, pr);
+        // Awareness: a sleeping monster wakes when the player is within its
+        // vision and in line of sight; once awake it stays awake.
+        if !e.awake && d <= e.vision && hex_los(s, e.cur_q, e.cur_r, pq, pr) {
+          e.awake = true;
         }
-      } else {
-        e.tgt_q = e.cur_q;           // asleep: holds position
-        e.tgt_r = e.cur_r;
+        if e.awake {
+          if d <= 1 {
+            s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.clevel), s.pac);  // strike: ratio cap, then armour DR
+            e.tgt_q = e.cur_q;
+            e.tgt_r = e.cur_r;
+            if s.php <= 0 { s.over = true; }
+          } else if (e.flags & MF_NEVER_MOVE) != 0 {
+            e.tgt_q = e.cur_q;         // stationary (molds, eyes): never steps
+            e.tgt_r = e.cur_r;
+          } else {
+            (bq, br) = flow_step(s, flow, e.cur_q, e.cur_r, pq, pr);
+            e.tgt_q = bq;
+            e.tgt_r = br;
+          }
+        } else {
+          e.tgt_q = e.cur_q;           // asleep: holds position
+          e.tgt_r = e.cur_r;
+        }
       }
       enemies[et] = e;
     }
@@ -1073,6 +1085,34 @@ pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
     ey = acy + (aty - acy) * f;
   }
   (ex, ey)
+}
+
+// Set monster i's per-tick energy gain (ENERGY_STEP = normal pace; higher = faster, lower =
+// slower). The hook for the speed potion (slow others), a haste/slow-monster effect, and tests.
+pub fn sim_set_speed(s: &Sim, i: integer, gain: integer) {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return; }
+  e = enemies[i];
+  e.speed = gain;
+  enemies[i] = e;
+}
+
+// Wake or lull monster i (scripted ambush / sleep; tests).
+pub fn sim_set_awake(s: &Sim, i: integer, awake: boolean) {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return; }
+  e = enemies[i];
+  e.awake = awake;
+  enemies[i] = e;
+}
+
+// Hex distance from the player to monster i (AI / perception / tests). -1 if no such monster.
+pub fn sim_enemy_dist(s: Sim, i: integer) -> integer {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return -1; }
+  e = enemies[i];
+  (pq, pr) = px_to_hex(s.px, s.py);
+  hex_distance(pq, pr, e.cur_q, e.cur_r)
 }
 
 pub fn sim_player_hp(s: Sim) -> integer { s.php }
@@ -1252,7 +1292,7 @@ pub fn sim_new() -> Sim {
 
   (spx, spy) = hex_to_px(10, 10);
   e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
-    xp: 2, mlvl: 1, vision: 8, flags: 0, awake: true,
+    xp: 2, mlvl: 1, vision: 8, flags: 0, awake: true, speed: ENERGY_STEP, energy: 0,
     cr: 200, cg: 60, cb: 50, glyph: "r", alive: true };
   enemies: vector<Enemy> = [e0];
 
@@ -1303,6 +1343,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     hp: md.m_hp, maxhp: md.m_hp, dam: md.m_dam,
     xp: md.m_xp, mlvl: md.m_depth,
     vision: md.m_vision, flags: md.m_flags, awake: false,
+    speed: ENERGY_STEP + md.m_speed, energy: 0,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, alive: true }
 }
 

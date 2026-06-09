@@ -1,0 +1,28 @@
+// clocktest — monsters run off the CLOCK via an energy bank (sim_tick), not a fixed step per
+// player move. Each tick a monster banks (ENERGY_STEP + m_speed) energy and spends ENERGY_STEP
+// per step/attack, so speed maps to actions per tick: m_speed 0 -> 1.0 (keeps pace with the
+// player), +5 -> 1.5 (one tick a step, the next tick two). We let a chaser pursue a STATIONARY
+// player (sim_tick directly, no player movement) and verify a +5 chaser closes 1.5x the ground.
+use sim;
+
+// Ground a chaser of the given per-tick energy gain closes over 3 clock ticks (player still).
+// The first tick is the "decide" tick (sets its first target, cur unmoved), so a normal mover
+// closes 2 and a 1.5x mover closes 3.
+fn closed(gain: integer) -> integer {
+  s = sim_new();
+  sim_set_speed(s, 0, gain);
+  sim_set_awake(s, 0, true);
+  d0 = sim_enemy_dist(s, 0);
+  for _ in 0..3 { sim_tick(s); }
+  d1 = sim_enemy_dist(s, 0);
+  d0 - d1
+}
+
+fn main() {
+  println("=== story clock test (monster energy / speed) ===");
+  normal = closed(ENERGY_STEP);        // m_speed 0  -> 1.0x
+  fast   = closed(ENERGY_STEP + 5);    // m_speed +5 -> 1.5x (the jackal)
+  println("closed over 3 ticks: normal={normal} fast={fast}  (expect 2 and 3)");
+  ok = normal == 2 && fast == 3;       // 1.0x vs 1.5x, and the fast one took a 2-step tick
+  if ok { println("=== CLOCK OK ==="); } else { println("=== FAIL ==="); }
+}

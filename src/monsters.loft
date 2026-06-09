@@ -48,6 +48,8 @@ pub fn monster_table() -> vector<MonsterDef> {
   t += [MonsterDef { m_key: "giant_rat", m_name: "giant rat", m_glyph: "r", m_cr: 150, m_cg: 90, m_cb: 60, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 0, m_dam: 1, m_vision: 6, m_xp: 1, m_flags: MF_GROUP | MF_BREEDER }];
   t += [MonsterDef { m_key: "white_mouse", m_name: "white mouse", m_glyph: "r", m_cr: 220, m_cg: 220, m_cb: 220, m_depth: 1, m_rarity: 1, m_hp: 2, m_ac: 3, m_speed: 0, m_dam: 1, m_vision: 5, m_xp: 1, m_flags: MF_BREEDER }];
   t += [MonsterDef { m_key: "giant_bat", m_name: "giant bat", m_glyph: "b", m_cr: 140, m_cg: 90, m_cb: 160, m_depth: 1, m_rarity: 1, m_hp: 4, m_ac: 5, m_speed: 5, m_dam: 2, m_vision: 8, m_xp: 2, m_flags: MF_ERRATIC }];
+  // a fast, simple straight-line chaser: m_speed +5 => 1.5 actions/tick (1 step one tick, 2 the next)
+  t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "j", m_cr: 170, m_cg: 140, m_cb: 90, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 5, m_dam: 1, m_vision: 8, m_xp: 1, m_flags: MF_NONE }];
   t += [MonsterDef { m_key: "centipede", m_name: "crawling centipede", m_glyph: "c", m_cr: 200, m_cg: 120, m_cb: 40, m_depth: 1, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 0, m_dam: 2, m_vision: 6, m_xp: 2, m_flags: MF_NONE }];
   t += [MonsterDef { m_key: "white_snake", m_name: "white snake", m_glyph: "J", m_cr: 230, m_cg: 230, m_cb: 230, m_depth: 2, m_rarity: 1, m_hp: 8, m_ac: 4, m_speed: 0 - 5, m_dam: 3, m_vision: 6, m_xp: 3, m_flags: MF_NONE }];
   t += [MonsterDef { m_key: "grey_mold", m_name: "grey mold", m_glyph: "m", m_cr: 140, m_cg: 140, m_cb: 140, m_depth: 2, m_rarity: 2, m_hp: 10, m_ac: 2, m_speed: 0, m_dam: 2, m_vision: 2, m_xp: 3, m_flags: MF_NEVER_MOVE | MF_BREEDER }];
