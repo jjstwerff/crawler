@@ -99,6 +99,7 @@ Keep shrinking before filing.)*
 | C17 | `gl_screenshot` unreliable under Xvfb | n/a | test-env — not filed |
 | C18 | runtime append to a struct-field vector unreliable | HIGH | → loft#248 (comment; emergent) |
 | C19 | `hash<K[k]>` keys.rs OOB (DP build) **+** active `build_walls` `store.rs:473` "Incomplete record" via startup-cache round-trip (cross-source `main_vector<T>` synthetic-wrapper binding dropped) | HIGH | **loft#290** — **FIXED by e2315c0** (loft2 `bugfix-json-surrogate-bom`, stamps wrappers `source=0`); verified clean gate 10/10 + selftest/walltest 10/10 hammer. **Pending merge to `../loft`** (default toolchain still panics) |
+| C20 | auto-native cdylib crate name keeps the package version's dots (`loft_auto_glb-0.1.0` → invalid) → cdylib build fails for any auto-native lib in a versioned registry dir | MED | **filed loft#294** (`wa:partial` — only warns for *unused* libs; fix = sanitize `.`/`-` in the stem). NB: distinct from the `extensions::load_all()` "native function not loaded" graphics symptom (still unroot-caused) |
 
 Existing upstream issues that overlap our family (for reference): **#248**
 (constructor-return → CONST_STORE → read-only write), **#250** (nested-vector
