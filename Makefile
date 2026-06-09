@@ -207,6 +207,9 @@ test:
 	@echo "  [clock] monster energy/speed (1.0x vs 1.5x) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/clocktest.loft | tee /tmp/story_clock.log
 	@grep -q "CLOCK OK" /tmp/story_clock.log || { echo "    FAIL: clock"; exit 1; }
+	@echo "  [status] timed statuses (slow / stun, pre-calc expiry) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/statustest.loft | tee /tmp/story_status.log
+	@grep -q "STATUS OK" /tmp/story_status.log || { echo "    FAIL: status"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

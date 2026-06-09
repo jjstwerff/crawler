@@ -1,0 +1,41 @@
+// statustest — the timed-status system (pre-calculated expiry, no per-tick countdown). We
+// afflict a chasing monster and watch the clock auto-stop the effect:
+//   STUN — frozen (banks no energy) for the pre-calculated window, then it chases again.
+//   SLOW — half the energy gain, so it closes less ground than a healthy chaser over the same ticks.
+use sim;
+
+fn main() {
+  println("=== story status test (slow / stun, expiry pre-calculated) ===");
+
+  // STUN: stop tick pre-calculated = now + 2; the monster is frozen for those 2 ticks, then resumes.
+  s = sim_new();
+  sim_set_awake(s, 0, true);
+  sim_afflict_enemy(s, 0, ST_STUN, 2);
+  on_apply = sim_enemy_afflicted(s, 0, ST_STUN);
+  d0 = sim_enemy_dist(s, 0);
+  for _ in 0..2 { sim_tick(s); }           // both ticks inside the stun window -> no movement
+  d_frozen = sim_enemy_dist(s, 0);
+  for _ in 0..3 { sim_tick(s); }           // window passed -> chases again
+  d_after = sim_enemy_dist(s, 0);
+  off_after = !sim_enemy_afflicted(s, 0, ST_STUN);
+  stun_ok = on_apply && (d0 - d_frozen) == 0 && off_after && (d_frozen - d_after) > 0;
+
+  // SLOW: a healthy chaser vs a slowed one over the same number of ticks.
+  sn = sim_new();
+  sim_set_awake(sn, 0, true);
+  n0 = sim_enemy_dist(sn, 0);
+  for _ in 0..5 { sim_tick(sn); }
+  normal_closed = n0 - sim_enemy_dist(sn, 0);
+
+  sl = sim_new();
+  sim_set_awake(sl, 0, true);
+  sim_afflict_enemy(sl, 0, ST_SLOW, 100);  // slowed throughout the run
+  l0 = sim_enemy_dist(sl, 0);
+  for _ in 0..5 { sim_tick(sl); }
+  slow_closed = l0 - sim_enemy_dist(sl, 0);
+  slow_ok = slow_closed > 0 && slow_closed < normal_closed;
+
+  println("stun: on-apply={on_apply} frozen-close={d0 - d_frozen} resumed-close={d_frozen - d_after} expired={off_after}");
+  println("slow: normal-closed={normal_closed} slowed-closed={slow_closed}");
+  if stun_ok && slow_ok { println("=== STATUS OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -36,6 +36,12 @@ pub const SENSE_SEE  = 3;   // seen — in the lit field of view
 HEAR_RADIUS = 6;      // an awake monster within this is "heard" when not seen
 pub const ENERGY_STEP = 10;   // action cost in energy points; a monster banks (10 + m_speed) per
                               // tick and spends 10 per step/attack — m_speed +5 => 1.5 actions/tick
+// Status effects — TIMED by a PRE-CALCULATED expiry tick, not a per-tick countdown: applying one
+// stores `until = clock.ticks + duration`, and it is ACTIVE while `ticks <= until`, auto-stopping
+// when the clock passes it. No decrement runs each tick — the clock is the single timer. slow =
+// half the energy gain; stun = banks none (frozen). More kinds (bless/haste/poison) fit the same shape.
+pub const ST_SLOW = 0;
+pub const ST_STUN = 1;
 NEAR_RADIUS = 1;      // always-visible bubble (own + adjacent); also the sight radius behind you
 
 // Fresh zero-filled int vector of length n (build-time append to a local works;
@@ -61,6 +67,8 @@ pub struct Enemy {
   awake:  boolean not null,   // false = asleep: won't act until it perceives you
   speed:  integer not null,   // energy banked per clock tick = ENERGY_STEP + m_speed
   energy: integer not null,   // action-credit saved toward the next step (the 0..9 leftover between ticks)
+  slow_until: integer not null,  // status expiry ticks (0 = none); active while ticks <= until
+  stun_until: integer not null,
   cr:    integer not null,    // display colour 0..255 (from the monster DB)
   cg:    integer not null,
   cb:    integer not null,
@@ -938,7 +946,10 @@ pub fn sim_tick(s: &Sim) {
       // Clock-driven speed: bank this tick's energy, spend ENERGY_STEP per action. So a normal
       // monster (speed 10) acts once per tick (keeps pace with the player); a +5 monster banks
       // 15 -> 1 action this tick, 2 the next (1.5x). Leftover energy carries over.
-      e.energy = e.energy + e.speed;
+      gain = e.speed;
+      if e.stun_until >= s.ticks { gain = 0; }                 // stunned: reeling, banks nothing
+      else if e.slow_until >= s.ticks { gain = e.speed / 2; }  // slowed: half pace
+      e.energy = e.energy + gain;
       nsteps = e.energy / ENERGY_STEP;
       e.energy = e.energy - nsteps * ENERGY_STEP;
       for _ in 0..nsteps {
@@ -1095,6 +1106,29 @@ pub fn sim_set_speed(s: &Sim, i: integer, gain: integer) {
   e = enemies[i];
   e.speed = gain;
   enemies[i] = e;
+}
+
+// Afflict monster i with a status (ST_SLOW/ST_STUN) for `turns` ticks. The stop tick is
+// PRE-CALCULATED (until = ticks + turns) and stored; the status then auto-expires when the
+// clock passes it — no per-tick countdown. The hook for spells / thrown potions / the speed potion.
+pub fn sim_afflict_enemy(s: &Sim, i: integer, kind: integer, turns: integer) {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return; }
+  e = enemies[i];
+  until = s.ticks + turns;
+  if kind == ST_SLOW { e.slow_until = until; }
+  if kind == ST_STUN { e.stun_until = until; }
+  enemies[i] = e;
+}
+
+// Is monster i currently under status `kind`? (the clock has not yet passed the stored expiry)
+pub fn sim_enemy_afflicted(s: Sim, i: integer, kind: integer) -> boolean {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return false; }
+  e = enemies[i];
+  if kind == ST_SLOW { return e.slow_until >= s.ticks; }
+  if kind == ST_STUN { return e.stun_until >= s.ticks; }
+  false
 }
 
 // Wake or lull monster i (scripted ambush / sleep; tests).
@@ -1293,6 +1327,7 @@ pub fn sim_new() -> Sim {
   (spx, spy) = hex_to_px(10, 10);
   e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
     xp: 2, mlvl: 1, vision: 8, flags: 0, awake: true, speed: ENERGY_STEP, energy: 0,
+    slow_until: 0, stun_until: 0,
     cr: 200, cg: 60, cb: 50, glyph: "r", alive: true };
   enemies: vector<Enemy> = [e0];
 
@@ -1344,6 +1379,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     xp: md.m_xp, mlvl: md.m_depth,
     vision: md.m_vision, flags: md.m_flags, awake: false,
     speed: ENERGY_STEP + md.m_speed, energy: 0,
+    slow_until: 0, stun_until: 0,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, alive: true }
 }
 
