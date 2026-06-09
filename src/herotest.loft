@@ -11,17 +11,20 @@ fn main() {
   hp0max = sim_player_hp_max(s);  // hero_maxhp(1) — class-uniform
   before_hp = sim_player_hp(s);   // full at start
   xp0 = sim_xp(s);                // 0
+  str0 = sim_stat_max(s, "str");  // innate STR before levelling
 
-  // L2 needs 10 xp, L3 40, L4 90 -> 100 xp reaches level 4.
+  // L2 needs 10 xp, L3 40, L4 90 -> 100 xp reaches level 4 (passing level 3 -> +1 all stats).
   sim_award_xp(s, 100);
   cl1 = sim_clevel(s);
   hp1max = sim_player_hp_max(s);
   hp1 = sim_player_hp(s);
   xp1 = sim_xp(s);
+  str1 = sim_stat_max(s, "str");
 
   ok_levels = cl1 > cl0;
   ok_hpgrow = hp1max > hp0max;
-  ok_healed = hp1 > before_hp;
+  ok_full = hp1 == hp1max;         // level-up heals to full
+  ok_statgrow = str1 > str0;       // +1 to every stat at level 3 (STAT_GAIN_EVERY)
   ok_xp = xp1 == 100;
 
   // Combat awards XP: charge and kill the trivial-map enemy (re-aim each frame so the
@@ -40,8 +43,8 @@ fn main() {
 
   println("level {cl0}->{cl1}  maxhp {hp0max}->{hp1max}  hp {before_hp}->{hp1}  xp {xp0}->{xp1}");
   println("combat-xp: enemy-dead={dead} xp={killxp}");
-  println("leveled={ok_levels} hp-grew={ok_hpgrow} healed={ok_healed} xp-tracked={ok_xp} kill-awards-xp={ok_killxp}");
-  if ok_levels && ok_hpgrow && ok_healed && ok_xp && ok_killxp {
+  println("leveled={ok_levels} hp-grew={ok_hpgrow} healed-to-full={ok_full} stat-grew={ok_statgrow} xp-tracked={ok_xp} kill-awards-xp={ok_killxp}");
+  if ok_levels && ok_hpgrow && ok_full && ok_statgrow && ok_xp && ok_killxp {
     println("=== HERO OK ===");
   } else {
     println("=== FAIL ===");

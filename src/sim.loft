@@ -21,6 +21,7 @@ NUM_STATS  = 6;       // STR, INT, WIS, DEX, CON, CHR
 ST_CON     = 4;       // CON's index in the stat vectors (see stat_index)
 HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
 HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few×, not 10×+
+STAT_GAIN_EVERY   = 3;  // +1 to every stat each 3rd character level (gentle stat growth, §3a)
 MAX_CLEVEL = 50;      // character-level cap
 FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_ISSUES)
 INV_MAX    = 64;      // inventory slots
@@ -630,7 +631,18 @@ pub fn sim_award_xp(s: &Sim, amount: integer) {
   if amount > 0 { s.xp += amount; }
   while s.clevel < MAX_CLEVEL && s.xp >= xp_for_level(s.clevel + 1) {
     s.clevel += 1;
+    // Level-up rewards (§3a friendly): every STAT_GAIN_EVERY levels each stat grows by 1, and the
+    // character is restored to full — a felt breather after the fight that levelled you.
+    if (s.clevel % STAT_GAIN_EVERY ?? 0) == 0 {
+      mx = s.stat_max;
+      cu = s.stat_cur;
+      for si in 0..NUM_STATS {
+        mx[si] = (mx[si] ?? 0) + 1;
+        cu[si] = (cu[si] ?? 0) + 1;
+      }
+    }
     refresh_stats(s);
+    s.php = s.phpmax;   // level-up heals to full
   }
 }
 
