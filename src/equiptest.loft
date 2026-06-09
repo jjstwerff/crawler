@@ -6,6 +6,7 @@
 use hexgeo;
 use sim;
 use items;
+use player;
 
 fn main() {
   println("=== story equip test (G3: wield + effects) ===");
@@ -40,11 +41,24 @@ fn main() {
   weapon_ok  = dam_eq > dam_bare;
   reequip_ok = dam_re > dam_bare && ac_re > 0;
 
+  // Internal Player API (player.loft): the OO methods bundle scripts call must set values on
+  // the current Sim structs (proves the cross-module &Sim mutation threads through methods).
+  ps = sim_new();
+  pl = player_new(0);
+  inv0 = sim_inv_count(ps);
+  pl.give_item(ps, "potion_cure_light");      // -> inventory
+  pl.equip(ps, "everbright_torch");           // -> equipment (light slot)
+  pl.grant_stat(ps, "con", 2);                // -> statistic
+  pl.grant_skill(ps, "stealth", 1);           // stub today — must not crash
+  inv1 = sim_inv_count(ps);
+  player_api_ok = inv1 > inv0 && sim_equipped(ps, SLOT_LIGHT) >= 0 && sim_light_radius(ps) >= 12;
+
   println("loadout: dam={dam_eq} ac={ac_eq} hp={hp_eq} mit20={mit_armored}");
   println("bare:    dam={dam_bare} hp={hp_noarm} ac={ac_noarm} mit20={mit_bare}");
   println("reequip: dam={dam_re} ac={ac_re}");
-  println("load={load_ok} armor-hp={armor_hp} armor-dr={armor_dr} weapon={weapon_ok} reequip={reequip_ok}");
-  if load_ok && armor_hp && armor_dr && weapon_ok && reequip_ok {
+  println("player-api: inv {inv0}->{inv1} torch-radius={sim_light_radius(ps)}");
+  println("load={load_ok} armor-hp={armor_hp} armor-dr={armor_dr} weapon={weapon_ok} reequip={reequip_ok} player-api={player_api_ok}");
+  if load_ok && armor_hp && armor_dr && weapon_ok && reequip_ok && player_api_ok {
     println("=== EQUIP OK ===");
   } else {
     println("=== FAIL ===");

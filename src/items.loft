@@ -95,6 +95,9 @@ pub fn item_table() -> vector<ItemDef> {
   // ── light (i_power = light radius) ──
   t += [ItemDef { i_key: "wooden_torch", i_name: "Wooden Torch", i_glyph: "~", i_cr: 230, i_cg: 160, i_cb: 60, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 2, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_STACKABLE, i_desc: "Burns for a while; radius 2." }];
   t += [ItemDef { i_key: "brass_lantern", i_name: "Brass Lantern", i_glyph: "~", i_cr: 240, i_cg: 210, i_cb: 90, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 3, i_rarity: 1, i_weight: 50, i_cost: 35, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 3, i_flags: IF_NONE, i_desc: "A steady oil lantern; radius 3." }];
+  // The deep explorer's prize: a great late-game light. i_power = radius (12, far past the
+  // wooden torch's 2 / lantern's 3); the FOV uses max(base, light radius), so it widens sight.
+  t += [ItemDef { i_key: "everbright_torch", i_name: "Everbright Torch", i_glyph: "~", i_cr: 255, i_cg: 244, i_cb: 205, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 25, i_rarity: 5, i_weight: 25, i_cost: 6000, i_dd: 0, i_ds: 0, i_ac: 1, i_power: 12, i_flags: IF_NONE, i_desc: "A torch that never burns down, blazing with a clear white light to radius 12 — the deep explorer's prize." }];
   // ── potions (i_power = effect magnitude) ──
   t += [ItemDef { i_key: "potion_cure_light", i_name: "Potion of Cure Light Wounds", i_glyph: "!", i_cr: 220, i_cg: 120, i_cb: 120, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 4, i_cost: 15, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 15, i_flags: IF_STACKABLE, i_desc: "Heals minor wounds." }];
   t += [ItemDef { i_key: "potion_cure_serious", i_name: "Potion of Cure Serious Wounds", i_glyph: "!", i_cr: 220, i_cg: 90, i_cb: 90, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 5, i_rarity: 1, i_weight: 4, i_cost: 40, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 30, i_flags: IF_STACKABLE, i_desc: "Heals serious wounds." }];

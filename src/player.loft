@@ -1,0 +1,47 @@
+// player.loft — the Player class + methods: the internal API that bundle load-scripts
+// (and later, events) call to act on a player.
+//
+// MULTI-PLAYER-SHAPED FROM THE START. A Player is a handle — scripts never pass a raw id,
+// they call methods on a Player. Methods take the shared world (&Sim). Today there is one
+// player (pid 0) and the methods set values on the *current* Sim structs (via the sim_*
+// primitives); when real multi-player lands, `pid` indexes a players vector and the method
+// bodies route there — every call-site written today (p.equip(s, ...), p.give_item(...))
+// stays exactly the same. That's the point: get the functions right now, no rewrite later.
+
+use sim;
+
+pub struct Player {
+  pid: integer not null,   // 0 = the single active player today; a players-vector index later
+}
+
+// The handle for player `pid`. The active player is player 0 for now; multi-player will
+// hand scripts the right Player, but they only ever see `Player`, never an id.
+pub fn player_new(pid: integer) -> Player { Player { pid: pid } }
+
+// Put an item (by key) into this player's inventory.
+pub fn give_item(self: Player, s: &Sim, key: text) {
+  sim_give_item(s, key);
+}
+
+// Equip an item (by key) onto this player — auto-routed to the item's slot.
+pub fn equip(self: Player, s: &Sim, key: text) {
+  sim_equip_by_key(s, key);
+}
+
+// Teach in a statistic (STR/INT/WIS/DEX/CON/CHR). Only Constitution is tracked in the
+// current model; the rest arrive with the full stat system — the method is fixed now.
+pub fn grant_stat(self: Player, s: &Sim, stat: text, n: integer) {
+  if stat == "con" { sim_adjust_con(s, n); }
+}
+
+// Teach in a class skill (melee/bow/device/disarm/stealth). The per-player skill store
+// lands with the skill system; the API is stable from the start so scripts/events written
+// today keep working unchanged.
+pub fn grant_skill(self: Player, s: &Sim, skill: text, n: integer) {
+  sim_grant_skill(s, skill, n);
+}
+
+// Teach in a saving throw. Same — API now, backing later.
+pub fn grant_save(self: Player, s: &Sim, save: text, n: integer) {
+  sim_grant_save(s, save, n);
+}

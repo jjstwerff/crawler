@@ -369,6 +369,66 @@ pub fn sim_starting_loadout(s: &Sim) {
   refresh_stats(s);
 }
 
+// ── Kernel player-mutation primitives ────────────────────────────────
+// The Player methods (player.loft) wrap these; the actual &Sim mutation lives HERE,
+// where cross-module writes are proven (equiptest calls sim_equip across modules). Today
+// they act on the single player; when multi-player lands they take a player slot.
+
+// Add an item (by key) to the player's inventory — fixed array + count (C18-safe).
+pub fn sim_give_item(s: &Sim, key: text) {
+  itbl = item_table();
+  idx = item_index(itbl, key);
+  if idx >= 0 && s.ninv < INV_MAX {
+    n = s.ninv;
+    v = s.inv;
+    v[n] = idx;
+    s.ninv = n + 1;
+  }
+}
+
+// Equip an item (by key) into its own slot, then refresh derived stats.
+pub fn sim_equip_by_key(s: &Sim, key: text) {
+  itbl = item_table();
+  idx = item_index(itbl, key);
+  if idx >= 0 && idx < len(itbl) {
+    d = itbl[idx];
+    sl = d.i_slot;
+    eq = s.eq;
+    if sl >= 0 && sl < len(eq) { eq[sl] = idx + 1; }
+  }
+  refresh_stats(s);
+}
+
+// Adjust a player statistic — only Constitution is tracked in the current model; refresh HP.
+pub fn sim_adjust_con(s: &Sim, n: integer) {
+  s.hcon = s.hcon + n;
+  refresh_stats(s);
+}
+
+// Teach a class skill / saving throw. Placeholders: the per-player skill & save stores land
+// with the skill system. Kept so the Player API is stable now (scripts/events written today
+// won't change). The args document the shape; they no-op until those fields exist.
+pub fn sim_grant_skill(s: &Sim, skill: text, n: integer) {
+  if false { s.hcon = s.hcon + n + len(skill); }   // touch args; no per-player skill store yet
+}
+pub fn sim_grant_save(s: &Sim, save: text, n: integer) {
+  if false { s.hcon = s.hcon + n + len(save); }     // touch args; no per-player save store yet
+}
+
+// Radius of the equipped light (its i_power), or 0 if none. Feeds the FOV sight radius
+// (a brighter light widens sight) and lets the view size the light cone later.
+pub fn sim_light_radius(s: Sim) -> integer {
+  l = s.eq[SLOT_LIGHT] ?? 0;
+  if l <= 0 { return 0; }
+  itbl = item_table();
+  defi = l - 1;
+  if defi >= 0 && defi < len(itbl) {
+    d = itbl[defi];
+    return d.i_power;
+  }
+  0
+}
+
 // Award XP and level up while the threshold is met; each level refreshes derived
 // stats (max HP grows by the gentle per-level step; current HP gains the delta).
 pub fn sim_award_xp(s: &Sim, amount: integer) {
@@ -579,7 +639,20 @@ pub fn sim_compute_fov(s: &Sim) {
   hx = cos(s.heading);
   hy = sin(s.heading);
   nearf = NEAR_RADIUS as float;
-  visf = VISION_RADIUS as float;
+  // Effective sight radius: the base, WIDENED by a bright equipped light (never reduced).
+  // The Everbright Torch (radius 12 > base 10) lets you see further; weak lights don't
+  // shrink the base. (The fuller "no light = dark" model is a later step.)
+  vr = VISION_RADIUS;
+  ll = s.eq[SLOT_LIGHT] ?? 0;
+  if ll > 0 {
+    litbl = item_table();
+    ldi = ll - 1;
+    if ldi >= 0 && ldi < len(litbl) {
+      ldef = litbl[ldi];
+      if ldef.i_power > vr { vr = ldef.i_power; }
+    }
+  }
+  visf = vr as float;
   for gr in 0..s.lh {
     for gq in 0..s.lw {
       idx = gr * s.lw + gq;
@@ -589,7 +662,7 @@ pub fn sim_compute_fov(s: &Sim) {
       d = hex_distance(pq, pr, q, r);
       if d <= NEAR_RADIUS {
         v = 1;                                         // always-visible bubble (your feet)
-      } else if d <= VISION_RADIUS {
+      } else if d <= vr {
         (cxp, cyp) = hex_to_px(q, r);
         dx = cxp - s.px;
         dy = cyp - s.py;
