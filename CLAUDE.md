@@ -21,13 +21,18 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 
 For **geometry / caching / serialization / store-lifetime / protocols** the correct
 design is an **exact invariant**, not an open space. Don't approximate or symptom-chase
-toward it. **Get a CONCRETE plotted end-result first** (the exact target output/state for
-one specific input — the model grasps concrete examples far better than abstract specs;
-ask the user to plot it, or propose a candidate end-state and confirm), **then** name the
-invariant (caching → *round-trip = identity*), **pin a test**, and only then code. Tell
-that this went wrong: *a small fix behind a large discovery cost* (the triangle-wall saga;
-the loft2 `data.rs` cache fix). Anchor (Angband/real/moros) + reuse one model by symmetry.
-Case log + mechanism study (growing, → a skill): **DESIGN-PROTOCOL.md**.
+toward it. Run a **BLUEPRINT PHASE before implementing — don't jump the gun:** suss the
+design out through *verifiable steps* in the **cheapest medium** (a throwaway Python
+prototype, a round-trip test) and don't write the real code until each step checks out —
+the cheap prototype is often where the design gets *pinned*, not just confirmed (the
+triangle wall was only pinpointable **after** a Python verify phase, *then* ported to loft).
+Step 1 is a **CONCRETE plotted end-result** (the exact target output/state for one specific
+input — the model grasps concrete examples far better than abstract specs; ask the user to
+plot it, or propose a candidate and confirm); **then** name the invariant (caching →
+*round-trip = identity*), **pin each step**, and only then code. Tell that this went wrong:
+*a small fix behind a large discovery cost* (the triangle-wall saga; the loft2 `data.rs`
+cache fix). Anchor (Angband/real/moros) + reuse one model by symmetry. Case log + mechanism
+study (growing, → enhance the engineering-rigor skill's DESIGN column): **DESIGN-PROTOCOL.md**.
 
 ## Architecture invariant (do not break)
 
