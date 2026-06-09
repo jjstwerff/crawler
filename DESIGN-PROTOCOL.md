@@ -219,8 +219,11 @@ first.* Split **which** instance: an instance of the **problem/symptom** is the 
 class); an instance of the **answer/end-result** is the instrument (you read the invariant — hence
 the class — *off* it). That distinction **extends** the skill's class/instance axis.
 
-**Where it lands:** the generative move + the domain trigger belong in
-`doc/claude/DESIGN_PROTOCOL.md` (Protocol 1) — with one new DESIGN-column row in `SKILL.md`
-(*constructive instrument*) and one new verification question (*is this an exact-invariant domain
-whose answer I should recover, not approximate?*). **Loft-side artifacts — coordinate before
-editing; this doc is staged input.**
+**Where it landed:** ✅ added to `doc/claude/DESIGN_PROTOCOL.md` (Protocol 1) — a new section
+**"The other half — when you cannot form the invariant at all"** (the second failure mode + the
+constructive instrument + the instance-of-problem vs instance-of-answer distinction + build-to-front),
+the **exact-invariant domain trigger** in the protocol preamble, and a generative pointer in step 1.
+*(loft branch `engine`, uncommitted — left for review; it's a loft-side artifact.)* **Optional
+follow-ons, not yet done:** one DESIGN-column row in `SKILL.md` (*constructive instrument* beside the
+falsifying probe) and a 7th C1 verification question in `DESIGN_VERIFICATION.md` (*is this an
+exact-invariant domain whose answer I should recover, not approximate?*).
