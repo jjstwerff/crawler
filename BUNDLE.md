@@ -55,6 +55,31 @@ this doc). Near-term the build seeds it minimally — a **starting loadout + sta
 (in the equipment slice) shaped to become a class-bundle later — so the entry point is
 migratable, not rebuilt.
 
+## World bundles — kinds, linkable places, and scoped overlays
+
+The bundle graph is realized concretely by a **kind-dispatch scanner**
+(`tools/gen_bundles.py`): every `bundle.json` carries a `kind`, and the scanner emits a
+**per-system generated registry** for each — `character → src/bundles.loft` (`bundle_activate`),
+`world → src/rooms_gen.loft` (the rooms section's `RoomDef` table + `room_connect_*`). One
+scanner, many kinds, many registries; the kernel stays the *mechanism* and bundles are the
+*content/definitions*. This is "**every system in bundles**".
+
+A **world bundle is a linkable PLACE** with named **sections**. `bundles/world_classic` (key
+`classic`) is the first: its **rooms** section supplies the default Angband room set + the
+corridor connection model; sibling sections (monster spawns, terrain, level features) live here
+later. A separate world bundle can carry a **spawn rule** ("build an Angband-style dungeon") and
+**link to a place by key** — that link graph *is* the world.
+
+**Composition is mixed, not all-or-nothing — and it is scoped.** A *calling* world can **overlay**
+its own content onto a place it spawns: e.g. link the classic dungeon but **inject a special room
+at level 3** drawn from the calling world. Overlays are **depth-/location-scoped and bounded —
+they do NOT extend deeper**: at the overlay's depth the calling world's content appears; below it,
+generation reverts to the pure base place. So a generated level is *base place + scoped overlays*,
+and the calling world's reach stops where the overlay's scope ends.
+
+*Concrete-now vs authored-later:* the scanner + the `classic` rooms registry exist today;
+`gen.loft` consuming the registry, the link mechanism, and the overlays are the staged next steps.
+
 ## Two common pools
 
 The whole design rests on splitting content into a **data pool** and a **behavior
