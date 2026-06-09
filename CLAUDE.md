@@ -138,6 +138,34 @@ Use ONLY these proven-safe shapes when touching vectors/structs:
   braces `{{`/`}}` in strings (C14). A `println` can change results — don't trust
   print-debugging blindly (C2).
 
+## Where moros, the toolchain & the libraries live (this machine, as of 2026-06-09)
+
+All siblings under `/home/jurjen/workspace/`:
+- **crawler** — `crawler/` (this repo, branch `combat`).
+- **moros** — `moros/` (branch `main`): the 3D target + the **canonical hex convention**:
+  *pointy-top, **odd-r offset*** — `x = √3·(col + ½·(row&1))`, `y = 1.5·row` (see
+  `tools/build_overworld_map.py`, `data/overworld.json`, `doc/claude/SCENE_MAP.md`).
+  Companion repo **`moros_init/`** (branch `master`).
+- **loft toolchain source** — two checkouts: **`loft2/` (branch `main`) = daily maintenance
+  & bug fixes**, **`loft/` (branch `engine`) = the big / engine projects**. So the installed
+  loft tracks `loft2` (the Makefile prune fix + graphics/native fixes were loft2 bug work);
+  `make loft-doctor` compares against `../loft2` for that reason.
+- **library SOURCES** (where the `use`d libs are authored) — **`loft-libs-graphics/`** (the
+  `graphics` lib crawler uses, + `glb`/mesh/shapes; branch `fix-255-program-relative-font`),
+  `loft-libs-core/`, `loft-libs-net/`.
+
+**Installed loft** (what `make` targets use by default after `make install`):
+- binary `/usr/local/bin/loft` (0.8.5); stdlib `/usr/local/share/loft/` (`default/`, `deps/`,
+  `libloft.rlib`, `wasm32-*`). Refresh = `make install` in a loft repo (sudo); check with
+  `make loft-doctor`. (Live graphics under the installed loft is currently flaky — use
+  `LOFT_REPO=../loft2` for `make play` until that's resolved.)
+
+**User library store `~/.loft/`:**
+- `registry/` — *built/published* libs **auto-loaded on `use`**: `graphics-0.1.0`,
+  `glb-0.1.0`, `gridmesh`, `mesh3d`, `shapes`, `server`, `web` (+ `index.json`). crawler's
+  `use graphics` (declared in `loft.toml`) resolves here — no sibling repo needed for libs.
+- `build-cache/` — compiled native cdylibs per lib. `lib/` — global `loft install` packages (empty now).
+
 ## Where things are
 
 - `sim.loft` — world/player/enemies, combat, monster AI (awareness + flow-field
