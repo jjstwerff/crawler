@@ -14,6 +14,7 @@ TURN_SPEED = 2.6;     // radians / second
 PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.866)
 PLAYER_DAM = 6;       // player base melee damage per hit (before the level-ratio cap)
 FIRE_RANGE = 10;      // missile range in hexes for the launcher (Q to fire)
+FRONT_AIM  = 3.0;     // auto-aim: a dead-ahead target counts as up to this many hexes nearer
 COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
@@ -813,14 +814,32 @@ pub fn sim_fire(s: &Sim) -> integer {
     }
   }
   if ammo_slot < 0 { return 1; }
+  // Auto-aim: among SEEN enemies in range, score by distance with a frontal bonus — very near
+  // wins on distance, but at roughly equal range the one more dead-ahead of your heading wins.
+  // A mob BEHIND the character (front <= 0) cannot be targeted at all.
   enemies = s.enemies;
+  hx = cos(s.heading);
+  hy = sin(s.heading);
+  epx = 0.0;                 // pre-declared so the nested tuple-assign below resolves (no nested destructure-decl)
+  epy = 0.0;
   target = -1;
-  bestd = FIRE_RANGE + 1;
+  bestscore = (FIRE_RANGE as float) + 100.0;
   for i in 0..len(enemies) {
     e = enemies[i];
     if e.alive && sim_monster_sense(s, i) == SENSE_SEE {
       d = sim_enemy_dist(s, i);
-      if d <= FIRE_RANGE && d < bestd { bestd = d; target = i; }
+      if d <= FIRE_RANGE {
+        (epx, epy) = sim_enemy_pos(s, i);
+        dx = epx - s.px;
+        dy = epy - s.py;
+        ln = sqrt(dx * dx + dy * dy);
+        front = 0.0;
+        if ln > 0.0 { front = (dx * hx + dy * hy) / ln ?? 0.0; }   // -1 behind .. +1 dead ahead
+        if front > 0.0 {                                            // never target what's behind you
+          eff = (d as float) - FRONT_AIM * front;
+          if eff < bestscore { bestscore = eff; target = i; }
+        }
+      }
     }
   }
   if target < 0 { return 2; }

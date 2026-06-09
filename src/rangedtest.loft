@@ -25,7 +25,17 @@ fn main() {
   }
   inv1 = sim_inv_count(s);
 
-  println("no-bow={no_bow}  shots-landed={fired} killed={killed} ammo {inv0}->{inv1}");
-  ok = no_bow == 0 && fired >= 1 && killed && inv1 < inv0;
+  // A mob BEHIND the character cannot be targeted: same setup, but face directly AWAY from the
+  // enemy -> the auto-aim must find no target (returns 2), even though a bow + ammo are ready.
+  b = sim_new();
+  sim_equip_by_key(b, "short_bow");
+  sim_give_item(b, "arrow");
+  (b0x, b0y) = sim_enemy_pos(b, 0);
+  b.heading = atan2(b.py - b0y, b.px - b0x);   // face AWAY from the enemy
+  sim_compute_fov(b);
+  behind = sim_fire(b);                          // enemy is behind -> no target
+
+  println("no-bow={no_bow}  shots-landed={fired} killed={killed} ammo {inv0}->{inv1}  behind={behind}");
+  ok = no_bow == 0 && fired >= 1 && killed && inv1 < inv0 && behind == 2;
   if ok { println("=== RANGED OK ==="); } else { println("=== FAIL ==="); }
 }
