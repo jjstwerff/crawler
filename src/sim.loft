@@ -17,6 +17,8 @@ COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in com
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
 HERO_CON   = 16;      // starting Constitution (full stat block = H2; HP is class-uniform, not con-driven)
+NUM_STATS  = 6;       // STR, INT, WIS, DEX, CON, CHR
+ST_CON     = 4;       // CON's index in the stat vectors (see stat_index)
 HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
 HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few×, not 10×+
 MAX_CLEVEL = 50;      // character-level cap
@@ -77,7 +79,13 @@ pub struct Sim {
   clevel:  integer not null,   // character level (1..MAX_CLEVEL)
   xp:      integer not null,   // experience points
   gold:    integer not null,   // gold (income arrives with items, I1)
-  hcon:    integer not null,   // Constitution — drives HP growth
+  // Statistics — three layers per stat (STR/INT/WIS/DEX/CON/CHR, see stat_index):
+  //   stat_max = innate; stat_cur = current (permanent drain lowers, restore returns to max);
+  //   stat_tmp/stat_tmp_t = a temporary +/- modifier (good/bad potion) with turns remaining.
+  stat_max:   vector<integer> not null,
+  stat_cur:   vector<integer> not null,
+  stat_tmp:   vector<integer> not null,
+  stat_tmp_t: vector<integer> not null,
   depth:   integer not null,   // dungeon level (1 = shallowest)
   save_depth: integer not null,   // checkpoint: deepest save-point level reached (respawn target)
   grave_depth: integer not null,  // death-stake grave: depth / hex / gold (0 gold = no grave).
@@ -399,20 +407,101 @@ pub fn sim_equip_by_key(s: &Sim, key: text) {
   refresh_stats(s);
 }
 
-// Adjust a player statistic — only Constitution is tracked in the current model; refresh HP.
-pub fn sim_adjust_con(s: &Sim, n: integer) {
-  s.hcon = s.hcon + n;
-  refresh_stats(s);
+// ---- Statistics: three layers (innate max / current / temporary modifier) ----------------
+// STR/INT/WIS/DEX/CON/CHR -> vector index. -1 = unknown (the stat ops then no-op).
+fn stat_index(stat: text) -> integer {
+  if stat == "str" { return 0; }
+  if stat == "int" { return 1; }
+  if stat == "wis" { return 2; }
+  if stat == "dex" { return 3; }
+  if stat == "con" { return 4; }
+  if stat == "chr" { return 5; }
+  -1
+}
+
+// The starting stat block (uniform for now; per-class blocks land with the class stat tables).
+fn start_stats() -> vector<integer> {
+  [HERO_CON, HERO_CON, HERO_CON, HERO_CON, HERO_CON, HERO_CON]
+}
+
+// Effective value of stat i = current + the temporary modifier WHILE it is still active.
+fn stat_eff(s: Sim, i: integer) -> integer {
+  if i < 0 { return 0; }
+  cv = s.stat_cur;
+  c = cv[i] ?? 0;
+  ttv = s.stat_tmp_t;
+  if (ttv[i] ?? 0) > 0 {
+    tv = s.stat_tmp;
+    c = c + (tv[i] ?? 0);
+  }
+  c
+}
+
+// Permanent GAIN (stat-gain potion / level reward): raise innate max AND current.
+pub fn sim_grant_stat(s: &Sim, stat: text, n: integer) {
+  i = stat_index(stat);
+  if i >= 0 {
+    mx = s.stat_max; mx[i] = (mx[i] ?? 0) + n;
+    cu = s.stat_cur; cu[i] = (cu[i] ?? 0) + n;
+    refresh_stats(s);
+  }
+}
+
+// Permanent DRAIN (restorable): lower current only, never below 1; innate max is untouched so
+// a later restore brings it back.
+pub fn sim_drain_stat(s: &Sim, stat: text, n: integer) {
+  i = stat_index(stat);
+  if i >= 0 {
+    cu = s.stat_cur;
+    c = (cu[i] ?? 0) - n;
+    if c < 1 { c = 1; }
+    cu[i] = c;
+    refresh_stats(s);
+  }
+}
+
+// RESTORE a drained stat: current returns to its innate max.
+pub fn sim_restore_stat(s: &Sim, stat: text) {
+  i = stat_index(stat);
+  if i >= 0 {
+    mx = s.stat_max;
+    cu = s.stat_cur;
+    cu[i] = mx[i] ?? 0;
+    refresh_stats(s);
+  }
+}
+
+// TEMPORARY modifier (good potion = +n, bad potion = -n) for `turns` ticks. Last-wins: the
+// newest potion overrides any active one (opposite signs cancel). Decays in sim_tick.
+pub fn sim_buff_stat(s: &Sim, stat: text, n: integer, turns: integer) {
+  i = stat_index(stat);
+  if i >= 0 {
+    tv = s.stat_tmp; tv[i] = n;
+    ttv = s.stat_tmp_t; ttv[i] = turns;
+  }
+}
+
+// Stat accessors (effective / current / innate) for the view + tests.
+pub fn sim_stat(s: Sim, stat: text) -> integer { stat_eff(s, stat_index(stat)) }
+pub fn sim_stat_cur(s: Sim, stat: text) -> integer {
+  i = stat_index(stat);
+  if i < 0 { return 0; }
+  v = s.stat_cur; v[i] ?? 0
+}
+pub fn sim_stat_max(s: Sim, stat: text) -> integer {
+  i = stat_index(stat);
+  if i < 0 { return 0; }
+  v = s.stat_max; v[i] ?? 0
 }
 
 // Teach a class skill / saving throw. Placeholders: the per-player skill & save stores land
 // with the skill system. Kept so the Player API is stable now (scripts/events written today
 // won't change). The args document the shape; they no-op until those fields exist.
 pub fn sim_grant_skill(s: &Sim, skill: text, n: integer) {
-  if false { s.hcon = s.hcon + n + len(skill); }   // touch args; no per-player skill store yet
+  if false { s.gold = s.gold + n + len(skill); }   // touch args; no per-player skill store yet
 }
 pub fn sim_grant_save(s: &Sim, save: text, n: integer) {
-  if false { s.hcon = s.hcon + n + len(save); }     // touch args; no per-player save store yet
+  if false { s.gold = s.gold + n + len(save); }     // touch args; no per-player save store yet
 }
 
 // Heal the player, clamped to max HP.
@@ -442,7 +531,7 @@ pub fn sim_damage(s: &Sim, amount: integer, kind: text) {
 // level, equipped armour (AC), and Constitution — so gearing up and stat upgrades both help.
 // Capped below 100% (friendly but fair — never total immunity; §3a).
 pub fn sim_player_save(s: Sim) -> integer {
-  sv = 5 + s.clevel + s.pac / 4 + s.hcon / 3;
+  sv = 5 + s.clevel + s.pac / 4 + stat_eff(s, ST_CON) / 3;
   if sv > 75 { sv = 75; }
   if sv < 0 { sv = 0; }
   sv
@@ -749,6 +838,12 @@ pub fn sim_hex_state_at(s: Sim, wx: float, wy: float) -> integer {
 
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
+  // Temporary stat modifiers (good/bad potions) tick down; expired ones stop applying.
+  ttv = s.stat_tmp_t;
+  for si in 0..NUM_STATS {
+    t = ttv[si] ?? 0;
+    if t > 0 { ttv[si] = t - 1; }
+  }
   (pq, pr) = px_to_hex(s.px, s.py);
   flow = compute_flow(s, pq, pr);   // shared by every chasing monster this tick
   enemies = s.enemies;
@@ -1086,7 +1181,8 @@ pub fn sim_new() -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
+    clevel: 1, xp: 0, gold: 0,
+    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
@@ -1253,7 +1349,8 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0, hcon: HERO_CON,
+    clevel: 1, xp: 0, gold: 0,
+    stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
@@ -1287,7 +1384,10 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.clevel = s.clevel;   // carry the hero across levels
   ns.xp = s.xp;
   ns.gold = s.gold;
-  ns.hcon = s.hcon;
+  ns.stat_max = s.stat_max;     // carry the stat block: innate + current + active temp mods
+  ns.stat_cur = s.stat_cur;
+  ns.stat_tmp = s.stat_tmp;
+  ns.stat_tmp_t = s.stat_tmp_t;
   ns.inv = s.inv;         // carry the inventory; floor items stay on their level
   ns.ninv = s.ninv;
   ns.eq = s.eq;           // carry equipment + its cached effects across levels
@@ -1316,7 +1416,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs = sim_new_gen(s.wseed, s.save_depth);
   rs.clevel = s.clevel;
   rs.xp = s.xp;
-  rs.hcon = s.hcon;
+  rs.stat_max = s.stat_max;     // keep innate stats + any permanent drain across death;
+  rs.stat_cur = s.stat_cur;     // temporary modifiers reset (fresh from sim_new_gen) on respawn
   // Souls stake: leave GRAVE_PCT% of gold as a grave at the death spot. SP keeps one
   // grave, so a fresh death forfeits any prior one (MP would append — §3a #5).
   drop = s.gold * GRAVE_PCT / 100 ?? 0;

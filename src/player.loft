@@ -28,10 +28,25 @@ pub fn equip(self: Player, s: &Sim, key: text) {
   sim_equip_by_key(s, key);
 }
 
-// Teach in a statistic (STR/INT/WIS/DEX/CON/CHR). Only Constitution is tracked in the
-// current model; the rest arrive with the full stat system — the method is fixed now.
+// Permanently RAISE a statistic (STR/INT/WIS/DEX/CON/CHR) — innate max and current both rise.
 pub fn grant_stat(self: Player, s: &Sim, stat: text, n: integer) {
-  if stat == "con" { sim_adjust_con(s, n); }
+  sim_grant_stat(s, stat, n);
+}
+
+// Permanently DRAIN a statistic (restorable): lowers current only; restore_stat brings it back.
+pub fn drain_stat(self: Player, s: &Sim, stat: text, n: integer) {
+  sim_drain_stat(s, stat, n);
+}
+
+// Restore a drained statistic back up to its innate max.
+pub fn restore_stat(self: Player, s: &Sim, stat: text) {
+  sim_restore_stat(s, stat);
+}
+
+// Temporarily modify a statistic for `turns` ticks — good potion (+n) or bad potion (-n).
+// Last-wins: a new potion overrides the active modifier (opposite signs cancel).
+pub fn buff_stat(self: Player, s: &Sim, stat: text, n: integer, turns: integer) {
+  sim_buff_stat(s, stat, n, turns);
 }
 
 // Teach in a class skill (melee/bow/device/disarm/stealth). The per-player skill store

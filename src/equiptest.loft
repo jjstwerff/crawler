@@ -64,7 +64,18 @@ fn main() {
   fire_taken = hp_b - sim_player_hp(ps);
   pl.heal(ps, 1000);
   save_ok = sv > 6 && fire_taken >= 1 && fire_taken < 10 && sim_player_hp(ps) == sim_player_hp_max(ps);
-  player_api_ok = inv1 > inv0 && sim_equipped(ps, SLOT_LIGHT) >= 0 && sim_light_radius(ps) >= 12 && save_ok;
+  // Three-layer stats (player.loft): permanent drain lowers current (restorable), and a temp
+  // potion modifies it for a while then expires (last-wins override). Use a tickable world.
+  ts = sim_new_gen(99, 1);
+  con0 = sim_stat_max(ts, "con");
+  pl.drain_stat(ts, "con", 3);    con_dr = sim_stat(ts, "con");   // permanent drain (restorable)
+  pl.restore_stat(ts, "con");     con_rs = sim_stat(ts, "con");   // restored to innate
+  pl.buff_stat(ts, "con", 4, 2);  con_bf = sim_stat(ts, "con");   // good potion: +4 for 2 ticks
+  sim_tick(ts); sim_tick(ts); sim_tick(ts);                       // 3 ticks > 2 -> buff expired
+  con_af = sim_stat(ts, "con");
+  println("stats(con): innate={con0} drained={con_dr} restored={con_rs} buffed={con_bf} expired={con_af}");
+  stat_ok = con_dr == con0 - 3 && con_rs == con0 && con_bf == con0 + 4 && con_af == con0;
+  player_api_ok = inv1 > inv0 && sim_equipped(ps, SLOT_LIGHT) >= 0 && sim_light_radius(ps) >= 12 && save_ok && stat_ok;
 
   println("loadout: dam={dam_eq} ac={ac_eq} hp={hp_eq} mit20={mit_armored}");
   println("bare:    dam={dam_bare} hp={hp_noarm} ac={ac_noarm} mit20={mit_bare}");
