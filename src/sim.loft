@@ -18,6 +18,7 @@ COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: l
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
 HERO_CON   = 16;      // starting Constitution (full stat block = H2; HP is class-uniform, not con-driven)
 NUM_STATS  = 6;       // STR, INT, WIS, DEX, CON, CHR
+ST_STR     = 0;       // STR's index in the stat vectors (feeds the melee skill)
 ST_CON     = 4;       // CON's index in the stat vectors (see stat_index)
 HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
 HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few×, not 10×+
@@ -337,6 +338,7 @@ fn refresh_stats(s: &Sim) {
     ds = item_ds(itbl, w - 1);
     if dd > 0 && ds > 0 { wd += dd * (ds + 1) / 2 ?? 0; }   // average weapon roll
   }
+  wd += sim_skill_melee(s);   // passive melee skill (level + STR) sharpens melee damage
   s.wdam = wd;
   s.pac = ac;
   oldmax = s.phpmax;
@@ -601,6 +603,15 @@ pub fn sim_player_save(s: Sim) -> integer {
   if sv > 75 { sv = 75; }
   if sv < 0 { sv = 0; }
   sv
+}
+
+// Passive MELEE skill — a flat to-damage bonus from character level + effective STR. 0 at the
+// baseline (level 1, starting STR), so it never shifts early combat; it grows as you level AND as
+// you spend stat points on STR (the stat-choice payoff). refresh_stats folds it into wdam.
+pub fn sim_skill_melee(s: Sim) -> integer {
+  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_STR) - HERO_CON);
+  if b < 0 { b = 0; }
+  b
 }
 
 // Move the player to hex (q,r) — level placement / arrival / scripted movement.

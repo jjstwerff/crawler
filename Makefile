@@ -219,6 +219,9 @@ test:
 	@echo "  [surface] depth-0 desert + dungeon entrance (SLICE step 1+2) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/surfacetest.loft | tee /tmp/story_surface.log
 	@grep -q "SURFACE OK" /tmp/story_surface.log || { echo "    FAIL: surface"; exit 1; }
+	@echo "  [skills] passive melee skill (level + STR -> damage) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/skilltest.loft | tee /tmp/story_skill.log
+	@grep -q "SKILL OK" /tmp/story_skill.log || { echo "    FAIL: skill"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
