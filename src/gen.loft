@@ -32,6 +32,10 @@ pub struct GenLevel {
   g_tiles: vector<integer> not null,   // 0 floor, 1 solid wall
   g_rq: vector<integer> not null,      // room centre q
   g_rr: vector<integer> not null,      // room centre r
+  g_rq0: vector<integer> not null,     // room rect: origin q (for wall straightening)
+  g_rr0: vector<integer> not null,     // room rect: origin r
+  g_rw:  vector<integer> not null,     // room rect: width  (q span)
+  g_rh:  vector<integer> not null,     // room rect: height (r span)
 }
 
 pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> GenLevel {
@@ -39,6 +43,10 @@ pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> Gen
   tiles: vector<integer> = [for _ in 0..(w * h) { 1 }];
   rq: vector<integer> = [];
   rr: vector<integer> = [];
+  rq0: vector<integer> = [];   // room rect origin/extent — carried out for wall straightening
+  rr0: vector<integer> = [];
+  rww: vector<integer> = [];
+  rhh: vector<integer> = [];
 
   // Rooms — axial rectangles carved from the rock, kept off the border.
   for _ in 0..tries {
@@ -54,6 +62,7 @@ pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> Gen
     }
     rq += [q0 + rw / 2];
     rr += [r0 + rh / 2];
+    rq0 += [q0]; rr0 += [r0]; rww += [rw]; rhh += [rh];
   }
 
   // Corridors — greedy hex walk connecting each room centre to the next, so the
@@ -89,7 +98,8 @@ pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> Gen
     }
   }
 
-  GenLevel { g_w: w, g_h: h, g_tiles: tiles, g_rq: rq, g_rr: rr }
+  GenLevel { g_w: w, g_h: h, g_tiles: tiles, g_rq: rq, g_rr: rr,
+             g_rq0: rq0, g_rr0: rr0, g_rw: rww, g_rh: rhh }
 }
 
 // Stable per-place generation seed from a world position + depth. A dungeon at

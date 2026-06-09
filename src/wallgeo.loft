@@ -20,6 +20,7 @@ use sim;
 
 SMOOTH_ITERS  = 3;
 SMOOTH_LAMBDA = 0.5;   // 0..1 blend toward the neighbour midpoint each pass
+SNAP_TOL2     = 0.3844; // (0.62 world units)^2 — snap a corner onto a room side-line within this
 
 pub struct WallSeg {
   ax: float not null, ay: float not null,
@@ -31,6 +32,7 @@ struct WCorner {
   deg: integer not null,
   n1: integer not null,
   n2: integer not null,
+  anc: integer not null,   // 1 = snapped onto a room side-line → anchored (no smoothing)
 }
 
 struct WEdge { a: integer not null, b: integer not null }
@@ -54,7 +56,7 @@ fn get_or_add(g: &WallGraph, x: float, y: float) -> integer {
   found = g.lookup[k];
   if found != null { return found.idx; }
   idx = len(g.corners);
-  g.corners += [WCorner { x: x, y: y, deg: 0, n1: -1, n2: -1 }];
+  g.corners += [WCorner { x: x, y: y, deg: 0, n1: -1, n2: -1, anc: 0 }];
   g.lookup += [CornerRef { ck: k, idx: idx }];
   idx
 }
@@ -69,15 +71,78 @@ fn add_edge(g: &WallGraph, q: integer, r: integer, dir: integer) {
 }
 
 fn corner_at(cs: vector<WCorner>, i: integer) -> WCorner {
-  if i < 0 { return WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1 }; }
+  if i < 0 { return WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1, anc: 0 }; }
   if i < len(cs) { return cs[i]; }
-  WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1 }
+  WCorner { x: 0.0, y: 0.0, deg: 0, n1: -1, n2: -1, anc: 0 }
 }
 
 fn edge_at(es: vector<WEdge>, i: integer) -> WEdge {
   if i < 0 { return WEdge { a: -1, b: -1 }; }
   if i < len(es) { return es[i]; }
   WEdge { a: -1, b: -1 }
+}
+
+// A room's exact rhombus side-line (world space). gen carries the room rects, so
+// these are the *known* straight edges the sawtooth boundary should lie on.
+struct WallLine {
+  ax: float not null, ay: float not null,
+  bx: float not null, by: float not null,
+}
+
+// Outermost world corner of corner-cell `ci` (0..3) of room rect (q0,r0,rw,rh) —
+// the rhombus tip. Four tips in cyclic order give the room's four side-lines.
+// (loft-faithful to tools/wallproto/hexdungeon.py: integer centre cell, squared
+//  distance — no sqrt — and corner-cell cyclic order — no atan2.)
+fn room_tip(q0: integer, r0: integer, rw: integer, rh: integer, ci: integer) -> (float, float) {
+  qc = q0 + rw / 2;
+  rc = r0 + rh / 2;
+  (ccx, ccy) = hex_to_px(qc, rc);
+  cq = q0;
+  cr = r0;
+  if ci == 1 { cq = q0 + rw - 1; cr = r0; }
+  else if ci == 2 { cq = q0 + rw - 1; cr = r0 + rh - 1; }
+  else if ci == 3 { cq = q0; cr = r0 + rh - 1; }
+  bestx = 0.0;
+  besty = 0.0;
+  bd = 0.0 - 1.0;
+  for k in 0..6 {
+    (cxk, cyk) = hex_corner_px(cq, cr, k);
+    dx = cxk - ccx;
+    dy = cyk - ccy;
+    d = dx * dx + dy * dy;
+    if d > bd { bd = d; bestx = cxk; besty = cyk; }
+  }
+  (bestx, besty)
+}
+
+// All room side-lines for the level (4 per room). Empty when the Sim has no room
+// rects (the hand-built test level) → the straightener falls back to pure smoothing.
+fn build_room_sides(s: Sim) -> vector<WallLine> {
+  out: vector<WallLine> = [];
+  q0s = s.room_q0;
+  r0s = s.room_r0;
+  ws = s.room_w;
+  hs = s.room_h;
+  n = len(q0s);
+  for ri in 0..n {
+    if ri < n {
+      q0 = q0s[ri] ?? 0;
+      r0 = r0s[ri] ?? 0;
+      rw = ws[ri] ?? 0;
+      rh = hs[ri] ?? 0;
+      if rw > 0 && rh > 0 {
+        (t0x, t0y) = room_tip(q0, r0, rw, rh, 0);
+        (t1x, t1y) = room_tip(q0, r0, rw, rh, 1);
+        (t2x, t2y) = room_tip(q0, r0, rw, rh, 2);
+        (t3x, t3y) = room_tip(q0, r0, rw, rh, 3);
+        out += [WallLine { ax: t0x, ay: t0y, bx: t1x, by: t1y }];
+        out += [WallLine { ax: t1x, ay: t1y, bx: t2x, by: t2y }];
+        out += [WallLine { ax: t2x, ay: t2y, bx: t3x, by: t3y }];
+        out += [WallLine { ax: t3x, ay: t3y, bx: t0x, by: t0y }];
+      }
+    }
+  }
+  out
 }
 
 pub fn build_walls(s: Sim) -> vector<WallSeg> {
@@ -120,11 +185,52 @@ pub fn build_walls(s: Sim) -> vector<WallSeg> {
     }
   }
 
-  // C. Laplacian smoothing of degree-2 corners (flatten the wobble).
+  // C. Straighten — the two-stage "constructive instrument" blueprint pinned in
+  //    tools/wallproto/hexdungeon.py (panel D): rooms are lattice rhombi whose 4
+  //    side-lines gen knows exactly, so
+  //    1) snap every boundary corner that lies on a room side-line ONTO it (rooms
+  //       -> dead-straight + sharp corners), and anchor it against smoothing;
+  //    2) Laplacian-smooth the remaining (corridor) corners (smooth passages).
+  //    Door/corridor mouths aren't on a room line, so openings fall out for free.
+  sides = build_room_sides(s);
+  nsides = len(sides);
+  tlo = 0.0 - 0.12;   // allow the projection a little past the segment ends
+  for ci in 0..len(cs) {
+    c = corner_at(cs, ci);
+    bx = c.x;
+    by = c.y;
+    bestd2 = SNAP_TOL2;
+    hit = 0;
+    for si in 0..nsides {
+      if si < nsides {
+        ln = sides[si];
+        dx = ln.bx - ln.ax;
+        dy = ln.by - ln.ay;
+        l2 = dx * dx + dy * dy;
+        if l2 > 0.0 {
+          t = ((c.x - ln.ax) * dx + (c.y - ln.ay) * dy) / l2;
+          if t >= tlo && t <= 1.12 {
+            fx = ln.ax + t * dx;
+            fy = ln.ay + t * dy;
+            ex = c.x - fx;
+            ey = c.y - fy;
+            d2 = ex * ex + ey * ey;
+            if d2 < bestd2 { bestd2 = d2; bx = fx; by = fy; hit = 1; }
+          }
+        }
+      }
+    }
+    if hit == 1 {
+      c.x = bx;
+      c.y = by;
+      c.anc = 1;
+      if ci < len(cs) { cs[ci] = c; }
+    }
+  }
   for _ in 0..SMOOTH_ITERS {
     for ci in 0..len(cs) {
       c = corner_at(cs, ci);
-      if c.deg == 2 && c.n1 >= 0 && c.n2 >= 0 {
+      if c.anc == 0 && c.deg == 2 && c.n1 >= 0 && c.n2 >= 0 {
         p1 = corner_at(cs, c.n1);
         p2 = corner_at(cs, c.n2);
         mx = (p1.x + p2.x) / 2.0;

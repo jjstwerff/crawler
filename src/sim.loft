@@ -102,6 +102,10 @@ pub struct Sim {
   fi_cat:  vector<integer> not null,   // item category (IT_*); -1 for gold
   fi_def:  vector<integer> not null,   // item def index; -1 for gold
   fi_live: vector<integer> not null,   // 1 = on the floor, 0 = collected
+  room_q0: vector<integer> not null,   // room rects (axial) — wall straightener snaps to their
+  room_r0: vector<integer> not null,   //   exact rhombus side-lines; empty = pure-smooth fallback
+  room_w:  vector<integer> not null,
+  room_h:  vector<integer> not null,
 }
 
 // ── World queries ────────────────────────────────────────────────────
@@ -970,6 +974,7 @@ pub fn sim_new() -> Sim {
     eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
+    room_q0: [], room_r0: [], room_w: [], room_h: [],   // hand-built level: no rooms → pure smooth
   }
 }
 
@@ -1038,6 +1043,10 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
   rqs = lvl.g_rq;
   rrs = lvl.g_rr;
+  rq0s = lvl.g_rq0;
+  rr0s = lvl.g_rr0;
+  rws = lvl.g_rw;
+  rhs = lvl.g_rh;
   nrm = len(rqs);
 
   // Player in the first room.
@@ -1132,6 +1141,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
+    room_q0: rq0s, room_r0: rr0s, room_w: rws, room_h: rhs,
   };
   sim_starting_loadout(s);   // every new character starts with its class kit (§3a #4)
   s

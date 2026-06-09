@@ -4,19 +4,28 @@ use sim;
 use wallgeo;
 
 fn main() {
-  println("=== story wall test (DP straightener) ===");
+  println("=== story wall test (triangle-band straightener) ===");
+  // Hand-built level: no room rects -> pure-smooth fallback path.
   s = sim_new();
   segs = build_walls(s);
   n = len(segs);
   println("segments={n}");
-  // sanity: first segment has finite endpoints
-  fin = true;
   if n > 0 {
     s0 = segs[0];
     println("seg0=({s0.ax},{s0.ay})-({s0.bx},{s0.by})");
   }
-  ok = n > 0 && fin;
-  println("built-no-panic: true");
-  println("has-segments  : {n > 0}");
+
+  // Generated level: rooms present -> exercises the room-line SNAP path
+  // (build_room_sides + snap-onto-rhombus-lines + anchored smoothing).
+  g = sim_new_gen(1234, 2);
+  gsegs = build_walls(g);
+  gn = len(gsegs);
+  nrooms = len(g.room_q0);
+  println("gen-level rooms={nrooms} segments={gn}");
+
+  ok = n > 0 && gn > 0 && nrooms > 0;
+  println("fallback-segments : {n > 0}");
+  println("gen-room-rects    : {nrooms > 0}");
+  println("snap-path-no-panic: {gn > 0}");
   if ok { println("=== WALL OK ==="); } else { println("=== FAIL ==="); }
 }
