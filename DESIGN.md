@@ -653,6 +653,42 @@ clocks; players sharing one share a clock.
 
 ---
 
+## 11b. Per-player data layout — *deferred decision (do NOT migrate yet)*
+
+Today all player state is ~20 flat fields on `Sim` (`php/phpmax/over, clevel/xp/gold, stat_*,
+px/py/heading/accrued, inv/ninv, eq/wdam/pac, rstate, grave_*`). Multiplayer wants that
+*indexed by player*. **Decision: keep accreting behind the primitives; do not move the data
+into an MP structure yet.** The reasoning — recorded so it isn't re-litigated, *and* so nobody
+migrates it prematurely:
+
+- **The expensive boundary is already locked.** Every call-site goes through the Player methods
+  + `sim_*` primitives (`p.drain_stat(s,…)`), which are MP-shaped now and never change. The
+  data layout sits *behind* that seam, so moving it later is a pure internal refactor with
+  **zero call-site impact** — there is no "rewrite everything later" penalty for waiting. (This
+  relies on the architecture invariant: the view reads player state *only* via `sim_` accessors,
+  never raw `s.php`.)
+- **The right container is gated by loft's worst bug class.** `vector<PlayerState>` (a struct in
+  a vector, with *nested* vector fields for stats/inv/eq) or struct-of-arrays
+  (`stat_cur: vector<vector<integer>>`) are exactly where loft bites — C1 (`v[i] ?? structfn()`
+  SIGSEGVs) and C18 (can't grow struct-vector fields). That makes the container a **verify-first
+  prototype** question (DESIGN-PROTOCOL / exact-invariant), not a migrate-on-a-guess.
+- **`PlayerState`'s shape needs §11a.** Extracting it forces the per-player vs per-*locality* vs
+  per-world split (position is per-player; the map is world; the clock is per-locality) — and the
+  locality model (§11a) is itself unbuilt. Migrating now bakes in an unvalidated split.
+- **Move once.** flat → `PlayerState` struct → `vector<PlayerState>` is two migrations; grouping
+  the fields now doesn't de-risk the hard part (the vector under loft).
+
+**Cost of waiting:** each player field added (e.g. the three-layer stats) is one more line the
+eventual mechanical move touches — contained, all behind the primitives.
+
+**Trigger + how (when MP / §11a is built):** (1) verify-first which container loft tolerates;
+(2) pin the per-player / per-locality / per-world split; (3) move the data *once* into the
+proven shape, primitives unchanged. The middle option — extract a single-instance `PlayerState`
+now (no vector) — was considered and **declined**: it costs a refactor today, still bakes the
+split early, and doesn't de-risk the vector.
+
+---
+
 ## 12. Controls, camera, FOV
 
 **Controls** (analog/held; release stops immediately, no inertia):
