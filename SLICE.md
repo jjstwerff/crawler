@@ -74,9 +74,19 @@ The slice proves the loop; these turn it into the full game. Each item notes wha
 is NEEDED, so it stays an honest backlog. (Cross-refs the DESIGN §18a backlog.)
 
 ### Tier 1 — depth on the existing loop (the four to do first)
-- **Levelling.** HAVE: XP (`sim_award_xp`), `clevel`, the XP curve, HP-by-level (`hero_maxhp`).
-  NEED: level-up *does* something — an HP roll, the 3-layer stats growing, a skill bump, and
-  player feedback ("Welcome to level N").
+- **Levelling.** ◑ KERNEL DONE: max HP grows per level (`hero_maxhp`), and each level-up **banks a
+  stat-growth point** (`stat_pts`) the player spends by choice (`sim_raise_stat` / `Player.raise_stat`)
+  — never forced, **deferrable** (hoard + time a raise), capped to **once per `STAT_COOLDOWN` (3)
+  levels per stat** so no dumping. (Faithful to Angband: stats don't auto-grow; potions are the
+  other path.) NEED: the in-game **level-up choice prompt** (browser UI — pick a stat / defer) +
+  "you reached level N" feedback. Skill bumps fold in with the passive-skills item.
+  - **Pairs with → item STAT REQUIREMENTS + BONUSES** (the common RPG system → an emergent PUZZLE):
+    items both *gate* on a minimum stat (heavy blade needs STR, spellbook needs INT…) **and** *grant*
+    +stat while worn (gloves +2 STR…). Effective stat = current + temp + **equipment** — a 4th layer
+    in `refresh_stats`; a requirement checks the *effective* value. So a +STR item can satisfy
+    another item's STR gate: the player **juggles gear** (wear the +STR ring to wield the STR-locked
+    sword), while banked stat points let them break a dependency *permanently*. Build after passive
+    skills. Edge to handle: removing the enabler while the gated item is still worn.
 - **Inventory.** HAVE: the data model (fixed array, slots, `give_item`/`equip`, floor pickup).
   NEED: the in-game inventory *screen* — browse / select / wield / drop / examine — plus item
   stacking (weight/encumbrance optional).
