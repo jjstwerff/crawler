@@ -136,17 +136,24 @@ cast later). The actions exist + are tested; this is the input/HUD layer over th
 
 - **Type-routed auto-slot on first pickup** (confirmed model): a **consumable** (potion/scroll/food)
   fills the next free numeric slot `1`-`9` in pickup order; a **launcher** auto-equips to the bow slot
-  and binds **FIRE to active slot `Q`** (a **spell** → `E` later); **ammo** is the bow's fuel, shown as
-  a *quiver* count, not a slot. So one pickup = ready to use — `1` drinks, `Q` fires. Manual re-slotting
-  (from the inventory screen) is a later nicety.
+  and binds **FIRE to active slot `Q`** (a **spell** → `E` later); **ammo** is the bow's fuel, not a
+  slot of its own. So one pickup = ready to use — `1` drinks, `Q` fires.
+- **Manual reslot** (in the inventory screen): move the cursor to an item with **WASD**, then press a
+  slot key (`1`-`9` or `Q`/`E`) to **bind that item to the slot** — the slot's previous occupant is
+  unbound. A given item lives in **at most one slot**, so re-binding *moves* it (clears its old slot)
+  rather than duplicating. Auto-slot and manual-reslot share one kernel primitive: `bind(slot, def)`.
+- **`Q` shows the bow by name with arrows-left behind it** — e.g. `Q: Short Bow (4)`, the count being
+  the matching ammo carried; it ticks down as you fire and reads empty (`(0)`) when the quiver is dry.
 - **Left-sidebar HUD** (Angband's known location): one left column = the familiar character bar —
   **HP on top (with room reserved for SP/spell-points), then the base stats, then the quick-slots**
   (`1`-`9` then `Q`/`E`, top-to-bottom). Stats + slots + vitals share the one left column; the game
   view takes the rest of the width.
 - **Reconciles today's 1-9 use:** number keys become quick-use in normal play; the Character Page
   keeps 1-6 for *spend* (menu-local); the Inventory screen becomes *assign / re-slot*.
-- **Build:** a per-player slot array + auto-assign on pickup (`sim_pickup`/`sim_give_item`) + the
-  press-to-use dispatch + the side-bar render (shared view → both platforms; look is user-verified).
+- **Build:** a per-player slot array (`defidx+1`, 0=empty, mirroring `eq[]`) + the `bind(slot, def)`
+  primitive (used by auto-assign on `sim_pickup`/`sim_give_item` *and* manual reslot) + the press-to-use
+  dispatch (`sim_use_slot` → `use_item` / `sim_fire`) + the side-bar render (shared view → both
+  platforms; look is user-verified). Slot bindings persist across descents like inventory.
   Kernel actions ready: `use_item`, `sim_fire`.
 
 ### Tier 2 — threat & survival (the dungeon gets teeth)
