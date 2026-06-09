@@ -621,6 +621,38 @@ tick in place. A turn engine wearing a real-time coat.
 
 ---
 
+## 11a. The clock under multiplayer (locality-scoped) — *design; MP is built-for from the start*
+
+The distance-driven clock (§11) is single-mover by construction: one player's travel is the
+master tick. Multiplayer breaks that — many players move at once. The model: **the clock is
+scoped to a *locality*, not the whole world.** Players in different localities keep independent
+clocks; players sharing one share a clock.
+
+- **Locality = "together".** Two players are *apart* when they can't affect the same moment —
+  **different rooms / layers now; a distance radius later** (§7 `cy`, §12 FOV). Apart players
+  run their own distance-driven local time and **never block each other — just ignore it.**
+  They couple into a shared locality clock as they converge, and decouple as they separate.
+- **Shared clock when together.** The world (monster AI, status/regen) must advance once per
+  `L` of *locality* travel, the same for everyone present. The base rule — *a player skips a
+  turn when another moves* (one mover consumes the shared tick) — is correct but feels frozen.
+  Two softeners keep the real-time feel without losing world-consistency:
+  1. **Queue key presses** — each player's input is buffered, so a held/intended move isn't
+     lost while it isn't their turn; it fires the instant the shared turn allows (continuous-
+     glide intent preserved, not dropped).
+  2. **Simultaneous-move window** — when another player is **moving and visible on your screen**
+     (FOV), you get a *small window* to move within the **same** world-tick, so co-located
+     players move near-simultaneously rather than strictly alternating. The window is what keeps
+     "we're in the same room" feeling live.
+- **Invariant:** within a locality, all moves landing in one window resolve against **one**
+  world-tick; across localities, clocks are independent; convergence merges two locality clocks
+  (resync), separation forks them — §11's "turn engine in a real-time coat", held per-locality
+  under N players.
+- **Open (pin when MP is built):** the locality threshold (room/layer → distance radius); the
+  window length; merging two localities' clock state on convergence; fairness when many cluster.
+  Ties to the Player handle (`player.loft`, built MP-shaped) and FOV (visibility = "on screen").
+
+---
+
 ## 12. Controls, camera, FOV
 
 **Controls** (analog/held; release stops immediately, no inertia):
