@@ -134,12 +134,15 @@ quick-slots — `1`-`9` plus two ACTIVE slots `Q`/`E`** — each holding a usabl
 activates it via the right kernel action (consumable → `use_item`, launcher → `sim_fire`, spell →
 cast later). The actions exist + are tested; this is the input/HUD layer over them.
 
-- **Auto-slot on first pickup** (good first experience): the first time you grab a usable item it
-  fills the next free slot — no manual assignment to start. `Q`/`E` are the two "active" slots for
-  the repeated-action items (the launcher, a spell). Manual re-slotting (from the inventory screen)
-  is a later nicety.
-- **Side-bar HUD** shows the 11 slots + their items. Room is fine — stats live in the top corners,
-  so a bottom hot-bar (1-9 then Q E, left-to-right) or a right-edge column fits 800×600.
+- **Type-routed auto-slot on first pickup** (confirmed model): a **consumable** (potion/scroll/food)
+  fills the next free numeric slot `1`-`9` in pickup order; a **launcher** auto-equips to the bow slot
+  and binds **FIRE to active slot `Q`** (a **spell** → `E` later); **ammo** is the bow's fuel, shown as
+  a *quiver* count, not a slot. So one pickup = ready to use — `1` drinks, `Q` fires. Manual re-slotting
+  (from the inventory screen) is a later nicety.
+- **Left-sidebar HUD** (Angband's known location): one left column = the familiar character bar —
+  **HP on top (with room reserved for SP/spell-points), then the base stats, then the quick-slots**
+  (`1`-`9` then `Q`/`E`, top-to-bottom). Stats + slots + vitals share the one left column; the game
+  view takes the rest of the width.
 - **Reconciles today's 1-9 use:** number keys become quick-use in normal play; the Character Page
   keeps 1-6 for *spend* (menu-local); the Inventory screen becomes *assign / re-slot*.
 - **Build:** a per-player slot array + auto-assign on pickup (`sim_pickup`/`sim_give_item`) + the
