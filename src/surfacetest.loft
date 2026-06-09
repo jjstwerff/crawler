@@ -1,0 +1,27 @@
+// surfacetest — SLICE steps 1+2: the depth-0 desert surface and its dungeon entrance.
+// The surface is an open, unended expanse (all floor), empty of dungeon spawns, with the player
+// at its centre (not standing on a stair) and a down-stair ENTRANCE a few steps east. Descending
+// from it lands in the classic beginner dungeon (walled + populated) — the existing descend path.
+use sim;
+
+fn main() {
+  println("=== story surface test (depth-0 desert + entrance) ===");
+  surf = sim_new_gen(777, 0);
+  d0 = sim_depth(surf);
+  openc = !is_wall(surf, 20, 20) && !is_wall(surf, 25, 15) && !is_wall(surf, 15, 25);  // all floor
+  empty = sim_enemy_count(surf) == 0;
+  nostair = sim_stair_under(surf) == 0;          // standing on open ground, not a stair
+
+  sim_teleport(surf, 23, 20);                    // the entrance sits at centre+3 east (w=41 -> 23,20)
+  entrance = sim_stair_under(surf) == 2;         // a down-stair
+
+  dung = sim_descend(surf, 1);                   // walk in -> the classic beginner dungeon
+  d1 = sim_depth(dung);
+  walled = is_wall(dung, 0, 0);                  // the dungeon has rock (the surface has none)
+  populated = sim_enemy_count(dung) > 0;
+
+  println("surface: depth={d0} open={openc} empty={empty} no-stair-underfoot={nostair} entrance={entrance}");
+  println("descend: depth={d1} walled={walled} populated={populated}");
+  ok = d0 == 0 && openc && empty && nostair && entrance && d1 == 1 && walled && populated;
+  if ok { println("=== SURFACE OK ==="); } else { println("=== FAIL ==="); }
+}

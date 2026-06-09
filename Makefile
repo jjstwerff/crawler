@@ -216,6 +216,9 @@ test:
 	@echo "  [persist] dungeon delta round-trip (death-only; regenerate + replay) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/persisttest.loft | tee /tmp/story_persist.log
 	@grep -q "PERSIST OK" /tmp/story_persist.log || { echo "    FAIL: persist"; exit 1; }
+	@echo "  [surface] depth-0 desert + dungeon entrance (SLICE step 1+2) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/surfacetest.loft | tee /tmp/story_surface.log
+	@grep -q "SURFACE OK" /tmp/story_surface.log || { echo "    FAIL: surface"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

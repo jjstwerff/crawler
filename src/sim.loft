@@ -1485,6 +1485,9 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   gseed = (seed ^ world_key_seed(1, 1, depth)) & 2147483647;
   lvl = gen_dungeon(gseed, w, h, 24);   // more tries: overlap-rejection thins them to distinct rooms
   tiles = lvl.g_tiles;
+  if depth == 0 {                          // the desert surface: an open, unended expanse
+    for ti0 in 0..len(tiles) { tiles[ti0] = 0; }
+  }
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
   rqs = lvl.g_rq;
   rrs = lvl.g_rr;
@@ -1501,6 +1504,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     pq = rqs[0] ?? (w / 2);
     pr = rrs[0] ?? (h / 2);
   }
+  if depth == 0 { pq = w / 2; pr = h / 2; }   // surface: stand at the centre of the open desert
   (spx, spy) = hex_to_px(pq, pr);
 
   // Collect legal floor far from the player start, then sample the budget from
@@ -1520,6 +1524,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   }
   ncand = len(candq);
   budget = 10 + srng(rng, 0, 8);   // ~10–18
+  if depth == 0 { budget = 0; }    // empty desert — no dungeon spawns (the crystal knot is step 3)
   if budget > ncand { budget = ncand; }
   enemies: vector<Enemy> = [];
   placed = 0;
@@ -1568,8 +1573,9 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
       if dd > bestdd { bestdd = dd; dnq = cq; dnr = cr; }
     }
   }
+  if depth == 0 { dnq = pq + 3; dnr = pr; }   // surface: the dungeon entrance sits a few steps east
   ti_up = pr * w + pq;
-  if ti_up >= 0 && ti_up < len(tiles) { tiles[ti_up] = 3; }
+  if depth != 0 && ti_up >= 0 && ti_up < len(tiles) { tiles[ti_up] = 3; }   // no up-stair on the surface
   ti_dn = dnr * w + dnq;
   if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = 2; }
 
