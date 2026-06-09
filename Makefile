@@ -141,6 +141,14 @@ loft-doctor:
 	else \
 	    echo "  binary    : (nothing to compare at $(REF_REPO); build: cd $(REF_REPO) && cargo build --release)"; \
 	fi
+	@if [ -d "$(REF_REPO)/default" ] && [ -d /usr/local/share/loft/default ]; then \
+	    extra=$$(diff -rq /usr/local/share/loft/default "$(REF_REPO)/default" 2>/dev/null | sed -n 's|^Only in /usr/local/share/loft/default: |/usr/local/share/loft/default/|p'); \
+	    if [ -n "$$extra" ]; then \
+	        echo "  stdlib    : STALE LEFTOVERS — install's \`cp -r\` doesn't delete files removed/renamed upstream:"; \
+	        echo "$$extra" | sed 's/^/              /'; \
+	        echo "              fix:  sudo rm -f $$(echo $$extra | tr '\n' ' ')"; \
+	    else echo "  stdlib    : clean (no leftover files vs $(REF_REPO)/default)"; fi; \
+	fi
 	@printf "  smoke     : "; loft --interpret --check $(KTEST) </dev/null >/dev/null 2>&1 \
 	    && echo "OK — installed loft runs the kernel headlessly (no --path/--lib)" \
 	    || echo "FAIL — installed loft errors (usually a stale stdlib; run the refresh above)"
