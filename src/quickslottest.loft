@@ -1,0 +1,74 @@
+// quickslottest — the quick-slot bar kernel (SLICE: streamlined item use, 1-9 + Q/E). Pins the
+// CONCRETE end-result: a fresh character picks up — in order — a Potion, a Scroll, a Short Bow and
+// 4 Arrows, and the bar must come out type-routed (potion->1, scroll->2, launcher auto-equipped +
+// FIRE bound to Q, ammo = quiver fuel, E empty). Then it exercises the verbs: press 1 drinks, press
+// Q fires, an empty slot is a no-op, a manual reslot MOVES a binding, and bindings survive a descent.
+use sim;
+use items;
+use itemfx;
+use player;
+
+fn main() {
+  println("=== story quick-slot test (type-routed auto-slot + bind + dispatch) ===");
+  itbl = item_table();
+  pot = item_index(itbl, "potion_cure_light");
+  scr = item_index(itbl, "scroll_phase_door");
+  bow = item_index(itbl, "short_bow");
+
+  s = sim_new();
+  empty0 = sim_qs_def(s, 0);                          // -1: fresh bar, nothing slotted
+
+  // Pickups in order: potion, scroll, short bow, 4 arrows.
+  sim_give_item(s, "potion_cure_light");
+  sim_give_item(s, "scroll_phase_door");
+  sim_give_item(s, "short_bow");
+  for _ in 0..4 { sim_give_item(s, "arrow"); }
+
+  // Type-routed layout: potion->slot 0 (key 1), scroll->slot 1 (key 2), bow auto-equipped + bound
+  // to Q, E empty; the quiver shows 4 arrows; the bow is really worn so sim_fire can find it.
+  layout = sim_qs_def(s, 0) == pot
+        && sim_qs_def(s, 1) == scr
+        && sim_qs_def(s, QS_Q) == bow
+        && sim_qs_def(s, QS_E) < 0;
+  quiver = sim_qs_count(s, QS_Q);
+  equipped = sim_equipped(s, SLOT_BOW) == bow;
+
+  // Re-picking the same potion does NOT take a new slot — it stacks onto the existing binding.
+  sim_give_item(s, "potion_cure_light");
+  no_dup = sim_qs_def(s, 2) < 0 && sim_qs_count(s, 0) == 2;
+
+  // Press slot 1 (index 0): drink the potion (consumable -> use_item). Hurt first so heal shows.
+  pl = player_new(0);
+  pl.damage(s, 18, "physical");
+  hp0 = sim_player_hp(s);
+  r1 = use_slot(s, 0);
+  healed = sim_player_hp(s) > hp0;
+  still_bound = sim_qs_def(s, 0) == pot;             // slot stays bound after a drink...
+  cnt_after = sim_qs_count(s, 0);                    // ...count drops 2 -> 1
+
+  // Press Q: fire the launcher at an enemy in front (auto-aim). Face enemy 0 so it reads SEEN.
+  (ex, ey) = sim_enemy_pos(s, 0);
+  s.heading = atan2(ey - s.py, ex - s.px);
+  sim_compute_fov(s);
+  r2 = use_slot(s, QS_Q);
+  quiver1 = sim_qs_count(s, QS_Q);                   // one arrow spent: 4 -> 3
+
+  // Press an empty numeric slot: no-op.
+  r3 = use_slot(s, 5);
+
+  // Manual reslot: bind the scroll (in slot 1) to slot 4 -> it MOVES (slot 1 clears, no duplicate).
+  sim_qs_bind(s, 4, scr);
+  moved = sim_qs_def(s, 4) == scr && sim_qs_def(s, 1) < 0;
+
+  // Bindings persist across a descent (carried like inventory/equipment).
+  ns = sim_descend(s, 1);
+  persisted = sim_qs_def(ns, QS_Q) == bow && sim_qs_def(ns, 4) == scr;
+
+  println("layout={layout} quiver={quiver} equipped={equipped} no_dup={no_dup}");
+  println("r1={r1} healed={healed} bound={still_bound} cnt={cnt_after}  r2={r2} quiver1={quiver1} r3={r3}");
+  println("moved={moved} persisted={persisted}");
+  ok = empty0 < 0 && layout && quiver == 4 && equipped && no_dup
+    && r1 == 1 && healed && still_bound && cnt_after == 1
+    && r2 == 2 && quiver1 == 3 && r3 == 0 && moved && persisted;
+  if ok { println("=== QUICKSLOT OK ==="); } else { println("=== FAIL ==="); }
+}

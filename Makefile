@@ -228,6 +228,9 @@ test:
 	@echo "  [ranged] launcher fire action (bow + ammo -> shoot) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/rangedtest.loft | tee /tmp/story_ranged.log
 	@grep -q "RANGED OK" /tmp/story_ranged.log || { echo "    FAIL: ranged"; exit 1; }
+	@echo "  [quickslot] type-routed auto-slot + bind + press-to-use dispatch ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/quickslottest.loft | tee /tmp/story_quickslot.log
+	@grep -q "QUICKSLOT OK" /tmp/story_quickslot.log || { echo "    FAIL: quickslot"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

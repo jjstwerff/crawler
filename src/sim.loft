@@ -15,6 +15,9 @@ PLAYER_RADIUS = 0.45; // collision radius; ~half the marker, < hex apothem (0.86
 PLAYER_DAM = 6;       // player base melee damage per hit (before the level-ratio cap)
 FIRE_RANGE = 10;      // missile range in hexes for the launcher (Q to fire)
 FRONT_AIM  = 3.0;     // auto-aim: a dead-ahead target counts as up to this many hexes nearer
+pub const QS_N = 11;  // quick-slots: indices 0..8 = number keys 1-9, 9 = active Q, 10 = active E
+pub const QS_Q = 9;   // active slot Q (launcher fire / repeated action)
+pub const QS_E = 10;  // active slot E (spell / second repeated action)
 COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
@@ -132,6 +135,7 @@ pub struct Sim {
   ninv:    integer not null,   // inventory count
   inv:     vector<integer> not null,   // carried item def indices [0..ninv) (UI = I2)
   eq:      vector<integer> not null,   // equipped item: defidx+1 per SLOT_* slot (0 = empty)
+  qs:      vector<integer> not null,   // quick-slots [0..QS_N): bound item defidx+1 (0 = empty)
   wdam:    integer not null,           // cached melee damage (PLAYER_DAM + equipped weapon)
   pac:     integer not null,           // cached armour class (sum equipped i_ac) — feeds HP + DR
   fi_n:    integer not null,   // floor-item count
@@ -427,7 +431,108 @@ pub fn sim_give_item(s: &Sim, key: text) {
     v = s.inv;
     v[n] = idx;
     s.ninv = n + 1;
+    sim_qs_autoslot(s, idx);    // first useable item of its kind auto-fills a quick-slot
   }
+}
+
+// ── Quick-slots: a uniform 1-9 + Q/E bar over usable items (SLICE: the quick-slot bar) ──
+// A slot holds an item DEFIDX+1 (0 = empty), mirroring eq[]. Binding is by def (stable across
+// consume/refill); a def lives in at most ONE slot. Auto-slot + manual reslot share sim_qs_bind.
+
+// First inventory index carrying def `defidx`, or -1. (Slot bindings are by def, not inv index,
+// so dispatch resolves the def to a live inventory entry here.)
+pub fn sim_inv_find(s: Sim, defidx: integer) -> integer {
+  iv = s.inv;
+  out = -1;
+  for i in 0..s.ninv {
+    if out < 0 && i < len(iv) {
+      if (iv[i] ?? -1) == defidx { out = i; }
+    }
+  }
+  out
+}
+
+// Quick-slot k -> bound item defidx (or -1 if empty). The view reads this for name/glyph.
+pub fn sim_qs_def(s: Sim, k: integer) -> integer {
+  q = s.qs;
+  if k < 0 || k >= len(q) { return -1; }
+  d1 = q[k] ?? 0;
+  if d1 == 0 { return -1; }
+  d1 - 1
+}
+
+// Slot index currently holding def `defidx`, or -1. (Used to enforce one-slot-per-def.)
+fn qs_find(s: Sim, defidx: integer) -> integer {
+  q = s.qs;
+  out = -1;
+  for i in 0..len(q) {
+    if out < 0 {
+      if (q[i] ?? 0) == defidx + 1 { out = i; }
+    }
+  }
+  out
+}
+
+// Bind def `defidx` to quick-slot k (the one primitive behind auto-slot AND manual reslot). A def
+// lives in at most one slot, so any prior slot holding it is cleared first (re-bind = move). The
+// slot's previous occupant is simply overwritten (unbound). defidx < 0 clears the slot.
+pub fn sim_qs_bind(s: &Sim, k: integer, defidx: integer) {
+  q = s.qs;
+  if k < 0 || k >= len(q) { return; }
+  if defidx < 0 { q[k] = 0; return; }
+  prev = qs_find(s, defidx);                 // move: clear an existing binding of this def
+  if prev >= 0 && prev < len(q) { q[prev] = 0; }
+  q[k] = defidx + 1;
+}
+
+// Auto-slot a freshly-acquired item by category (SLICE type-routing): a consumable fills the next
+// free numeric slot 0..8; a launcher auto-equips + binds active slot Q; ammo is fuel (no slot);
+// anything else (worn gear) gets no quick-slot. Idempotent: an already-slotted def is left alone.
+pub fn sim_qs_autoslot(s: &Sim, defidx: integer) {
+  if defidx < 0 { return; }
+  itbl = item_table();
+  cat = item_cat(itbl, defidx);
+  if qs_find(s, defidx) >= 0 { return; }     // already slotted (e.g. picked up a second of the same)
+  if cat == IT_POTION || cat == IT_SCROLL || cat == IT_FOOD {
+    q = s.qs;
+    free = -1;
+    for i in 0..QS_Q {                        // numeric slots 0..8 only (Q/E reserved for actives)
+      if free < 0 {
+        if (q[i] ?? 0) == 0 { free = i; }
+      }
+    }
+    if free >= 0 { sim_qs_bind(s, free, defidx); }
+  }
+  if cat == IT_BOW {
+    j = sim_inv_find(s, defidx);              // equip the launcher we just picked up...
+    if j >= 0 { sim_equip(s, j); }
+    sim_qs_bind(s, QS_Q, defidx);             // ...and bind FIRE to active slot Q
+  }
+}
+
+// Quick-slot k -> the count to show on the bar. For a launcher slot it's the matching ammo carried
+// (the quiver); for a consumable it's how many of that def are in inventory. 0 = empty/none left.
+pub fn sim_qs_count(s: Sim, k: integer) -> integer {
+  defidx = sim_qs_def(s, k);
+  if defidx < 0 { return 0; }
+  itbl = item_table();
+  cat = item_cat(itbl, defidx);
+  iv = s.inv;
+  n = 0;
+  if cat == IT_BOW {
+    for i in 0..s.ninv {                      // count arrows/shots/bolts in the quiver
+      if i < len(iv) {
+        if item_cat(itbl, iv[i] ?? -1) == IT_AMMO { n = n + 1; }
+      }
+    }
+  } else {
+    for i in 0..s.ninv {                      // count this consumable's stack
+      if i < len(iv) {
+        if (iv[i] ?? -1) == defidx { n = n + 1; }
+      }
+    }
+  }
+  n
 }
 
 // Inventory slot -> item key (for use/inspect routines). "" if empty or out of range.
@@ -905,8 +1010,10 @@ pub fn sim_pickup(s: &Sim) {
         } else {
           ni = s.ninv;
           if ni >= 0 && ni < len(iv) {
-            iv[ni] = fd[i] ?? -1;
+            di = fd[i] ?? -1;
+            iv[ni] = di;
             s.ninv = ni + 1;
+            sim_qs_autoslot(s, di);    // auto-fill a quick-slot on first pickup of a useable item
           }
         }
         fl[i] = 0;
@@ -1569,7 +1676,7 @@ pub fn sim_new() -> Sim {
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
-    eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
+    eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
@@ -1768,7 +1875,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
-    eq: zeros(NUM_SLOTS), wdam: PLAYER_DAM, pac: 0,
+    eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
@@ -1816,6 +1923,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.inv = s.inv;         // carry the inventory; floor items stay on their level
   ns.ninv = s.ninv;
   ns.eq = s.eq;           // carry equipment + its cached effects across levels
+  ns.qs = s.qs;           // carry the quick-slot bindings across levels (like inventory)
   ns.wdam = s.wdam;
   ns.pac = s.pac;
   ns.rstate = s.rstate;
@@ -1857,6 +1965,7 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.inv = s.inv;
   rs.ninv = s.ninv;
   rs.eq = s.eq;
+  rs.qs = s.qs;           // quick-slot bindings survive death (kept like inventory/equipment)
   rs.wdam = s.wdam;
   rs.pac = s.pac;
   rs.phpmax = s.phpmax;

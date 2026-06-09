@@ -24,6 +24,26 @@ pub fn use_item(s: &Sim, slot: integer) -> boolean {
   fired
 }
 
+// Press a quick-slot: dispatch the slot's bound item to the right verb (this is the input layer
+// over use_item + sim_fire, kept here because use_item lives above the kernel). Returns:
+//   0 = nothing happened (empty slot, no ammo/no target, or none of the item left)
+//   1 = a consumable was used
+//   2 = the launcher fired (hit or kill)
+pub fn use_slot(s: &Sim, k: integer) -> integer {
+  defidx = sim_qs_def(s, k);
+  if defidx < 0 { return 0; }                 // empty slot -> no-op
+  cat = item_cat(item_table(), defidx);
+  if cat == IT_BOW {
+    fr = sim_fire(s);                          // launcher: auto-aim + consume ammo (kernel)
+    if fr >= 3 { return 2; }
+    return 0;
+  }
+  j = sim_inv_find(s, defidx);                 // consumable: resolve the binding to a live inv entry
+  if j < 0 { return 0; }                       // bound but none carried (e.g. drank the last one)
+  if use_item(s, j) { return 1; }
+  0
+}
+
 // Effect dispatch by item key. Default cure potions heal by their i_power (data-driven); the
 // Explorer's detect-monsters potion runs its CUSTOM script.
 fn item_effect(s: &Sim, p: Player, key: text) -> boolean {
