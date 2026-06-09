@@ -10,8 +10,9 @@ package: `story`; final in-world name TBD.)
 ## 1. Summary
 
 A **clean-room, ZAngband-style roguelike** written in the **loft** language.
-It plays in **2D today** and is built to become a **3D browser game** later,
-driven by the *same* renderer-agnostic **simulation kernel**.
+The **2D game is first-class and complete in its own right** (some players prefer
+2D); the *same* renderer-agnostic **simulation kernel** also drives an **optional 3D
+browser build**, added for those who want it — **3D is additive, not the destination**.
 
 Defining twist: the player moves and turns **smoothly and continuously**,
 enemies live on a **hex grid**, and the game clock is **driven by how far the
@@ -42,7 +43,8 @@ over hand-authored content.
 - A **playable** roguelike — open it, drive around, fight, lose.
 - A **renderer-agnostic simulation kernel**: all rules/state, zero rendering;
   2D and future 3D are interchangeable front-ends.
-- **2D now → 3D browser later** with no kernel rewrite.
+- **2D as a complete game; an optional 3D browser front-end** on the same kernel,
+  no rewrite (3D additive, not the destination).
 - **Deterministic** simulation (testing, replay, world-keyed generation).
 - **Procedural** content throughout; **no IP risk** (§4).
 
@@ -280,8 +282,72 @@ fields and `moros_render` draws them (`y = h_height·HEIGHT_SCALE`, slopes via
 `emit_slope_face`, layers stacked). Additive terrain data, 1:1 with `moros_map`
 → free 3D hand-off. **Height deltas between adjacent hexes are slopes/cliffs**
 (→ rock faces, §9). Surfaced for later: step-up limit + climb cost vs. the
-clock; height-aware FOV; layer traversal (**stairs → §8a**, a 3D-build item); the 2D
-view shows one layer at a time (height as shading).
+clock; height-aware FOV; **layer changes** (stairs/ladders/trap doors/cliffs — §8a;
+walk-onto stairs is 2D-done) and **reading adjacent layers** on the plane (§7a —
+sky/ceiling/shadows + the lower layer over a cliff); the 2D view shows one layer at a
+time (height as shading).
+
+---
+
+## 7a. Reading adjacent layers on the 2D plane — sky, ceiling, shadows & cliffs
+
+*Designed first (the user's call). A near-term 2D render feature; it reads the layer-above
+data, so it rides §7's multi-layer model (L6) + §9's outline engine — a **no-op on today's
+single-layer dungeon**, designed now to land with that work.* This is the clearest case of
+the guiding principle: **the 2D game is first-class and complete in its own right (some
+players prefer 2D) — most of the design lives on the 2D plane, and the *optional*
+`moros_render` build just *extrudes* it** (round towers, stairs §8a, height §7 are each
+designed and playable in 2D first; **3D is additive, not the destination**). Here the 2D
+floor is made to *read* the layers **above** (sky / ceiling / cast shadows) and **below**
+(the lower layer seen over a cliff).
+
+**What's overhead.** For a hex `(q,r)` on layer `cy`, consult one layer up (`cy+1`) only —
+not deeper levels:
+- **Open to sky** — nothing solid at `(q,r,cy+1)`: daylight reaches the floor.
+- **Under a ceiling** — `(q,r,cy+1)` is solid (a roof / the floor of a structure above).
+
+**Three cues, all planar stand-ins for what 3D would render for free:**
+
+1. **Sky-vs-ceiling tint (per hex).** Tint the floor by the overhead test: **open-sky**
+   hexes catch daylight — **brighter, slightly warm** (aged stone in sun); **ceilinged**
+   hexes are **dimmer / cooler** (in shade). One clear value step → you read *inside vs
+   outside* at a glance. A per-hex brightness multiplier on the floor colour: the kernel
+   exposes `hex_ceilinged(q,r)`, the view applies the tint. In 3D the roof casts this shade
+   for real; in 2D the tint fakes it.
+
+2. **Cast shadow of the structure above (exact projection).** Take the `cy+1` structure's
+   **footprint outline** — the *same polygon §9's overlay engine already emits* for its
+   walls/buildings — and **project it onto the `cy` floor**, offset by a fixed sun vector:
+   `shadow_poly = footprint ⊕ (sun_dir · height_above · k)`. Floor under the footprint =
+   full ceiling-shade; floor inside the *offset* polygon = the cast shadow. You see "a
+   building stands overhead" from its shadow across the floor — a 2D cue for real 3D
+   structure. This is an **exact-invariant projection** (a fixed affine offset of a known
+   polygon): per the `design-protocol` skill, **plot the concrete end-result first** (one
+   footprint + one sun vector → the exact shadowed hexes) in a tiny `tools/` prototype —
+   like the wall straightener — *then* port. Don't approximate it.
+
+3. **The lower layer over a cliff edge.** When the player stands **beside a cliff** (a
+   height edge dropping to `cy-1` — §7, a §9 rock-face boundary), render the **lower
+   layer** visible over the drop — its floor + features — drawn **darker and blurred**
+   (atmospheric depth: less light, out of the focal plane). You *see down* into the area
+   you could jump or be pushed into (pairs with the cliff portal, §8a). Only the
+   immediately-lower layer (`cy-1`), only the region the cliff edge reveals from the
+   player's side. In 3D you simply see down the cliff; the 2D dim+blur composite is the
+   planar stand-in. (Which `cy-1` hexes the edge reveals is a geometry question — if it
+   needs to be exact, pin the end-result first, `design-protocol`.)
+
+**Scope & dependencies.**
+- Applies where a layer **above** exists: the **overworld + buildings** (outside = sky;
+  under a roof = ceiling + its cast shadow) and **multi-storey structures** (an upper floor
+  shades the one below). Needs the multi-layer data (§7 L6) + the §9 footprints — so it's a
+  no-op on the current single dungeon, designed now to land with that work.
+- **Deeper enclosed levels** (no sky above) — *maybe later* (the user's "we might even do
+  something there too"): a faint ambient/depth darkening, or a hint of the level overhead.
+  **Out of scope now.**
+- Architecture (§5): the **geometry is kernel / outline-engine** (renderer-agnostic —
+  `hex_ceilinged`, the projected shadow polygons); the **tint/shadow *drawing* is
+  view-side**. `moros_render` reproduces both from real geometry + a light; the 2D version
+  is the planar stand-in.
 
 ---
 
@@ -308,49 +374,58 @@ dungeon identically.
 
 ---
 
-## 8a. Stairs & level transitions (moros-aligned) — *locked design, for the 3D build*
+## 8a. Layer changes & level transitions — *2D mechanics & look now, 3D meshes later*
 
-**Not near-term.** This is **3D-version work** — parked here and linked (§7 "layer
-traversal", §18a Eventually) so it's ready when we build the 3D/`moros_render` path; the
-2D game keeps its current simple stairs. Probed `../moros` (the 3D target) and `../dryopea`
-for stair designs (2026-06-09); `../Dryopea` is the Dryopea language, not a game (nothing to
-take). **moros is the source**, and crawler is already aligned on the key axis. When built,
-the transition *pairing* is an exact-invariant **protocol**, so plot the concrete end-result
-(which `>` maps to which arrival `<`) and pin it *before* coding (the `design-protocol`
-skill — generative/constructive case).
+Most of the layer-change design lives on the **2D plane** (§7a); only the portal geometry
+(steps, rungs, cliff face) is genuinely 3D. Probed `../moros` (the 3D target) + `../dryopea`
+(2026-06-09; `../Dryopea` is the Dryopea language, not a game). moros is the source, and
+crawler's `(wseed, depth)` already *is* moros's per-layer `(seed, cy)` — so **`depth ↔ cy`**
+locks with no rework.
 
-**The moros model — a stair is a *material*; depth is the layer `cy`.**
-- A stair is a **floor material carrying a `StairKind`** (`LINEAR | SPIRAL | GRAND_ARC`)
-  plus a `climbable` category flag — **not** a separate entity. The stair *is* the tile.
-- **Depth = the vertical chunk coordinate `cy`** (§7): each level is an independent hex
-  grid at a different `cy`, regenerated from `(seed, cy)`. **crawler's `(wseed, depth)`
-  already *is* this** — so we lock `depth ↔ cy` as one axis (no rework; just the name).
-- The per-hex **`h_height`** (§7) carries the step delta; `moros_render` emits the 3D
-  stair geometry from `StairKind` + height — **spiral** stairs around a **newel** column,
-  **grand-arc** stairs along an **arc_pivot** radius marker. **The 2D view ignores
-  kind/height** (a stair stays a `>`/`<` glyph as today); the metadata is kernel data =
-  forward-insurance, so enabling moros 3D stairs later needs no kernel change.
-- **`moros_init` pattern** (the user's aside): palette-first — `well_known_materials /
-  walls / items` → load map → init state; no global boot. crawler's analog (the
-  `monsters`/`items` DBs loaded before `sim_new_gen`) is **already this shape** — no change.
+**2D plane — now / near-term:**
+- **Mechanic — walk onto a stair to change level (DONE).** Step onto a `>` to descend, a
+  `<` to ascend; no button — this is *why* E/Q stay free (§12). Edge-triggered: fires only
+  on *entering* a stair hex, and the arrival stair is armed so you land on it without
+  bouncing back (step off and re-enter to use it again). `sim_descend` regenerates
+  `(wseed, depth)` and carries the hero (HP/XP/gold/inventory/equipment).
+- **Means — one transition core, several portals.** The *same* layer-change (move `cy±1`,
+  regenerate/load the destination, place at the arrival point) drives all of these — one
+  invariant at the chokepoint, parameterized by *direction · trigger · reversibility ·
+  fall-cost*, **not** four separate mechanisms (engineering-rigor):
 
-**Angband enrichments to adopt when built:**
-- **Multiple stairs per level**, intentionally placed (real Angband scatters several
-  `>`/`<`) — replaces today's single `>` (farthest floor hex) + single `<` (start). The
-  immediate exploration/authenticity win.
-- **A transition lands you on the matching arrival stair** (descend a `>` → arrive on a
-  `<`), as today — but with several stairs the **pairing** (which `>` → which arrival `<`)
-  is the exact-invariant to pin first (concrete end-result before code).
-- *(optional, from `../dryopea`'s free-landing)* **player-chosen descent** — pick which
-  `>` to take; richer than one forced exit. Also its **carryover-between-areas** echoes
-  §3a's hauling model.
-- **`StairKind` + height** added to the kernel as **data-only** fields now (2D ignores
-  them) so the 3D stair-geometry bridge is wired ahead of need.
+  | Portal | Dir | Trigger | Feel / cost |
+  |---|---|---|---|
+  | **Stairs** | up & down | walk onto | gradual; the graded stepped look below |
+  | **Ladder** | up & down | walk onto (climb) | steep 1-hex shaft; rung pattern |
+  | **Trap door** | down only | walk onto (often hidden, sprung) | sudden fall, one-way — a surprise |
+  | **Cliff jump / push** | down only | move off a height edge, or **knockback** | a fall → damage; ties §7 cliffs + combat knockback (shove a foe off a ledge, or get shoved) |
 
-**Current 2D baseline (what this enriches):** tile kind `2 = down`, `3 = up`; one `>` at
-the farthest reachable floor hex, one `<` at the player start; `sim_descend(dir)`
-regenerates `(wseed, depth)` and drops the player on the arrival stair. Per-(cy/depth)
-level-state persistence (§8) restores a level on re-entry.
+  All are 2D mechanics (walk-onto / fall / knockback all resolve on the plane); only each
+  portal's 3D geometry (rungs, hatch, cliff face) is deferred (below).
+- **Look — a small staircase that *reads* as stairs (draw-skill task).** Replace the flat
+  `>`/`<` glyph with a graded step form: a **stepped line pattern + shadows** so a cold
+  read names it "stairs" (the draw done-criterion, CLAUDE.md) — graded so **up = steps
+  fanning *wider* + *lighter/white*** (ascending toward light) and **down = steps narrowing
+  + *darker*** (descending into dark). Direction reads from value + perspective, no glyph.
+  Author via the draw skill (PNG + recognition critic), composite where the glyph was.
+- **Layout — multiple stairs per level + pairing.** Real Angband scatters several `>`/`<`
+  (replaces today's single `>` at the farthest floor hex + single `<` at start). Which `>`
+  maps to which arrival `<` is an **exact-invariant protocol** — plot the concrete
+  end-result and pin it *before* coding (`design-protocol` skill). *(optional, from
+  `../dryopea`'s free-landing: player-chosen descent; its carryover echoes §3a hauling.)*
+
+**3D extrusion — deferred to the 3D build (§18a Eventually):**
+- A stair becomes a **floor material with a `StairKind`** (`LINEAR | SPIRAL | GRAND_ARC`) +
+  `climbable` flag; the per-hex **`h_height`** (§7) is the step delta; `moros_render` emits
+  the geometry — **spiral** around a **newel** column, **grand-arc** along an **arc_pivot**
+  radius. Add `StairKind`/height as kernel **data-only** fields when the 3D path is wired;
+  the 2D look above already conveys direction, so nothing blocks on it.
+- **`moros_init` shape** (the aside): palette-first (`well_known_materials/walls/items` →
+  map → state); crawler's monster/item DBs before `sim_new_gen` already match — no change.
+
+**Current 2D baseline (what the above enriches):** tile kind `2 = down`, `3 = up`; one `>`
+at the farthest reachable floor hex, one `<` at the player start; walk-onto transition;
+per-(cy/depth) level-state persistence (§8) restores a level on re-entry.
 
 ---
 
@@ -547,8 +622,10 @@ tick in place. A turn engine wearing a real-time coat.
 
 **Controls** (analog/held; release stops immediately, no inertia):
 `W`/`S` glide forward/back (cost time), `A`/`D` turn (free), `.`/`Space` wait,
-bump-forward-into-enemy = melee. Heading is a continuous float (the "30°" is
-turn *feel*, not quantization).
+`g` grab, bump-forward-into-enemy = melee, and **walk onto a `>`/`<` to change
+level** (no button — §8a). `E` and `Q` are **reserved** for character actions
+(fire arrow / cast spell), which is why stairs are walk-onto, not a key. Heading is
+a continuous float (the "30°" is turn *feel*, not quantization).
 
 **Camera — egocentric, forward-biased:** the world rotates around the player so
 heading is always "up"; player anchored **~70% down** the screen (rear-visibility
@@ -984,10 +1061,12 @@ UVs.) Now: one PNG per sprite via `gl_load_texture`.*
 ### Eventually
 - [ ] **L6** multi-layer height model (§7); the feature-overlay processor
   (houses → roads → castles), incl. the parked Douglas–Peucker straightener.
-- [ ] **Stairs & level transitions** (**§8a**) — moros-aligned: stair-as-material +
-  `StairKind` (linear/spiral/grand-arc) + per-hex height, `depth ↔ cy`, multiple stairs,
-  transition pairing (pin the end-result first). Rides the 3D build (M4) + L6; the 2D game
-  keeps its simple stairs until then.
+- [ ] **Layer system** (**§7a + §8a**) — rides L6: multi-portal layer changes (ladder /
+  trap door / cliff jump-push — one transition core), reading adjacent layers on the plane
+  (sky/ceiling tint, cast shadow of the layer above, the lower layer over a cliff edge —
+  darker/blurred), multiple stairs + pairing (pin the end-result first). The **3D meshes**
+  (stair `StairKind`/newel, cliff face, hatch) ride M4. *(walk-onto stairs: shipped, 2D;
+  the stepped+shadowed stair sprite — §8a "Look" — is a near-term draw task.)*
 - [ ] **M4** 3D browser — `moros_render::camera_follow` over the unchanged kernel;
   single-HTML WebGL. *Blocked by `E0514` — see `LOFT_ISSUES.md` C15.*
 - [ ] **Testing tiers** — `placestats` (main-stats-style distribution harness),

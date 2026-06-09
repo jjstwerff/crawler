@@ -1,13 +1,16 @@
 # CLAUDE.md — crawler quick reference
 
 Clean-room, ZAngband-style **hex roguelike** written in **loft** (package `story`,
-repo `crawler`). 2D today; the *same* renderer-agnostic kernel is meant to drive a
-3D/WebGL build later. Full design + roadmap: **DESIGN.md** (backlog = §18a).
+repo `crawler`). **The 2D game is first-class and complete in its own right** (some
+players prefer 2D) — *most of the design lives on the 2D plane* (DESIGN §7a); the *same*
+renderer-agnostic kernel also drives an **optional** 3D/WebGL build added for those who
+want it (3D is additive, not the destination). Full design + roadmap: **DESIGN.md**
+(backlog = §18a).
 
 ## Run / build / test
 
 ```sh
-make play     # native window (W/S glide, A/D turn, E stairs, . wait, Esc quit)
+make play     # native window (W/S glide, A/D turn, walk onto stairs, . wait, g grab, Esc quit)
 make test     # headless deterministic gate — RUN THIS before committing
 make check    # quiet compile-only gate (parse + bytecode), no display
 make shot     # one Xvfb frame -> story.png  (positionally unreliable, see below)
