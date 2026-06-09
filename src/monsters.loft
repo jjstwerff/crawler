@@ -14,6 +14,7 @@ pub const MF_CASTER     = 4;    // ranged attack / spells
 pub const MF_BREEDER    = 8;    // multiplies if left alone
 pub const MF_NEVER_MOVE = 16;   // stationary (molds, eyes)
 pub const MF_UNIQUE     = 32;   // named boss, one per game
+pub const MF_GLOW       = 64;   // self-luminous: seen without the player's light (given LOS)
 
 pub struct MonsterDef {
   m_key:    text,                 // stable id, e.g. "giant_rat"

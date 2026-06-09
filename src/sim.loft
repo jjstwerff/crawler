@@ -28,6 +28,12 @@ NUM_SLOTS  = 12;      // equipment slots, indexed by SLOT_* (0 = SLOT_NONE, 11 =
 SAVE_INTERVAL = 3;    // a save-point level every 3 levels (depth 1, 4, 7, …) — checkpoint respawn
 GRAVE_PCT  = 50;      // % of gold left on a grave at the death spot (Souls stake — §3a #5)
 VISION_RADIUS = 10;   // FOV radius DIRECTLY AHEAD — a directed lamp; later from the equipped light
+// Monster perception channels — how the player knows a monster is there (best channel wins).
+pub const SENSE_NONE = 0;   // not perceived
+pub const SENSE_HEAR = 1;   // heard — an awake monster nearby, even out of sight (noise)
+pub const SENSE_FEEL = 2;   // felt — position known through walls (detection / telepathy)
+pub const SENSE_SEE  = 3;   // seen — in the lit field of view
+HEAR_RADIUS = 6;      // an awake monster within this is "heard" when not seen
 NEAR_RADIUS = 1;      // always-visible bubble (own + adjacent); also the sight radius behind you
 
 // Fresh zero-filled int vector of length n (build-time append to a local works;
@@ -870,6 +876,44 @@ pub fn sim_hex_state(s: Sim, q: integer, r: integer) -> integer {
 pub fn sim_hex_state_at(s: Sim, wx: float, wy: float) -> integer {
   (q, r) = px_to_hex(wx, wy);
   sim_hex_state(s, q, r)
+}
+
+// Line of sight from the player to hex (q,r) — convenience for perception/targeting.
+pub fn sim_los_to(s: Sim, q: integer, r: integer) -> boolean {
+  (pq, pr) = px_to_hex(s.px, s.py);
+  hex_los(s, pq, pr, q, r)
+}
+
+// How the player PERCEIVES monster `i` right now — the canonical perception query a full game
+// renders + reasons from (the view shows SEEN solid, FELT as a marker, HEARD as a blip). Best
+// channel wins: SEE > FEEL > HEAR > NONE. Everything that changes perception plugs in HERE as
+// a modifier, never as a view special-case:
+//   - the player's lit FOV (sim_hex_state) feeds SEE;
+//   - a self-luminous monster (MF_GLOW) is its own light — SEEN in the dark given LOS;
+//   - the detect-monsters potion / telepathy (s.detect_t) feeds FEEL (through walls);
+//   - an awake monster's noise within HEAR_RADIUS feeds HEAR.
+pub fn sim_monster_sense(s: Sim, i: integer) -> integer {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return SENSE_NONE; }
+  e = enemies[i];
+  if !e.alive { return SENSE_NONE; }
+  if sim_hex_state(s, e.cur_q, e.cur_r) == 2 { return SENSE_SEE; }   // in the player's lit FOV
+  (pq, pr) = px_to_hex(s.px, s.py);
+  if (e.flags & MF_GLOW) != 0 && hex_los(s, pq, pr, e.cur_q, e.cur_r) {
+    return SENSE_SEE;                                                // glows: no light needed, just LOS
+  }
+  if s.detect_t > 0 { return SENSE_FEEL; }                          // detection / telepathy modifier
+  if e.awake && hex_distance(pq, pr, e.cur_q, e.cur_r) <= HEAR_RADIUS { return SENSE_HEAR; }
+  SENSE_NONE
+}
+
+// Make monster `i` self-luminous (MF_GLOW) — for glowing monster types, or a "faerie fire"
+// style effect that lights one up. Feeds sim_monster_sense's SEE-without-light channel.
+pub fn sim_make_glow(s: &Sim, i: integer) {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return; }
+  e = enemies[i];
+  e.flags = e.flags | MF_GLOW;
 }
 
 pub fn sim_tick(s: &Sim) {

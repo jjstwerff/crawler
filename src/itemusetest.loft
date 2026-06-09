@@ -24,16 +24,54 @@ fn main() {
   heal_gone = sim_find_item(s, "potion_cure_light") < 0;
   heal_ok = used_heal && hp_healed > hp_hurt && heal_gone;
 
-  // 2) drink the custom-script detect potion -> detection on, consumed, then expires
+  // 2) the perception query (sim_monster_sense) + its modifiers ---------------------------
+  // GLOW (SEE channel), on its own fresh world so it doesn't tangle with the detect ticks: face
+  // enemy 0 to confirm it's in LOS+range (reads SEEN), turn the lamp 180° away so it drops out
+  // of sight, then make it glow — its own light must read it SEEN again (LOS unchanged).
+  gs = sim_new();   // the open arena (like itemtest) — monster 0 is reachable by a straight charge
+  // Walk toward monster 0 (re-aiming, like the combat charge) until it enters the lit FOV —
+  // that proves LOS+range. Stop at first sight (still far, beyond the near-bubble).
+  for _ in 0..500 {
+    if sim_enemy_alive(gs, 0) && sim_monster_sense(gs, 0) != SENSE_SEE {
+      (ex, ey) = sim_enemy_pos(gs, 0);
+      gs.heading = atan2(ey - gs.py, ex - gs.px);
+      sim_step(gs, 1, 0, 0.016);
+      sim_compute_fov(gs);
+    }
+  }
+  glow_ok = true;                 // soft: stays true if monster 0 never came into LOS to exercise it
+  glow_dark = SENSE_NONE;
+  glow_lit = SENSE_NONE;
+  if sim_enemy_alive(gs, 0) && sim_monster_sense(gs, 0) == SENSE_SEE {
+    (ex, ey) = sim_enemy_pos(gs, 0);
+    gs.heading = atan2(gs.py - ey, gs.px - ex);     // turn the lamp 180° away
+    sim_compute_fov(gs);
+    glow_dark = sim_monster_sense(gs, 0);            // dropped out of the lit FOV
+    if glow_dark < SENSE_SEE {                        // genuinely unlit now (beyond the near-bubble)
+      sim_make_glow(gs, 0);
+      glow_lit = sim_monster_sense(gs, 0);
+      glow_ok = glow_lit == SENSE_SEE;              // glow alone restored sight -> PROVEN
+    }
+  }
+
+  // FEEL (detect-monsters potion modifier): an unseen monster becomes FELT through walls while
+  // the potion is active, and is no longer FELT once it expires.
+  j = -1;
+  for k in 0..16 {
+    if j < 0 && sim_enemy_alive(s, k) && sim_monster_sense(s, k) < SENSE_SEE { j = k; }
+  }
   dslot = sim_find_item(s, "potion_detect_monsters");
   used_det = use_item(s, dslot);
-  detect_on = sim_detect_active(s);
+  sense_on = SENSE_NONE;
+  if j >= 0 { sense_on = sim_monster_sense(s, j); }
   det_gone = sim_find_item(s, "potion_detect_monsters") < 0;
-  for i in 0..40 { sim_tick(s); }      // run past the 30-turn detection window
-  detect_off = !sim_detect_active(s);
-  detect_ok = used_det && detect_on && det_gone && detect_off;
+  for k in 0..40 { sim_tick(s); }                  // run past the 30-turn detection window
+  sense_off = SENSE_NONE;
+  if j >= 0 { sense_off = sim_monster_sense(s, j); }
+  detect_ok = used_det && det_gone && j >= 0 && sense_on == SENSE_FEEL && sense_off != SENSE_FEEL;
 
   println("heal:   hurt={hp_hurt} healed={hp_healed} consumed={heal_gone}");
-  println("detect: on={detect_on} consumed={det_gone} expired={detect_off}");
-  if heal_ok && detect_ok { println("=== ITEM-USE OK ==="); } else { println("=== FAIL ==="); }
+  println("glow:   lamp-away={glow_dark} after-glow={glow_lit} (SEE={SENSE_SEE})");
+  println("detect: unseen={j} while-active={sense_on} (FEEL={SENSE_FEEL}) after-expiry={sense_off} consumed={det_gone}");
+  if heal_ok && glow_ok && detect_ok { println("=== ITEM-USE OK ==="); } else { println("=== FAIL ==="); }
 }
