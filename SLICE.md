@@ -96,7 +96,29 @@ is NEEDED, so it stays an honest backlog. (Cross-refs the DESIGN §18a backlog.)
 - **Passive skills.** HAVE: `grant_skill` / `grant_save` API — but STUBS (no store).
   NEED: a real per-player skill store + derivation (class/level/stat) and the skills *feeding
   outcomes*: to-hit / to-dam (melee), saving throw, stealth (aggro range), device, disarm.
-  The biggest of the four — currently nothing is backed.
+  The biggest of the four — currently nothing is backed. *(Melee skill shipped: `sim_skill_melee`.)*
+
+### The Character Page — explain + level up (one shared-view screen)
+One page, opened any time (e.g. `C`), is the home for **three things at once**: the **character
+sheet**, the **glossary** (a one-line explanation beside every term), and the **stat level-up**
+(spend banked points here — never a forced prompt; you open it when you choose). Lives in
+`view.loft`/`story.loft`, so **native GL *and* WebGL both get it**. Kernel API is ready:
+`sim_stat_points`, `sim_can_raise_stat`, `sim_raise_stat`, + the stat/skill/save accessors.
+*View build (render + `C`-to-open + select/raise input) is the next step — user-verified in-browser.*
+
+**Starter one-liners (the content the page renders — accurate to what's built):**
+- *Level / XP* — "Kill monsters for XP; each level grows max HP and banks one stat point."
+- *Stat points* — "Spend to raise a stat by +1. Never forced — save them and raise when you need it."
+- *Stat cap* — "A stat rises at most once per 3 character levels (so you can't dump one stat)."
+- *STR* — "Sharpens melee damage." · *CON* — "Raises your saving throw (and HP with level)."
+  · *INT/WIS/DEX/CHR* — "spells / devices / accuracy / prices — as those systems land."
+- *Saving throw* — "% chance to resist magic/elemental damage; grows with level, CON, armour; never 100%."
+- *Melee skill* — "A flat bonus to melee damage, from your level and STR."
+- *Item effects* — heal "restores HP" · detect "reveals nearby monsters through walls a while" ·
+  buff/drain "temporarily raises/lowers a stat" · teleport "moves you across the level."
+- *Slow* "acts at half pace" · *Stun* "frozen — banks no actions."
+- *Weapon* "melee damage" · *Armour* "AC: more HP + damage reduction" · *Light* "vision radius"
+  · *Potion/Scroll/Food* "use from inventory."
 
 ### Tier 2 — threat & survival (the dungeon gets teeth)
 - **Monster special attacks.** Casters cast; breath, drain (stat/XP), steal, paralyse, poison —
