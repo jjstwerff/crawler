@@ -67,3 +67,48 @@ dungeon; the whole gate stays green.
   `story.html` is yours to confirm.
 - **v1.1 follow-ups:** live ticking crystal spawner (needs the enemy array as a fixed-cap store),
   the inert floating-eye fix, monster special attacks, the world-bundle link.
+
+## Beyond the slice — making the full Angband experience functional
+
+The slice proves the loop; these turn it into the full game. Each item notes what EXISTS vs what
+is NEEDED, so it stays an honest backlog. (Cross-refs the DESIGN §18a backlog.)
+
+### Tier 1 — depth on the existing loop (the four to do first)
+- **Levelling.** HAVE: XP (`sim_award_xp`), `clevel`, the XP curve, HP-by-level (`hero_maxhp`).
+  NEED: level-up *does* something — an HP roll, the 3-layer stats growing, a skill bump, and
+  player feedback ("Welcome to level N").
+- **Inventory.** HAVE: the data model (fixed array, slots, `give_item`/`equip`, floor pickup).
+  NEED: the in-game inventory *screen* — browse / select / wield / drop / examine — plus item
+  stacking (weight/encumbrance optional).
+- **Use item.** HAVE: `use_item` + the effect-script dispatch + 2 effects (heal, detect).
+  NEED: effects for the whole usable set (potions, scrolls, wands/staves, food) and the
+  select-from-inventory UI to invoke them live.
+- **Passive skills.** HAVE: `grant_skill` / `grant_save` API — but STUBS (no store).
+  NEED: a real per-player skill store + derivation (class/level/stat) and the skills *feeding
+  outcomes*: to-hit / to-dam (melee), saving throw, stealth (aggro range), device, disarm.
+  The biggest of the four — currently nothing is backed.
+
+### Tier 2 — threat & survival (the dungeon gets teeth)
+- **Monster special attacks.** Casters cast; breath, drain (stat/XP), steal, paralyse, poison —
+  per-monster *blows* with effect + element. Today melee-only; `MF_CASTER` is decorative, the
+  floating eye inert. Reuses the status system + `damage(kind)` + the perception query.
+  **Single biggest leap in feel; most scaffolding already built.**
+- **Player status conditions.** poison / fear / confusion / blindness / paralysis / cut / stun +
+  slow / haste / bless. The timed-status system exists (player→monster); wire monster→player.
+- **Per-element damage + resistances.** `damage(amount, kind)` exists; make `kind` real
+  (fire/cold/acid/elec/poison) with resist / immunity / vulnerability.
+- **Hunger + light.** eat / starve; mortal torches burn down + refuel (Everbright stays infinite);
+  rest + HP/SP regen.
+
+### Tier 3 — Angband breadth
+- **Ranged + magic.** fire bow+ammo, throw, cast from spellbooks + mana/SP, targeting (the
+  reserved E/Q layer; `sim_los_to` is ready).
+- **Item depth.** identification (unknown items), ego items / artifacts, enchantment
+  (+hit/+dam/+AC), curses (sticky gear), per-monster loot tables.
+- **World.** shops / town / Word of Recall; doors / traps / secret-search / digging; the
+  world-bundle link (the proper desert→dungeon) + quests/overlays (the serpent scenario).
+
+### Suggested order
+**Tier 1** first — it makes what already exists *deep and usable* (highest felt quality per unit
+work, and the four named). Then **Tier 2** (the dungeon becomes dangerous — start with monster
+special attacks). Then **Tier 3** breadth. Throughout: kernel = mechanism, content = bundles.
