@@ -1,0 +1,11 @@
+{
+  "key": "warrior",
+  "name": "Warrior",
+  "kind": "character",
+  "module": "warrior",
+  "entry": "activate",
+  "desc": "Master of arms. Heaviest armour and the toughest constitution; no magic.",
+  "stats": { "con": 2 },
+  "gold": 30,
+  "kit": ["broad_sword", "chain_mail", "small_shield", "wooden_torch", "potion_cure_light"]
+}

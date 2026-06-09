@@ -1,0 +1,10 @@
+{
+  "key": "mage",
+  "name": "Mage",
+  "kind": "character",
+  "module": "mage",
+  "entry": "activate",
+  "desc": "Arcane spellcaster. Fragile and item-light, but commands the deepest magic.",
+  "gold": 15,
+  "kit": ["dagger", "wooden_torch", "cloak", "potion_cure_light"]
+}

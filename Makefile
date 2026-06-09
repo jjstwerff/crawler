@@ -62,6 +62,10 @@ else
   LOFTFLAGS := --path $(LOFT_REPO)/ --lib $(LOFT_REPO)/lib/
 endif
 
+# Character bundles live in bundles/<name>/; add each as a lib dir so the generated
+# src/bundles.loft can `use` them. Auto-discovered — drop a bundle dir and it's included.
+LOFTFLAGS := $(LOFTFLAGS) $(addprefix --lib ,$(wildcard bundles/*/))
+
 # Which loft repo `make loft-doctor` compares the installed binary against.
 REF_REPO ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../loft2)
 
@@ -193,6 +197,10 @@ test:
 	@grep -q "FOV OK" /tmp/story_fov.log || { echo "    FAIL: FOV"; exit 1; }
 	@echo "  [13/13] compile gate (parse + bytecode) ..."
 	@$(LOFT) --interpret --check $(LOFTFLAGS) $(SRC) >/dev/null 2>&1 || { echo "    FAIL: compile"; exit 1; }
+	@echo "  [bundles] regenerate index + character-bundle test ..."
+	@python3 tools/gen_bundles.py >/dev/null
+	@$(LOFT) --interpret $(LOFTFLAGS) src/bundletest.loft | tee /tmp/story_bundle.log
+	@grep -q "BUNDLE OK" /tmp/story_bundle.log || { echo "    FAIL: bundles"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

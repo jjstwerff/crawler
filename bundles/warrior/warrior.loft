@@ -1,0 +1,14 @@
+// Warrior bundle — loading script (see explorer/ for the model). Heavy arms + armour,
+// toughest constitution, a little coin. Uses only the internal Player API.
+use sim;
+use player;
+
+pub fn activate(s: &Sim, p: Player) {
+  p.equip(s, "broad_sword");
+  p.equip(s, "chain_mail");
+  p.equip(s, "small_shield");
+  p.equip(s, "wooden_torch");
+  p.give_item(s, "potion_cure_light");
+  p.grant_stat(s, "con", 2);
+  p.grant_gold(s, 30);
+}

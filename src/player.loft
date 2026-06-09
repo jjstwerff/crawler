@@ -45,3 +45,29 @@ pub fn grant_skill(self: Player, s: &Sim, skill: text, n: integer) {
 pub fn grant_save(self: Player, s: &Sim, save: text, n: integer) {
   sim_grant_save(s, save, n);
 }
+
+// Give the player gold; a NEGATIVE amount spends it (shopping / paying / selling-back).
+pub fn grant_gold(self: Player, s: &Sim, amount: integer) {
+  sim_grant_gold(s, amount);
+}
+
+// Award experience to the player (drives levelling).
+pub fn grant_xp(self: Player, s: &Sim, amount: integer) {
+  sim_award_xp(s, amount);
+}
+
+// Heal the player (clamped to max HP).
+pub fn heal(self: Player, s: &Sim, amount: integer) {
+  sim_heal(s, amount);
+}
+
+// Hurt the player with `amount` damage of a `kind` (physical/fire/cold/poison/…). Generic
+// HP loss today; per-kind resistances/effects land later — the API is fixed from the start.
+pub fn damage(self: Player, s: &Sim, amount: integer, kind: text) {
+  sim_damage(s, amount, kind);
+}
+
+// Move the player to hex (q,r) — placement, level arrival, scripted movement.
+pub fn teleport(self: Player, s: &Sim, q: integer, r: integer) {
+  sim_teleport(s, q, r);
+}

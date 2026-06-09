@@ -1,0 +1,27 @@
+// bundletest — the character-bundle system. tools/gen_bundles.py discovers bundles/*/ and
+// emits src/bundles.loft; activating a bundle runs its load-script, which sets up the active
+// player through the Player API. Verifies >= 3 bundles are discovered and each one equips a
+// weapon and a light (i.e. its load-script ran and the player methods mutated the Sim).
+use sim;
+use items;
+use bundles;
+
+fn main() {
+  println("=== story bundle test (character bundles) ===");
+  keys = bundle_keys();
+  nb = len(keys);
+  println("discovered bundles: {nb}");
+  ok = nb >= 3;
+  for bi in 0..nb {
+    if bi < nb {
+      k = keys[bi] ?? "";
+      s = sim_new();
+      bundle_activate(s, k);
+      lit = sim_equipped(s, SLOT_LIGHT) >= 0;
+      wep = sim_equipped(s, SLOT_WEAPON) >= 0;
+      println("  {k} ({bundle_name(k)}): weapon={wep} light={lit}");
+      if !(lit && wep) { ok = false; }
+    }
+  }
+  if ok { println("=== BUNDLE OK ==="); } else { println("=== FAIL ==="); }
+}

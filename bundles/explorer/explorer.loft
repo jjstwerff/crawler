@@ -1,0 +1,17 @@
+// Explorer bundle — the loading script, run when this character bundle activates (the
+// Explorer is picked). It sets up the active player through the internal Player API
+// (player.loft) — never touching kernel internals directly. Loosely coupled: nothing
+// outside points here; tools/gen_bundles.py discovers this dir and emits src/bundles.loft
+// with the dispatch. A bundle can grow (stat tilt, starting quest, house/save-point,
+// script hooks — BUNDLE.md "classes-are-bundles"); today it seeds the kit.
+use sim;
+use player;
+
+pub fn activate(s: &Sim, p: Player) {
+  p.equip(s, "everbright_torch");        // the Explorer's prize — a great late-game light
+  p.equip(s, "short_sword");
+  p.equip(s, "soft_leather_armor");
+  p.equip(s, "cloak");
+  p.give_item(s, "potion_cure_light");
+  p.grant_stat(s, "con", 1);             // hardy far-traveller
+}
