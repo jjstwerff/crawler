@@ -54,6 +54,12 @@ This retained `Vertex`/`Triangle` model *is* `moros_render`'s (`emit_hex_surface
 `emit_wall_quad`). A 2D world mesh now is the same architecture, a 2D projection — the
 step toward the 3D/WebGL build (the stated goal). Not throwaway.
 
+The **3D pipeline uses the `glb` lib** — unused while we're 2D, but **load-bearing the
+moment 3D is enabled**. `glb` is an auto-native lib in a versioned registry dir, so it
+hit the auto-cdylib crate-name bug (loft#294); the fix (`c494e0a`) means it now builds
+cleanly — forward-insurance so the moros 3D bridge won't hit a silent native-build
+failure when we turn it on.
+
 ## Staged plan (a focused task **after** the kernel FOV)
 
 - **R1 — World mesh.** ✅ **Proven** (`src/gpushot.loft`): the depth-1 dungeon renders as
