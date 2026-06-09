@@ -1,0 +1,67 @@
+// gpuatlas — R2 proof (RENDER.md): pack the game's token glyphs into ONE SpriteSheet
+// atlas (canvas + draw_text per cell → create_sprite_sheet) and draw every sprite from it
+// by index via draw_sprite_at. Captured to PNG. Dev harness; run under xvfb.
+
+use graphics;
+
+GLYPHS = ["|", "[", "~", "!", "?", "-", "=", "$", "(", ")", ",", "_", "*", "@", ">", "<"];
+
+fn load_font() -> integer {
+  // gl_load_font resolves relative to the loft --path root, which differs per toolchain.
+  // If the font fails to load here, set an absolute path (the live path uses hud.font).
+  fcands = [
+    "../crawler/assets/DejaVuSans-Bold.ttf",
+    "../story/assets/DejaVuSans-Bold.ttf",
+    "assets/DejaVuSans-Bold.ttf",
+  ];
+  font = 0;
+  for i in 0..len(fcands) {
+    if font == 0 {
+      fc = fcands[i] ?? "";
+      f = graphics::gl_load_font(fc);
+      if f != 0 { font = f; }
+    }
+  }
+  font
+}
+
+fn main() {
+  if !graphics::gl_create_window(800, 600, "gpu atlas") {
+    println("gpuatlas: no window");
+    return;
+  }
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  graphics::gl_enable(graphics::GL_BLEND);
+  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  painter = graphics::create_painter_2d(800.0, 600.0);
+  font = load_font();
+  if font == 0 {
+    println("gpuatlas: no font");
+    graphics::gl_destroy_window();
+    return;
+  }
+
+  // Build a 4×4 atlas (64px cells), one glyph per cell.
+  cols = 4;
+  rows = 4;
+  cell = 64;
+  atlas = graphics::canvas(cols * cell, rows * cell, 0);
+  for i in 0..len(GLYPHS) {
+    col = i % cols ?? 0;
+    row = i / cols ?? 0;
+    g = GLYPHS[i] ?? "*";
+    graphics::draw_text(atlas, font, g, 40.0, col * cell + 18, row * cell + 6, graphics::rgba(225, 215, 175, 255));
+  }
+  sheet = graphics::create_sprite_sheet(atlas, cols, rows, graphics::painter_vao(painter));
+
+  graphics::gl_poll_events();
+  graphics::gl_clear(graphics::rgba(20, 24, 34, 255));
+  // Draw every atlas sprite in a row by index.
+  for i in 0..len(GLYPHS) {
+    x = 30.0 + (i as float) * 46.0;
+    graphics::draw_sprite_at(sheet, painter, x, 280.0, 40.0, 40.0, i);
+  }
+  ok = graphics::gl_screenshot(800, 600, "/tmp/gpu_atlas.png");
+  println("gpuatlas: font={font} sheet_tex={sheet.ss_tex} shot={ok}");
+  graphics::gl_destroy_window();
+}

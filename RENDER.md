@@ -66,9 +66,14 @@ step toward the 3D/WebGL build (the stated goal). Not throwaway.
   rebuilt on descend/respawn), the vis-texture is created+freed each frame (no leaks).
   Painter draws stairs/walls/sprites/HUD on top — verified at parity with the immediate
   renderer. **Only R2 (sprite atlas) remains.**
-- **R2 — Sprite atlas.** Pack mob/item sprites (the `tools/draw.py` atlas — already on its
-  roadmap) into one `SpriteSheet`; `draw_sprite` by index. Replaces per-sprite
-  `draw_texture_at`.
+- **R2 — Sprite atlas.** ✅ **Pipeline proven** (`src/gpuatlas.loft`): `canvas` +
+  `draw_text` per cell → `create_sprite_sheet(canvas, cols, rows, painter_vao(painter))` →
+  `draw_sprite_at(sheet, …, index)`. All 16 token glyphs render from **one** atlas
+  texture, captured to PNG (and `draw_text`-into-canvas survives the cross-module call — no
+  C18/C4). **Live wiring remaining** (mechanical): build the atlas per level from
+  `hud.font` + `painter_vao`, route `view_draw`'s floor items + mob glyphs through
+  `draw_sprite_at` by index (gold/cat → cell) — best done with the sprite-art track, where
+  multiple sprites justify the swap. (Few tokens on screen, so no perf pressure yet.)
 - **R3 — Shader FOV.** ✅ **Proven** (`src/gpushot.loft`): a per-hex visibility texture
   (`lw×lh`, R = brightness from `sim_hex_state`, uploaded via `gl_upload_canvas`) sampled
   in the fragment shader — **discards unseen, dims remembered**. The static VBO bakes each
