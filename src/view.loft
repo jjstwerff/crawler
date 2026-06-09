@@ -251,7 +251,6 @@ fn draw_texture_rot(painter: graphics::Painter2D, tex: integer,
 }
 
 // ── GPU world renderer (RENDER.md R1/R3): terrain as a persistent VBO, fog on the GPU ──
-WHALF = 0.675;   // half a cell in world units (cell = SCALE*1.35 px)
 
 WVERT = `
 #version 330 core
@@ -321,22 +320,25 @@ fn build_world_mesh(s: Sim) -> vector<single> {
       cR = cr as single; cG = cg as single; cB = cb as single;
       U = ((gq as float + 0.5) / lwf) as single;
       V = ((gr as float + 0.5) / lhf) as single;
+      // One real hexagon per cell (6-triangle fan from the centre) — the cells
+      // tile with no gaps, so the floor reads as a single continuous surface
+      // (textures later). All 18 verts of a cell share its per-hex visUV + colour.
       (wx, wy) = hex_to_px(q, r);
-      X0 = (wx - WHALF) as single; X1 = (wx + WHALF) as single;
-      Y0 = (wy - WHALF) as single; Y1 = (wy + WHALF) as single;
-      buf += [X0, Y0, zz, U, V, zz, cR, cG, cB, one];
-      buf += [X1, Y0, zz, U, V, zz, cR, cG, cB, one];
-      buf += [X1, Y1, zz, U, V, zz, cR, cG, cB, one];
-      buf += [X0, Y0, zz, U, V, zz, cR, cG, cB, one];
-      buf += [X1, Y1, zz, U, V, zz, cR, cG, cB, one];
-      buf += [X0, Y1, zz, U, V, zz, cR, cG, cB, one];
+      CXs = wx as single; CYs = wy as single;
+      for k in 0..6 {
+        (kax, kay) = hex_corner_px(q, r, k);
+        (kbx, kby) = hex_corner_px(q, r, (k + 1) % 6 ?? 0);
+        buf += [CXs, CYs, zz, U, V, zz, cR, cG, cB, one];
+        buf += [kax as single, kay as single, zz, U, V, zz, cR, cG, cB, one];
+        buf += [kbx as single, kby as single, zz, U, V, zz, cR, cG, cB, one];
+      }
     }
   }
   buf
 }
 
 // Build the per-level terrain VBO (rebuild on each level change). Vertex count is
-// deterministic: 6 * lw * lh.
+// deterministic: 18 * lw * lh (6-triangle hexagon fan per cell).
 pub fn build_world_vbo(s: Sim) -> integer {
   graphics::gl_upload_vertices(build_world_mesh(s), 10)
 }
@@ -367,7 +369,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   graphics::gl_set_uniform_mat4(wprog, "uMVP", mat);
   graphics::gl_bind_texture(vistex, 0);
   graphics::gl_set_uniform_int(wprog, "uVis", 0);
-  graphics::gl_draw(wvao, 6 * s.lw * s.lh);
+  graphics::gl_draw(wvao, 18 * s.lw * s.lh);
   graphics::gl_delete_texture(vistex);
 
   // Stair glyphs (the floor/wall tiles are the GPU mesh now; only glyphs stay immediate).
