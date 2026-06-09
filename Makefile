@@ -222,6 +222,9 @@ test:
 	@echo "  [skills] passive melee skill (level + STR -> damage) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/skilltest.loft | tee /tmp/story_skill.log
 	@grep -q "SKILL OK" /tmp/story_skill.log || { echo "    FAIL: skill"; exit 1; }
+	@echo "  [depth] beginner-dungeon spawn pool is depth-gentle (no lich at 1-3) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/depthtest.loft | tee /tmp/story_depth.log
+	@grep -q "DEPTH OK" /tmp/story_depth.log || { echo "    FAIL: depth"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

@@ -1,0 +1,23 @@
+// depthtest — the slice's spawn pool stays depth-gentle. At depths 1-3 every spawned monster is
+// native to depth <= depth + the out-of-depth bump (4); a unique or a deep monster (the lich is
+// native depth 20) would trip this. mon_pool already filters m_depth <= eff && !MF_UNIQUE, and item
+// drops are gated the same way in item_choose_idx (i_depth <= eff) — this locks the monster half so
+// a future catalog edit can't sneak something deep into the beginner dungeon.
+use sim;
+
+fn main() {
+  println("=== story depth test (beginner-dungeon spawn pool) ===");
+  ok = true;
+  worst = 0;
+  for d in 1..4 {                    // depths 1, 2, 3
+    s = sim_new_gen(d * 1000 + 7, d);
+    n = sim_enemy_count(s);
+    for i in 0..n {
+      ml = sim_enemy_mlvl(s, i);
+      if ml > worst { worst = ml; }
+      if ml > d + 4 { ok = false; }  // never far out of depth
+    }
+  }
+  println("deepest native-depth spawned across levels 1-3: {worst}  (cap depth+4; a lich would be 20)");
+  if ok { println("=== DEPTH OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -1393,6 +1393,14 @@ pub fn sim_enemy_awake(s: Sim, i: integer) -> boolean {
   a
 }
 
+// Monster i's NATIVE dungeon depth (m_depth) — for the slice depth-pool guard + the bestiary UI.
+pub fn sim_enemy_mlvl(s: Sim, i: integer) -> integer {
+  enemies = s.enemies;
+  v = 0;
+  if i < len(enemies) { e = enemies[i]; v = e.mlvl; }
+  v
+}
+
 // Enemy single-char map glyph (e.g. "r", "k", "o").
 pub fn sim_enemy_glyph(s: Sim, i: integer) -> text {
   enemies = s.enemies;
