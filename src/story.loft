@@ -13,6 +13,7 @@ use graphics;
 use sim;
 use wallgeo;
 use view;
+use itemfx;
 
 WIN_W   = 800;
 WIN_H   = 600;
@@ -25,7 +26,8 @@ KEY_DOT = 46;       // '.' wait one tick
 KEY_SPC = 32;       // Space — also wait
 KEY_ESC = 27;
 KEY_C   = 99;       // 'c' — open/close the character page
-KEY_1   = 49;       // '1'..'6' — spend a banked stat point (on the character page)
+KEY_I   = 105;      // 'i' — open/close the inventory page
+KEY_1   = 49;       // '1'..'9' — character page: spend a stat point; inventory: use/wield item N
 
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
 GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
@@ -66,7 +68,10 @@ fn main() {
   page_open = false;        // character page overlay (C): pauses the world while open
   pg: vector<integer> = []; // baked character-page line textures (rebuilt on open + each spend)
   c_was = false;            // edge-trigger for the page toggle
-  spend_was = false;        // edge-trigger for the 1-6 spend keys
+  spend_was = false;        // edge-trigger for the 1-9 number keys (shared by both pages)
+  inv_open = false;         // inventory overlay (I): also pauses the world
+  pg_inv: vector<integer> = [];   // baked inventory line textures (rebuilt on open + use/wield)
+  i_was = false;            // edge-trigger for the inventory toggle
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
   running = true;
@@ -86,18 +91,30 @@ fn main() {
       c_down = graphics::gl_key_pressed(KEY_C);
       if c_down && !c_was {
         page_open = !page_open;
-        if page_open { pg = build_charpage(s, hud.font); }
+        if page_open { inv_open = false; pg = build_charpage(s, hud.font); }
       }
       c_was = c_down;
 
-      if page_open {
+      i_down = graphics::gl_key_pressed(KEY_I);
+      if i_down && !i_was {
+        inv_open = !inv_open;
+        if inv_open { page_open = false; pg_inv = build_invpage(s, hud.font); }
+      }
+      i_was = i_down;
+
+      if page_open || inv_open {
         sd = -1;
-        for ki in 0..6 {
+        for ki in 0..9 {
           if graphics::gl_key_pressed(KEY_1 + ki) { sd = ki; }
         }
         sdn = sd >= 0;
         if sdn && !spend_was {
-          if sim_raise_stat(s, stat_name(sd)) { pg = build_charpage(s, hud.font); }
+          if page_open && sd < 6 {
+            if sim_raise_stat(s, stat_name(sd)) { pg = build_charpage(s, hud.font); }
+          } else if inv_open && sd < sim_inv_count(s) {
+            if !use_item(s, sd) { sim_equip(s, sd); }   // consumable -> use; else wield
+            pg_inv = build_invpage(s, hud.font);
+          }
         }
         spend_was = sdn;
       } else {
@@ -159,6 +176,7 @@ fn main() {
       sim_compute_fov(s);          // directed-light FOV: recompute visibility for this frame
       view_draw(painter, s, walls, hud, wprog, wvao);
       if page_open { draw_charpage(painter, s, hud, pg); }
+      else if inv_open { draw_invpage(painter, s, hud, pg_inv); }
       graphics::gl_swap_buffers();
     }
   }

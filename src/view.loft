@@ -609,3 +609,59 @@ pub fn draw_charpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<
     y += lh;
   }
 }
+
+// ── The Inventory page (SLICE Tier-1): browse + use/wield ────────────────────────────
+// Toggled by 'I'; lists what you carry, and pressing an item's number USES it — a consumable
+// (potion/scroll/food) is drunk/read via use_item, anything wieldable is equipped. Shows the first
+// 9 items (the slice rarely carries more). Same shared-view pattern as the Character Page.
+fn inv_lines(s: Sim) -> vector<text> {
+  out: vector<text> = [];
+  n = sim_inv_count(s);
+  out += ["INVENTORY    ({n} carried)"];
+  if n == 0 { out += ["  (empty — kill things and grab the loot)"]; }
+  for i in 0..n {
+    if i < 9 {
+      nm = sim_inv_name(s, i);
+      out += ["  {i + 1}   {nm}"];
+    }
+  }
+  out += ["press 1-9 to use a potion/scroll or wield gear.    I closes."];
+  out
+}
+
+// Bake the inventory line textures (call on open + after each use/wield).
+pub fn build_invpage(s: Sim, font: integer) -> vector<integer> {
+  out: vector<integer> = [];
+  if font >= 0 {
+    lines = inv_lines(s);
+    for i in 0..len(lines) {
+      ln = lines[i] ?? "";
+      out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
+    }
+  }
+  out
+}
+
+// Draw the inventory page: dark backdrop + the baked lines, stacked.
+pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>) {
+  if hud.panel != 0 {
+    graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
+  }
+  if hud.font < 0 { return; }
+  lines = inv_lines(s);
+  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 10.0;
+  y = 60.0;
+  n = len(pg);
+  for i in 0..n {
+    if i < len(lines) {
+      ln = lines[i] ?? "";
+      t = pg[i] ?? 0;
+      if t != 0 {
+        w = graphics::gl_measure_text(hud.font, ln, CHARPAGE_SIZE);
+        h = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 4.0;
+        graphics::draw_texture_at(painter, t, 60.0, y, w, h);
+      }
+    }
+    y += lh;
+  }
+}

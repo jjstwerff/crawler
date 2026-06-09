@@ -436,6 +436,14 @@ pub fn sim_inv_key(s: Sim, slot: integer) -> text {
   item_key(item_table(), defidx)
 }
 
+// Inventory slot -> the item's display name (for the inventory screen). "" if empty/out of range.
+pub fn sim_inv_name(s: Sim, slot: integer) -> text {
+  iv = s.inv;
+  if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
+  defidx = iv[slot] ?? -1;
+  item_name(item_table(), defidx)
+}
+
 // First inventory slot holding item `key`, or -1.
 pub fn sim_find_item(s: Sim, key: text) -> integer {
   itbl = item_table();

@@ -230,6 +230,11 @@ pub fn item_key(table: vector<ItemDef>, idx: integer) -> text {
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_key; }
   v
 }
+pub fn item_name(table: vector<ItemDef>, idx: integer) -> text {
+  v = "";
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_name; }
+  v
+}
 pub fn item_power(table: vector<ItemDef>, idx: integer) -> integer {
   v = 0;
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_power; }
