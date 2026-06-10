@@ -65,8 +65,14 @@ endif
 # Character bundles live in bundles/<name>/; add each as a lib dir so the generated
 # src/bundles.loft can `use` them. Auto-discovered — drop a bundle dir and it's included.
 # (BUNDLE_LIBS is separate so loft-doctor's installed-binary smoke can use it too.)
+# LIB_DEPS: extracted library packages crawler consumes during development (EXTRACTION.md).
+# ../loft-libs-core-main is a read-only `git worktree` of that repo's origin/main (create:
+# `git -C ../loft-libs-core worktree add ../loft-libs-core-main origin/main`) so crawler
+# tracks the MERGED lib state regardless of which branch the working repo has checked out.
+# After a registry release these move to version deps and the worktree flag drops.
+LIB_DEPS    := --lib ../loft-libs-core-main/
 BUNDLE_LIBS := $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
-LOFTFLAGS := $(LOFTFLAGS) $(BUNDLE_LIBS)
+LOFTFLAGS := $(LOFTFLAGS) $(LIB_DEPS) $(BUNDLE_LIBS)
 
 # Which loft repo `make loft-doctor` compares the installed binary against.
 REF_REPO ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../loft2)

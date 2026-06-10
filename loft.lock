@@ -8,3 +8,10 @@ version = "0.1.0"
 url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/graphics-v0.1.0/graphics-0.1.0.tar.gz"
 sha256 = "762271f637cbedaff4c3cda73ef9c6da0bcc826b8c81d9bb08eae03a645510db"
 source = "registry"
+
+[[package]]
+name = "random"
+version = "0.1.0"
+url = "https://github.com/loft-lang/loft-libs-core/releases/download/random-v0.1.0/random-0.1.0.tar.gz"
+sha256 = "7599297598bfec378135c90868766ad23046d47c001690a42d79a48d4bb1acaa"
+source = "registry"

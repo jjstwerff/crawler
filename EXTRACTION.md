@@ -152,8 +152,15 @@ thread-local can't be saved with the Sim.
 - [x] Cross-module exercise: the package's own test module drives the streams (12
       tests incl. the isolation property: interleaved draws == the plain sequence;
       global calls never move a stream).
-- [ ] crawler adopts STREAM-BY-STREAM, gate green after each: the flavour shuffle
-      (`rng_indices`) first, then gen's placement stream, then sim's `rstate`.
+- [x] **crawler ADOPTED (2026-06-10, gate 33/33)** — all three streams: the flavour
+      shuffle (`st.indices(FLAVOUR_POOL)` — hand-rolled LCG + Fisher–Yates deleted),
+      the placement stream (`SimRng` struct deleted — the C4-era same-module shim),
+      and the Sim's combat rolls (`rstate` → the stream's `rs1`/`rs2` state words
+      riding the Sim: rolls now save/replay/descend through the lib). Consumed via
+      the Makefile's LIB_DEPS `--lib ../loft-libs-core-main/` (a read-only git
+      worktree of the repo's origin/main, so the consuming state is independent of
+      the working repo's checked-out branch). `sim_seed_rolls` is pub — tests pin
+      their streams (itemtest pins a both-drop-kinds seed).
 - [ ] (Owner) first registry release rides the value-API landing.
 
 ---

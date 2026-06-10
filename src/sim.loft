@@ -11,6 +11,8 @@ use items;
 use catalog;          // game_monsters()/game_items()/race_catalog()/class_catalog() — the merges
 use races;            // RaceDef + RF_* ability flags + race_find/race_has_flag (the chosen race applies)
 use classes;          // ClassDef + class_find (the chosen class applies: stats/HP/SP/skills/realm)
+use random;           // RandStream (loft-libs-core): owned deterministic streams — combat rolls,
+                      //   monster placement, flavour shuffles (EXTRACTION.md item 4 adoption)
 use worldtypes;       // Stencil / Placement — the world-bundle vocabulary
 use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
@@ -179,7 +181,8 @@ pub struct Sim {
   up_r:    integer not null,
   dn_q:    integer not null,   // down-stair hex
   dn_r:    integer not null,
-  rstate:  integer not null,   // drop RNG state
+  rs1:     integer not null,   // the combat-roll RandStream's state words (random lib) — the
+  rs2:     integer not null,   //   stream RIDES the Sim: saves/replays/descends deterministically
   ninv:    integer not null,   // inventory count
   inv:     vector<integer> not null,   // carried item def indices [0..ninv) (UI = I2)
   eq:      vector<integer> not null,   // equipped item: defidx+1 per SLOT_* slot (0 = empty)
@@ -1213,12 +1216,15 @@ pub fn sim_can_raise_stat(s: Sim, stat: text) -> boolean {
 
 // ── Loot (gold + item drops) ─────────────────────────────────────────
 
-// Drop-RNG: advance the per-Sim LCG (same module as its caller, so the `&`
-// mutation sticks) and return a value in [lo, hi].
+// Drop-RNG: a value in [lo, hi] from the Sim's OWN combat stream (random lib) — the
+// state words ride the Sim, so rolls save/replay/descend deterministically.
 pub fn sim_roll(s: &Sim, lo: integer, hi: integer) -> integer {   // pub: castfx rolls spell failure
   if hi <= lo { return lo; }
-  s.rstate = (s.rstate * 1103515245 + 12345) & 2147483647;
-  lo + (s.rstate % (hi - lo + 1) ?? 0)
+  r = random::RandStream { s1: s.rs1, s2: s.rs2 };
+  v = r.get(lo, hi) ?? lo;
+  s.rs1 = r.s1;
+  s.rs2 = r.s2;
+  v
 }
 
 // Add a floor entry (gold pile if gold>0, else an item with cat/def) by writing
@@ -2246,7 +2252,7 @@ pub fn sim_new() -> Sim {
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
-    rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
+    rs1: 0, rs2: 0, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
@@ -2255,24 +2261,21 @@ pub fn sim_new() -> Sim {
     room_q0: [], room_r0: [], room_w: [], room_h: [],   // hand-built level: no rooms → pure smooth
   };
   assign_flavours(s, 12345);   // training stub: a fixed-seed flavour map (real games key off the world seed)
+  sim_seed_rolls(s, 12345);
   s
 }
 
-// ── Monster placement (Angband get_mon_num) ──────────────────────────
-
-// Self-contained LCG (gen's RNG lives in another module; `&` mutation only
-// propagates within a module, so placement keeps its own in `sim`).
-struct SimRng { rs: integer not null }
-
-fn srng_seed(seed: integer) -> SimRng { SimRng { rs: (seed & 2147483647) | 1 } }
-
-fn srng(r: &SimRng, lo: integer, hi: integer) -> integer {
-  if hi <= lo { return lo; }
-  n = (r.rs * 1103515245 + 12345) & 2147483647;
-  r.rs = n;
-  span = hi - lo + 1;
-  lo + (n % span ?? 0)
+// Seed the Sim's combat-roll stream (rs1/rs2) from `seed` — called once after each Sim
+// construction (the literal can't run seed_stream). Pub: tests pin their roll stream.
+pub fn sim_seed_rolls(s: &Sim, seed: integer) {
+  st = random::seed_stream(seed);
+  s.rs1 = st.s1;
+  s.rs2 = st.s2;
 }
+
+// ── Monster placement (Angband get_mon_num) ──────────────────────────
+// Placement draws from its OWN RandStream (random lib) so generation stays a pure
+// function of (seed, depth) no matter what combat rolled before regeneration.
 
 // Monster selection (get_mon_num) lives in monsters.loft as mon_choose —
 // iterating the MonsterDef table with a struct fallback SIGSEGVs the interpreter
@@ -2327,21 +2330,13 @@ fn assign_flavours(s: &Sim, seed: integer) {
   n = len(itbl);
   fl = s.flavour_idx;                       // captured field vector — index-writes persist (C18)
   cats = [IT_POTION, IT_SCROLL, IT_WAND, IT_STAFF, IT_RING, IT_AMULET];
+  sm = seed % 2147483647 ?? 0;               // trap-safe reduction before mixing
   for ci in 0..len(cats) {
     cat = cats[ci] ?? 0;
-    pool: vector<integer> = [for j in 0..FLAVOUR_POOL { j }];   // a fresh [0..POOL) to shuffle
-    // per-category LCG seed: MULTIPLY (Knuth hash) to diffuse the world seed's low bits — adding
-    // barely moves it and `| 1` would collapse adjacent seeds onto one map.
-    rs = (((seed * 2654435761) ^ ((cat + 1) * 1610612741)) & 2147483647) | 1;
-    j = FLAVOUR_POOL - 1;
-    while j > 0 {                            // Fisher–Yates
-      rs = (rs * 1103515245 + 12345) & 2147483647;
-      kk = rs % (j + 1) ?? 0;
-      tmp = pool[j] ?? 0;
-      pool[j] = pool[kk] ?? 0;
-      pool[kk] = tmp;
-      j -= 1;
-    }
+    // one independent stream per category (random lib): re-seeded per call, so the map is a
+    // pure function of (seed, cat) — the per-category Fisher–Yates is the lib's indices()
+    st = random::seed_stream(sm * 31 + (cat + 1) * 1610612741);
+    pool = st.indices(FLAVOUR_POOL);
     t = 0;                                   // hand each def of this category the next shuffled flavour
     for i in 0..n {
       if i < len(itbl) {
@@ -2391,7 +2386,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
   // Collect legal floor far from the player start, then sample the budget from
   // it directly (robust even when open floor is a small fraction of the map).
   table = monster_table();
-  rng = srng_seed((gseed ^ 20771) & 2147483647);
+  rng = random::seed_stream(gseed ^ 20771);
   safe = 8;                             // keep spawns this far from the start
   candq: vector<integer> = [];
   candr: vector<integer> = [];
@@ -2404,7 +2399,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     }
   }
   ncand = len(candq);
-  budget = 10 + srng(rng, 0, 8);   // ~10–18
+  budget = 10 + (rng.get(0, 8) ?? 0);   // ~10–18
   if depth == 0 { budget = 0; }    // empty desert — no dungeon spawns (the crystal knot is step 3)
   if budget > ncand { budget = ncand; }
   enemies: vector<Enemy> = [];
@@ -2415,18 +2410,18 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
   while placed < budget && guard < ncand * 4 + 100 {
     guard += 1;
     if ncand > 0 {
-      k = srng(rng, 0, ncand - 1);
+      k = rng.get(0, ncand - 1) ?? 0;
       sq = candq[k] ?? 1;
       sr = candr[k] ?? 1;
       if !occupied_hex(enemies, sq, sr) {
         eff = depth;
-        if srng(rng, 0, 24) == 0 { eff = depth + srng(rng, 1, 4); }   // out-of-depth
-        md = mon_choose(table, eff, srng(rng, 0, 2000000000));
+        if (rng.get(0, 24) ?? 0) == 0 { eff = depth + (rng.get(1, 4) ?? 1); }   // out-of-depth
+        md = mon_choose(table, eff, rng.get(0, 2000000000) ?? 0);
         if md.m_hp > 0 {
           enemies += [mk_enemy(md, sq, sr)];
           placed += 1;
           if (md.m_flags & MF_GROUP) != 0 {
-            gsz = srng(rng, 2, 4);
+            gsz = rng.get(2, 4) ?? 2;
             for gk in 0..gsz {
               if placed < budget {
                 (gq, gr) = hex_neighbor(sq, sr, gk % 6 ?? 0);
@@ -2571,7 +2566,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
-    rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
+    rs1: 0, rs2: 0, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
@@ -2580,6 +2575,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     room_q0: rq0s, room_r0: rr0s, room_w: rws, room_h: rhs,
   };
   assign_flavours(s, seed);  // per-GAME flavour map from the world seed (descend/respawn carry it forward)
+  sim_seed_rolls(s, gseed ^ 99173);
   sim_starting_loadout(s);   // every new character starts with its class kit (§3a #4)
   // World-bundle QUEST GRANT: hand the player the bundle's keepsake on its quest depth (the surface).
   // Only the genuine start sticks — descending overwrites the inventory with the carried one.
@@ -2647,7 +2643,8 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.qs = s.qs;           // carry the quick-slot bindings across levels (like inventory)
   ns.wdam = s.wdam;
   ns.pac = s.pac;
-  ns.rstate = s.rstate;
+  ns.rs1 = s.rs1;         // the combat-roll stream continues across the stairs
+  ns.rs2 = s.rs2;
   ns.heading = s.heading;
   ns.save_depth = s.save_depth;                                          // carry the checkpoint
   if is_save_depth(nd) != 0 && nd > ns.save_depth { ns.save_depth = nd; }  // advance at save points

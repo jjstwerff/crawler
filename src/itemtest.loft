@@ -7,6 +7,7 @@ use sim;
 fn main() {
   println("=== story item test (gold + drops + pickup) ===");
   s = sim_new();
+  sim_seed_rolls(s, 2);   // pin the roll stream to a seed whose kill drops gold AND an item
   for _ in 0..600 {            // charge + kill, re-aiming each frame (coordinate-agnostic)
     if sim_enemy_alive(s, 0) {
       (epx, epy) = sim_enemy_pos(s, 0);
