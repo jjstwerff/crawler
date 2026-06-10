@@ -1,0 +1,13 @@
+// Half-Orc — a single playable race (authored CONTENT). One bundle = one race, so a modder
+// can compose a limited game by including only the race bundles they want. Uses only the
+// engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
+use races;
+
+pub fn race_defs() -> vector<RaceDef> {
+  t: vector<RaceDef> = [];
+  t += [RaceDef { r_key: "half_orc", r_name: "Half-Orc", r_str: 2, r_int: -1, r_wis: 0,
+    r_dex: 0, r_con: 1, r_chr: -4, r_hd: 1, r_xp: 110, r_melee: 3, r_bow: 0,
+    r_device: 3, r_disarm: 0, r_stealth: 0, r_save: 3, r_infra: 3, r_flags: RF_RES_DARK,
+    r_desc: "Brutish and tough; shrugs off the dark." }];
+  t
+}

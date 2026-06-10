@@ -1,0 +1,14 @@
+// Half-Troll — a single playable race (authored CONTENT). One bundle = one race, so a modder
+// can compose a limited game by including only the race bundles they want. Uses only the
+// engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
+use races;
+
+pub fn race_defs() -> vector<RaceDef> {
+  t: vector<RaceDef> = [];
+  t += [RaceDef { r_key: "half_troll", r_name: "Half-Troll", r_str: 4, r_int: -4, r_wis: -2,
+    r_dex: -4, r_con: 3, r_chr: -6, r_hd: 4, r_xp: 137, r_melee: 5, r_bow: -5,
+    r_device: -5, r_disarm: -5, r_stealth: -2, r_save: 4, r_infra: 3,
+    r_flags: RF_REGEN | RF_SUST_STR,
+    r_desc: "Huge and regenerating; dim-witted and slow to learn." }];
+  t
+}

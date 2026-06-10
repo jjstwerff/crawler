@@ -204,6 +204,9 @@ test:
 	@echo "  [bundle-defs] world bundle enemies/items -> catalog merge ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/bundledeftest.loft | tee /tmp/story_bundledef.log
 	@grep -q "BUNDLEDEF OK" /tmp/story_bundledef.log || { echo "    FAIL: bundle-defs"; exit 1; }
+	@echo "  [defs] class/race/item tables — races now per-bundle via race_catalog ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/deftest.loft | tee /tmp/story_defs.log
+	@grep -q "DEFS OK" /tmp/story_defs.log || { echo "    FAIL: defs"; exit 1; }
 	@echo "  [rooms] rooms bundle -> room registry ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/roomtest.loft | tee /tmp/story_rooms.log
 	@grep -q "ROOMS OK" /tmp/story_rooms.log || { echo "    FAIL: rooms"; exit 1; }

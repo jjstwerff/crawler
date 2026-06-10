@@ -3,13 +3,15 @@
 use classes;
 use races;
 use items;
+use catalog;   // race_catalog() — engine base (now empty) + the per-race kind:"race" bundles
 
 fn main() {
   println("=== story definition tables test ===");
   ct = class_table();
-  rt = race_table();
+  rt = race_catalog();        // races are bundle content now (one race per bundle)
+  eng_rt = race_table();      // the engine base race table — MUST be empty post-migration
   it = item_table();
-  println("classes={len(ct)} races={len(rt)} items={len(it)}");
+  println("classes={len(ct)} races={len(rt)} (engine-base={len(eng_rt)}) items={len(it)}");
 
   w = class_find(ct, "warrior");
   println("warrior: hd={w.c_hd} melee={w.c_melee} realm={w.c_realm}");
@@ -31,7 +33,7 @@ fn main() {
 
   miss = item_find(it, "nope");
   ok_classes = len(ct) >= 6 && w.c_hd > 0 && m.c_str < 0 && m.c_realm == "arcane";
-  ok_races   = len(rt) >= 8 && hf.r_dex > 0 && race_has_flag(hf, RF_FREE_ACTION) && race_has_flag(ht, RF_REGEN);
+  ok_races   = len(rt) >= 8 && len(eng_rt) == 0 && hf.r_dex > 0 && race_has_flag(hf, RF_FREE_ACTION) && race_has_flag(ht, RF_REGEN);
   ok_items   = len(it) >= 25 && ls.i_dd > 0 && len(weapons) >= 8 && len(potions) >= 3 && item_stackable(pot) && miss.i_key == "";
   println("classes : {ok_classes}");
   println("races   : {ok_races}");

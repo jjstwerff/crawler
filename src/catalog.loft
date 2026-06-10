@@ -7,7 +7,9 @@
 // is all bundle-side.
 use monsters;
 use items;
+use races;
 use bundle_defs;
+use race_defs_gen;
 
 pub fn game_monsters() -> vector<MonsterDef> {
   t = monster_table();
@@ -19,6 +21,17 @@ pub fn game_monsters() -> vector<MonsterDef> {
 pub fn game_items() -> vector<ItemDef> {
   t = item_table();
   src = bundle_items();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}
+
+// The playable-race roster = engine base (now empty — content moved to bundles) + every kind:"race"
+// bundle's RaceDef (one race per bundle). Same merge MECHANISM as the catalogs above; the race
+// content is entirely bundle-side, so a modder ships a limited game by including only the race
+// folders they want.
+pub fn race_catalog() -> vector<RaceDef> {
+  t = race_table();
+  src = bundle_races();
   for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
   t
 }

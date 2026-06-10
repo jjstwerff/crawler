@@ -27,6 +27,21 @@ variants / expansions are bundles layered on top. A bundle carries three things:
 Bundles **compose into one pool**: load base + active bundles, merge by key, resolve
 cross-references. A bundle references what's already in the pool *and* extends it.
 
+### Granularity — thematic units; one creation-choice per bundle
+
+A bundle is a **thematic unit**: it may carry **several content types at once** — creatures,
+items, spells, room stencils, placement — exactly as the world bundles already do. Different
+types **share** a bundle freely when they're thematically linked (a class/race bundle may carry
+its own themed items/creatures, and a caster's spell list lives *with* it).
+
+The one hard rule is on the **character-creation axis**: a bundle carries **at most one race or
+one class** — never multiple races, never multiple classes, never a mix. That one-per-bundle
+granularity is what lets a modder ship a *limited* game by including only the race/class folders
+they want (drop in two race folders → a two-race game).
+
+**Direction:** the base game's content gets carved into thematic bundles too — not just quest
+overlays, but the base monsters/items reorganized into coherent themed bundles over time.
+
 ### Standing check — keep bundles library-like
 
 Every time you touch the **engine↔bundle seam**, *re-evaluate* that bundles still adhere

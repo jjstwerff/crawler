@@ -70,6 +70,28 @@ castable in an unchanged game. Concretely:
   nature (ranger/druid); spell-stat int (arcane/nature-int) / wis (divine/druid).
 - Only consumer of the tables today: `src/deftest.loft` (tiny blast radius).
 
+## Sequencing decision (2026-06-10) — content first, races first
+
+Build the **content into bundles first**, not the scripting epic (**SCRIPTING.md**) first. The
+current classes/races/spells touch scripting at exactly one small seam — **routine-by-id effect
+dispatch** — not the event bus; the big levers serve *future* content, and designing them before
+real consumers is premature (concrete-examples-first). The migration *produces* the cases the
+scripting layer is later extracted from.
+
+**Start with races** — they carry **no spell debt** (just stats/HP + two already-wired flags:
+free-action ↔ gaze, res-poison ↔ venom), so they land fastest. Classes (7 of 8 casters) follow
+once the spell system + routine-by-id dispatch land.
+
+**Guardrail (when spells land):** build spell/ability effects as **routine-by-id from day one**
+(bundle routines on the Player/`sim_*` API) — never a hardcoded engine `if key == …` ladder. That
+dispatch *is* the embryonic event bus; getting it right makes content-first cost ~zero rework.
+
+**One bundle = one race** (and one = one class — never mix). A modder composes a *limited* game
+by including only the race/class bundles they want, so each race is its own drop-in
+`bundles/<race>/` (pure data, no per-race script — unlike a class's loadout script). The seam
+merges every `kind:"race"` bundle; that one-per-bundle granularity is what lets a stranger ship,
+say, a 2-race game by dropping in just those two folders.
+
 ## loft constraints (don't get bitten)
 
 - `use` flattens transitive pub names → **each bundle's def fn needs a UNIQUE name**

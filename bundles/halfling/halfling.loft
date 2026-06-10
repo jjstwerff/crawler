@@ -1,0 +1,14 @@
+// Halfling — a single playable race (authored CONTENT). One bundle = one race, so a modder
+// can compose a limited game by including only the race bundles they want. Uses only the
+// engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
+use races;
+
+pub fn race_defs() -> vector<RaceDef> {
+  t: vector<RaceDef> = [];
+  t += [RaceDef { r_key: "halfling", r_name: "Halfling", r_str: -2, r_int: 2, r_wis: 1,
+    r_dex: 3, r_con: 1, r_chr: 1, r_hd: -2, r_xp: 110, r_melee: 0, r_bow: 4,
+    r_device: 6, r_disarm: 8, r_stealth: 4, r_save: 5, r_infra: 4,
+    r_flags: RF_SUST_DEX | RF_FREE_ACTION,
+    r_desc: "Small, nimble and lucky; superb stealth and reflexes." }];
+  t
+}

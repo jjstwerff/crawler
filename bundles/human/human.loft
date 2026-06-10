@@ -1,0 +1,13 @@
+// Human — a single playable race (authored CONTENT). One bundle = one race, so a modder
+// can compose a limited game by including only the race bundles they want. Uses only the
+// engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
+use races;
+
+pub fn race_defs() -> vector<RaceDef> {
+  t: vector<RaceDef> = [];
+  t += [RaceDef { r_key: "human", r_name: "Human", r_str: 0, r_int: 0, r_wis: 0,
+    r_dex: 0, r_con: 0, r_chr: 0, r_hd: 0, r_xp: 100, r_melee: 0, r_bow: 0,
+    r_device: 0, r_disarm: 0, r_stealth: 0, r_save: 0, r_infra: 0, r_flags: RF_NONE,
+    r_desc: "Balanced and adaptable; the fastest to gain levels." }];
+  t
+}

@@ -1,0 +1,13 @@
+// Elf — a single playable race (authored CONTENT). One bundle = one race, so a modder
+// can compose a limited game by including only the race bundles they want. Uses only the
+// engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
+use races;
+
+pub fn race_defs() -> vector<RaceDef> {
+  t: vector<RaceDef> = [];
+  t += [RaceDef { r_key: "elf", r_name: "Elf", r_str: -1, r_int: 2, r_wis: 1,
+    r_dex: 1, r_con: -2, r_chr: 1, r_hd: -2, r_xp: 120, r_melee: 0, r_bow: 5,
+    r_device: 6, r_disarm: 4, r_stealth: 1, r_save: 6, r_infra: 3, r_flags: RF_RES_LIGHT,
+    r_desc: "Graceful and keen-eyed; frail but gifted with magic." }];
+  t
+}
