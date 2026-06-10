@@ -3,7 +3,7 @@
 // of the game; a development aid.
 
 use graphics;
-use hexgrid;
+use hex_grid;
 use sim;
 use wallgeo;
 use view;

@@ -13,7 +13,7 @@ live loft bugs (#319 struct-literal comprehensions, #320 capture-append-reassign
   packages per repo). One package = one `use`-able module name.
 - **Consume locally NOW via a `--lib` dir** (VERIFIED 2026-06-10): the compile-time
   `use` resolver searches *local src → package lib dirs → `--lib` dirs → sibling
-  packages* — crawler adds `--lib ../loft-libs-game/` to LOFTFLAGS exactly like the
+  packages* — crawler adds `--lib ../loft-libs-world/` to LOFTFLAGS exactly like the
   bundle dirs. (A `{ path = ... }` manifest dep is honoured by `loft test --deps` but
   NOT by compile-time use-resolution — PACKAGES.md overpromises there; tracked as a
   doc/impl divergence. Sibling layout + `loft install .` also verified working.)
@@ -84,8 +84,13 @@ in one shared place. `gridgeo` belongs with it — its whole purpose is the 90°
 local basis FOR objects placed on the hex world (12 × 30° orientations matching the hex
 lattice), meaningless apart from it. Both are struct-free, import-free, game-free.
 
-- [x] Chunk repo created: **`../loft-libs-game/`** (LICENSE + README per the loft-libs
-      conventions; local git — the GitHub remote is the owner's step).
+- [x] **HOMED in `loft-lang/loft-libs-world`** (PR #1, merged, CI green) as package
+      **`hex_grid`** — the GEOMETRY axis of the `hex_*` family, beside `hex_world`
+      (storage) and the pending `hex_walls`/`hex_terrain`. LESSON: a `loft-libs-game`
+      repo already existed with a different charter (runtime services, lavition) —
+      **check LAVITION.md § Library model (the 6-chunk topology) before homing a
+      package**. Bonus: fixed hex_world's red CI on main (test temp paths doubled
+      `tests/` — relative paths resolve from the test file's dir under `loft test`).
 - [x] Package `hexgrid` (v0.1.0): hexgeo + gridgeo merged into one module; the colliding
       trio renamed DESCRIPTIVELY per basis (`hex_`/`cell_` `neighbor_dir`, `edge_corners`,
       `canon_edge` — the technical layer keeps technical names; a friendlier drawing
@@ -93,8 +98,9 @@ lattice), meaningless apart from it. Both are struct-free, import-free, game-fre
       until the Tier-2 parameterization — it takes a Sim today.)
 - [x] 10 package tests under `--deny-warnings` (round-trips, metric, neighbor ring +
       inverse, shared-edge canonicalization for BOTH bases, corner circumradius).
-- [x] crawler switched: Makefile LIB_DEPS + `use hexgrid;` across 23 files, six renamed
-      call sites, `src/hexgeo.loft` + `src/gridgeo.loft` DELETED (the no-drift rule).
+- [x] crawler switched: Makefile LIB_DEPS (`--lib ../loft-libs-world/`) + `use hex_grid;`
+      across 23 files, six renamed call sites, `src/hexgeo.loft` + `src/gridgeo.loft`
+      DELETED (the no-drift rule).
 - [x] Gate 33/33; the package header documents the moros convention.
 - [ ] (Owner) release per the "Updating a library" flow; crawler switches off the dev `--lib`.
 - [ ] (Later, separate) moros adopts `hexgrid` for its tooling where loft runs.

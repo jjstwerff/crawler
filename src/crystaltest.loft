@@ -7,7 +7,7 @@ use sim;
 use catalog;
 use monsters;
 use player;
-use hexgrid;
+use hex_grid;
 
 fn main() {
   println("=== story crystal test (shrine bump -> event; re-spec applies; roster) ===");

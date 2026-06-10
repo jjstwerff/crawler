@@ -9,7 +9,7 @@
 // falling back to coloured squares if the font cannot be loaded.
 
 use graphics;
-use hexgrid;
+use hex_grid;
 use sim;
 use wallgeo;
 use items;

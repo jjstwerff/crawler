@@ -5,7 +5,7 @@
 // per frame. Dev harness; render -> gl_screenshot -> read PNG. Run under xvfb.
 
 use graphics;
-use hexgrid;
+use hex_grid;
 use sim;
 
 PI2      = 1.5707963267948966;

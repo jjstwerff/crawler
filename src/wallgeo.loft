@@ -15,7 +15,7 @@
 //      a 12-direction snap + corner-preserving pass is the planned refinement.)
 //   D. Emit one segment per edge using the smoothed corner positions.
 
-use hexgrid;
+use hex_grid;
 use sim;
 
 SMOOTH_ITERS  = 3;

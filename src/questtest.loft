@@ -10,7 +10,7 @@ use sim;
 use catalog;
 use monsters;
 use items;
-use hexgrid;
+use hex_grid;
 
 fn count_glyph(s: Sim, g: text) -> integer {
   n = 0;

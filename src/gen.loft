@@ -7,7 +7,7 @@
 // GenLevel (tiles + room centres) the sim builds a level from; the same data
 // renders as cells now and through wallgeo / moros_render later.
 
-use hexgrid;
+use hex_grid;
 use rooms_gen;   // the world bundle's room registry (RoomDef table + how rooms connect)
 
 GEN_MASK = 2147483647;   // 2^31 - 1

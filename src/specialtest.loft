@@ -6,7 +6,7 @@ use sim;
 use catalog;
 use monsters;
 use items;
-use hexgrid;
+use hex_grid;
 
 fn main() {
   println("=== story special-attacks test (deadlock + struggle + venom + ward + gaze) ===");

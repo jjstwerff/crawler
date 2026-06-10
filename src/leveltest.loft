@@ -3,7 +3,7 @@
 // lands on the new up-stair; ascending returns to the prior depth on its
 // down-stair; the same (seed, depth) regenerates identically. Deterministic.
 
-use hexgrid;
+use hex_grid;
 use sim;
 
 fn main() {

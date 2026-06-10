@@ -2,7 +2,7 @@
 // Verifies: room count, floor coverage, full connectivity (flood-fill), and
 // seed-determinism (which the world-key model depends on).
 
-use hexgrid;
+use hex_grid;
 use gen;
 
 fn main() {

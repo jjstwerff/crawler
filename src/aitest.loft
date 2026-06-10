@@ -3,7 +3,7 @@
 // when the player is within vision + line-of-sight; a NEVER_MOVE monster never
 // steps even while awake with the player in view. Deterministic.
 
-use hexgrid;
+use hex_grid;
 use sim;
 use monsters;
 

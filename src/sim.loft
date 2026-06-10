@@ -4,7 +4,7 @@
 // enemies; a distance-driven clock: every HEX_LEN of player travel = one tick,
 // turning costs no distance and therefore no time.  NO graphics dependency.
 
-use hexgrid;
+use hex_grid;
 use gen;
 use monsters;
 use items;

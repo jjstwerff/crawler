@@ -5,7 +5,7 @@
 use sim;
 use catalog;
 use monsters;
-use hexgrid;
+use hex_grid;
 
 // Each helper builds a fresh char, sets its race, reads ONE value -> never holds several Sims (C22).
 fn maxhp_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_player_hp_max(s) }

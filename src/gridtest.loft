@@ -1,6 +1,6 @@
 // gridtest — headless check of the square ("90-degree") grid geometry.
 
-use hexgrid;
+use hex_grid;
 
 fn main() {
   println("=== grid geometry test ===");
