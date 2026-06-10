@@ -125,18 +125,33 @@ foreshortening and `grad=` fills hard; rotation/atlas named next). The skill's
 - [ ] crawler keeps its copy only if it still carries unported experiments;
       otherwise delete and call the skill's.
 
-### 4. `random` — seeded RNG + shuffle → `loft-libs-core` (NEWLY UNBLOCKED)
+### 4. `random` — a VALUE-stream API for the EXISTING loft-libs-core package
 
-C4 (cross-module `&` mutation) verified fixed — a shared `Rng` struct mutated through
-`&Rng` from any module now works. crawler has three private LCG copies (sim's `SimRng`,
-gen's, the flavour shuffle) begging to be one package.
+EVALUATED 2026-06-10: `loft-libs-core/random` already exists (v0.1.1, unpublished) —
+native **Pcg64** (better math than crawler's weak ANSI-C LCGs), seeded + reproducible,
+11/11 tests, builds + runs locally (its own native crate compiles with the active rustc;
+E0514 only bites programs linking the prebuilt rlib), and `rand_indices(n)` is exactly
+the flavour-shuffle primitive. So: EXTEND, don't create.
 
-- [ ] Package `random` in `loft-libs-core`: `rng_seed(seed) -> Rng`,
-      `rng_int(&Rng, lo, hi)`, `rng_float(&Rng)`, `rng_shuffle(&Rng, v)` (Fisher–Yates),
-      deterministic by contract (games replay; no ambient entropy).
-- [ ] A soak guard: keep crawler's in-module RNGs until the package passes a
-      cross-module hammer test (N modules bumping one `&Rng`, interpret + native),
-      then swap sim/gen/flavours over one at a time, gate green after each.
+**The gap:** the API is one **hidden thread-local global stream** (`rand_seed` reseeds
+*the* generator). Deterministic games need **multiple independent streams with visible,
+persistable state** — crawler runs three (per-level world-gen; the Sim's combat `rstate`,
+carried across descend for save/replay/MP; the per-game flavour shuffle). One global
+stream means any new call site reorders every stream after it, and state hidden in a
+thread-local can't be saved with the Sim.
+
+- [ ] Add the VALUE tier beside the global one (C4's fix makes `&Rng` cross-module
+      mutation work): `rng_new(seed) -> Rng` (a struct of integer state words),
+      `rng_int(&Rng, lo, hi)`, `rng_indices(&Rng, n)`. Preferred shape: **pure-loft
+      state + math for the value tier** (xorshift*/PCG32 — fully portable, no native
+      dependency, fits the dynamic-compilation ladder); keep Pcg64-native for the
+      global tier. Alternative: a stateless native step `state -> (state', value)`
+      wrapped by a loft value API. Owner picks.
+- [ ] A soak guard: a cross-module hammer test (N modules bumping one `&Rng`,
+      interpret + native) green before crawler adopts.
+- [ ] crawler adopts STREAM-BY-STREAM, gate green after each: the flavour shuffle
+      (`rng_indices`) first, then gen's placement stream, then sim's `rstate`.
+- [ ] (Owner) first registry release rides the value-API landing.
 
 ---
 
