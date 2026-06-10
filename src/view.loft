@@ -31,6 +31,7 @@ STAIR_SIZE  = 22.0;  // '>' / '<' stair glyphs
 ITEM_SIZE   = 20.0;  // floor item / gold glyphs
 SIDEBAR_W   = 190.0; // left character bar width (HP/SP, stats, quick-slots — Angband's known spot)
 SB_SIZE     = 15.0;  // sidebar label / item-name point size
+SB_NAME_W   = 150.0; // pixel budget for a quick-slot item name (overflow -> ellipsis-truncated)
 
 // Baked text resources for the renderer (render-side only — the kernel stays
 // graphics-free). Built once after the window exists via build_hud(); if the
@@ -107,6 +108,18 @@ fn load_sprite(fname: text) -> integer {
 // active slots, 1-9 quick-slots) are self-evident and deliberately left out to keep it quiet.
 fn key_hints() -> vector<text> {
   ["C  character", "I  inventory", "G  grab", ".  wait", "Esc  quit"]
+}
+
+// Safety net for a name still too wide after item_short: ellipsis-truncate to `max_w` px, KEEPING
+// the start (the identifier). Pixel-accurate (the font is proportional). Item names are ASCII, so the
+// built-in char slice `a[..n]` is byte-safe; the "…" is only appended, never sliced.
+fn fit_text(font: integer, str: text, max_w: float, size: float) -> text {
+  if graphics::gl_measure_text(font, str, size) <= max_w { return str; }
+  out = str;
+  while len(out) > 1 && graphics::gl_measure_text(font, "{out}…", size) > max_w {
+    out = out[..(len(out) - 1)];
+  }
+  "{out}…"
 }
 
 pub fn build_hud(s: Sim) -> Hud {
@@ -209,7 +222,7 @@ pub fn build_hud(s: Sim) -> Hud {
     }
     itbl = item_table();
     for ii in 0..len(itbl) {
-      itex += [graphics::create_text_texture(font, item_short_idx(itbl, ii), SB_SIZE, graphics::rgba(220, 220, 205, 255))];
+      itex += [graphics::create_text_texture(font, fit_text(font, item_short_idx(itbl, ii), SB_NAME_W, SB_SIZE), SB_SIZE, graphics::rgba(220, 220, 205, 255))];
     }
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
@@ -492,7 +505,7 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
     nx = pad + 18.0;
     defidx = sim_qs_def(s, k);
     if defidx >= 0 && defidx < len(hud.itex) {
-      nm = item_short_idx(itbl, defidx);   // short name in the tight bar (drop "Category of ")
+      nm = fit_text(hud.font, item_short_idx(itbl, defidx), SB_NAME_W, SB_SIZE);   // short + ellipsis-fit
       sb_text(painter, hud, hud.itex[defidx] ?? 0, nm, nx, qy);
       cnt = sim_qs_count(s, k);
       if item_cat(itbl, defidx) == IT_BOW || cnt > 1 {
