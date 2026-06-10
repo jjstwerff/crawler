@@ -159,28 +159,24 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Push only
   when asked.
 
-## loft survival guide (the interpreter bites — full list + repros: LOFT_ISSUES.md)
+## loft survival guide (updated 2026-06-10 after the store fixes — repros: LOFT_ISSUES.md)
 
-Use ONLY these proven-safe shapes when touching vectors/structs:
-- Filter a `vector<struct>`: `for i in 0..len(v) { m = v[i] ?? none(); if … { out += [m] } }`.
-- Select an element: build the list, then **guarded direct index, no `??`**:
-  `if i < len(v) { m = v[i]; … }`. (`v[i] ?? structfn()` can **SIGSEGV** — C1.)
-- **Never grow a struct's vector field at runtime** (`s.v += [x]` and
-  capture-append-reassign both desync — C18). For a growable collection on the
-  `Sim`, pre-allocate a fixed array (`zeros(N)`) + an integer count and
-  **index-write**, exactly like `enemies` / floor-items: `n = s.fi_n; v = s.fi_q;
-  v[n] = q; s.fi_n = n + 1`. Index-writes on a captured field vector persist;
-  integer `+=` on a field persists; append / whole-field reassign don't.
-- Keep a **`&Struct`-mutating helper in the same module** as its callers
-  (cross-module `&` mutation is lost — C4; e.g. `sim` has its own `SimRng`).
-- **Never hold several large structs (`Sim`) live at once** — consume each
-  `sim_new_gen(...)` straight into a small value (`text`/`bool`); holding ~7 + a deferred
-  field comparison gives a **wrong result** that a stray `println` flips (C22 / loft#303,
-  the C2 Heisenbug). Same reason the kernel/view never copy `Sim` by value.
-- `!x` on an **integer is not logical-not** — compare `== 0` (C6). No chained `as`
-  casts (split them — C7). `false ?? x` is unreliable; use int flags (C10). Doubled
-  braces `{{`/`}}` in strings (C14). A `println` can change results — don't trust
-  print-debugging blindly (C2).
+Much of the old minefield is FIXED and re-verified (C1 `?? structfn` SIGSEGV, C3 text-drop,
+C4 cross-module `&` mutation, C7 chained casts, C10 `false ??`, C13 `&`-copy, C22/C24 store
+pressure). What still bites:
+- **STILL LIVE — a comprehension of STRUCT literals panics codegen** (loft#319): build with
+  an explicit loop + append instead. Integer comprehensions are fine.
+- **STILL LIVE — capture-append-reassign on a struct's vector field EMPTIES it**
+  (loft#320: `w = s.v; w += [x]; s.v = w` → len 0). Direct `s.v += [x]` works now; the
+  pre-allocated array + count + **index-write** idiom (`enemies`/floor-items) stays the
+  default for hot collections.
+- `!x` on a **non-boolean is a NULL test, not logical-not** — BY DESIGN (loft C69; an
+  always-false warning covers `not null` operands). Compare `== 0`.
+- Doubled braces `{{`/`}}` in string literals (C14, by design).
+- Soak-period habits kept as defense-in-depth (their bugs are fixed, the idioms are still
+  good): same-module `&`-mutating helpers; don't hold many large `Sim`s live / consume
+  `sim_new_gen(...)` straight into small values; the kernel/view never copy `Sim` by value
+  per hit (that one is also perf: the rc_*/wdam cache idiom).
 
 ## Where moros, the toolchain & the libraries live (this machine, as of 2026-06-09)
 
