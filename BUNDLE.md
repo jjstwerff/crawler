@@ -43,6 +43,10 @@ touching `src/`, and their game is byte-identical.** Concretely:
 - A bundle *setting* an engine flag/record (`IF_KNOWN`, `MF_GAZE`, a `Placement`) is correct:
   the engine *providing* the flag is mechanism, the bundle *using* it is content.
 
+The flip side of this check is the ceiling it implies — a bundle can only *set* vocabulary the
+engine defined. How we lift that (an event/hook bus, a general deterministic script API,
+flags-as-routines, runtime-interpreted bundles) is its own staged epic: **SCRIPTING.md**.
+
 ## Bundles compose — and the entry point is a bundle too
 
 **Bundles link to other bundles via scripts (routines).** A bundle's hooks can
