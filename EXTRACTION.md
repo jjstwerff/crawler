@@ -140,13 +140,15 @@ carried across descend for save/replay/MP; the per-game flavour shuffle). One gl
 stream means any new call site reorders every stream after it, and state hidden in a
 thread-local can't be saved with the Sim.
 
-- [ ] Add the VALUE tier beside the global one (C4's fix makes `&Rng` cross-module
-      mutation work): `rng_new(seed) -> Rng` (a struct of integer state words),
-      `rng_int(&Rng, lo, hi)`, `rng_indices(&Rng, n)`. Preferred shape: **pure-loft
-      state + math for the value tier** (xorshift*/PCG32 — fully portable, no native
-      dependency, fits the dynamic-compilation ladder); keep Pcg64-native for the
-      global tier. Alternative: a stateless native step `state -> (state', value)`
-      wrapped by a loft value API. Owner picks.
+- [ ] Add the VALUE tier beside the global one — **API decided + probe-verified
+      (2026-06-10), the METHODS way**: `pub struct RandStream { ... }`,
+      `seed_stream(seed) -> RandStream`, `get(self: RandStream, lo, hi) -> integer`,
+      `indices(self: RandStream, n) -> vector<integer>`. The by-value receiver mutates
+      the stream (a struct param is a store link — no `&` needed; `&` only relinks a
+      stack variable). Pure-loft state + math (overflow-trapped 64-bit ints: keep
+      products < 2^63 — MINSTD-style works; the owner may prefer a stronger pure-loft
+      step or a native one). Probe: advance/reproducibility/isolation/permutation all
+      green; found loft#322 (stale program-cache on lib edits) along the way.
 - [ ] A soak guard: a cross-module hammer test (N modules bumping one `&Rng`,
       interpret + native) green before crawler adopts.
 - [ ] crawler adopts STREAM-BY-STREAM, gate green after each: the flavour shuffle
