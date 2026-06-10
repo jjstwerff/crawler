@@ -30,6 +30,7 @@ KEY_I   = 105;      // 'i' — open/close the inventory page
 KEY_1   = 49;       // '1'..'9' — in play: use quick-slot N; char page: spend a stat; inv: use/wield N
 KEY_Q   = 113;      // 'q' — quick-slot active Q (fire the launcher)
 KEY_E   = 101;      // 'e' — quick-slot active E (spell — later)
+KEY_ENTER = 13;     // Enter — equip the selected item in the inventory hub
 
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
 GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
@@ -75,8 +76,14 @@ fn main() {
   spend_was = false;        // edge-trigger for the 1-9 number keys (shared by both pages)
   qs_was = false;           // edge-trigger for the quick-slot keys (1-9 / Q / E in normal play)
   inv_open = false;         // inventory overlay (I): also pauses the world
-  pg_inv: vector<integer> = [];   // baked inventory line textures (rebuilt on open + use/wield)
+  pg_inv: vector<integer> = [];   // baked inventory-hub textures (rebuilt on cursor move / equip / bind)
   i_was = false;            // edge-trigger for the inventory toggle
+  inv_cursor = 0;           // highlighted carried item in the hub
+  iu_was = false;           // edge-triggers for the hub: cursor up / down / Q-bind / E-bind / equip
+  id_was = false;
+  iq_was = false;
+  ie_was = false;
+  ient_was = false;
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
   running = true;
@@ -103,11 +110,13 @@ fn main() {
       i_down = graphics::gl_key_pressed(KEY_I);
       if i_down && !i_was {
         inv_open = !inv_open;
-        if inv_open { page_open = false; pg_inv = build_invpage(s, hud.font); }
+        if inv_open { page_open = false; inv_cursor = 0; pg_inv = build_invpage(s, hud.font, inv_cursor); }
       }
       i_was = i_down;
 
       if page_open || inv_open {
+        // Number keys 1-9: char page SPENDS a stat (1-6); inventory hub BINDS the selected item to
+        // that quick-slot (the manual reslot).
         sd = -1;
         for ki in 0..9 {
           if graphics::gl_key_pressed(KEY_1 + ki) { sd = ki; }
@@ -116,12 +125,37 @@ fn main() {
         if sdn && !spend_was {
           if page_open && sd < 6 {
             if sim_raise_stat(s, stat_name(sd)) { pg = build_charpage(s, hud.font); }
-          } else if inv_open && sd < sim_inv_count(s) {
-            if !use_item(s, sd) { sim_equip(s, sd); }   // consumable -> use; else wield
-            pg_inv = build_invpage(s, hud.font);
+          } else if inv_open {
+            sim_inv_bind(s, inv_cursor, sd);
+            pg_inv = build_invpage(s, hud.font, inv_cursor);
           }
         }
         spend_was = sdn;
+
+        if inv_open {
+          // WASD cursor over the carried list
+          up_d = graphics::gl_key_pressed(KEY_W);
+          if up_d && !iu_was && inv_cursor > 0 { inv_cursor = inv_cursor - 1; pg_inv = build_invpage(s, hud.font, inv_cursor); }
+          iu_was = up_d;
+          dn_d = graphics::gl_key_pressed(KEY_S);
+          if dn_d && !id_was && inv_cursor < sim_inv_count(s) - 1 { inv_cursor = inv_cursor + 1; pg_inv = build_invpage(s, hud.font, inv_cursor); }
+          id_was = dn_d;
+          // Q / E bind the selected item to an active slot
+          q_d = graphics::gl_key_pressed(KEY_Q);
+          if q_d && !iq_was { sim_inv_bind(s, inv_cursor, QS_Q); pg_inv = build_invpage(s, hud.font, inv_cursor); }
+          iq_was = q_d;
+          e_d = graphics::gl_key_pressed(KEY_E);
+          if e_d && !ie_was { sim_inv_bind(s, inv_cursor, QS_E); pg_inv = build_invpage(s, hud.font, inv_cursor); }
+          ie_was = e_d;
+          // Enter equips the selected item to its worn location
+          ent_d = graphics::gl_key_pressed(KEY_ENTER);
+          if ent_d && !ient_was {
+            sim_equip(s, inv_cursor);
+            if inv_cursor >= sim_inv_count(s) && inv_cursor > 0 { inv_cursor = sim_inv_count(s) - 1; }
+            pg_inv = build_invpage(s, hud.font, inv_cursor);
+          }
+          ient_was = ent_d;
+        }
       } else {
         spend_was = false;
 
@@ -201,7 +235,7 @@ fn main() {
       view_draw(painter, s, walls, hud, wprog, wvao);
       draw_msglog(painter, s, hud, ml);
       if page_open { draw_charpage(painter, s, hud, pg); }
-      else if inv_open { draw_invpage(painter, s, hud, pg_inv); }
+      else if inv_open { draw_invpage(painter, s, hud, pg_inv, inv_cursor); }
       graphics::gl_swap_buffers();
     }
   }

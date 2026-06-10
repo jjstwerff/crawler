@@ -240,6 +240,9 @@ test:
 	@echo "  [msg] message log: ring buffer + event lines (kill/level/descend/nothing) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/msgtest.loft | tee /tmp/story_msg.log
 	@grep -q "MSG OK" /tmp/story_msg.log || { echo "    FAIL: msg"; exit 1; }
+	@echo "  [invhub] inventory hub: two ring slots + equipped names + reslot bind ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/invhubtest.loft | tee /tmp/story_invhub.log
+	@grep -q "INVHUB OK" /tmp/story_invhub.log || { echo "    FAIL: invhub"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

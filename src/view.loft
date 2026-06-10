@@ -708,26 +708,39 @@ pub fn draw_charpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<
 // Toggled by 'I'; lists what you carry, and pressing an item's number USES it — a consumable
 // (potion/scroll/food) is drunk/read via use_item, anything wieldable is equipped. Shows the first
 // 9 items (the slice rarely carries more). Same shared-view pattern as the Character Page.
-fn inv_lines(s: Sim) -> vector<text> {
-  out: vector<text> = [];
+// The inventory hub (SLICE §1): one screen, two columns. All lines in a fixed order so build bakes
+// them and draw positions by index: [0] INVENTORY title · [1] EQUIPPED title · [2 .. 2+n) carried
+// (cursor-marked) · [2+n .. 2+n+12) the 12 worn locations · [..] examine line · [..] hint.
+INV_LOCS = 12;
+fn inv_hub_lines(s: Sim, cursor: integer) -> vector<text> {
+  out: vector<text> = ["INVENTORY", "EQUIPPED"];
   n = sim_inv_count(s);
-  out += ["INVENTORY    ({n} carried)"];
-  if n == 0 { out += ["  (empty — kill things and grab the loot)"]; }
   for i in 0..n {
-    if i < 9 {
-      nm = sim_inv_name(s, i);
-      out += ["  {i + 1}   {nm}"];
-    }
+    mark = "  ";
+    if i == cursor { mark = "> "; }
+    out += ["{mark}{sim_inv_name(s, i)}"];
   }
-  out += ["press 1-9 to use a potion/scroll or wield gear.    I closes."];
+  elocs = [SLOT_WEAPON, SLOT_BOW, SLOT_BODY, SLOT_SHIELD, SLOT_HEAD, SLOT_HANDS,
+           SLOT_FEET, SLOT_CLOAK, SLOT_LIGHT, SLOT_RING, SLOT_RING2, SLOT_AMULET];
+  elabs = ["Weapon", "Bow", "Body", "Shield", "Head", "Hands",
+           "Feet", "Cloak", "Light", "Ring L", "Ring R", "Amulet"];
+  for j in 0..INV_LOCS {
+    en = sim_equipped_name(s, elocs[j] ?? 0);
+    if en == "" { en = "-"; }
+    out += ["{elabs[j] ?? \"\"} : {en}"];
+  }
+  d = sim_inv_desc(s, cursor);
+  if d == "" { d = "(nothing selected)"; }
+  out += [d];
+  out += ["WASD move   Enter equip   1-9/Q/E bind   Esc closes"];
   out
 }
 
 // Bake the inventory line textures (call on open + after each use/wield).
-pub fn build_invpage(s: Sim, font: integer) -> vector<integer> {
+pub fn build_invpage(s: Sim, font: integer, cursor: integer) -> vector<integer> {
   out: vector<integer> = [];
   if font >= 0 {
-    lines = inv_lines(s);
+    lines = inv_hub_lines(s, cursor);
     for i in 0..len(lines) {
       ln = lines[i] ?? "";
       out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
@@ -736,28 +749,41 @@ pub fn build_invpage(s: Sim, font: integer) -> vector<integer> {
   out
 }
 
-// Draw the inventory page: dark backdrop + the baked lines, stacked.
-pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>) {
+// Draw the baked line `idx` (texture pg[idx], string lines[idx]) at (x, y), measured for crisp width.
+fn inv_draw_line(painter: graphics::Painter2D, hud: Hud, pg: vector<integer>, lines: vector<text>,
+                 idx: integer, x: float, y: float) {
+  if idx < 0 || idx >= len(pg) || idx >= len(lines) { return; }
+  t = pg[idx] ?? 0;
+  ln = lines[idx] ?? "";
+  if t != 0 {
+    w = graphics::gl_measure_text(hud.font, ln, CHARPAGE_SIZE);
+    hh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 4.0;
+    graphics::draw_texture_at(painter, t, x, y, w, hh);
+  }
+}
+
+// Draw the hub: backdrop, carried column (left, cursor-marked), worn-locations column (right),
+// then the selected item's description + the hint.
+pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>, cursor: integer) {
   if hud.panel != 0 {
     graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
   }
   if hud.font < 0 { return; }
-  lines = inv_lines(s);
-  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 10.0;
-  y = 60.0;
-  n = len(pg);
-  for i in 0..n {
-    if i < len(lines) {
-      ln = lines[i] ?? "";
-      t = pg[i] ?? 0;
-      if t != 0 {
-        w = graphics::gl_measure_text(hud.font, ln, CHARPAGE_SIZE);
-        h = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 4.0;
-        graphics::draw_texture_at(painter, t, 60.0, y, w, h);
-      }
-    }
-    y += lh;
-  }
+  lines = inv_hub_lines(s, cursor);
+  n = sim_inv_count(s);
+  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 8.0;
+  xL = 60.0;
+  xR = 430.0;
+  y0 = 56.0;
+  inv_draw_line(painter, hud, pg, lines, 0, xL, y0);
+  inv_draw_line(painter, hud, pg, lines, 1, xR, y0);
+  for i in 0..n { inv_draw_line(painter, hud, pg, lines, 2 + i, xL, y0 + (i as float + 1.0) * lh); }
+  for j in 0..INV_LOCS { inv_draw_line(painter, hud, pg, lines, 2 + n + j, xR, y0 + (j as float + 1.0) * lh); }
+  rows = n;
+  if INV_LOCS > rows { rows = INV_LOCS; }
+  dy = y0 + (rows as float + 2.0) * lh;
+  inv_draw_line(painter, hud, pg, lines, 2 + n + INV_LOCS, xL, dy);
+  inv_draw_line(painter, hud, pg, lines, 2 + n + INV_LOCS + 1, xL, dy + lh + 6.0);
 }
 
 // ── The message log (SLICE §3): the most recent kernel messages, drawn over the dungeon view ──

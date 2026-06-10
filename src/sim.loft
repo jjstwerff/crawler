@@ -36,7 +36,7 @@ STAT_COOLDOWN     = 3;  // a given stat can rise at most once per 3 character le
 MAX_CLEVEL = 50;      // character-level cap
 FLOOR_MAX  = 64;      // floor-item slots per level (fixed array — see LOFT_ISSUES)
 INV_MAX    = 64;      // inventory slots
-NUM_SLOTS  = 12;      // equipment slots, indexed by SLOT_* (0 = SLOT_NONE, 11 = SLOT_AMULET)
+NUM_SLOTS  = 13;      // equipment slots, indexed by SLOT_* (0 = SLOT_NONE .. 11 = AMULET, 12 = RING2)
 SAVE_INTERVAL = 3;    // a save-point level every 3 levels (depth 1, 4, 7, …) — checkpoint respawn
 DEPTH_MAX  = 64;      // dungeon depths the per-level persistence store addresses
 MAX_SPAWNS = 32;      // per-depth cap on stored dead-spawn indices (a level carries ~15)
@@ -384,6 +384,12 @@ pub fn sim_equip(s: &Sim, ii: integer) {
   sl = item_slot(itbl, defidx);
   eq = s.eq;
   if sl <= 0 || sl >= len(eq) { return; }   // not wieldable / out of range
+  // Rings have TWO locations (L = SLOT_RING, R = SLOT_RING2): fill the first free, else swap the left.
+  if sl == SLOT_RING {
+    if (eq[SLOT_RING] ?? 0) == 0 { sl = SLOT_RING; }
+    else if SLOT_RING2 < len(eq) && (eq[SLOT_RING2] ?? 0) == 0 { sl = SLOT_RING2; }
+    else { sl = SLOT_RING; }
+  }
   prev = eq[sl] ?? 0;
   if sl < len(eq) { eq[sl] = defidx + 1; }
   if prev > 0 {
@@ -559,6 +565,18 @@ pub fn sim_inv_name(s: Sim, slot: integer) -> text {
   if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
   defidx = iv[slot] ?? -1;
   item_name(game_items(), defidx)
+}
+// Description of the carried item in `slot` (the inventory hub's examine line). "" if empty.
+pub fn sim_inv_desc(s: Sim, slot: integer) -> text {
+  iv = s.inv;
+  if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
+  item_desc(game_items(), iv[slot] ?? -1)
+}
+// Bind the carried item in `inv_slot` to quick-slot `qslot` (the inventory hub's manual reslot).
+pub fn sim_inv_bind(s: &Sim, inv_slot: integer, qslot: integer) {
+  iv = s.inv;
+  if inv_slot < 0 || inv_slot >= s.ninv || inv_slot >= len(iv) { return; }
+  sim_qs_bind(s, qslot, iv[inv_slot] ?? -1);
 }
 
 // First inventory slot holding item `key`, or -1.
@@ -1572,6 +1590,13 @@ pub fn sim_equipped(s: Sim, slot: integer) -> integer {
   e = eq[slot] ?? 0;
   if e > 0 { return e - 1; }
   -1
+}
+
+// Display name of the item worn in `slot`, or "" if empty (the inventory hub's equipped column).
+pub fn sim_equipped_name(s: Sim, slot: integer) -> text {
+  d = sim_equipped(s, slot);
+  if d < 0 { return ""; }
+  item_name(game_items(), d)
 }
 // Damage `raw` would deal after the player's armour DR (never below 1).
 pub fn sim_mitigate(s: Sim, raw: integer) -> integer { apply_dr(raw, s.pac) }

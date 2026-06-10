@@ -1,0 +1,38 @@
+// invhubtest — the inventory hub's KERNEL pieces: the two ring locations (L = SLOT_RING, R =
+// SLOT_RING2; a ring fills the first free, a third swaps the left), the equipped-name accessor for
+// the EQUIPPED column, and reslot-binding a carried item to a quick-slot (the same bind primitive).
+use sim;
+use catalog;
+use items;
+
+fn main() {
+  println("=== story inventory-hub test (two ring slots + equipped names + reslot) ===");
+  s = sim_new();
+  sim_give_item(s, "ring_protection");
+  sim_give_item(s, "ring_strength");
+  sim_give_item(s, "short_sword");
+
+  sim_equip(s, sim_find_item(s, "ring_protection"));     // -> Ring L (SLOT_RING)
+  ring_l = sim_equipped_name(s, SLOT_RING) == "Ring of Protection";
+  sim_equip(s, sim_find_item(s, "ring_strength"));       // -> Ring R (SLOT_RING2), L was full
+  ring_r = sim_equipped_name(s, SLOT_RING2) == "Ring of Strength";
+  sim_equip(s, sim_find_item(s, "short_sword"));         // a non-ring uses its own slot
+  weapon = sim_equipped_name(s, SLOT_WEAPON) == "Short Sword";
+
+  // both ring locations full -> a third ring SWAPS the left; the displaced ring returns to inventory
+  sim_give_item(s, "ring_protection");
+  sim_equip(s, sim_find_item(s, "ring_protection"));
+  both_full = sim_equipped(s, SLOT_RING) >= 0 && sim_equipped(s, SLOT_RING2) >= 0;
+  displaced = sim_find_item(s, "ring_protection") >= 0;  // swapped-out ring is back in inv
+  swap = both_full && displaced;
+
+  // reslot: bind a carried potion to quick-slot 4 (the manual-reslot the hub triggers)
+  sim_give_item(s, "potion_cure_light");
+  pot = item_index(game_items(), "potion_cure_light");
+  sim_qs_bind(s, 4, pot);
+  bind_ok = sim_qs_def(s, 4) == pot;
+
+  println("ring_l={ring_l} ring_r={ring_r} weapon={weapon} swap={swap} bind={bind_ok}");
+  ok = ring_l && ring_r && weapon && swap && bind_ok;
+  if ok { println("=== INVHUB OK ==="); } else { println("=== FAIL ==="); }
+}

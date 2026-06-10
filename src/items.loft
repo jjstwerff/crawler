@@ -30,8 +30,9 @@ pub const SLOT_HANDS  = 6;
 pub const SLOT_FEET   = 7;
 pub const SLOT_CLOAK  = 8;
 pub const SLOT_LIGHT  = 9;
-pub const SLOT_RING   = 10;
+pub const SLOT_RING   = 10;   // left ring
 pub const SLOT_AMULET = 11;
+pub const SLOT_RING2  = 12;   // right ring (faithful Angband — two ring locations)
 
 pub const IF_NONE      = 0;
 pub const IF_STACKABLE = 1;
