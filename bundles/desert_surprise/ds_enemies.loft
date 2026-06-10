@@ -4,7 +4,7 @@
 // engine's vocabulary only: the MonsterDef record + the MF_* flags from `monsters`.
 use monsters;
 
-pub fn enemies() -> vector<MonsterDef> {
+pub fn monster_defs() -> vector<MonsterDef> {
   t: vector<MonsterDef> = [];
   // Ssirath, the Coiled Crown — the capstone naga boss, coiled on the round throne at the third
   // deep. MF_UNIQUE keeps her out of the random pool (the bundle's placement seats her on the

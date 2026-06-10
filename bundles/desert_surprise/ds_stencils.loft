@@ -1,0 +1,14 @@
+// desert_surprise bundle — ROOM STENCILS (authored content). A stencil is a room template the
+// engine stamps; this one is the naga throne. Uses only the engine's Stencil vocabulary. The legend
+// (boss/guard) references monster keys the bundle defined in ds_enemies.loft — resolved at stamp
+// time through the merged catalog, so it all stays bundle-side.
+use worldtypes;
+
+pub fn room_stencils() -> vector<Stencil> {
+  t: vector<Stencil> = [];
+  // naga_throne — a round throne-cave (a hex disc of floor), Ssirath coiled at the centre, a ring of
+  // sand adders guarding. The placement rule stamps it around the depth-3 stair-down so the crown
+  // gates the descent.
+  t += [Stencil { sk: "naga_throne", shape: "round", radius: 4, boss: "ssirath", guard: "sand_adder", guards: 6 }];
+  t
+}

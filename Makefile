@@ -234,6 +234,9 @@ test:
 	@echo "  [quickslot] type-routed auto-slot + bind + press-to-use dispatch ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/quickslottest.loft | tee /tmp/story_quickslot.log
 	@grep -q "QUICKSLOT OK" /tmp/story_quickslot.log || { echo "    FAIL: quickslot"; exit 1; }
+	@echo "  [quest] desert_surprise overlay: throne set-piece + grant + boss -> infestation ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/questtest.loft | tee /tmp/story_quest.log
+	@grep -q "QUEST OK" /tmp/story_quest.log || { echo "    FAIL: quest"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

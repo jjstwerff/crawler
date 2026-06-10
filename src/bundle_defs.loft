@@ -9,14 +9,14 @@ use ds_items;
 
 pub fn bundle_monsters() -> vector<MonsterDef> {
   t: vector<MonsterDef> = [];
-  s_ds_enemies = ds_enemies::enemies();
+  s_ds_enemies = ds_enemies::monster_defs();
   for i in 0..len(s_ds_enemies) { if i < len(s_ds_enemies) { t += [s_ds_enemies[i]]; } }
   t
 }
 
 pub fn bundle_items() -> vector<ItemDef> {
   t: vector<ItemDef> = [];
-  s_ds_items = ds_items::items();
+  s_ds_items = ds_items::item_defs();
   for i in 0..len(s_ds_items) { if i < len(s_ds_items) { t += [s_ds_items[i]]; } }
   t
 }

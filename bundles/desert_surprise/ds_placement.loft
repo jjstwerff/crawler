@@ -1,0 +1,17 @@
+// desert_surprise bundle — PLACEMENT rules (authored content): where the bundle injects its content
+// onto the linked classic dungeon. Declarative data the engine's placer executes:
+//   - stamp the naga_throne stencil at depth 3 (the set-piece, around the stair-down);
+//   - hand the player the sealed_orders keepsake on the surface (depth 0);
+//   - once the throne boss dies (boss_slain), flood the way OUT with the snake brood — depth 1
+//     crawling (11), depth 2 some (4).
+// References everything by KEY (engine vocabulary + the bundle's own defs); no engine source changes.
+use worldtypes;
+
+pub fn place_rules() -> Placement {
+  Placement {
+    setpiece_stencil: "naga_throne", setpiece_depth: 3,
+    quest_item: "sealed_orders", quest_depth: 0,
+    infest_trigger: "boss_slain", infest_a: "sand_adder", infest_b: "dust_viper",
+    infest_d1: 11, infest_d2: 4,
+  }
+}

@@ -1,0 +1,26 @@
+// worldtypes — engine VOCABULARY for world bundles: the record types a bundle authors instances of.
+// A `Stencil` is a room template (a shape + a legend referencing monster keys); a `Placement` says
+// where a bundle injects its content onto a linked place. Pure types, no behavior — the engine's
+// stamp/placer (in sim.loft, where the &Sim mutation is C4-safe) executes them. Dependency-free so
+// the bundle modules AND the engine consumer can both use it without an import cycle.
+
+pub struct Stencil {
+  sk:      text,                  // stencil key (a placement rule references it)
+  shape:   text,                  // "round" — a hex disc of floor; later: "grid" with explicit cells
+  radius:  integer not null,      // round-shape radius in hexes
+  boss:    text,                  // legend: monster seated at the centre ("" = none)
+  guard:   text,                  // legend: monster ringing the centre ("" = none)
+  guards:  integer not null,      // how many guards to place around the boss
+}
+
+pub struct Placement {
+  setpiece_stencil: text,             // which stencil to stamp...
+  setpiece_depth:   integer not null, // ...at which depth (on the linked place)
+  quest_item:       text,             // a keepsake handed to the player ("" = none)...
+  quest_depth:      integer not null, // ...on first entering this depth
+  infest_trigger:   text,             // "boss_slain" = release the brood once the set-piece boss dies
+  infest_a:         text,             // first infestation monster key
+  infest_b:         text,             // second infestation monster key (alternated with the first)
+  infest_d1:        integer not null, // how many to spawn at depth 1 (crawling)
+  infest_d2:        integer not null, // how many at depth 2 (some)
+}

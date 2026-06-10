@@ -1,0 +1,80 @@
+// questtest — the desert_surprise overlay end-to-end, all driven by the bundle (no engine content):
+//   1) QUEST GRANT  — the surface (depth 0) hands the player the sealed-orders keepsake (a quest
+//                     item, so it is NOT auto-slotted).
+//   2) SET-PIECE    — depth 3 stamps the naga_throne stencil: Ssirath (the unique) by the stair-down,
+//                     ringed by snake guards.
+//   3) BOSS->FLAG   — killing the unique sets boss_slain (tested through the ranged kill path).
+//   4) INFESTATION  — with boss_slain carried, the way OUT crawls with the brood (depth 1 thick,
+//                     depth 2 some); without it, the shallow levels are snake-free.
+use sim;
+use catalog;
+use monsters;
+use items;
+use hexgeo;
+
+fn count_glyph(s: Sim, g: text) -> integer {
+  n = 0;
+  ec = sim_enemy_count(s);
+  for i in 0..ec {
+    if sim_enemy_alive(s, i) && sim_enemy_glyph(s, i) == g { n = n + 1; }
+  }
+  n
+}
+
+fn main() {
+  println("=== story quest test (desert_surprise: grant + throne set-piece + boss -> infestation) ===");
+  gi = game_items();
+
+  // 1) quest grant on the surface
+  surf = sim_new_gen(777, 0);
+  scroll = sim_find_item(surf, "sealed_orders");
+  granted = scroll >= 0 && item_is_quest(gi, item_index(gi, "sealed_orders"));
+
+  // 2) the depth-3 set-piece: the naga + guards, by the stair-down
+  d3 = sim_new_gen(777, 3);
+  naga_i = -1;
+  ec = sim_enemy_count(d3);
+  for i in 0..ec {
+    if sim_enemy_hp(d3, i) >= 40 { naga_i = i; }     // only Ssirath has >= 40 hp at depth 3
+  }
+  guards = count_glyph(d3, "J");                       // sand-adder ring (glyph J)
+  near = false;
+  if naga_i >= 0 {
+    (nx, ny) = sim_enemy_pos(d3, naga_i);
+    (nq, nr) = px_to_hex(nx, ny);
+    near = hex_distance(nq, nr, d3.dn_q, d3.dn_r) <= 2;
+  }
+  setpiece = naga_i >= 0 && guards >= 1 && near;
+
+  // 3) killing the unique sets boss_slain — fire a bow at her point-blank until she falls
+  d3k = sim_new_gen(777, 3);
+  kill_flag = 0;
+  if naga_i >= 0 {
+    (kx, ky) = sim_enemy_pos(d3k, naga_i);
+    (kq, kr) = px_to_hex(kx, ky);
+    (px2, py2) = hex_to_px(kq - 1, kr);                // stand one hex west of her
+    d3k.px = px2;
+    d3k.py = py2;
+    d3k.heading = atan2(ky - py2, kx - px2);           // face her
+    sim_equip_by_key(d3k, "short_bow");
+    for _ in 0..60 { sim_give_item(d3k, "arrow"); }
+    sim_compute_fov(d3k);                              // FOV is constant while the player stays put
+    for _ in 0..50 { sim_fire(d3k); }                  // empty the quiver into the throne (boss + guards)
+    kill_flag = d3k.boss_slain;
+  }
+
+  // 4) the infestation is gated on boss_slain
+  clean1 = count_glyph(sim_new_gen(777, 1), "J");       // depth 1, no boss killed -> no brood
+  d3i = sim_new_gen(777, 3);
+  d3i.boss_slain = 1;                                   // the throne has fallen
+  up2 = sim_descend(d3i, -1);                           // ascend to depth 2 -> some snakes
+  up1 = sim_descend(up2, -1);                           // ascend to depth 1 -> crawling
+  inf2 = count_glyph(up2, "J");
+  inf1 = count_glyph(up1, "J");
+
+  println("granted={granted}  setpiece={setpiece} (naga={naga_i} guards={guards} near={near})  boss_flag={kill_flag}");
+  println("infestation: clean-d1={clean1}  d2={inf2}  d1={inf1}");
+  ok = granted && setpiece && kill_flag == 1
+    && clean1 == 0 && inf1 >= 8 && inf2 >= 2 && inf1 > inf2;
+  if ok { println("=== QUEST OK ==="); } else { println("=== FAIL ==="); }
+}

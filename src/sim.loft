@@ -8,6 +8,9 @@ use hexgeo;
 use gen;
 use monsters;
 use items;
+use catalog;          // game_monsters()/game_items() — base tables + bundle defs (catalog merge)
+use worldtypes;       // Stencil / Placement — the world-bundle vocabulary
+use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
 MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)
 TURN_SPEED = 2.6;     // radians / second
@@ -126,6 +129,8 @@ pub struct Sim {
   grave_q:     integer not null,  //   SP keeps one grave (re-death forfeits it); MP would hold a
   grave_r:     integer not null,  //   list (owner-less, persistent) — a later, non-rewrite variant.
   grave_gold:  integer not null,
+  boss_slain:  integer not null,  // quest progress: 1 once a set-piece UNIQUE has died (releases the
+                                  //   bundle's infestation on the way out). Carried across levels.
   wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
   up_r:    integer not null,
@@ -331,7 +336,7 @@ fn xp_for_level(lvl: integer) -> integer {
 // Same module as its &-callers (C4). AC feeds BOTH max HP (heavy armour = tanky — the
 // fighter's compensation, §3a #3) and damage reduction.
 fn refresh_stats(s: &Sim) {
-  itbl = item_table();
+  itbl = game_items();
   eq = s.eq;
   ac = 0;
   for sl in 0..NUM_SLOTS {
@@ -371,7 +376,7 @@ pub fn sim_equip(s: &Sim, ii: integer) {
   if ii < 0 || ii >= s.ninv || ii >= len(iv) { return; }
   defidx = iv[ii] ?? -1;
   if defidx < 0 { return; }
-  itbl = item_table();
+  itbl = game_items();
   sl = item_slot(itbl, defidx);
   eq = s.eq;
   if sl <= 0 || sl >= len(eq) { return; }   // not wieldable / out of range
@@ -408,7 +413,7 @@ pub fn sim_unequip(s: &Sim, sl: integer) {
 // Seed the class-as-kit starting loadout (BUNDLE.md): a dagger + soft leather armour,
 // equipped. A single generic kit for now; per-class kits arrive with classes.
 pub fn sim_starting_loadout(s: &Sim) {
-  itbl = item_table();
+  itbl = game_items();
   di = item_index(itbl, "dagger");
   ai = item_index(itbl, "soft_leather_armor");
   eq = s.eq;
@@ -424,7 +429,7 @@ pub fn sim_starting_loadout(s: &Sim) {
 
 // Add an item (by key) to the player's inventory — fixed array + count (C18-safe).
 pub fn sim_give_item(s: &Sim, key: text) {
-  itbl = item_table();
+  itbl = game_items();
   idx = item_index(itbl, key);
   if idx >= 0 && s.ninv < INV_MAX {
     n = s.ninv;
@@ -490,7 +495,8 @@ pub fn sim_qs_bind(s: &Sim, k: integer, defidx: integer) {
 // anything else (worn gear) gets no quick-slot. Idempotent: an already-slotted def is left alone.
 pub fn sim_qs_autoslot(s: &Sim, defidx: integer) {
   if defidx < 0 { return; }
-  itbl = item_table();
+  itbl = game_items();
+  if item_is_quest(itbl, defidx) { return; } // a quest keepsake is never quick-slotted (inspect-only)
   cat = item_cat(itbl, defidx);
   if qs_find(s, defidx) >= 0 { return; }     // already slotted (e.g. picked up a second of the same)
   if cat == IT_POTION || cat == IT_SCROLL || cat == IT_FOOD {
@@ -515,7 +521,7 @@ pub fn sim_qs_autoslot(s: &Sim, defidx: integer) {
 pub fn sim_qs_count(s: Sim, k: integer) -> integer {
   defidx = sim_qs_def(s, k);
   if defidx < 0 { return 0; }
-  itbl = item_table();
+  itbl = game_items();
   cat = item_cat(itbl, defidx);
   iv = s.inv;
   n = 0;
@@ -540,7 +546,7 @@ pub fn sim_inv_key(s: Sim, slot: integer) -> text {
   iv = s.inv;
   if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
   defidx = iv[slot] ?? -1;
-  item_key(item_table(), defidx)
+  item_key(game_items(), defidx)
 }
 
 // Inventory slot -> the item's display name (for the inventory screen). "" if empty/out of range.
@@ -548,12 +554,12 @@ pub fn sim_inv_name(s: Sim, slot: integer) -> text {
   iv = s.inv;
   if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
   defidx = iv[slot] ?? -1;
-  item_name(item_table(), defidx)
+  item_name(game_items(), defidx)
 }
 
 // First inventory slot holding item `key`, or -1.
 pub fn sim_find_item(s: Sim, key: text) -> integer {
-  itbl = item_table();
+  itbl = game_items();
   target = item_index(itbl, key);
   if target < 0 { return -1; }
   iv = s.inv;
@@ -580,7 +586,7 @@ pub fn sim_detect_active(s: Sim) -> boolean { s.detect_t > 0 }
 
 // Equip an item (by key) into its own slot, then refresh derived stats.
 pub fn sim_equip_by_key(s: &Sim, key: text) {
-  itbl = item_table();
+  itbl = game_items();
   idx = item_index(itbl, key);
   if idx >= 0 && idx < len(itbl) {
     d = itbl[idx];
@@ -765,7 +771,7 @@ pub fn sim_face(s: &Sim, q: integer, r: integer) {
 pub fn sim_light_radius(s: Sim) -> integer {
   l = s.eq[SLOT_LIGHT] ?? 0;
   if l <= 0 { return 0; }
-  itbl = item_table();
+  itbl = game_items();
   defi = l - 1;
   if defi >= 0 && defi < len(itbl) {
     d = itbl[defi];
@@ -852,7 +858,7 @@ fn drop_loot(s: &Sim, q: integer, r: integer, mlvl: integer) {
   gamt = sim_roll(s, 1, 3) * (mlvl + 1) + sim_roll(s, 0, 4);
   add_floor(s, q, r, gamt, -1, -1);
   if sim_roll(s, 0, 99) < 35 {
-    itbl = item_table();
+    itbl = game_items();
     idx = item_choose_idx(itbl, s.depth, sim_roll(s, 1, 2000000000));
     if idx >= 0 {
       cat = item_cat(itbl, idx);
@@ -893,6 +899,7 @@ fn player_attack(s: &Sim, idx: integer) {
         gain = e.xp * e.mlvl / s.clevel ?? 0;
         if gain < 1 { gain = 1; }
         drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
+        if (e.flags & MF_UNIQUE) != 0 { s.boss_slain = 1; }   // a named boss fell -> quest progresses
       }
       enemies[idx] = e;
       if gain > 0 { sim_award_xp(s, gain); }
@@ -908,7 +915,7 @@ fn player_attack(s: &Sim, idx: integer) {
 pub fn sim_fire(s: &Sim) -> integer {
   bow = s.eq[SLOT_BOW] ?? 0;
   if bow == 0 { return 0; }
-  itbl = item_table();
+  itbl = game_items();
   mult = item_power(itbl, bow - 1);
   iv = s.inv;
   ammo_slot = -1;
@@ -960,6 +967,7 @@ pub fn sim_fire(s: &Sim) -> integer {
     gain = e.xp * e.mlvl / s.clevel ?? 0;
     if gain < 1 { gain = 1; }
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
+    if (e.flags & MF_UNIQUE) != 0 { s.boss_slain = 1; }   // shot the boss dead -> quest progresses
     ret = 4;
   }
   enemies[target] = e;
@@ -1081,7 +1089,16 @@ pub fn hex_los(s: Sim, q0: integer, r0: integer, q1: integer, r1: integer) -> bo
 pub fn sim_compute_fov(s: &Sim) {
   vis = s.vis;
   seen = s.seen;
-  (pq, pr) = px_to_hex(s.px, s.py);
+  // Read the scalar bounds into locals once before the hot loop (a small micro-opt). This loop's
+  // shape (per-cell tuple-returns like hex_to_px) was the repro that surfaced loft#299 — a parser
+  // bug that dropped a thin struct-return's result, fixed in loft2 fc80115 (LOFT_ISSUES C21).
+  lw = s.lw;
+  lh = s.lh;
+  qmin = s.qmin;
+  rmin = s.rmin;
+  spx = s.px;
+  spy = s.py;
+  (pq, pr) = px_to_hex(spx, spy);
   hx = cos(s.heading);
   hy = sin(s.heading);
   nearf = NEAR_RADIUS as float;
@@ -1091,7 +1108,7 @@ pub fn sim_compute_fov(s: &Sim) {
   vr = VISION_RADIUS;
   ll = s.eq[SLOT_LIGHT] ?? 0;
   if ll > 0 {
-    litbl = item_table();
+    litbl = game_items();
     ldi = ll - 1;
     if ldi >= 0 && ldi < len(litbl) {
       ldef = litbl[ldi];
@@ -1099,19 +1116,19 @@ pub fn sim_compute_fov(s: &Sim) {
     }
   }
   visf = vr as float;
-  for gr in 0..s.lh {
-    for gq in 0..s.lw {
-      idx = gr * s.lw + gq;
-      q = s.qmin + gq;
-      r = s.rmin + gr;
+  for gr in 0..lh {
+    for gq in 0..lw {
+      idx = gr * lw + gq;
+      q = qmin + gq;
+      r = rmin + gr;
       v = 0;
       d = hex_distance(pq, pr, q, r);
       if d <= NEAR_RADIUS {
         v = 1;                                         // always-visible bubble (your feet)
       } else if d <= vr {
         (cxp, cyp) = hex_to_px(q, r);
-        dx = cxp - s.px;
-        dy = cyp - s.py;
+        dx = cxp - spx;
+        dy = cyp - spy;
         ln = sqrt(dx * dx + dy * dy);
         if ln > 0.0 {
           dot = (dx * hx + dy * hy) / ln ?? 0.0;        // -1 behind .. +1 ahead
@@ -1674,7 +1691,7 @@ pub fn sim_new() -> Sim {
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
-    grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
+    grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
@@ -1741,7 +1758,14 @@ fn tile_solid(tiles: vector<integer>, w: integer, h: integer, q: integer, r: int
 // the player placed in room 0; monsters scattered onto legal floor by the
 // Angband placement pass (budget → get_mon_num → start-safe spot → groups).
 // Renderer-agnostic — no graphics here.
+// Thin wrapper: the common 2-arg entry (tests, the open arena) generates with NO quest progress —
+// so a bare sim_new_gen never triggers the bundle's "way out" infestation. The game path
+// (sim_descend) passes the carried boss_slain so the brood appears only after the boss dies.
 pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
+  sim_new_gen_p(seed, depth, 0)
+}
+
+pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
   w = 41;
   h = 41;
   // Per-level gen seed = mix(world seed, depth) so each depth has its own layout.
@@ -1863,6 +1887,81 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   ti_dn = dnr * w + dnq;
   if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = 2; }
 
+  // ── World-bundle PLACEMENT (the engine executor; the rules + content are bundle-side) ──────────
+  // The active overlay (world_place_gen, generated from bundles/desert_surprise) decides; we stamp.
+  // Mutating the LOCAL enemies vector + tiles here is C18/C4-safe (still construction-time, same
+  // module). Deterministic, so re-entry regenerates identically.
+  if world_has_placement() == 1 {
+    pl = world_placement();
+    gm = game_monsters();          // merged catalog (base + bundle) — for the by-key boss/guard lookups
+    // SET-PIECE: stamp the configured stencil around the stair-down at its depth (the boss gates it).
+    if depth == pl.setpiece_depth {
+      stl = world_stencils();
+      rad = 0; bkey = ""; gkey = ""; gnum = 0;
+      for si in 0..len(stl) {
+        if si < len(stl) {
+          st = stl[si];
+          if st.sk == pl.setpiece_stencil && st.shape == "round" {
+            rad = st.radius; bkey = st.boss; gkey = st.guard; gnum = st.guards;
+          }
+        }
+      }
+      if rad > 0 {
+        span = 2 * rad + 1;
+        for ry in 0..span {
+          for rx in 0..span {
+            tq2 = dnq + rx - rad;
+            tr2 = dnr + ry - rad;
+            if tq2 >= 1 && tr2 >= 1 && tq2 < w - 1 && tr2 < h - 1 {
+              if hex_distance(tq2, tr2, dnq, dnr) <= rad {
+                ti2 = tr2 * w + tq2;
+                if ti2 >= 0 && ti2 < len(tiles) { tiles[ti2] = 0; }
+              }
+            }
+          }
+        }
+        if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = 2; }   // re-stamp the stair we carved over
+        (bq, br) = hex_neighbor(dnq, dnr, 0);
+        bd = mon_find(gm, bkey);
+        if bd.m_hp > 0 && !tile_solid(tiles, w, h, bq, br) && !occupied_hex(enemies, bq, br) {
+          enemies += [mk_enemy(bd, bq, br)];
+        }
+        gd = mon_find(gm, gkey);
+        if gd.m_hp > 0 {
+          for gki in 0..gnum {
+            (gq, gr) = hex_neighbor(bq, br, gki % 6 ?? 0);
+            if !tile_solid(tiles, w, h, gq, gr) && !occupied_hex(enemies, gq, gr) && hex_distance(gq, gr, pq, pr) >= 2 {
+              enemies += [mk_enemy(gd, gq, gr)];
+            }
+          }
+        }
+      }
+    }
+    // INFESTATION: once the set-piece boss has died (infest carried in), flood the way OUT — the
+    // brood thickens toward the surface. Deterministic placement onto the level's floor candidates.
+    if infest == 1 && pl.infest_trigger == "boss_slain" {
+      icount = 0;
+      if depth == 1 { icount = pl.infest_d1; }
+      if depth == 2 { icount = pl.infest_d2; }
+      if icount > 0 && ncand > 0 {
+        sa = mon_find(gm, pl.infest_a);
+        sb = mon_find(gm, pl.infest_b);
+        iplaced = 0; ig = 0;
+        while iplaced < icount && ig < ncand * 4 + 100 {
+          ig += 1;
+          kk = (((gseed ^ ((ig + 1) * 2654435761)) & 2147483647) % ncand) ?? 0;
+          sq2 = candq[kk] ?? 1;
+          sr2 = candr[kk] ?? 1;
+          if !occupied_hex(enemies, sq2, sr2) {
+            md2 = sa;
+            if (iplaced % 2 ?? 0) == 1 { md2 = sb; }
+            if md2.m_hp > 0 { enemies += [mk_enemy(md2, sq2, sr2)]; iplaced += 1; }
+          }
+        }
+      }
+    }
+  }
+
   s = Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     seen: zeros(w * h), vis: zeros(w * h),
@@ -1873,7 +1972,7 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
-    grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0,
+    grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
@@ -1882,6 +1981,12 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
     room_q0: rq0s, room_r0: rr0s, room_w: rws, room_h: rhs,
   };
   sim_starting_loadout(s);   // every new character starts with its class kit (§3a #4)
+  // World-bundle QUEST GRANT: hand the player the bundle's keepsake on its quest depth (the surface).
+  // Only the genuine start sticks — descending overwrites the inventory with the carried one.
+  if world_has_placement() == 1 {
+    qp = world_placement();
+    if depth == qp.quest_depth && qp.quest_item != "" { sim_give_item(s, qp.quest_item); }
+  }
   s
 }
 
@@ -1899,7 +2004,7 @@ fn is_save_depth(d: integer) -> integer {
 pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   nd = s.depth + dir;
   if nd < 1 { nd = 1; }
-  ns = sim_new_gen(s.wseed, nd);
+  ns = sim_new_gen_p(s.wseed, nd, s.boss_slain);   // carry quest progress so the way-out infestation fires
   // Per-level persistence: carry the delta store, record the level we're leaving (its dead
   // spawns), then replay the destination depth's stored deaths onto its fresh spawns. A
   // never-visited depth has an empty block, so this is a no-op and generation is unchanged.
@@ -1934,6 +2039,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.grave_q = s.grave_q;
   ns.grave_r = s.grave_r;
   ns.grave_gold = s.grave_gold;
+  ns.boss_slain = s.boss_slain;     // carry quest progress (gates the infestation on the way out)
   if dir < 0 {
     (ax, ay) = hex_to_px(ns.dn_q, ns.dn_r);
     ns.px = ax;
@@ -1946,7 +2052,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
 // keep the character (level/XP/gold/items/equipment), full-healed. The dive is lost (the
 // save-point level regenerates; the dungeon state explored since is discarded).
 pub fn sim_respawn(s: Sim) -> Sim {
-  rs = sim_new_gen(s.wseed, s.save_depth);
+  rs = sim_new_gen_p(s.wseed, s.save_depth, s.boss_slain);
   rs.clevel = s.clevel;
   rs.xp = s.xp;
   rs.stat_max = s.stat_max;     // keep innate stats + any permanent drain across death;
@@ -1966,6 +2072,7 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.ninv = s.ninv;
   rs.eq = s.eq;
   rs.qs = s.qs;           // quick-slot bindings survive death (kept like inventory/equipment)
+  rs.boss_slain = s.boss_slain;   // quest progress survives death (the brood stays loose)
   rs.wdam = s.wdam;
   rs.pac = s.pac;
   rs.phpmax = s.phpmax;
