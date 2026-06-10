@@ -178,6 +178,14 @@ pressure). What still bites:
   `sim_new_gen(...)` straight into small values; the kernel/view never copy `Sim` by value
   per hit (that one is also perf: the rc_*/wdam cache idiom).
 
+## Library extraction (the reusable-library goal made concrete)
+
+Routines that serve other games get PUSHED to the library layer — plan + tiers + per-package
+Definition of Done: **EXTRACTION.md** (hexgrid = the canonical moros-convention hex geometry,
+text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `random` package
+now that C4 is fixed; wallgeo/gen after one decoupling each; roguelike-kit + the bundle
+system deliberately gated).
+
 ## Where moros, the toolchain & the libraries live (this machine, as of 2026-06-09)
 
 All siblings under `/home/jurjen/workspace/`:
