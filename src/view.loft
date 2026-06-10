@@ -743,15 +743,43 @@ pub fn draw_charpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<
   }
 }
 
-// ── The Inventory page (SLICE Tier-1): browse + use/wield ────────────────────────────
-// Toggled by 'I'; lists what you carry, and pressing an item's number USES it — a consumable
-// (potion/scroll/food) is drunk/read via use_item, anything wieldable is equipped. Shows the first
-// 9 items (the slice rarely carries more). Same shared-view pattern as the Character Page.
-// The inventory hub (SLICE §1): one screen, two columns. All lines in a fixed order so build bakes
+// ── The Inventory hub (SLICE §1) ─────────────────────────────────────────────────────
+// Toggled by 'I': carried items on the LEFT (WASD cursor), the worn LOCATIONS on the RIGHT, the
+// selected item's wrapped description below, then the hint. Enter equips; 1-9/Q/E bind a quick-slot.
+// Same shared-view bake-on-change pattern as the Character Page.
+// All lines in a fixed order so build bakes
 // them and draw positions by index: [0] INVENTORY title · [1] EQUIPPED title · [2 .. 2+n) carried
 // (cursor-marked) · [2+n .. 2+n+12) the 12 worn locations · [..] examine line · [..] hint.
 INV_LOCS = 12;
-fn inv_hub_lines(s: Sim, cursor: integer) -> vector<text> {
+DESC_W   = 680.0;   // wrap width (px) for the examine line, within the hub panel
+
+// Greedy word-wrap `str` to lines no wider than `max_w` px (the examine description can be long, e.g.
+// the quest scroll's orders). Splits on spaces; a single over-long word gets its own line.
+fn wrap_text(font: integer, str: text, max_w: float, size: float) -> vector<text> {
+  out: vector<text> = [];
+  words = str.split_text(" ");
+  cur = "";
+  for i in 0..len(words) {
+    w = words[i] ?? "";
+    if w != "" {
+      trial = w;
+      if cur != "" { trial = "{cur} {w}"; }
+      if graphics::gl_measure_text(font, trial, size) <= max_w { cur = trial; }
+      else {
+        if cur != "" { out += [cur]; }
+        cur = w;
+      }
+    }
+  }
+  if cur != "" { out += [cur]; }
+  if len(out) == 0 { out += [""]; }
+  out
+}
+
+// Lines in a fixed order: [0] INVENTORY title · [1] EQUIPPED title · [2 .. 2+n) carried (cursor-marked)
+// · [2+n .. 2+n+12) worn locations · [.. -1) the examine description (now WRAPPED to several lines)
+// · [-1] hint. The desc line count varies, so draw_invpage derives it from the total length.
+fn inv_hub_lines(s: Sim, cursor: integer, font: integer) -> vector<text> {
   out: vector<text> = ["INVENTORY", "EQUIPPED"];
   n = sim_inv_count(s);
   for i in 0..n {
@@ -770,7 +798,8 @@ fn inv_hub_lines(s: Sim, cursor: integer) -> vector<text> {
   }
   d = sim_inv_desc(s, cursor);
   if d == "" { d = "(nothing selected)"; }
-  out += [d];
+  dl = wrap_text(font, d, DESC_W, CHARPAGE_SIZE);
+  for di in 0..len(dl) { out += [dl[di] ?? ""]; }
   out += ["WASD move   Enter equip   1-9/Q/E bind   Esc closes"];
   out
 }
@@ -779,7 +808,7 @@ fn inv_hub_lines(s: Sim, cursor: integer) -> vector<text> {
 pub fn build_invpage(s: Sim, font: integer, cursor: integer) -> vector<integer> {
   out: vector<integer> = [];
   if font >= 0 {
-    lines = inv_hub_lines(s, cursor);
+    lines = inv_hub_lines(s, cursor, font);
     for i in 0..len(lines) {
       ln = lines[i] ?? "";
       out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
@@ -808,8 +837,9 @@ pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<i
     graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
   }
   if hud.font < 0 { return; }
-  lines = inv_hub_lines(s, cursor);
+  lines = inv_hub_lines(s, cursor, hud.font);
   n = sim_inv_count(s);
+  total = len(lines);
   lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 8.0;
   xL = 60.0;
   xR = 430.0;
@@ -818,11 +848,14 @@ pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<i
   inv_draw_line(painter, hud, pg, lines, 1, xR, y0);
   for i in 0..n { inv_draw_line(painter, hud, pg, lines, 2 + i, xL, y0 + (i as float + 1.0) * lh); }
   for j in 0..INV_LOCS { inv_draw_line(painter, hud, pg, lines, 2 + n + j, xR, y0 + (j as float + 1.0) * lh); }
+  // the examine description (variable line count) then the hint, below the longer column
   rows = n;
   if INV_LOCS > rows { rows = INV_LOCS; }
   dy = y0 + (rows as float + 2.0) * lh;
-  inv_draw_line(painter, hud, pg, lines, 2 + n + INV_LOCS, xL, dy);
-  inv_draw_line(painter, hud, pg, lines, 2 + n + INV_LOCS + 1, xL, dy + lh + 6.0);
+  desc_start = 2 + n + INV_LOCS;
+  ndesc = total - 1 - desc_start;                  // the hint is the final line
+  for di in 0..ndesc { inv_draw_line(painter, hud, pg, lines, desc_start + di, xL, dy + (di as float) * lh); }
+  inv_draw_line(painter, hud, pg, lines, total - 1, xL, dy + (ndesc as float) * lh + 10.0);
 }
 
 // ── The message log (SLICE §3): the most recent kernel messages, drawn over the dungeon view ──
