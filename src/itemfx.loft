@@ -80,5 +80,11 @@ fn item_effect(s: &Sim, p: Player, key: text) -> boolean {
   if key == "scroll_phase_door" { sim_blink(s, 5); return true; }    // short random blink
   if key == "scroll_teleport"   { sim_blink(s, 40); return true; }   // long-range escape
   if key == "scroll_magic_mapping" { sim_reveal_map(s); return true; }
+  if key == "naga_antivenin" {
+    itbl = game_items();
+    sim_cure_venom(s, item_power(itbl, item_index(itbl, key)));   // i_power = the venom-ward ticks
+    sim_log(s, "Your blood runs clear and cold.");
+    return true;
+  }
   false
 }

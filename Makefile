@@ -246,6 +246,9 @@ test:
 	@echo "  [effect] use-item effects: blink / heal / restore / magic-mapping ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/effecttest.loft | tee /tmp/story_effect.log
 	@grep -q "EFFECT OK" /tmp/story_effect.log || { echo "    FAIL: effect"; exit 1; }
+	@echo "  [special] monster specials: gaze paralysis + venom + antivenin ward (+ deadlock/struggle) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/specialtest.loft | tee /tmp/story_special.log
+	@grep -q "SPECIAL OK" /tmp/story_special.log || { echo "    FAIL: special"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

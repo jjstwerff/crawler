@@ -191,7 +191,7 @@ def gen_world_place(world_bundles):
         L += [
             "pub fn world_has_placement() -> integer { 0 }",
             'pub fn world_placement() -> Placement {',
-            '  Placement { setpiece_stencil: "", setpiece_depth: 0, quest_item: "", quest_depth: 0,',
+            '  Placement { setpiece_stencil: "", setpiece_depth: 0, boss_drop: "", quest_item: "", quest_depth: 0,',
             '    infest_trigger: "", infest_a: "", infest_b: "", infest_d1: 0, infest_d2: 0 }',
             "}",
         ]

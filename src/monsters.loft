@@ -15,6 +15,8 @@ pub const MF_BREEDER    = 8;    // multiplies if left alone
 pub const MF_NEVER_MOVE = 16;   // stationary (molds, eyes)
 pub const MF_UNIQUE     = 32;   // named boss, one per game
 pub const MF_GLOW       = 64;   // self-luminous: seen without the player's light (given LOS)
+pub const MF_GAZE       = 128;  // a paralysing GAZE (the floating eye) — a melee-range special blow
+pub const MF_POISON     = 256;  // a venomous bite — its melee can poison the player
 
 pub struct MonsterDef {
   m_key:    text,                 // stable id, e.g. "giant_rat"
@@ -54,7 +56,7 @@ pub fn monster_table() -> vector<MonsterDef> {
   // a fast, simple straight-line chaser: m_speed +5 => 1.5 actions/tick (1 step one tick, 2 the next)
   t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "j", m_cr: 170, m_cg: 140, m_cb: 90, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 5, m_dam: 1, m_vision: 8, m_xp: 1, m_flags: MF_NONE }];
   t += [MonsterDef { m_key: "centipede", m_name: "crawling centipede", m_glyph: "c", m_cr: 200, m_cg: 120, m_cb: 40, m_depth: 1, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 0, m_dam: 2, m_vision: 6, m_xp: 2, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "white_snake", m_name: "white snake", m_glyph: "J", m_cr: 230, m_cg: 230, m_cb: 230, m_depth: 2, m_rarity: 1, m_hp: 8, m_ac: 4, m_speed: 0 - 5, m_dam: 3, m_vision: 6, m_xp: 3, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "white_snake", m_name: "white snake", m_glyph: "J", m_cr: 230, m_cg: 230, m_cb: 230, m_depth: 2, m_rarity: 1, m_hp: 8, m_ac: 4, m_speed: 0 - 5, m_dam: 3, m_vision: 6, m_xp: 3, m_flags: MF_POISON }];
   t += [MonsterDef { m_key: "grey_mold", m_name: "grey mold", m_glyph: "m", m_cr: 140, m_cg: 140, m_cb: 140, m_depth: 2, m_rarity: 2, m_hp: 10, m_ac: 2, m_speed: 0, m_dam: 2, m_vision: 2, m_xp: 3, m_flags: MF_NEVER_MOVE | MF_BREEDER }];
   t += [MonsterDef { m_key: "kobold", m_name: "kobold", m_glyph: "k", m_cr: 120, m_cg: 180, m_cb: 80, m_depth: 2, m_rarity: 1, m_hp: 6, m_ac: 8, m_speed: 0, m_dam: 3, m_vision: 8, m_xp: 3, m_flags: MF_GROUP }];
   t += [MonsterDef { m_key: "cave_spider", m_name: "cave spider", m_glyph: "S", m_cr: 90, m_cg: 90, m_cb: 200, m_depth: 3, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 10, m_dam: 2, m_vision: 8, m_xp: 3, m_flags: MF_GROUP }];
@@ -62,7 +64,7 @@ pub fn monster_table() -> vector<MonsterDef> {
   t += [MonsterDef { m_key: "goblin", m_name: "goblin", m_glyph: "g", m_cr: 100, m_cg: 160, m_cb: 90, m_depth: 3, m_rarity: 1, m_hp: 9, m_ac: 10, m_speed: 0, m_dam: 4, m_vision: 9, m_xp: 4, m_flags: MF_GROUP }];
   // Faithful design: 0 melee, its threat is a paralysing GAZE (the Tier-2 special-attack system).
   // Do NOT give it a stand-in bite — implement the gaze instead.
-  t += [MonsterDef { m_key: "floating_eye", m_name: "floating eye", m_glyph: "e", m_cr: 240, m_cg: 220, m_cb: 60, m_depth: 3, m_rarity: 2, m_hp: 11, m_ac: 3, m_speed: 0, m_dam: 0, m_vision: 5, m_xp: 5, m_flags: MF_NEVER_MOVE | MF_CASTER }];
+  t += [MonsterDef { m_key: "floating_eye", m_name: "floating eye", m_glyph: "e", m_cr: 240, m_cg: 220, m_cb: 60, m_depth: 3, m_rarity: 2, m_hp: 11, m_ac: 3, m_speed: 0, m_dam: 0, m_vision: 5, m_xp: 5, m_flags: MF_NEVER_MOVE | MF_CASTER | MF_GAZE }];
   // ── mid (4-10) ──
   t += [MonsterDef { m_key: "giant_frog", m_name: "giant frog", m_glyph: "R", m_cr: 90, m_cg: 200, m_cb: 90, m_depth: 4, m_rarity: 1, m_hp: 14, m_ac: 8, m_speed: 0, m_dam: 4, m_vision: 7, m_xp: 5, m_flags: MF_NONE }];
   t += [MonsterDef { m_key: "orc", m_name: "orc", m_glyph: "o", m_cr: 90, m_cg: 150, m_cb: 70, m_depth: 4, m_rarity: 1, m_hp: 16, m_ac: 12, m_speed: 0, m_dam: 5, m_vision: 10, m_xp: 6, m_flags: MF_GROUP }];

@@ -7,5 +7,8 @@ use items;
 pub fn item_defs() -> vector<ItemDef> {
   t: vector<ItemDef> = [];
   t += [ItemDef { i_key: "sealed_orders", i_name: "Sealed Orders", i_glyph: "?", i_cr: 120, i_cg: 200, i_cb: 130, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 1, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "Orders in a hand you do not know. Go down. What coils beneath the third deep must not be left to wake -- you will know the throne when the dust begins to hiss. No name, no seal-ring -- only a smear of dry green scale." }];
+  // The boss-drop escape hatch: Ssirath's own antivenin. i_power = the venom-ward DURATION in ticks
+  // (a level-plus of the way out). i_depth 0 keeps it out of the random pool -- only the throne yields it.
+  t += [ItemDef { i_key: "naga_antivenin", i_name: "Naga's Antivenin", i_glyph: "!", i_cr: 90, i_cg: 210, i_cb: 130, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 4, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 60, i_flags: IF_NONE, i_desc: "A vial of the crown's own antivenin, milked from Ssirath's glands. Drunk, it clears venom from the blood and wards the veins against more for a time." }];
   t
 }

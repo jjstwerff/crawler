@@ -1,0 +1,62 @@
+// specialtest — monster->player SPECIAL attacks + the antivenin ward. Proves the deadlock fix (a
+// paralysed player's clock still advances + the status expires), the struggle fast-forward (pressing
+// move advances MORE ticks, same outcome), venom damage over time, the antivenin ward (clears + blocks
+// poison), and the gaze (an adjacent gazer paralyses, save-gated). Full boss kill->drop is in questtest.
+use sim;
+use catalog;
+use monsters;
+use items;
+use hexgeo;
+
+fn main() {
+  println("=== story special-attacks test (deadlock + struggle + venom + ward + gaze) ===");
+
+  // 1) DEADLOCK FIX: paralysed -> clock still advances and the status expires (no freeze)
+  s = sim_new();
+  s.para_until = s.ticks + 3;
+  t0 = s.ticks;
+  for _ in 0..150 { sim_step(s, 0, 0, 0.05); }
+  deadlock = s.ticks > t0 && !sim_player_paralysed(s);
+
+  // 2) STRUGGLE: pressing move advances MORE ticks in the same calls (real-time only, not outcome)
+  a = sim_new(); a.para_until = a.ticks + 1000000; ta = a.ticks;
+  for _ in 0..10 { sim_step(a, 0, 0, 0.05); }
+  da = a.ticks - ta;
+  b = sim_new(); b.para_until = b.ticks + 1000000; tb = b.ticks;
+  for _ in 0..10 { sim_step(b, 1, 0, 0.05); }
+  db = b.ticks - tb;
+  struggle = db > da;
+
+  // 3) VENOM ticks damage
+  p = sim_new();
+  p.poison_until = p.ticks + 10; p.poison_dmg = 2;
+  hp0 = sim_player_hp(p);
+  for _ in 0..5 { sim_tick(p); }
+  venom = sim_player_hp(p) < hp0;
+
+  // 4) ANTIVENIN ward: clears poison + suppresses damage while it lasts
+  w = sim_new();
+  w.poison_until = w.ticks + 10; w.poison_dmg = 2;
+  sim_cure_venom(w, 60);
+  hpw = sim_player_hp(w);
+  for _ in 0..5 { sim_tick(w); }
+  ward = sim_player_warded(w) && !sim_player_poisoned(w) && sim_player_hp(w) == hpw;
+
+  // 5) GAZE: an adjacent gazer paralyses the player (low save early -> lands fast)
+  g = sim_new();
+  sim_make_gaze(g, 0);
+  (ex, ey) = sim_enemy_pos(g, 0);
+  (eq, er) = px_to_hex(ex, ey);
+  (nq, nr) = hex_neighbor(eq, er, 0);
+  (nx, ny) = hex_to_px(nq, nr);
+  g.px = nx; g.py = ny;
+  for _ in 0..6 { sim_tick(g); }
+  gaze = sim_player_paralysed(g);
+
+  // 6) the antivenin exists in the merged catalog (the boss drops it; kill->drop in questtest)
+  drop = item_index(game_items(), "naga_antivenin") >= 0;
+
+  println("deadlock={deadlock} struggle={struggle}({da} vs {db}) venom={venom} ward={ward} gaze={gaze} drop={drop}");
+  ok = deadlock && struggle && venom && ward && gaze && drop;
+  if ok { println("=== SPECIAL OK ==="); } else { println("=== FAIL ==="); }
+}

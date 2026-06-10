@@ -61,6 +61,9 @@ pub struct Hud {
   elbl:   integer not null,           // active-slot "E" key label
   dash:   integer not null,           // dim "-" for an empty quick-slot
   hints:  vector<integer> not null,   // baked keyboard-hint lines (the non-obvious keys), sidebar foot
+  stat_para: integer not null,        // "PARALYSED" / "POISONED" / "WARDED" status pips (SP row)
+  stat_pois: integer not null,
+  stat_ward: integer not null,
 }
 
 // Roguelike map glyph for an item category (IT_*).
@@ -184,6 +187,9 @@ pub fn build_hud(s: Sim) -> Hud {
   elbl = 0;
   dash = 0;
   hints: vector<integer> = [];
+  stat_para = 0;
+  stat_pois = 0;
+  stat_ward = 0;
   if font >= 0 {
     ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
     died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
@@ -216,6 +222,9 @@ pub fn build_hud(s: Sim) -> Hud {
     for hi in 0..len(khs) {
       hints += [graphics::create_text_texture(font, khs[hi] ?? "", SB_SIZE, graphics::rgba(150, 155, 165, 255))];
     }
+    stat_para = graphics::create_text_texture(font, "PARALYSED", SB_SIZE, graphics::rgba(235, 80, 70, 255));
+    stat_pois = graphics::create_text_texture(font, "POISONED", SB_SIZE, graphics::rgba(120, 215, 90, 255));
+    stat_ward = graphics::create_text_texture(font, "WARDED", SB_SIZE, graphics::rgba(120, 200, 235, 255));
     snames = ["STR", "INT", "WIS", "DEX", "CON", "CHR"];
     for si in 0..6 {
       statlbl[si] = graphics::create_text_texture(font, snames[si] ?? "", SB_SIZE, graphics::rgba(190, 195, 175, 255));
@@ -228,7 +237,8 @@ pub fn build_hud(s: Sim) -> Hud {
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
     spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
     stair_up: stair_up, stair_dn: stair_dn, panel: panel, itex: itex, statlbl: statlbl,
-    hplbl: hplbl, splbl: splbl, qlbl: qlbl, elbl: elbl, dash: dash, hints: hints }
+    hplbl: hplbl, splbl: splbl, qlbl: qlbl, elbl: elbl, dash: dash, hints: hints,
+    stat_para: stat_para, stat_pois: stat_pois, stat_ward: stat_ward }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -463,8 +473,15 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   graphics::draw_rect_at(painter, barx, 13.0, barw, 13.0, 0.25, 0.05, 0.05, 1.0);
   graphics::draw_rect_at(painter, barx, 13.0, barw * hpf, 13.0, 0.20, 0.80, 0.30, 1.0);
   draw_number(painter, hud, hp, barx + 4.0, 9.0);
-  sb_text(painter, hud, hud.splbl, "SP", pad, 31.0);
-  graphics::draw_rect_at(painter, barx, 33.0, barw, 8.0, 0.10, 0.12, 0.20, 1.0);
+  // SP row, repurposed to show the active player STATUS (paralysed/warded/poisoned); the dim SP
+  // placeholder when clear. (Poison is silent per-tick, so the pip is the read on "why is HP falling".)
+  if sim_player_paralysed(s) { sb_text(painter, hud, hud.stat_para, "PARALYSED", pad, 31.0); }
+  else if sim_player_warded(s) { sb_text(painter, hud, hud.stat_ward, "WARDED", pad, 31.0); }
+  else if sim_player_poisoned(s) { sb_text(painter, hud, hud.stat_pois, "POISONED", pad, 31.0); }
+  else {
+    sb_text(painter, hud, hud.splbl, "SP", pad, 31.0);
+    graphics::draw_rect_at(painter, barx, 33.0, barw, 8.0, 0.10, 0.12, 0.20, 1.0);
+  }
 
   // CL + gold on one row, the XP bar under them.
   if hud.clbl != 0 {

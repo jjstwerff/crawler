@@ -16,6 +16,7 @@ pub struct Stencil {
 pub struct Placement {
   setpiece_stencil: text,             // which stencil to stamp...
   setpiece_depth:   integer not null, // ...at which depth (on the linked place)
+  boss_drop:        text,             // item key the set-piece boss drops on death ("" = none)
   quest_item:       text,             // a keepsake handed to the player ("" = none)...
   quest_depth:      integer not null, // ...on first entering this depth
   infest_trigger:   text,             // "boss_slain" = release the brood once the set-piece boss dies

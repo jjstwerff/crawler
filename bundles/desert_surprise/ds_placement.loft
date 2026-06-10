@@ -10,6 +10,7 @@ use worldtypes;
 pub fn place_rules() -> Placement {
   Placement {
     setpiece_stencil: "naga_throne", setpiece_depth: 3,
+    boss_drop: "naga_antivenin",     // Ssirath drops her own antivenin -> a venom-ward for the way out
     quest_item: "sealed_orders", quest_depth: 0,
     infest_trigger: "boss_slain", infest_a: "sand_adder", infest_b: "dust_viper",
     infest_d1: 11, infest_d2: 4,

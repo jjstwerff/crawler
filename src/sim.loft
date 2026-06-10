@@ -22,6 +22,11 @@ pub const QS_N = 11;  // quick-slots: indices 0..8 = number keys 1-9, 9 = active
 pub const QS_Q = 9;   // active slot Q (launcher fire / repeated action)
 pub const QS_E = 10;  // active slot E (spell / second repeated action)
 MSG_MAX = 64;         // message-log ring capacity (the view shows the most recent few)
+PARA_DUR   = 2;       // ticks of paralysis per failed gaze save (re-rolled each tick while adjacent)
+POISON_DUR = 8;       // ticks a venom dose lasts
+POISON_DMG = 2;       // HP lost per poisoned tick
+STRUGGLE_X = 4;       // paralysis fast-forward: struggling (pressing move) advances the clock Nx the
+                      //   pure-wait pace — same ticks/outcome, just less real-time staring
 COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
@@ -135,6 +140,11 @@ pub struct Sim {
                                   //   bundle's infestation on the way out). Carried across levels.
   msg_q:   vector<text> not null,  // message-log ring buffer (size MSG_MAX); index-written, never grown
   msg_n:   integer not null,       // total messages ever logged (the ring write head)
+  // PLAYER status (the single player today; per-player when MP lands — "they take a player slot").
+  para_until:   integer not null,  // paralysed while ticks < this (the floating-eye gaze)
+  poison_until: integer not null,  // poisoned while ticks < this, taking poison_dmg HP per tick
+  poison_dmg:   integer not null,
+  venom_until:  integer not null,  // venom-WARD (antivenin): poison can't apply/tick while ticks < this
   wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
   up_r:    integer not null,
@@ -749,6 +759,25 @@ pub fn sim_player_save(s: Sim) -> integer {
   sv
 }
 
+// The player FAILS a saving throw against an effect (gaze / venom): roll vs save% — higher save
+// resists more often. (Early on save is low, so the floating eye is genuinely deadly.)
+fn sim_save_fails(s: &Sim) -> boolean {
+  sim_roll(s, 0, 99) >= sim_player_save(s)
+}
+
+// PLAYER status queries (the view shows a pip; the step/tick logic gates on these).
+pub fn sim_player_paralysed(s: Sim) -> boolean { s.para_until > s.ticks }
+pub fn sim_player_poisoned(s: Sim) -> boolean { s.poison_until > s.ticks }
+pub fn sim_player_warded(s: Sim) -> boolean { s.venom_until > s.ticks }
+
+// Antivenin: clear venom from the blood AND ward against more for `dur` ticks (the boss-drop escape
+// hatch — long enough to climb out through the brood).
+pub fn sim_cure_venom(s: &Sim, dur: integer) {
+  s.poison_until = 0;
+  s.poison_dmg = 0;
+  s.venom_until = s.ticks + dur;
+}
+
 // Passive MELEE skill — a flat to-damage bonus from character level + effective STR. 0 at the
 // baseline (level 1, starting STR), so it never shifts early combat; it grows as you level AND as
 // you spend stat points on STR (the stat-choice payoff). refresh_stats folds it into wdam.
@@ -942,6 +971,27 @@ fn drop_loot(s: &Sim, q: integer, r: integer, mlvl: integer) {
   }
 }
 
+// Drop a specific item by key on the floor at (q, r) — used for the bundle boss-drop.
+fn sim_drop_item(s: &Sim, q: integer, r: integer, key: text) {
+  itbl = game_items();
+  idx = item_index(itbl, key);
+  if idx >= 0 { add_floor(s, q, r, 0, item_cat(itbl, idx), idx); }
+}
+
+// A set-piece UNIQUE died: record quest progress, announce it, and — if the active overlay names a
+// boss-drop — leave it at the death spot (the escape hatch). One place, called from both kill paths.
+fn sim_on_unique_death(s: &Sim, eq: integer, er: integer, ename: text) {
+  s.boss_slain = 1;
+  sim_log(s, "{ename} falls — its brood breaks loose!");
+  if world_has_placement() == 1 {
+    bd = world_placement().boss_drop;
+    if bd != "" {
+      sim_drop_item(s, eq, er, bd);
+      sim_log(s, "From its coils spills a vial of antivenin.");
+    }
+  }
+}
+
 // Combat damage multiplier (percent) from the attacker↔defender level gap, capped
 // BOTH ways: past ±COMBAT_DELTA_CAP levels the gap stops mattering, so level shifts a
 // fight by at most ±(CAP*STEP)% — difficulty is skill, not level (§3a #2). Symmetric:
@@ -975,10 +1025,7 @@ fn player_attack(s: &Sim, idx: integer) {
         if gain < 1 { gain = 1; }
         drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
         sim_log(s, "You have slain the {e.name}.");
-        if (e.flags & MF_UNIQUE) != 0 {                       // a named boss fell -> quest progresses
-          s.boss_slain = 1;
-          sim_log(s, "{e.name} falls — its brood breaks loose!");
-        }
+        if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
       }
       enemies[idx] = e;
       if gain > 0 { sim_award_xp(s, gain); }
@@ -1047,10 +1094,7 @@ pub fn sim_fire(s: &Sim) -> integer {
     if gain < 1 { gain = 1; }
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
     sim_log(s, "Your shot slays the {e.name}.");
-    if (e.flags & MF_UNIQUE) != 0 {                       // shot the boss dead -> quest progresses
-      s.boss_slain = 1;
-      sim_log(s, "{e.name} falls — its brood breaks loose!");
-    }
+    if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
     ret = 4;
   } else {
     sim_log(s, "Your shot strikes the {e.name}.");
@@ -1287,10 +1331,26 @@ pub fn sim_make_glow(s: &Sim, i: integer) {
   if i < 0 || i >= len(enemies) { return; }
   e = enemies[i];
   e.flags = e.flags | MF_GLOW;
+  enemies[i] = e;
+}
+
+// Give monster `i` a paralysing gaze (MF_GAZE) — a curse/hex effect, and the test hook for the gaze.
+pub fn sim_make_gaze(s: &Sim, i: integer) {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return; }
+  e = enemies[i];
+  e.flags = e.flags | MF_GAZE;
+  enemies[i] = e;
 }
 
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
+  // Venom bleeds the player each tick (silent — the HP bar shows it; death is logged). The antivenin
+  // ward suppresses it.
+  if s.poison_until > s.ticks && s.poison_dmg > 0 && s.venom_until <= s.ticks {
+    s.php -= s.poison_dmg;
+    if s.php <= 0 { s.php = 0; s.over = true; sim_log(s, "The venom stops your heart."); }
+  }
   // Temporary stat modifiers (good/bad potions) tick down; expired ones stop applying.
   ttv = s.stat_tmp_t;
   for si in 0..NUM_STATS {
@@ -1327,11 +1387,27 @@ pub fn sim_tick(s: &Sim) {
         }
         if e.awake {
           if d <= 1 {
-            if e.dam > 0 {     // 0-melee monsters (the floating eye — its threat is the unbuilt GAZE)
-                               // truly deal no melee; without this the capped-dmg floor gives them 1
+            hit = false;
+            if e.dam > 0 {     // 0-melee monsters (the floating eye — its threat is the GAZE) truly
+                               // deal no melee; without this the capped-dmg floor gives them 1
               s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.clevel), s.pac);  // ratio cap, then armour DR
               sim_log(s, "The {e.name} hits you.");
+              hit = true;
               if s.php <= 0 { s.over = true; sim_log(s, "You die."); }
+            }
+            // GAZE (floating eye): paralyse unless saved. Re-rolled each tick while adjacent — the
+            // authentic horror (escapable but lethal). Only the NEW paralysis is announced (no spam).
+            if (e.flags & MF_GAZE) != 0 && !s.over && sim_save_fails(s) {
+              was = s.para_until > s.ticks;
+              s.para_until = s.ticks + PARA_DUR;
+              if !was { sim_log(s, "The {e.name} fixes you with its gaze — you cannot move!"); }
+            }
+            // POISON (venomous bite): a landed bite can poison, unless warded (antivenin) or saved.
+            if (e.flags & MF_POISON) != 0 && hit && !s.over && s.venom_until <= s.ticks && sim_save_fails(s) {
+              was = s.poison_until > s.ticks;
+              s.poison_until = s.ticks + POISON_DUR;
+              s.poison_dmg = POISON_DMG;
+              if !was { sim_log(s, "The {e.name}'s bite floods you with venom."); }
             }
             e.tgt_q = e.cur_q;
             e.tgt_r = e.cur_r;
@@ -1378,6 +1454,20 @@ pub fn sim_grant_gold(s: &Sim, amt: integer) {
 
 pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
   if s.over { return; }
+  // PARALYSED: the player can't act, but the world must still advance (the gaze horror — and the
+  // MP-shaped invariant that sim_tick never depends on THIS player's volition). Advance the clock at
+  // wait pace, FASTER when the player struggles (presses move), so an impatient player fast-forwards
+  // the same ticks, not the outcome. The player does not move.
+  if s.para_until > s.ticks {
+    rate = MOVE_SPEED;
+    if fwd != 0 || turn != 0 { rate = MOVE_SPEED * (STRUGGLE_X as float); }
+    s.accrued += rate * dt;
+    while s.accrued >= HEX_LEN {
+      s.accrued -= HEX_LEN;
+      sim_tick(s);
+    }
+    return;
+  }
   if turn != 0 {
     s.heading += (turn as float) * TURN_SPEED * dt;
   }
@@ -1799,6 +1889,7 @@ pub fn sim_new() -> Sim {
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
+    para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
@@ -2081,6 +2172,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
+    para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
