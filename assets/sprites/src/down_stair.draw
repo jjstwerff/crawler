@@ -1,10 +1,17 @@
 # DOWN-STAIR ('>') — frontal staircase DESCENDING into dark. Per-step (discrete) tone:
 # each tread is ONE solid value, stepping DARKER toward the bottom (to near-black), fan
-# narrowing downward — a stepped pit. Each step = tread + a darker riser (shadowed front)
-# with a transparent GAP, so the banding reads as separate steps. Strong contrast on the
-# light floor. Transparent base.
+# narrowing downward — a stepped pit. Each step = tread + a darker riser (shadowed front).
+# The pit MOUTH behind the steps is SOLID BLACK (a backdrop trapezoid) — with transparent
+# gaps the floor-tile colour shines through between the steps and breaks the hole illusion.
+# Strong contrast on the light floor.
 size 256x256
 Background transparent
+
+# the pit mouth — the stairs descend into a black CUBE: the hole is the cube's TOP face,
+# so the backdrop is a solid black RECTANGLE (the square opening in the floor); the
+# narrowing step fan inside it is the perspective down the shaft
+name pit
+Poly (0.075,0.150) (0.925,0.150) (0.925,0.880) (0.075,0.880) rgb=8,8,10
 
 # step 0 (top, widest, lightest — the lit rim at floor level)
 name s0_tread

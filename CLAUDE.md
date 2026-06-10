@@ -110,6 +110,15 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   **A STILL + an ACTION version is allowed** — especially for enemies without much other
   expression (the floating eye: idle ball vs. gaze-rays firing); the action sprite shows
   the attack happening, the still keeps the threat readable.
+  **PERSPECTIVE rules (the world is top-down):** creatures + structural features are drawn
+  top-down, with **slight foreshortening allowed** to show the third dimension (the eye's
+  iris as a front-displaced ellipse; the door as its lit top edge + a foreshortened face)
+  as long as the feature stays inside its slot (the door within the wall gap). **Items may
+  be frontal-iconic** — they read as lying on the floor, the illusion holds. Stairs are
+  the floor-hole exception (down = a black cube's top opening, steps descending inside it;
+  up keeps transparent gaps — floor shows under a rising flight). **A feature that sits IN
+  the wall carries NO architecture of its own** (no jambs/frame — the engine's wall
+  renders that; a sprite's own stonework clashes).
   *(3D — out of scope for now — would extend this with
   **scale + proportion** checks via the metric/multi-view channel; 2D sprites need
   only the unique-recognition test.)*
