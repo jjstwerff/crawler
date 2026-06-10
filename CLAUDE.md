@@ -91,10 +91,13 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   here); the **user still verifies how it composites in the live frame**. Also handy
   for setting a visual target (wall aesthetic, palette). Not the runtime renderer; not
   for HUD/UI layout.
-- **Sprite done-criterion — real-world, verifiable forms.** Ground each sprite in a
-  real-world creature/object (a spider, an ant, …) and **stop when a *cold read* names
+- **Sprite done-criterion — real-world, verifiable forms, MENACING.** Ground each sprite in
+  a real-world creature/object (a spider, an ant, …) and **stop when a *cold read* names
   it uniquely** as that form ("spider", not "some bug") — unique recognizability is
-  "finished for the game"; don't over-render past it (clarity has an optimum). It's
+  "finished for the game"; don't over-render past it (clarity has an optimum). **Monsters
+  must read as a THREAT, never cute** (cute is valuable elsewhere — not here): hunched/
+  lunging posture, jagged-spiky outlines over smooth rounds, the weapon feature LARGE
+  (fangs/claws/stinger), mean or glowing eye-glints, gritty darker tones. It's
   verifiable (the draw skill's recognition critic runs the test) and clean-room (real
   forms, not IP creatures). **Monsters also need a visible *legitimate attack means*** (a
   biter shows fangs, a clawer shows claws) matching its combat — no pass without it;
@@ -104,19 +107,21 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   is what makes that clean). **Mood/affect is out of scope** — run
   only the *recognition* critic (+ the attack + orientation checks); per-token feeling
   isn't evaluated (atmosphere comes from the scene / light / audio, not the icon).
+  **A STILL + an ACTION version is allowed** — especially for enemies without much other
+  expression (the floating eye: idle ball vs. gaze-rays firing); the action sprite shows
+  the attack happening, the still keeps the threat readable.
   *(3D — out of scope for now — would extend this with
   **scale + proportion** checks via the metric/multi-view channel; 2D sprites need
   only the unique-recognition test.)*
-- **Readability + palette — dark monsters on a light floor.** Floor is **light** — warm
-  **yellowish aged stone** (original Roman granite/travertine, *not* modern pure-white)
-  — walls **dark-toned**, monsters/tokens are **almost-black silhouettes** (the menacing,
-  high-attention look) read against the light floor. **Colour is reserved for clothed /
-  armoured creatures**; plain creatures are near-black. **No internal light/dark
-  patterns** on a monster (out of scope) — detail reads by *silhouette shape* (a
-  spider's fangs are points in the outline, not pale marks; no pale eyes). The current
-  bright glyphs become **dark**, and the soft-black token disc is **dropped** (a dark
-  token reads on the light floor; a dark disc would bury it). **Critique sprites on a
-  light background (the floor), not dark.**
+- **Readability + palette — natural-coloured monsters on a light floor.** Floor is **light**
+  — warm **yellowish aged stone** (original Roman granite/travertine, *not* modern
+  pure-white) — walls **dark-toned**, monsters read as **dark-toned shapes in their
+  creature's NATURAL colours** (a brown rat is brown, a sand adder sandy; the cave spider
+  is near-black only because real cave spiders are). Detail still reads primarily by
+  *silhouette shape* (fangs are points in the outline); keep tones dark enough to carry
+  on the light floor. The soft-black token disc is **dropped** for sprites (a dark shape
+  reads on the light floor; a disc would bury it). **Critique sprites on a light
+  background (the floor), not dark.**
 - **Sprite scale = the creature's body, not its box.** Size a creature by its **core
   mass** relative to the existing player/enemy scale; thin appendages (legs, antennae,
   tail) count *less* and may **overhang** the cell. A wide-legged spider is sized by
@@ -125,8 +130,15 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   judges it per-sprite at authoring time from the PNG. (2) *Theme coherence* — does it
   fit the set's overall look — is judged **in-game during playtesting** (the user's
   call; it only shows in context). Flagged off-theme sprites get **adjusted/redrawn**.
-  Keep the editable `.draw` sources in `assets/sprites/src/` so a redraw is a quick
-  edit + re-render, not from scratch.
+  Keep the editable `.draw` sources in `assets/sprites/src/` (IN the repo) — both so a
+  redraw is a quick edit + re-render, and as a growing **technique library**: when a
+  similar creature is needed later, fall back on the existing sources for their
+  *constructions* (jointed tapered legs, eye-glints, body-mass proportions) — not 1-on-1
+  copies, but the techniques are the value. **When reusing/redrawing parts, always check
+  the JOINS**: a new part must align + scale to the kept ones or it reads bolted-on —
+  bury a part's joint corners inside the neighbouring mass, bridge with an intermediate
+  shape/tone (e.g. a skull circle between shoulders and muzzle), and run connecting
+  features (a spine ridge) ACROSS the joint to tie the parts together.
 - Commits: branch **`combat`** (not `main`); end messages with
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Push only
   when asked.

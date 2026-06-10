@@ -1,0 +1,66 @@
+# JACKAL — black-backed jackal top-down, FRONT=UP, stalking. CANINE essentials from above:
+# a smooth long body oval (heavily-overlapped circles — visible segments read larva/insect),
+# a clear NECK NARROWING, a snout protruding well past the skull, ears flanking with a gap,
+# the dark saddle FRONT-LOADED over the shoulders (the black-backed identifier), a bushy
+# slightly-angled black-tipped tail. Menace: lean + low head + bared forward fangs.
+# Source for assets/sprites/jackal.png.
+size 256x256
+Background transparent
+
+# tail — bushy, slightly angled (dead-straight reads larval), BLACK TIP
+name tail
+Poly (0.50,0.68)@10 (0.535,0.82)@8 (0.525,0.93)@5 stroke=120,92,58
+Poly (0.527,0.91)@6 (0.518,0.99)@3 stroke=30,26,22
+
+# paw hints — tucked under the shoulders (splayed legs read insect)
+name paws
+Circle (0.428,0.330) r=0.028 rgb=104,80,50
+Circle (0.572,0.330) r=0.028 rgb=104,80,50
+
+# body — ONE smooth lean oval (closely-stacked overlapping circles, no seams)
+name hips
+Circle (0.50,0.575) r=0.108 rgb=132,100,62
+Circle (0.50,0.525) r=0.115 rgb=132,100,62
+name midbody
+Circle (0.50,0.475) r=0.118 rgb=132,100,62
+Circle (0.50,0.425) r=0.115 rgb=132,100,62
+name shoulders
+Circle (0.50,0.385) r=0.110 rgb=132,100,62
+
+# THE SADDLE — front-loaded dark mantle as a tapered dorsal WASH (hard-edged geometry
+# fights the organic body; a wide-to-narrow stroke follows it)
+name saddle
+Poly (0.50,0.385)@42 (0.50,0.475)~@30 (0.50,0.565)@14 stroke=54,44,34
+name fleck
+Line (0.475,0.42) - (0.465,0.48) w=2
+Line (0.505,0.44) - (0.510,0.51) w=2
+Line (0.530,0.42) - (0.538,0.47) w=2
+Line (0.492,0.535) - (0.488,0.585) w=2
+
+# head — set OFF the body by a neck narrowing: small skull, long protruding snout
+name skull
+Circle (0.50,0.310) r=0.072 rgb=120,90,56
+name snout
+Poly (0.462,0.310) (0.538,0.310) (0.522,0.175) (0.478,0.175) rgb=110,82,50
+
+# ears — two SEPARATE upright triangles flanking the skull (clear sky-gap between them)
+name earL
+Poly (0.452,0.295) (0.408,0.165) (0.496,0.262) rgb=96,70,42
+Poly (0.456,0.282) (0.428,0.198) (0.484,0.262) rgb=52,38,28
+name earR
+Poly (0.548,0.295) (0.592,0.165) (0.504,0.262) rgb=96,70,42
+Poly (0.544,0.282) (0.572,0.198) (0.516,0.262) rgb=52,38,28
+
+# eyes — amber, forward-set on the skull, with glints
+name eyes
+Circle (0.472,0.288) r=0.013 rgb=190,140,40
+Circle (0.528,0.288) r=0.013 rgb=190,140,40
+Circle (0.476,0.283) r=0.005 rgb=248,244,230
+Circle (0.524,0.283) r=0.005 rgb=248,244,230
+
+# snout end — dark nose + small fangs pointing forward (the bite)
+name nose
+Poly (0.483,0.175) (0.517,0.175) (0.50,0.148) rgb=26,20,18
+name teeth
+Poly (0.476,0.182) (0.470,0.132) (0.488,0.176) rgb=234,228,206
+Poly (0.524,0.182) (0.530,0.132) (0.512,0.176) rgb=234,228,206
