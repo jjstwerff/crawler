@@ -125,6 +125,31 @@ fn fit_text(font: integer, str: text, max_w: float, size: float) -> text {
   "{out}…"
 }
 
+// Bake one short-name texture per item def for the quick-slot bar / inventory column. The names
+// resolve through sim (the per-game flavour while a kind is still a mystery), so this must be re-run
+// whenever identification changes — see hud_rebuild_items. (font must be valid.)
+fn bake_itex(font: integer, s: Sim) -> vector<integer> {
+  itex: vector<integer> = [];
+  itbl = item_table();
+  for ii in 0..len(itbl) {
+    nm = fit_text(font, sim_item_short_name(s, ii), SB_NAME_W, SB_SIZE);
+    itex += [graphics::create_text_texture(font, nm, SB_SIZE, graphics::rgba(220, 220, 205, 255))];
+  }
+  itex
+}
+
+// Re-bake the item-name textures after an identification revealed a kind (flavour → real name). Frees
+// the stale textures and returns a fresh itex the caller assigns back (`hud.itex = …`); the rest of
+// the Hud is untouched. Mirrors the message-log's free-then-rebuild on a change-counter.
+pub fn hud_rebuild_items(hud: Hud, s: Sim) -> vector<integer> {
+  for k in 0..len(hud.itex) {
+    t = hud.itex[k] ?? 0;
+    if t != 0 { graphics::gl_delete_texture(t); }
+  }
+  if hud.font < 0 { return []; }
+  bake_itex(hud.font, s)
+}
+
 pub fn build_hud(s: Sim) -> Hud {
   // gl_load_font resolves relative paths against the loft --path root
   // (LOFT_REPO), so the project-bundled font is reached as "../story/assets/...".
@@ -229,10 +254,7 @@ pub fn build_hud(s: Sim) -> Hud {
     for si in 0..6 {
       statlbl[si] = graphics::create_text_texture(font, snames[si] ?? "", SB_SIZE, graphics::rgba(190, 195, 175, 255));
     }
-    itbl = item_table();
-    for ii in 0..len(itbl) {
-      itex += [graphics::create_text_texture(font, fit_text(font, item_short_idx(itbl, ii), SB_NAME_W, SB_SIZE), SB_SIZE, graphics::rgba(220, 220, 205, 255))];
-    }
+    itex = bake_itex(font, s);
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
     spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
@@ -522,7 +544,7 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
     nx = pad + 18.0;
     defidx = sim_qs_def(s, k);
     if defidx >= 0 && defidx < len(hud.itex) {
-      nm = fit_text(hud.font, item_short_idx(itbl, defidx), SB_NAME_W, SB_SIZE);   // short + ellipsis-fit
+      nm = fit_text(hud.font, sim_item_short_name(s, defidx), SB_NAME_W, SB_SIZE);   // flavour-aware short + ellipsis-fit
       sb_text(painter, hud, hud.itex[defidx] ?? 0, nm, nx, qy);
       cnt = sim_qs_count(s, k);
       if item_cat(itbl, defidx) == IT_BOW || cnt > 1 {

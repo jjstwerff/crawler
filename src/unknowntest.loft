@@ -74,9 +74,22 @@ fn main() {
   wield_id = ring_hidden && sim_identified(eq, ring)
           && sim_item_display_name(eq, ring) == "Ring of Protection";
 
+  // 9) Phase-2 bar accessors: the identified-kind COUNT the view watches, and the SHORT flavour-aware
+  // name it bakes. (Created last so no later allocation perturbs the held-Sim reads — see C22.)
+  sn = sim_new_gen(7, 1);
+  kc0 = sim_known_count(sn);                                          // fresh game: nothing identified
+  short_hidden = starts_with(sim_item_short_name(sn, cl), "a ")       // mystery → short flavour
+              && sim_item_short_name(sn, cl) != "Cure Light Wounds";
+  sim_give_item(sn, "potion_cure_light");
+  use_item(sn, sim_find_item(sn, "potion_cure_light"));
+  kc1 = sim_known_count(sn);                                          // one kind now identified
+  short_real = sim_item_short_name(sn, cl) == "Cure Light Wounds";    // short REAL name (no "Potion of")
+  bar_ok = kc0 == 0 && kc1 == 1 && short_hidden && short_real;
+
   println("hidden={hidden} distinct={distinct} revealed={revealed} carried={carried}");
   println("same_seed={same_seed} diff_seed={diff_seed} exempt={exempt} scroll_id={scroll_id} wield_id={wield_id}");
+  println("bar_ok={bar_ok} (kc0={kc0} kc1={kc1} short_hidden={short_hidden} short_real={short_real})");
   println("  (cure_light shows as '{disp0}')");
-  ok = hidden && distinct && revealed && carried && same_seed && diff_seed && exempt && scroll_id && wield_id;
+  ok = hidden && distinct && revealed && carried && same_seed && diff_seed && exempt && scroll_id && wield_id && bar_ok;
   if ok { println("=== UNKNOWN OK ==="); } else { println("=== FAIL ==="); }
 }

@@ -65,6 +65,7 @@ fn main() {
   hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
   ml = build_msglog(s, hud.font);     // baked message-log lines (rebaked only when a message arrives)
   last_total = sim_msg_total(s);      // watch this to know when to rebake
+  last_known = sim_known_count(s);    // watch identifications to re-bake the quick-slot names (flavour → real)
   wprog = make_world_shader();   // GPU terrain shader (global, built once)
   wvao = build_world_vbo(s);     // GPU terrain VBO (rebuilt on each level change)
   last = ticks();
@@ -231,6 +232,12 @@ fn main() {
         free_msglog(ml);
         ml = build_msglog(s, hud.font);
         last_total = tot;
+      }
+      // Re-bake the quick-slot item names only when an identification changed what they show.
+      kn = sim_known_count(s);
+      if kn != last_known {
+        hud.itex = hud_rebuild_items(hud, s);
+        last_known = kn;
       }
       view_draw(painter, s, walls, hud, wprog, wvao);
       draw_msglog(painter, s, hud, ml);
