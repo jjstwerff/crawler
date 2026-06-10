@@ -782,6 +782,30 @@ pub fn sim_teleport(s: &Sim, q: integer, r: integer) {
   s.py = ty;
 }
 
+// Blink: teleport the player to a random non-wall hex within `max_d` (Scroll of Phase Door = short,
+// Teleportation = long). Tries a handful of random offsets; a no-op if none land (always safe).
+pub fn sim_blink(s: &Sim, max_d: integer) {
+  (pq, pr) = px_to_hex(s.px, s.py);
+  for _ in 0..60 {
+    tq = pq + sim_roll(s, 0 - max_d, max_d);
+    tr = pr + sim_roll(s, 0 - max_d, max_d);
+    d = hex_distance(pq, pr, tq, tr);
+    if d >= 1 && d <= max_d && tq >= 1 && tr >= 1 && tq < s.lw - 1 && tr < s.lh - 1 {
+      if tile_at(s, tq, tr) != 1 {            // not a wall (floor / stair)
+        sim_teleport(s, tq, tr);
+        return;
+      }
+    }
+  }
+}
+
+// Reveal the whole level on the memory map (Scroll of Magic Mapping). Index-write on the captured
+// `seen` vector persists (C18-safe).
+pub fn sim_reveal_map(s: &Sim) {
+  seen = s.seen;
+  for i in 0..len(seen) { seen[i] = 1; }
+}
+
 // Turn the player to face hex (q,r) — NPC interactions, scripted events.
 pub fn sim_face(s: &Sim, q: integer, r: integer) {
   (tx, ty) = hex_to_px(q, r);

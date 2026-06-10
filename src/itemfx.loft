@@ -59,17 +59,26 @@ pub fn use_slot(s: &Sim, k: integer) -> integer {
   0
 }
 
-// Effect dispatch by item key. Default cure potions heal by their i_power (data-driven); the
-// Explorer's detect-monsters potion runs its CUSTOM script.
+// Effect dispatch by item key. Cure/heal potions restore HP by their i_power (data-driven); scrolls
+// blink / map / etc.; the Explorer's detect-monsters potion runs its CUSTOM script. Effects use the
+// Player API + the kernel verbs; unhandled keys return false -> the caller says "Nothing happens."
 fn item_effect(s: &Sim, p: Player, key: text) -> boolean {
-  if key == "potion_cure_light" {
-    itbl = item_table();
-    p.heal(s, item_power(itbl, item_index(itbl, key)));
+  if key == "potion_cure_light" || key == "potion_cure_serious" || key == "potion_healing" {
+    itbl = game_items();
+    p.heal(s, item_power(itbl, item_index(itbl, key)));   // heal amount = i_power
+    return true;
+  }
+  if key == "potion_restore" {                            // Restoration: undo any stat drain
+    p.restore_stat(s, "str"); p.restore_stat(s, "int"); p.restore_stat(s, "wis");
+    p.restore_stat(s, "dex"); p.restore_stat(s, "con"); p.restore_stat(s, "chr");
     return true;
   }
   if key == "potion_detect_monsters" {
     potion_detect_monsters::apply(s, p);   // custom script (bundles/explorer/items/)
     return true;
   }
+  if key == "scroll_phase_door" { sim_blink(s, 5); return true; }    // short random blink
+  if key == "scroll_teleport"   { sim_blink(s, 40); return true; }   // long-range escape
+  if key == "scroll_magic_mapping" { sim_reveal_map(s); return true; }
   false
 }

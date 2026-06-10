@@ -1,0 +1,51 @@
+// effecttest — the use-item EFFECTS now wired (SLICE §2): the inert consumables actually do their
+// faithful thing. Phase Door blinks the player; Cure Serious heals; Restoration undoes a stat drain;
+// Magic Mapping reveals the level. (Unbuilt effects still return false -> "Nothing happens.")
+use sim;
+use catalog;
+use itemfx;
+use player;
+use items;
+use hexgeo;
+
+fn main() {
+  println("=== story use-item effects test (blink / heal / restore / mapping) ===");
+
+  // Scroll of Phase Door -> the player blinks to a new hex within range
+  s = sim_new_gen(7, 1);
+  (q0, r0) = sim_player_hex(s);
+  sim_give_item(s, "scroll_phase_door");
+  use_item(s, sim_find_item(s, "scroll_phase_door"));
+  (q1, r1) = sim_player_hex(s);
+  blink = (q1 != q0 || r1 != r0) && hex_distance(q0, r0, q1, r1) <= 5;
+
+  // Potion of Cure Serious Wounds -> HP recovers
+  h = sim_new();
+  ph = player_new(0);
+  ph.damage(h, 20, "physical");
+  hp0 = sim_player_hp(h);
+  sim_give_item(h, "potion_cure_serious");
+  use_item(h, sim_find_item(h, "potion_cure_serious"));
+  heal = sim_player_hp(h) > hp0;
+
+  // Potion of Restoration -> a drained stat returns to its max
+  rs = sim_new();
+  str_orig = sim_stat(rs, "str");
+  sim_drain_stat(rs, "str", 3);
+  drained = sim_stat(rs, "str") < str_orig;
+  sim_give_item(rs, "potion_restore");
+  use_item(rs, sim_find_item(rs, "potion_restore"));
+  restored = sim_stat(rs, "str") == str_orig;
+
+  // Scroll of Magic Mapping -> a far, unseen tile becomes remembered
+  m = sim_new_gen(7, 1);
+  before = sim_hex_state(m, m.dn_q, m.dn_r);
+  sim_give_item(m, "scroll_magic_mapping");
+  use_item(m, sim_find_item(m, "scroll_magic_mapping"));
+  after = sim_hex_state(m, m.dn_q, m.dn_r);
+  mapped = before == 0 && after >= 1;
+
+  println("blink={blink} heal={heal} restore={restored}(drained={drained}) mapped={mapped}(b={before} a={after})");
+  ok = blink && heal && drained && restored && mapped;
+  if ok { println("=== EFFECT OK ==="); } else { println("=== FAIL ==="); }
+}

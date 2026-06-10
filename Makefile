@@ -243,6 +243,9 @@ test:
 	@echo "  [invhub] inventory hub: two ring slots + equipped names + reslot bind ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/invhubtest.loft | tee /tmp/story_invhub.log
 	@grep -q "INVHUB OK" /tmp/story_invhub.log || { echo "    FAIL: invhub"; exit 1; }
+	@echo "  [effect] use-item effects: blink / heal / restore / magic-mapping ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/effecttest.loft | tee /tmp/story_effect.log
+	@grep -q "EFFECT OK" /tmp/story_effect.log || { echo "    FAIL: effect"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
