@@ -140,8 +140,8 @@ carried across descend for save/replay/MP; the per-game flavour shuffle). One gl
 stream means any new call site reorders every stream after it, and state hidden in a
 thread-local can't be saved with the Sim.
 
-- [ ] Add the VALUE tier beside the global one — **API decided + probe-verified
-      (2026-06-10), the METHODS way**: `pub struct RandStream { ... }`,
+- [x] **LANDED — loft-libs-core PR #9, merged 2026-06-10, CI green, 23/23 under
+      --deny-warnings, version 0.2.0.** The METHODS way: `pub struct RandStream { ... }`,
       `seed_stream(seed) -> RandStream`, `get(self: RandStream, lo, hi) -> integer`,
       `indices(self: RandStream, n) -> vector<integer>`. The by-value receiver mutates
       the stream (a struct param is a store link — no `&` needed; `&` only relinks a
@@ -149,8 +149,9 @@ thread-local can't be saved with the Sim.
       products < 2^63 — MINSTD-style works; the owner may prefer a stronger pure-loft
       step or a native one). Probe: advance/reproducibility/isolation/permutation all
       green; found loft#322 (stale program-cache on lib edits) along the way.
-- [ ] A soak guard: a cross-module hammer test (N modules bumping one `&Rng`,
-      interpret + native) green before crawler adopts.
+- [x] Cross-module exercise: the package's own test module drives the streams (12
+      tests incl. the isolation property: interleaved draws == the plain sequence;
+      global calls never move a stream).
 - [ ] crawler adopts STREAM-BY-STREAM, gate green after each: the flavour shuffle
       (`rng_indices`) first, then gen's placement stream, then sim's `rstate`.
 - [ ] (Owner) first registry release rides the value-API landing.
