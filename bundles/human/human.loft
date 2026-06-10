@@ -3,7 +3,7 @@
 // engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
 use races;
 
-pub fn race_defs() -> vector<RaceDef> {
+pub fn human_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
   t += [RaceDef { r_key: "human", r_name: "Human", r_str: 0, r_int: 0, r_wis: 0,
     r_dex: 0, r_con: 0, r_chr: 0, r_hd: 0, r_xp: 100, r_melee: 0, r_bow: 0,

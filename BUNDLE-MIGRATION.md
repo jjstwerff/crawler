@@ -94,11 +94,33 @@ say, a 2-race game by dropping in just those two folders.
 
 ## loft constraints (don't get bitten)
 
-- `use` flattens transitive pub names → **each bundle's def fn needs a UNIQUE name**
-  (e.g. `warrior_class_defs()`, `dwarf_race_defs()`), called qualified in the generated
-  aggregator — mirror `bundle_defs.loft`/`ds_enemies::monster_defs()`.
-- Keep `&Sim`-mutating helpers in `sim.loft` (C4). Never hold many large `Sim`s live (C22).
-- Base table → merged catalog is a prefix; defids stay valid.
+- **Each bundle's def fn needs a globally UNIQUE name** (e.g. `dwarf_race_defs()`,
+  `warrior_class_defs()`), called qualified in the generated aggregator. *Verified the hard way:*
+  the **interpreter tolerates** several modules exporting the same fn name (qualified calls
+  resolve), but the **native/WASM backend** compiles each pub fn to a shared global symbol and a
+  duplicate name is a hard `E0428` (`loft_shared_n_<fn>` defined twice). So interpret-only
+  verification is **not enough** — check the compile path, since modders will. (The world
+  bundles' fixed `monster_defs()`/`item_defs()` have the same latent clash once a 2nd world
+  bundle adds that section — fix when it lands.)
+- Keep `&Sim`-mutating helpers in `sim.loft` (C4) — but a pub `&Sim` mutator called from a test
+  module *does* persist (e.g. `sim_set_race`, `sim_make_gaze`); C4 bites narrower cases. Never
+  hold many large `Sim`s live (C22).
+- Base table → merged catalog is a prefix; defids stay valid. A drained engine table must still
+  return a **typed** empty (`t: vector<T> = []; t`), not a bare `[]` (infers as void).
+
+## Landed so far (2026-06-10) — races
+
+- **Seam (Phase A):** `kind:"race"` scanner in `gen_bundles.py` → `race_defs_gen.loft`;
+  `catalog.loft` `race_catalog()` = (empty) `race_table()` + `bundle_races()`.
+- **Content (Phase E data-move):** 10 per-race bundles `bundles/<race>/` (one race each, unique
+  `<key>_race_defs()`); `races.loft` drained to struct + `RF_*` vocab + helpers.
+- **Apply (Phase B core):** a `race` key on the `Sim` (carried across descend/death);
+  `sim_set_race` bakes the **stat block**; **hit-die** shifts max HP; **skill + save** mods derive
+  live; **free-action ↔ gaze** and **res-poison ↔ venom** gates wired. Tests: `deftest` (DEFS) +
+  `racetest` (RACE), gate green.
+- **Remaining:** `r_xp` into the level curve; **SP** (rides the spell system, class side); the
+  other `RF_*` flags (sustains / regen / res-blind / see-invis) await their systems; then
+  **classes** (Phase D) once the spell system + routine-by-id dispatch land.
 
 ---
 

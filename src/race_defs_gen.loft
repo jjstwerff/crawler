@@ -16,25 +16,25 @@ use human;
 
 pub fn bundle_races() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
-  s_dwarf = dwarf::race_defs();
+  s_dwarf = dwarf::dwarf_race_defs();
   for i in 0..len(s_dwarf) { if i < len(s_dwarf) { t += [s_dwarf[i]]; } }
-  s_elf = elf::race_defs();
+  s_elf = elf::elf_race_defs();
   for i in 0..len(s_elf) { if i < len(s_elf) { t += [s_elf[i]]; } }
-  s_gnome = gnome::race_defs();
+  s_gnome = gnome::gnome_race_defs();
   for i in 0..len(s_gnome) { if i < len(s_gnome) { t += [s_gnome[i]]; } }
-  s_half_elf = half_elf::race_defs();
+  s_half_elf = half_elf::half_elf_race_defs();
   for i in 0..len(s_half_elf) { if i < len(s_half_elf) { t += [s_half_elf[i]]; } }
-  s_half_orc = half_orc::race_defs();
+  s_half_orc = half_orc::half_orc_race_defs();
   for i in 0..len(s_half_orc) { if i < len(s_half_orc) { t += [s_half_orc[i]]; } }
-  s_half_troll = half_troll::race_defs();
+  s_half_troll = half_troll::half_troll_race_defs();
   for i in 0..len(s_half_troll) { if i < len(s_half_troll) { t += [s_half_troll[i]]; } }
-  s_halfling = halfling::race_defs();
+  s_halfling = halfling::halfling_race_defs();
   for i in 0..len(s_halfling) { if i < len(s_halfling) { t += [s_halfling[i]]; } }
-  s_high_elf = high_elf::race_defs();
+  s_high_elf = high_elf::high_elf_race_defs();
   for i in 0..len(s_high_elf) { if i < len(s_high_elf) { t += [s_high_elf[i]]; } }
-  s_highborn = highborn::race_defs();
+  s_highborn = highborn::highborn_race_defs();
   for i in 0..len(s_highborn) { if i < len(s_highborn) { t += [s_highborn[i]]; } }
-  s_human = human::race_defs();
+  s_human = human::human_race_defs();
   for i in 0..len(s_human) { if i < len(s_human) { t += [s_human[i]]; } }
   t
 }

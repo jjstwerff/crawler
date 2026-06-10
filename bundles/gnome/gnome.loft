@@ -3,7 +3,7 @@
 // engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
 use races;
 
-pub fn race_defs() -> vector<RaceDef> {
+pub fn gnome_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
   t += [RaceDef { r_key: "gnome", r_name: "Gnome", r_str: -1, r_int: 2, r_wis: 0,
     r_dex: 2, r_con: 1, r_chr: -2, r_hd: -1, r_xp: 115, r_melee: 0, r_bow: 2,

@@ -8,7 +8,8 @@ use hexgeo;
 use gen;
 use monsters;
 use items;
-use catalog;          // game_monsters()/game_items() — base tables + bundle defs (catalog merge)
+use catalog;          // game_monsters()/game_items()/race_catalog() — base tables + bundle defs (merge)
+use races;            // RaceDef + RF_* ability flags + race_find/race_has_flag (the chosen race applies)
 use worldtypes;       // Stencil / Placement — the world-bundle vocabulary
 use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
@@ -117,6 +118,7 @@ pub struct Sim {
   clevel:  integer not null,   // character level (1..MAX_CLEVEL)
   xp:      integer not null,   // experience points
   gold:    integer not null,   // gold (income arrives with items, I1)
+  race:    text not null,      // chosen race key (default "human"); its RaceDef applies to stats/HP/skills/flags
   // Statistics — three layers per stat (STR/INT/WIS/DEX/CON/CHR, see stat_index):
   //   stat_max = innate; stat_cur = current (permanent drain lowers, restore returns to max);
   //   stat_tmp/stat_tmp_t = a temporary +/- modifier (good/bad potion) with turns remaining.
@@ -372,7 +374,8 @@ fn refresh_stats(s: &Sim) {
   s.wdam = wd;
   s.pac = ac;
   oldmax = s.phpmax;
-  newmax = hero_maxhp(s.clevel) + ac;
+  newmax = hero_maxhp(s.clevel) + ac + race_hp_bonus(s);   // race hit-die shifts max HP (tanky/frail)
+  if newmax < 1 { newmax = 1; }
   if newmax > oldmax { s.php += newmax - oldmax; }   // donning armour grants the HP
   if s.php > newmax { s.php = newmax; }
   if s.php < 1 { s.php = 1; }
@@ -745,6 +748,48 @@ fn start_stats() -> vector<integer> {
   [HERO_CON, HERO_CON, HERO_CON, HERO_CON, HERO_CON, HERO_CON]
 }
 
+// ── Race application (the chosen race's RaceDef modifies the live character) ──────────────────
+// The race key lives on the Sim; everything but the STAT BLOCK is derived LIVE from it (skills /
+// hit-die / save / flags), so only the stat block needs baking into stat_max (grants mutate that).
+
+// The player's chosen RaceDef (from the merged per-race bundles), or the all-zero baseline if unset.
+fn player_race(s: Sim) -> RaceDef { race_find(race_catalog(), s.race) }
+
+// Hit-die HP contribution of the race at the current level (scales with level, like Angband's
+// per-level hit-die): r_hd>0 => tankier (half-troll), <0 => frailer (elf). refresh_stats folds it in.
+fn race_hp_bonus(s: Sim) -> integer {
+  rd = player_race(s);
+  rd.r_hd * (s.clevel + 2) / 2 ?? 0
+}
+
+// Apply the race's STAT BLOCK (creation-time): re-derive innate max + current from the uniform base
+// + the race mods. Idempotent (re-derives from base), so a race change re-applies cleanly. Default
+// "human" is all-zeros => a no-op, so an unset character is unchanged.
+fn apply_race(s: &Sim) {
+  rd = player_race(s);
+  base = start_stats();
+  mods = [rd.r_str, rd.r_int, rd.r_wis, rd.r_dex, rd.r_con, rd.r_chr];
+  sm = s.stat_max;
+  sc = s.stat_cur;
+  for i in 0..NUM_STATS {
+    v = (base[i] ?? 0) + (mods[i] ?? 0);
+    sm[i] = v;
+    sc[i] = v;
+  }
+  refresh_stats(s);   // CON + hit-die changed -> recompute max HP
+}
+
+// Choose the player's race (creation-time): set the key, then bake its stat block + recompute HP.
+pub fn sim_set_race(s: &Sim, key: text) {
+  s.race = key;
+  apply_race(s);
+}
+pub fn sim_player_race(s: Sim) -> text { s.race }
+// Race ability flags wired to the systems that exist: free-action gates the gaze paralysis; resist-
+// poison gates monster venom. (Other RF_* flags wait on their systems — see BUNDLE-MIGRATION.md.)
+pub fn sim_player_free_action(s: Sim) -> boolean { race_has_flag(player_race(s), RF_FREE_ACTION) }
+pub fn sim_player_res_poison(s: Sim) -> boolean { race_has_flag(player_race(s), RF_RES_POISON) }
+
 // Effective value of stat i = current + the temporary modifier WHILE it is still active.
 fn stat_eff(s: Sim, i: integer) -> integer {
   if i < 0 { return 0; }
@@ -852,7 +897,8 @@ pub fn sim_damage(s: &Sim, amount: integer, kind: text) {
 // level, equipped armour (AC), and Constitution — so gearing up and stat upgrades both help.
 // Capped below 100% (friendly but fair — never total immunity; §3a).
 pub fn sim_player_save(s: Sim) -> integer {
-  sv = 5 + s.clevel + s.pac / 4 + stat_eff(s, ST_CON) / 3;
+  rd = player_race(s);
+  sv = 5 + s.clevel + s.pac / 4 + stat_eff(s, ST_CON) / 3 + rd.r_save;   // race saving-throw bonus
   if sv > 75 { sv = 75; }
   if sv < 0 { sv = 0; }
   sv
@@ -881,7 +927,8 @@ pub fn sim_cure_venom(s: &Sim, dur: integer) {
 // baseline (level 1, starting STR), so it never shifts early combat; it grows as you level AND as
 // you spend stat points on STR (the stat-choice payoff). refresh_stats folds it into wdam.
 pub fn sim_skill_melee(s: Sim) -> integer {
-  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_STR) - HERO_CON);
+  rd = player_race(s);
+  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_STR) - HERO_CON) + rd.r_melee;   // race melee aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -890,7 +937,8 @@ pub fn sim_skill_melee(s: Sim) -> integer {
 // range at which a monster notices you (its effective vision in the awareness check), so a stealthy
 // (high-level / high-DEX) character can slip closer before waking sleepers. refresh-free (derived).
 pub fn sim_skill_stealth(s: Sim) -> integer {
-  b = (s.clevel - 1) / 3 + (stat_eff(s, ST_DEX) - HERO_CON);
+  rd = player_race(s);
+  b = (s.clevel - 1) / 3 + (stat_eff(s, ST_DEX) - HERO_CON) + rd.r_stealth;   // race stealth aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -898,7 +946,8 @@ pub fn sim_skill_stealth(s: Sim) -> integer {
 // Passive SHOOTING skill — a flat to-damage bonus for missiles, from level + DEX (Angband shoots
 // off DEX). 0 at the baseline; grows with level and DEX-spending. Added to the launched damage.
 pub fn sim_skill_shoot(s: Sim) -> integer {
-  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_DEX) - HERO_CON);
+  rd = player_race(s);
+  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_DEX) - HERO_CON) + rd.r_bow;   // race bow aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -1496,13 +1545,13 @@ pub fn sim_tick(s: &Sim) {
             }
             // GAZE (floating eye): paralyse unless saved. Re-rolled each tick while adjacent — the
             // authentic horror (escapable but lethal). Only the NEW paralysis is announced (no spam).
-            if (e.flags & MF_GAZE) != 0 && !s.over && sim_save_fails(s) {
+            if (e.flags & MF_GAZE) != 0 && !s.over && !sim_player_free_action(s) && sim_save_fails(s) {
               was = s.para_until > s.ticks;
               s.para_until = s.ticks + PARA_DUR;
               if !was { sim_log(s, "The {e.name} fixes you with its gaze — you cannot move!"); }
             }
             // POISON (venomous bite): a landed bite can poison, unless warded (antivenin) or saved.
-            if (e.flags & MF_POISON) != 0 && hit && !s.over && s.venom_until <= s.ticks && sim_save_fails(s) {
+            if (e.flags & MF_POISON) != 0 && hit && !s.over && s.venom_until <= s.ticks && !sim_player_res_poison(s) && sim_save_fails(s) {
               was = s.poison_until > s.ticks;
               s.poison_until = s.ticks + POISON_DUR;
               s.poison_dmg = POISON_DMG;
@@ -1982,7 +2031,7 @@ pub fn sim_new() -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0,
+    clevel: 1, xp: 0, gold: 0, race: "human",
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
@@ -2305,7 +2354,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0,
+    clevel: 1, xp: 0, gold: 0, race: "human",
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
@@ -2362,6 +2411,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.clevel = s.clevel;   // carry the hero across levels
   ns.xp = s.xp;
   ns.gold = s.gold;
+  ns.race = s.race;       // the chosen race travels with the character
   ns.stat_max = s.stat_max;     // carry the stat block: innate + current + active temp mods
   ns.stat_cur = s.stat_cur;
   ns.stat_tmp = s.stat_tmp;
@@ -2405,6 +2455,7 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs = sim_new_gen_p(s.wseed, s.save_depth, s.boss_slain);
   rs.clevel = s.clevel;
   rs.xp = s.xp;
+  rs.race = s.race;             // race persists through death (identity)
   rs.stat_max = s.stat_max;     // keep innate stats + any permanent drain across death;
   rs.stat_cur = s.stat_cur;     // temporary modifiers reset (fresh from sim_new_gen) on respawn
   rs.stat_pts = s.stat_pts;             // banked stat points + cooldowns survive death (progression)

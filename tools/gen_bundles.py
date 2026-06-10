@@ -222,8 +222,10 @@ def gen_race_defs(race_bundles):
         L.append(f"use {m};")
     L += ["", "pub fn bundle_races() -> vector<RaceDef> {", "  t: vector<RaceDef> = [];"]
     for m in race_mods:
+        # def fn is uniquely named <module>_race_defs() — same fn name across modules collides as a
+        # duplicate global symbol on the NATIVE/WASM backend (E0428), even though interpret tolerates it.
         L += [
-            f"  s_{m} = {m}::race_defs();",
+            f"  s_{m} = {m}::{m}_race_defs();",
             f"  for i in 0..len(s_{m}) {{ if i < len(s_{m}) {{ t += [s_{m}[i]]; }} }}",
         ]
     L += ["  t", "}"]

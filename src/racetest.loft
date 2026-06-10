@@ -1,0 +1,50 @@
+// racetest — the chosen RACE applies to the live character (apply-to-play). The 10 races now live
+// in per-race bundles (race_catalog); sim_set_race bakes the stat block and the rest derives live:
+// hit-die -> max HP, skill/save mods, and the ability flags wired to existing systems (free-action
+// gates the gaze paralysis; resist-poison gates venom). Default "human" is the all-zero baseline.
+use sim;
+use catalog;
+use monsters;
+use hexgeo;
+
+// Each helper builds a fresh char, sets its race, reads ONE value -> never holds several Sims (C22).
+fn maxhp_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_player_hp_max(s) }
+fn melee_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_skill_melee(s) }
+fn save_of(key: text)  -> integer { s = sim_new(); sim_set_race(s, key); sim_player_save(s) }
+
+fn main() {
+  println("=== story race-apply test (stat block / hit-die HP / skills / save / free-action) ===");
+
+  // 1) STAT BLOCK bakes onto the base: dwarf = +2 STR / -3 INT off the uniform 16.
+  d = sim_new(); sim_set_race(d, "dwarf");
+  dstr = sim_stat(d, "str"); dint = sim_stat(d, "int");
+  statblock = dstr == 18 && dint == 13;
+
+  // 2) HIT-DIE shifts max HP: half_troll (r_hd +4) > human (0) > elf (-2).
+  ht = maxhp_of("half_troll"); hu = maxhp_of("human"); el = maxhp_of("elf");
+  hp_order = ht > hu && hu > el;
+
+  // 3) SKILL + SAVE mods: half_troll out-melees human (r_melee +5); dwarf out-saves human (r_save +6).
+  melee_race = melee_of("half_troll") > melee_of("human");
+  save_race  = save_of("dwarf") > save_of("human");
+
+  // 4) FREE-ACTION flag: accessor (gnome yes, human no) + behaviour (a gnome adjacent to a gazer is
+  //    NEVER paralysed, where a default char would be — specialtest lands it in ~6 ticks).
+  g = sim_new(); sim_set_race(g, "gnome");
+  hmn = sim_new();   // default "human"
+  fa_acc = sim_player_free_action(g) && !sim_player_free_action(hmn);
+  gz = sim_new(); sim_set_race(gz, "gnome"); sim_make_gaze(gz, 0);
+  (ex, ey) = sim_enemy_pos(gz, 0); (eq, er) = px_to_hex(ex, ey);
+  (nq, nr) = hex_neighbor(eq, er, 0); (nx, ny) = hex_to_px(nq, nr);
+  gz.px = nx; gz.py = ny;
+  for _ in 0..40 { sim_tick(gz); }
+  fa_immune = !sim_player_paralysed(gz);
+
+  // 5) RES-POISON: no base race carries it, so a human reads false (the gate is wired for custom races).
+  respois = !sim_player_res_poison(hmn);
+
+  println("statblock={statblock}(str={dstr} int={dint}) hp_order={hp_order}({ht}>{hu}>{el})");
+  println("melee_race={melee_race} save_race={save_race} fa_acc={fa_acc} fa_immune={fa_immune} respois={respois}");
+  ok = statblock && hp_order && melee_race && save_race && fa_acc && fa_immune && respois;
+  if ok { println("=== RACE OK ==="); } else { println("=== FAIL ==="); }
+}
