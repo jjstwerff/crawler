@@ -139,6 +139,8 @@ pub struct Sim {
   rc_xpf:     integer not null,   // combined experience factor % (100 = baseline)
   rc_realm:   text not null,      // the class's casting realm ("none" = no SP/cast)
   rc_spi:     integer not null,   // spell-stat index (stat_index of c_spell_stat; -1 = none)
+  shrine_ev:  integer not null,   // pending shrine INTERACT (bumped a MF_SHRINE entity); the view
+                                  //   polls sim_shrine_pending + clears — the crystal page opens
   // Statistics — three layers per stat (STR/INT/WIS/DEX/CON/CHR, see stat_index):
   //   stat_max = innate; stat_cur = current (permanent drain lowers, restore returns to max);
   //   stat_tmp/stat_tmp_t = a temporary +/- modifier (good/bad potion) with turns remaining.
@@ -854,6 +856,62 @@ pub fn sim_set_class(s: &Sim, key: text) {
 }
 pub fn sim_player_race(s: Sim) -> text { s.race }
 pub fn sim_player_class(s: Sim) -> text { s.pclass }
+
+// ── The shrine (the spawning crystal's re-spec) ────────────────────────────────────────────
+// Bumping a MF_SHRINE entity raises a pending INTERACT (sim_step); the view polls + clears it
+// and opens the crystal page. Applying a choice re-derives the character (apply_creation is
+// idempotent) and makes them WHOLE — full heal, full mind ("the crystal reshapes you").
+// Inventory/equipment unchanged; the class KIT is a new-game grant only (no re-spec farming).
+pub fn sim_shrine_pending(s: Sim) -> integer { s.shrine_ev }
+pub fn sim_shrine_clear(s: &Sim) { s.shrine_ev = 0; }
+pub fn sim_shrine_apply(s: &Sim, kind: text, key: text) {
+  if kind == "race" { sim_set_race(s, key); }
+  if kind == "class" { sim_set_class(s, key); }
+  s.php = s.phpmax;
+  s.sp = s.spmax;
+  sim_log(s, "The crystal reshapes you.");
+}
+
+// Race/class roster accessors for the CHOICE UI (the crystal page) — the view reads the merged
+// catalogs only through these (architecture invariant). Page-build only, never per-frame.
+pub fn sim_race_count() -> integer { len(race_catalog()) }
+pub fn sim_race_key(i: integer) -> text {
+  t = race_catalog();
+  if i < 0 || i >= len(t) { return ""; }
+  rd = t[i];
+  rd.r_key
+}
+pub fn sim_race_name(i: integer) -> text {
+  t = race_catalog();
+  if i < 0 || i >= len(t) { return ""; }
+  rd = t[i];
+  rd.r_name
+}
+pub fn sim_race_desc(i: integer) -> text {
+  t = race_catalog();
+  if i < 0 || i >= len(t) { return ""; }
+  rd = t[i];
+  rd.r_desc
+}
+pub fn sim_class_count() -> integer { len(class_catalog()) }
+pub fn sim_class_key(i: integer) -> text {
+  t = class_catalog();
+  if i < 0 || i >= len(t) { return ""; }
+  cd = t[i];
+  cd.c_key
+}
+pub fn sim_class_name(i: integer) -> text {
+  t = class_catalog();
+  if i < 0 || i >= len(t) { return ""; }
+  cd = t[i];
+  cd.c_name
+}
+pub fn sim_class_desc(i: integer) -> text {
+  t = class_catalog();
+  if i < 0 || i >= len(t) { return ""; }
+  cd = t[i];
+  cd.c_desc
+}
 // The class's casting realm ("none" for the unclassed/warrior) — castfx + the view read this.
 pub fn sim_player_realm(s: Sim) -> text { s.rc_realm }
 // Race ability flags wired to the systems that exist: free-action gates the gaze paralysis; resist-
@@ -1781,7 +1839,14 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
     s.accrued += dist;
     while s.accrued >= HEX_LEN {
       s.accrued -= HEX_LEN;
-      if fe >= 0 { player_attack(s, fe); }
+      if fe >= 0 {
+        ev = s.enemies;
+        e = ev[fe];
+        // a SHRINE (the spawning crystal): bumping it INTERACTS — never melee. (Ranged
+        // fire can still destroy it; that loss is the player's own choice.)
+        if (e.flags & MF_SHRINE) != 0 { s.shrine_ev = 1; }
+        else { player_attack(s, fe); }
+      }
       sim_tick(s);
     }
   }
@@ -2164,7 +2229,7 @@ pub fn sim_new() -> Sim {
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0, race: "human", pclass: "", sp: 0, spmax: 0,
     rc_flags: 0, rc_melee: 0, rc_bow: 0, rc_stealth: 0, rc_save: 0,
-    rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1,
+    rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
@@ -2489,7 +2554,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
     clevel: 1, xp: 0, gold: 0, race: "human", pclass: "", sp: 0, spmax: 0,
     rc_flags: 0, rc_melee: 0, rc_bow: 0, rc_stealth: 0, rc_save: 0,
-    rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1,
+    rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,

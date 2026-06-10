@@ -1,0 +1,63 @@
+// crystaltest — the spawning crystal's RE-SPEC mechanic: bumping the MF_SHRINE crystal
+// INTERACTS (raises the pending event, no melee — the crystal takes no damage), and
+// sim_shrine_apply re-derives the character (race/class), heals whole, keeps the inventory
+// (the kit is a new-game grant — no re-spec farming). Plus the roster accessors the
+// crystal page lists (merged catalogs: dropped-in bundles appear automatically).
+use sim;
+use catalog;
+use monsters;
+use player;
+use hexgeo;
+
+fn main() {
+  println("=== story crystal test (shrine bump -> event; re-spec applies; roster) ===");
+
+  // the surface: the spawning crystal stands 6 hexes west of the start
+  s = sim_new_gen(1337, 0);
+  sim_set_class(s, "warrior");
+  ci = -1;
+  for i in 0..sim_enemy_count(s) {
+    if ci < 0 && sim_enemy_name(s, i) == "spawning crystal" { ci = i; }
+  }
+  found = ci >= 0;
+
+  // 1) BUMP = INTERACT: stand beside the crystal, press into it — the event fires,
+  //    the crystal takes NO damage, and no pending event existed beforehand.
+  pre = sim_shrine_pending(s) == 0;
+  hp0 = sim_enemy_hp(s, ci);
+  (ex, ey) = sim_enemy_pos(s, ci);
+  (eq, er) = px_to_hex(ex, ey);
+  (nq, nr) = hex_neighbor(eq, er, 0);
+  (nx, ny) = hex_to_px(nq, nr);
+  s.px = nx; s.py = ny;
+  p = player_new(0);
+  p.face(s, eq, er);
+  for _ in 0..40 { sim_step(s, 1, 0, 0.05); }
+  bumped = sim_shrine_pending(s) == 1 && sim_enemy_hp(s, ci) == hp0;
+  sim_shrine_clear(s);
+  cleared = sim_shrine_pending(s) == 0;
+
+  // 2) RE-SPEC race: gnome applies (stats + the free-action flag) and heals whole.
+  s.php = 5;
+  inv0 = sim_inv_count(s);
+  sim_shrine_apply(s, "race", "gnome");
+  respec_race = sim_player_race(s) == "gnome" && sim_player_free_action(s)
+             && sim_player_hp(s) == sim_player_hp_max(s);
+
+  // 3) RE-SPEC class: mage applies (SP pool appears, full), inventory unchanged (no kit).
+  sim_shrine_apply(s, "class", "mage");
+  respec_class = sim_player_class(s) == "mage" && sim_player_sp_max(s) > 0
+              && sim_player_sp(s) == sim_player_sp_max(s)
+              && sim_inv_count(s) == inv0;
+
+  // 4) the ROSTER the page lists — the merged catalogs (10 races, 8 classes), with text.
+  roster = sim_race_count() == 10 && sim_class_count() == 8
+        && sim_race_name(0) != "" && sim_race_desc(0) != ""
+        && sim_class_name(0) != "" && sim_class_desc(0) != ""
+        && sim_class_key(0) != "";
+
+  println("found={found} pre={pre} bumped={bumped} cleared={cleared}");
+  println("respec_race={respec_race} respec_class={respec_class} roster={roster}");
+  ok = found && pre && bumped && cleared && respec_race && respec_class && roster;
+  if ok { println("=== CRYSTAL OK ==="); } else { println("=== FAIL ==="); }
+}

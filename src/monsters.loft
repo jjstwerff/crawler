@@ -17,6 +17,8 @@ pub const MF_UNIQUE     = 32;   // named boss, one per game
 pub const MF_GLOW       = 64;   // self-luminous: seen without the player's light (given LOS)
 pub const MF_GAZE       = 128;  // a paralysing GAZE (the floating eye) — a melee-range special blow
 pub const MF_POISON     = 256;  // a venomous bite — its melee can poison the player
+pub const MF_SHRINE     = 512;  // bump = INTERACT, not melee (the spawning crystal's re-spec);
+                                //   still targetable by ranged fire — destroying it is a choice
 
 pub struct MonsterDef {
   m_key:    text,                 // stable id, e.g. "giant_rat"
@@ -50,7 +52,7 @@ pub fn monster_table() -> vector<MonsterDef> {
   t += [MonsterDef { m_key: "giant_rat", m_name: "giant rat", m_glyph: "r", m_cr: 150, m_cg: 90, m_cb: 60, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 0, m_dam: 1, m_vision: 6, m_xp: 1, m_flags: MF_GROUP | MF_BREEDER }];
   // The surface spawning crystal (placed explicitly on the desert; rarity 0 = never random). A
   // stationary, harmless-but-destructible landmark that has spawned the knot of monsters around it.
-  t += [MonsterDef { m_key: "spawn_crystal", m_name: "spawning crystal", m_glyph: "*", m_cr: 120, m_cg: 220, m_cb: 240, m_depth: 0, m_rarity: 0, m_hp: 25, m_ac: 10, m_speed: 0, m_dam: 0, m_vision: 0, m_xp: 10, m_flags: MF_NEVER_MOVE }];
+  t += [MonsterDef { m_key: "spawn_crystal", m_name: "spawning crystal", m_glyph: "*", m_cr: 120, m_cg: 220, m_cb: 240, m_depth: 0, m_rarity: 0, m_hp: 25, m_ac: 10, m_speed: 0, m_dam: 0, m_vision: 0, m_xp: 10, m_flags: MF_NEVER_MOVE | MF_SHRINE }];
   t += [MonsterDef { m_key: "white_mouse", m_name: "white mouse", m_glyph: "r", m_cr: 220, m_cg: 220, m_cb: 220, m_depth: 1, m_rarity: 1, m_hp: 2, m_ac: 3, m_speed: 0, m_dam: 1, m_vision: 5, m_xp: 1, m_flags: MF_BREEDER }];
   t += [MonsterDef { m_key: "giant_bat", m_name: "giant bat", m_glyph: "b", m_cr: 140, m_cg: 90, m_cb: 160, m_depth: 1, m_rarity: 1, m_hp: 4, m_ac: 5, m_speed: 5, m_dam: 2, m_vision: 8, m_xp: 2, m_flags: MF_ERRATIC }];
   // a fast, simple straight-line chaser: m_speed +5 => 1.5 actions/tick (1 step one tick, 2 the next)

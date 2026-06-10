@@ -900,6 +900,81 @@ pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<i
   inv_draw_line(painter, hud, pg, lines, total - 1, xL, dy + (ndesc as float) * lh + 10.0);
 }
 
+// ── The Crystal page (the spawning crystal's re-spec — race | class choice) ──────────────
+// Opened when the player BUMPS the shrine crystal (sim_shrine_pending). Two columns from the
+// merged catalogs via sim_* roster accessors — a dropped-in race/class bundle appears here
+// automatically. Same bake-on-change pattern as the charpage/inv-hub. The world pauses.
+fn crystal_lines(s: Sim, col: integer, cursor: integer, font: integer) -> vector<text> {
+  out: vector<text> = ["THE CRYSTAL  --  it hums, waiting to reshape you"];
+  out += ["RACE", "CLASS"];
+  nr = sim_race_count();
+  nc = sim_class_count();
+  for i in 0..nr {
+    mark = "  ";
+    if col == 0 && i == cursor { mark = "> "; }
+    nm = sim_race_name(i);
+    star = "";
+    if sim_race_key(i) == sim_player_race(s) { star = " *"; }
+    out += [fit_text(font, "{mark}{nm}{star}", COL_CARRIED_W, CHARPAGE_SIZE)];
+  }
+  for j in 0..nc {
+    mark = "  ";
+    if col == 1 && j == cursor { mark = "> "; }
+    nm = sim_class_name(j);
+    star = "";
+    if sim_class_key(j) == sim_player_class(s) { star = " *"; }
+    out += [fit_text(font, "{mark}{nm}{star}", COL_EQUIP_W, CHARPAGE_SIZE)];
+  }
+  d = "";
+  if col == 0 { d = sim_race_desc(cursor); } else { d = sim_class_desc(cursor); }
+  if d == "" { d = "(nothing here)"; }
+  dl = wrap_text(font, d, DESC_W, CHARPAGE_SIZE);
+  for di in 0..len(dl) { out += [dl[di] ?? ""]; }
+  out += ["W/S move   A/D switch column   Enter reshape   Q step away   (* = what you are)"];
+  out
+}
+
+pub fn build_crystalpage(s: Sim, font: integer, col: integer, cursor: integer) -> vector<integer> {
+  out: vector<integer> = [];
+  if font >= 0 {
+    lines = crystal_lines(s, col, cursor, font);
+    for i in 0..len(lines) {
+      ln = lines[i] ?? "";
+      tint = graphics::rgba(225, 225, 210, 255);
+      if i == 0 { tint = graphics::rgba(150, 220, 235, 255); }   // the crystal's teal title
+      out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, tint)];
+    }
+  }
+  out
+}
+
+pub fn draw_crystalpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>, col: integer, cursor: integer) {
+  if hud.panel != 0 {
+    graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
+  }
+  if hud.font < 0 { return; }
+  lines = crystal_lines(s, col, cursor, hud.font);
+  nr = sim_race_count();
+  nc = sim_class_count();
+  total = len(lines);
+  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 8.0;
+  xL = 60.0;
+  xR = 430.0;
+  y0 = 52.0;
+  inv_draw_line(painter, hud, pg, lines, 0, xL, y0);                       // title
+  inv_draw_line(painter, hud, pg, lines, 1, xL, y0 + lh);                  // RACE header
+  inv_draw_line(painter, hud, pg, lines, 2, xR, y0 + lh);                  // CLASS header
+  for i in 0..nr { inv_draw_line(painter, hud, pg, lines, 3 + i, xL, y0 + (i as float + 2.0) * lh); }
+  for j in 0..nc { inv_draw_line(painter, hud, pg, lines, 3 + nr + j, xR, y0 + (j as float + 2.0) * lh); }
+  rows = nr;
+  if nc > rows { rows = nc; }
+  dy = y0 + (rows as float + 3.0) * lh;
+  desc_start = 3 + nr + nc;
+  ndesc = total - 1 - desc_start;
+  for di in 0..ndesc { inv_draw_line(painter, hud, pg, lines, desc_start + di, xL, dy + (di as float) * lh); }
+  inv_draw_line(painter, hud, pg, lines, total - 1, xL, dy + (ndesc as float) * lh + 10.0);
+}
+
 // ── The message log (SLICE §3): the most recent kernel messages, drawn over the dungeon view ──
 // Newest at the bottom, on a faint dark strip for readability over the lit floor. The textures are
 // baked by build_msglog and only REBAKED when sim_msg_total changes (story.loft watches it), so the

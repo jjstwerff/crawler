@@ -263,6 +263,9 @@ test:
 	@echo "  [class] classes from bundles: apply / SP pool / the spell chain (routine-by-id) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/classtest.loft | tee /tmp/story_class.log
 	@grep -q "CLASS OK" /tmp/story_class.log || { echo "    FAIL: class"; exit 1; }
+	@echo "  [crystal] the shrine re-spec: bump = interact / apply race+class / roster ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/crystaltest.loft | tee /tmp/story_crystal.log
+	@grep -q "CRYSTAL OK" /tmp/story_crystal.log || { echo "    FAIL: crystal"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

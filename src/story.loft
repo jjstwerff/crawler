@@ -91,6 +91,16 @@ fn main() {
   iq_was = false;
   ie_was = false;
   ient_was = false;
+  crys_open = false;        // the CRYSTAL page (bump the shrine): pauses the world too
+  pg_crys: vector<integer> = [];  // baked crystal-page textures (rebuilt on cursor/column/apply)
+  crys_col = 0;             // 0 = race column, 1 = class column
+  crys_cur = 0;             // highlighted entry in the active column
+  cu_was = false;           // crystal-page edge-triggers: W/S/A/D/Enter/Q
+  cd_was = false;
+  ca_was = false;
+  cdd_was = false;
+  cent_was = false;
+  ckq_was = false;
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
   running = true;
@@ -121,7 +131,36 @@ fn main() {
       }
       i_was = i_down;
 
-      if page_open || inv_open {
+      if crys_open {
+        // THE CRYSTAL PAGE — W/S move, A/D switch column, Enter reshapes, Q steps away.
+        ccount = if crys_col == 0 { sim_race_count() } else { sim_class_count() };
+        cu = graphics::gl_key_pressed(KEY_W);
+        if cu && !cu_was && crys_cur > 0 { crys_cur -= 1; pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur); }
+        cu_was = cu;
+        cd = graphics::gl_key_pressed(KEY_S);
+        if cd && !cd_was && crys_cur < ccount - 1 { crys_cur += 1; pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur); }
+        cd_was = cd;
+        ca = graphics::gl_key_pressed(KEY_A);
+        cdd = graphics::gl_key_pressed(KEY_D);
+        if (ca && !ca_was) || (cdd && !cdd_was) {
+          crys_col = 1 - crys_col;
+          nmax = if crys_col == 0 { sim_race_count() } else { sim_class_count() };
+          if crys_cur >= nmax { crys_cur = nmax - 1; }
+          pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur);
+        }
+        ca_was = ca;
+        cdd_was = cdd;
+        cent = graphics::gl_key_pressed(KEY_ENTER);
+        if cent && !cent_was {
+          if crys_col == 0 { sim_shrine_apply(s, "race", sim_race_key(crys_cur)); }
+          else { sim_shrine_apply(s, "class", sim_class_key(crys_cur)); }
+          crys_open = false;
+        }
+        cent_was = cent;
+        ckq = graphics::gl_key_pressed(KEY_Q);
+        if ckq && !ckq_was { crys_open = false; }
+        ckq_was = ckq;
+      } else if page_open || inv_open {
         // Number keys 1-9: char page SPENDS a stat (1-6); inventory hub BINDS the selected item to
         // that quick-slot (the manual reslot).
         sd = -1;
@@ -231,6 +270,16 @@ fn main() {
         }
       }
       }
+      // The shrine: bumping the spawning crystal raises the INTERACT event -> the crystal page.
+      if sim_shrine_pending(s) == 1 {
+        sim_shrine_clear(s);
+        crys_open = true;
+        page_open = false;
+        inv_open = false;
+        crys_col = 0;
+        crys_cur = 0;
+        pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur);
+      }
       sim_compute_fov(s);          // directed-light FOV: recompute visibility for this frame
       // Rebake the message log only when a new line arrived (combat, pickup, level, descend, …).
       tot = sim_msg_total(s);
@@ -249,6 +298,7 @@ fn main() {
       draw_msglog(painter, s, hud, ml);
       if page_open { draw_charpage(painter, s, hud, pg); }
       else if inv_open { draw_invpage(painter, s, hud, pg_inv, inv_cursor); }
+      else if crys_open { draw_crystalpage(painter, s, hud, pg_crys, crys_col, crys_cur); }
       graphics::gl_swap_buffers();
     }
   }

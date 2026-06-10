@@ -145,14 +145,14 @@ on the Sim (`rc_*`, the wdam/pac idiom — catalog merges only at apply, never p
 (quickslottest + classtest in). The gate runs against `../loft2` on that branch until the
 fix merges to `main` / is installed.
 
-**Minimal creation UI (agreed direction, next after the unblock):** quick-start = the story
-boots a **human warrior + kit**, zero menus (BUILT, held with the rest). The **spawning
-crystal** (already in-world, 6 hexes west of the surface spawn) becomes the re-spec point:
-bump = INTERACT (a shrine-flag on `spawn_crystal`, mirroring the stairs edge-trigger — it
-stays arrow-destructible, a real choice), opening one overlay — RACE | CLASS columns off
-`race_catalog()`/`class_catalog()` (dropped-in bundles appear automatically), W/S cursor,
-A/D column, Enter applies (`sim_set_race`/`sim_set_class` re-derive; full heal; kit is a
-new-game-only grant), Esc closes. No main menu / name entry / point-buy.
+**Minimal creation UI — BUILT (2026-06-10, gate 33/33):** quick-start = the story boots a
+**human warrior + kit**, zero menus. The **spawning crystal** is the re-spec point:
+`MF_SHRINE` on `spawn_crystal` → bump = INTERACT (no melee; still arrow-destructible, a
+real choice) → the CRYSTAL PAGE: RACE | CLASS columns off the merged catalogs via `sim_*`
+roster accessors (dropped-in bundles appear automatically), W/S cursor, A/D column, Enter
+reshapes (`sim_shrine_apply`: re-derive + full heal + full mind; inventory untouched — the
+kit is a new-game-only grant), Q steps away. `crystaltest` in the gate. The in-window page
+look = the user's visual verify (make play). Still open: the caster SP sidebar row.
 
 ---
 
