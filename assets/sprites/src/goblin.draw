@@ -44,13 +44,11 @@ Poly (0.428,0.365) (0.330,0.300) (0.448,0.318) rgb=66,88,46
 name earR
 Poly (0.572,0.365) (0.670,0.300) (0.552,0.318) rgb=66,88,46
 
-# eyes — narrowed sulphur slits under an ANGRY BROW
-name brow
-Line (0.438,0.330) - (0.482,0.345) w=4
-Line (0.562,0.330) - (0.518,0.345) w=4
+# eyes — tiny hints at the snout-root SIDES (from above you see the skull top, not a
+# face; the head is dropped forward in the lunge — the jackal model)
 name eyes
-Circle (0.468,0.355) r=0.013 rgb=210,90,30
-Circle (0.532,0.355) r=0.013 rgb=210,90,30
+Circle (0.448,0.318) r=0.010 rgb=210,90,30
+Circle (0.552,0.318) r=0.010 rgb=210,90,30
 
 # teeth — points at the snout tip (the snarl)
 name teeth

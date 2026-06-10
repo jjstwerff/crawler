@@ -113,7 +113,10 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   **PERSPECTIVE rules (the world is top-down):** creatures + structural features are drawn
   top-down, with **slight foreshortening allowed** to show the third dimension (the eye's
   iris as a front-displaced ellipse; the door as its lit top edge + a foreshortened face)
-  as long as the feature stays inside its slot (the door within the wall gap). **Items may
+  as long as the feature stays inside its slot (the door within the wall gap). **An upright
+  HUMANOID from above shows its SCALP + protruding snout — never a camera-facing face**;
+  eyes at most as side-hints at the snout root. (Quadrupeds' horizontal heads legitimately
+  show eyes from above — the jackal model; the player shows hair only.) **Items may
   be frontal-iconic** — they read as lying on the floor, the illusion holds. Stairs are
   the floor-hole exception (down = a black cube's top opening, steps descending inside it;
   up keeps transparent gaps — floor shows under a rising flight). **A feature that sits IN
