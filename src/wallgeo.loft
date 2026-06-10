@@ -21,6 +21,14 @@ use sim;
 SMOOTH_ITERS  = 3;
 SMOOTH_LAMBDA = 0.5;   // 0..1 blend toward the neighbour midpoint each pass
 SNAP_TOL2     = 0.3844; // (0.62 world units)^2 — snap a corner onto a room side-line within this
+// EQUAL WALL WIDTH (the asymmetry fix, measured in tools/wallproto): horizontal side-lines
+// sit ON the hex tops -> faces 1.0 from the wall row (walls read 2.0 wide); the straight
+// vertical line through the STAGGERED column gives only sqrt(3) ~ 1.732. Inset vertical
+// side-lines toward the room by (1 - sqrt(3)/2) so their faces are ALSO 1.0 from the wall
+// column -> both directions read exactly 2.0. The odd-parity faces lie 0.732 from the inset
+// line (vs 0.5 max on horizontals), so vertical lines snap with their OWN tolerance.
+WIDEN_V      = 0.1339746;  // 1 - sqrt(3)/2
+SNAP_TOL2_V  = 0.5625;     // (0.75)^2 — vertical lines must catch both stagger parities
 
 pub struct WallSeg {
   ax: float not null, ay: float not null,
@@ -135,10 +143,16 @@ fn build_room_sides(s: Sim) -> vector<WallLine> {
         (t1x, t1y) = room_tip(q0, r0, rw, rh, 1);
         (t2x, t2y) = room_tip(q0, r0, rw, rh, 2);
         (t3x, t3y) = room_tip(q0, r0, rw, rh, 3);
+        // equal-width inset: vertical sides move WIDEN_V toward the room (see header)
+        (rcx, rcy) = hex_to_px(q0 + rw / 2, r0 + rh / 2);
+        lx = t3x;                                  // the left side-line's x (tips 3 -> 0)
+        if rcx > lx { lx = lx + WIDEN_V; } else { lx = lx - WIDEN_V; }
+        rx = t1x;                                  // the right side-line's x (tips 1 -> 2)
+        if rcx > rx { rx = rx + WIDEN_V; } else { rx = rx - WIDEN_V; }
         out += [WallLine { ax: t0x, ay: t0y, bx: t1x, by: t1y }];
-        out += [WallLine { ax: t1x, ay: t1y, bx: t2x, by: t2y }];
+        out += [WallLine { ax: rx, ay: t1y, bx: rx, by: t2y }];
         out += [WallLine { ax: t2x, ay: t2y, bx: t3x, by: t3y }];
-        out += [WallLine { ax: t3x, ay: t3y, bx: t0x, by: t0y }];
+        out += [WallLine { ax: lx, ay: t3y, bx: lx, by: t0y }];
       }
     }
   }
@@ -199,7 +213,7 @@ pub fn build_walls(s: Sim) -> vector<WallSeg> {
     c = corner_at(cs, ci);
     bx = c.x;
     by = c.y;
-    bestd2 = SNAP_TOL2;
+    bestd2 = 9999.0;   // per-line tolerances gate below; this only ranks candidates
     hit = 0;
     for si in 0..nsides {
       if si < nsides {
@@ -215,7 +229,12 @@ pub fn build_walls(s: Sim) -> vector<WallSeg> {
             ex = c.x - fx;
             ey = c.y - fy;
             d2 = ex * ex + ey * ey;
-            if d2 < bestd2 { bestd2 = d2; bx = fx; by = fy; hit = 1; }
+            // vertical lines need the wider tolerance (both stagger parities must snap)
+            tol = SNAP_TOL2;
+            adx = dx; if adx < 0.0 { adx = 0.0 - adx; }
+            ady = dy; if ady < 0.0 { ady = 0.0 - ady; }
+            if adx < ady { tol = SNAP_TOL2_V; }
+            if d2 < tol && d2 < bestd2 { bestd2 = d2; bx = fx; by = fy; hit = 1; }
           }
         }
       }
