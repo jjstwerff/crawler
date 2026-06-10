@@ -39,7 +39,8 @@ study (growing, → enhance the engineering-rigor skill's DESIGN column): **DESI
 
 ## Architecture invariant (do not break)
 
-**Kernel** modules import **no graphics** — `hexgeo`, `gridgeo`, `sim`, `gen`,
+**Kernel** modules import **no graphics** — the `hexgrid` LIB (was hexgeo+gridgeo;
+now `../loft-libs-game/`), `sim`, `gen`,
 `monsters`/`classes`/`races`/`items`. **View** is the swappable 2D front-end —
 `view.loft`, `story.loft`. The view reads the kernel only through `sim_*`
 accessors. That split is what lets the kernel later drive `moros_render` in 3D, so

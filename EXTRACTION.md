@@ -84,19 +84,18 @@ in one shared place. `gridgeo` belongs with it — its whole purpose is the 90°
 local basis FOR objects placed on the hex world (12 × 30° orientations matching the hex
 lattice), meaningless apart from it. Both are struct-free, import-free, game-free.
 
-- [ ] Create the chunk repo home — **decision: a new `loft-libs-game/`** (game-domain
-      packages: `hexgrid` now; `roguelike-kit` later) — or fold into an existing chunk
-      if preferred. (`git init` + the loft-libs repo conventions; GitHub repo = owner.)
-- [ ] Package `hexgrid`: `loft.toml` + `src/hexgrid.loft` = hexgeo merged with gridgeo
-      (one `use hexgrid`; sectioned: hex lattice / conversions / LOS / the square basis).
-      All pub names already distinct.
-- [ ] A standalone smoke test in the package (round-trip `hex_to_px`/`px_to_hex`,
-      `hex_distance`, neighbor ring, `cell_to_px` rotation) — `loft test` green.
-- [ ] crawler: add `--lib ../loft-libs-game/` to the Makefile LOFTFLAGS (the bundle-dirs
-      pattern), `use hexgeo;`/`use gridgeo;` → `use hexgrid;` everywhere, DELETE
-      `src/hexgeo.loft` + `src/gridgeo.loft`.
-- [ ] Gate 33/33; README documents the moros convention (+ link to
-      `moros/doc/claude/SCENE_MAP.md`).
+- [x] Chunk repo created: **`../loft-libs-game/`** (LICENSE + README per the loft-libs
+      conventions; local git — the GitHub remote is the owner's step).
+- [x] Package `hexgrid` (v0.1.0): hexgeo + gridgeo merged into one module; the colliding
+      trio renamed DESCRIPTIVELY per basis (`hex_`/`cell_` `neighbor_dir`, `edge_corners`,
+      `canon_edge` — the technical layer keeps technical names; a friendlier drawing
+      abstraction can sit above later); `GRID_SIZE`/`GRID_LEN` now pub. (LOS stays in sim
+      until the Tier-2 parameterization — it takes a Sim today.)
+- [x] 10 package tests under `--deny-warnings` (round-trips, metric, neighbor ring +
+      inverse, shared-edge canonicalization for BOTH bases, corner circumradius).
+- [x] crawler switched: Makefile LIB_DEPS + `use hexgrid;` across 23 files, six renamed
+      call sites, `src/hexgeo.loft` + `src/gridgeo.loft` DELETED (the no-drift rule).
+- [x] Gate 33/33; the package header documents the moros convention.
 - [ ] (Owner) release per the "Updating a library" flow; crawler switches off the dev `--lib`.
 - [ ] (Later, separate) moros adopts `hexgrid` for its tooling where loft runs.
 
