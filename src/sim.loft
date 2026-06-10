@@ -1480,6 +1480,14 @@ pub fn hex_los(s: Sim, q0: integer, r0: integer, q1: integer, r1: integer) -> bo
 pub fn sim_compute_fov(s: &Sim) {
   vis = s.vis;
   seen = s.seen;
+  // SURFACE DAYLIGHT: depth 0 has NO light radius — open desert under the sky, the player
+  // sees to the screen edge all the time (the view merely clips). Everything is lit; the
+  // directed-lamp cone below is a DUNGEON thing.
+  if s.depth == 0 {
+    for di in 0..len(vis) { vis[di] = 1; }
+    for dj in 0..len(seen) { seen[dj] = 1; }
+    return;
+  }
   // Read the scalar bounds into locals once before the hot loop (a small micro-opt). This loop's
   // shape (per-cell tuple-returns like hex_to_px) was the repro that surfaced loft#299 — a parser
   // bug that dropped a thin struct-return's result, fixed in loft2 fc80115 (LOFT_ISSUES C21).
