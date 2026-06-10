@@ -131,7 +131,7 @@ say, a 2-race game by dropping in just those two folders.
 - **Remaining:** the gated hazard systems above; **SP** (rides the spell system, class side);
   then **classes** (Phase D) once the spell system + routine-by-id dispatch land.
 
-## Class track status (2026-06-10) — BUILT, held on loft#306
+## Class track status (2026-06-10) — LANDED (loft#306 fixed on `bug123`)
 
 Phase C + the first two Phase-D classes are **implemented and headlessly proven**
 (`classtest` 11/11: merge, apply, SP pool, xp factor, re-spec, kernel bolt, quick-cast,
@@ -141,10 +141,9 @@ warrior + mage in their own bundles (`*_class.loft`, mage's spells + fx routines
 quick-cast; the story quick-start (human warrior + kit). Race/class derivations are CACHED
 on the Sim (`rc_*`, the wdam/pac idiom — catalog merges only at apply, never per call).
 
-**Held uncommitted:** the program growth trips a loft store-pressure threshold —
-`quickslottest`'s descend SIGSEGVs (with OR without any specific new wiring; pure
-allocation volume). Filed **loft#306** (C24); the vector-lifetime fix in active
-development should cover it. Re-run `make test LOFT_REPO=../loft2` when it lands.
+**Unblocked:** loft#306 fixed (loft2 `bug123` @ `913b625b`); the full gate is **32/32**
+(quickslottest + classtest in). The gate runs against `../loft2` on that branch until the
+fix merges to `main` / is installed.
 
 **Minimal creation UI (agreed direction, next after the unblock):** quick-start = the story
 boots a **human warrior + kit**, zero menus (BUILT, held with the rest). The **spawning
@@ -176,36 +175,34 @@ new-game-only grant), Esc closes. No main menu / name entry / point-buy.
       throw). [ ] class's; [ ] device/disarm (their skills don't exist yet).
 - [x] **XP factor**: `r_xp` scales the curve (`xp_need` in `sim_award_xp` + `sim_xp_frac`).
       [ ] `c_xp` (classes).
-- [ ] **SP pool** on the `Sim` — **BUILT, held on loft#306** (`sp`/`spmax` from realm +
-      spell-stat + level, SP regen on the clock, spend gate). [ ] sidebar SP row shows real
-      SP for a caster (view wiring still to do).
+- [x] **SP pool** on the `Sim` (`sp`/`spmax` from realm + spell-stat + level, SP regen on
+      the clock, spend gate) — verified at gate 32/32. [ ] sidebar SP row shows real SP for
+      a caster (view wiring still to do).
 - [x] Race apply test = `racetest.loft` (stat block / HP order / skills / save / flags / xp /
       sustain / regen), in the gate. [ ] `applytest` for warrior-vs-mage (classes).
 
 ## Phase C — Spell system (engine MECHANISM only; spells are bundle content)
 
-> **STATUS: every item below is BUILT and headlessly proven (`classtest` 11/11) — boxes stay
-> unchecked only because the gate is red at [quickslot] on **loft#306** (C24, the
-> store-pressure SIGSEGV; the vector-lifetime fix in development should cover it). When it
-> lands: `make test LOFT_REPO=../loft2` → commit → flip these to [x].**
+> **STATUS: DONE — verified at gate 32/32 on loft2 `bug123` @ `913b625b` (the loft#306
+> fix: returned views must not let callers free stores they don't own). 2026-06-10.**
 
 The engine owns the *mechanism*; **the spells themselves are a section of the owning
 class/race bundle** (Phase D/E), merged generically — never an engine table.
 
-- [ ] `SpellDef` struct + `spell_none()` in the engine (vocabulary): owner/realm key · name ·
+- [x] `SpellDef` struct + `spell_none()` in the engine (vocabulary): owner/realm key · name ·
       min-level · SP cost · **effect routine id** · desc. No spell *rows* in `src/`.
-- [ ] SP pool on the `Sim` + regeneration over the clock (per-tick, like poison/ward).
-- [ ] `gen_bundles.py`: scan a `"spells"` section on `kind:"character"` **and** `kind:"race"`
+- [x] SP pool on the `Sim` + regeneration over the clock (per-tick, like poison/ward).
+- [x] `gen_bundles.py`: scan a `"spells"` section on `kind:"character"` **and** `kind:"race"`
       bundles → emit `src/spell_defs_gen.loft` exposing `bundle_spells()`; `spell_catalog()`
       merges them. (Each bundle's `spell_defs()` uniquely named — `use`-flatten constraint.)
-- [ ] **Effect dispatch by routine id** — resolve a spell's effect through the **routine pool**
+- [x] **Effect dispatch by routine id** — resolve a spell's effect through the **routine pool**
       (the binding ships in the owning bundle, like `potion_detect_monsters::apply`), NOT a
       hardcoded engine ladder. The engine exposes only effect **primitives** (heal/blink/bolt/
       detect/status via the Player + `sim_*` API). *(Fold item effects toward this same scanned
       index so items and spells share one extensible path.)*
-- [ ] **Cast** verb (active slot **E** / a small cast list) — pick a known spell, spend SP,
+- [x] **Cast** verb (active slot **E** / a small cast list) — pick a known spell, spend SP,
       refuse if low-SP / under-level.
-- [ ] `casttest.loft`: cast a bundle-authored spell → its routine fires + SP spent; under-level/
+- [x] `casttest.loft`: cast a bundle-authored spell → its routine fires + SP spent; under-level/
       low-SP refused. Wire to gate.
 
 ## Phase D — Classes → bundles (each *fully done* per the DoD above)
@@ -213,12 +210,10 @@ class/race bundle** (Phase D/E), merged generically — never an engine table.
 Each class's spell list — **defs + effect routines — ships in its own bundle** (the Phase C
 mechanism dispatches them by id). Order by spell-debt so the system fills in incrementally:
 
-- [ ] **warrior** — **BUILT, held on loft#306**: ClassDef → `bundles/warrior/warrior_class.loft`;
-      hit-die HP applied; stats single-sourced in the ClassDef (grant_stat dropped from the
-      script); the story quick-start boots it.
-- [ ] **mage** — **BUILT, held on loft#306**: `mage_class.loft` + `mage_spells.loft` (Magic
-      Dart / Blink / Sense Creatures — defs + fx routines, all three implemented: bolt /
-      sim_blink / reveal); SP 6/6 at start; E quick-casts.
+- [x] **warrior** — DONE: ClassDef → `bundles/warrior/warrior_class.loft`; hit-die HP
+      applied; stats single-sourced in the ClassDef; the story quick-start boots it.
+- [x] **mage** — DONE: `mage_class.loft` + `mage_spells.loft` (Magic Dart / Blink / Sense
+      Creatures — defs + fx routines, all three implemented); SP 6/6 at start; E quick-casts.
 - [ ] **rogue** — bundle + HP/SP; arcane starter spell(s) implemented (e.g. detect, blink).
 - [ ] **ranger** — bundle + HP/SP; nature starter spell(s) implemented.
 - [ ] **paladin** — bundle + HP/SP; divine starter spell(s) implemented.
