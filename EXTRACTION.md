@@ -11,18 +11,52 @@ live loft bugs (#319 struct-literal comprehensions, #320 capture-append-reassign
 - A **library package** = a folder with `loft.toml` (`[package]` + `[library] entry =
   "src/<name>.loft"`), living in a chunk repo (`loft-libs-graphics` style: several
   packages per repo). One package = one `use`-able module name.
-- **Consume locally NOW via a path dep** — crawler's `loft.toml`:
-  `hexgrid = { path = "../loft-libs-game/hexgrid" }`. No registry needed to develop.
-- **Registry publication** (tarball + sha256 + signed `index.json` + GitHub release) is
-  the OWNER'S publish flow, done when a package settles — the plan marks it as a
-  separate final step per package.
+- **Consume locally NOW via a `--lib` dir** (VERIFIED 2026-06-10): the compile-time
+  `use` resolver searches *local src → package lib dirs → `--lib` dirs → sibling
+  packages* — crawler adds `--lib ../loft-libs-game/` to LOFTFLAGS exactly like the
+  bundle dirs. (A `{ path = ... }` manifest dep is honoured by `loft test --deps` but
+  NOT by compile-time use-resolution — PACKAGES.md overpromises there; tracked as a
+  doc/impl divergence. Sibling layout + `loft install .` also verified working.)
+- **Registry publication** is the five-step flow in loft2 `doc/claude/REGISTRY_SUBMIT.md`
+  (see "Updating a library" below) — done when a package settles.
 - **The crawler gate keeps guarding**: after each extraction the same 33 tests run
   against the lib code; the in-repo module is DELETED (never two copies drifting).
+
+## Updating a library repo (the change loop, per contribution)
+
+Library work happens IN the lib repo under its own gate — crawler stays a consumer.
+The loop, end to end:
+
+1. **Sync**: `git fetch origin && git checkout main && git pull --ff-only` in the lib
+   repo (never branch from a stale main).
+2. **Branch per change**: `git checkout -b feat/<short-name>` (or `fix/...`); one
+   reviewable concern per branch.
+3. **Change + the repo's OWN gate locally**: the package's `loft test` (+ the repo's
+   `make test`/CI script if present) green BEFORE pushing — same discipline as
+   crawler's gate-before-commit.
+4. **PR with the trace**: `git push -u origin <branch>` then `gh pr create` — the PR
+   body links the DRIVING context (the crawler EXTRACTION step, the loft issue, or the
+   plan doc) so the change is traceable to its reason; reference issues with `#NNN` so
+   the trail is bidirectional.
+5. **CI + review**: `gh pr checks --watch` until green; address review; never merge red.
+6. **Merge**: `gh pr merge --squash --delete-branch` (one commit per concern on main,
+   the PR body preserved as the trace).
+7. **Register the change** (when releasing — not every merge needs a release):
+   1. bump `[package] version` in `loft.toml` (+ changelog note);
+   2. `git tag v<version> && git push --tags` (the tag MUST match the manifest);
+   3. `loft package` → deterministic tarball + sha256 + a ready index entry;
+   4. `gh release create v<version> <tarball>` (never edit assets afterwards — fix =
+      yank + next patch version);
+   5. PR the index entry against `loft-lang/registry` (`index.json`; the registry's CI
+      re-checks the reproducible build; the maintainer signs the index).
+8. **Consumers switch**: crawler moves that package from the dev `--lib` dir to the
+   registry version and re-runs its gate.
 
 ## Extraction Definition of Done (per package)
 
 1. The package builds standalone (`loft test` in its folder, with at least a smoke test).
-2. crawler depends on it via `loft.toml` and the duplicated `src/` module is **deleted**.
+2. crawler consumes it (dev: the `--lib` dir; released: the registry version) and the
+   duplicated `src/` module is **deleted**.
 3. `make test` green (33/33) + `make check` clean against the dep.
 4. The API follows the **globally-unique pub-name** discipline (the C23 lesson — the
    native tier flattens module fns to global symbols).
@@ -58,11 +92,12 @@ lattice), meaningless apart from it. Both are struct-free, import-free, game-fre
       All pub names already distinct.
 - [ ] A standalone smoke test in the package (round-trip `hex_to_px`/`px_to_hex`,
       `hex_distance`, neighbor ring, `cell_to_px` rotation) — `loft test` green.
-- [ ] crawler: `loft.toml` dep (path form), `use hexgeo;`/`use gridgeo;` →
-      `use hexgrid;` everywhere, DELETE `src/hexgeo.loft` + `src/gridgeo.loft`.
+- [ ] crawler: add `--lib ../loft-libs-game/` to the Makefile LOFTFLAGS (the bundle-dirs
+      pattern), `use hexgeo;`/`use gridgeo;` → `use hexgrid;` everywhere, DELETE
+      `src/hexgeo.loft` + `src/gridgeo.loft`.
 - [ ] Gate 33/33; README documents the moros convention (+ link to
       `moros/doc/claude/SCENE_MAP.md`).
-- [ ] (Owner) publish to the registry; switch the path dep to a version dep.
+- [ ] (Owner) release per the "Updating a library" flow; crawler switches off the dev `--lib`.
 - [ ] (Later, separate) moros adopts `hexgrid` for its tooling where loft runs.
 
 ### 2. Text layout helpers → `loft-libs-graphics`
