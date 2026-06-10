@@ -1,0 +1,82 @@
+// unknowntest — the Angband "mystery" (SLICE): magic goods read as a shuffled FLAVOUR until the KIND
+// is identified by using one (quaff/read/wield) or a Scroll of Identify. The flavour↔kind map is
+// per-game (seeded), carried across levels/death; IF_KNOWN items (the antivenin) are exempt.
+use sim;
+use catalog;
+use itemfx;
+use items;
+
+fn idx(key: text) -> integer { item_index(game_items(), key) }
+
+fn main() {
+  println("=== story unknown-items test (flavours / identify / carry / exempt) ===");
+
+  cl   = idx("potion_cure_light");
+  spd  = idx("potion_speed");
+  detm = idx("potion_detect_monsters");
+  anti = idx("naga_antivenin");
+  ring = idx("ring_protection");
+
+  // 1) A fresh game hides magic goods behind a flavour (not the real name; not yet identified).
+  s = sim_new_gen(7, 1);
+  disp0 = sim_item_display_name(s, cl);
+  hidden = disp0 != "Potion of Cure Light Wounds" && starts_with(disp0, "a ") && !sim_identified(s, cl);
+
+  // 2) Distinct kinds of the same category get DISTINCT flavours (no collision within a category).
+  distinct = sim_item_display_name(s, cl) != sim_item_display_name(s, spd)
+          && sim_item_display_name(s, spd) != sim_item_display_name(s, detm)
+          && sim_item_display_name(s, cl) != sim_item_display_name(s, detm);
+
+  // 3) Quaffing identifies the KIND for the whole game: the real name shows afterwards.
+  sim_give_item(s, "potion_cure_light");
+  use_item(s, sim_find_item(s, "potion_cure_light"));
+  revealed = sim_identified(s, cl) && sim_item_display_name(s, cl) == "Potion of Cure Light Wounds";
+
+  // 4) The map + identifications CARRY across a level change (descend), and the map is unchanged.
+  spd_flav_before = sim_item_display_name(s, spd);
+  ns = sim_descend(s, 1);
+  carried = sim_identified(ns, cl)                                   // identification persists
+         && sim_item_display_name(ns, spd) == spd_flav_before        // unidentified kind: same flavour
+         && !sim_identified(ns, spd);
+
+  // 5) Determinism: same seed → identical map; (almost surely) a different seed → a different map.
+  // Consume each fresh Sim immediately into a text (never hold several large Sims at once — that
+  // trips a loft store-reuse hazard: C22 / loft#303, the same reason the kernel/view never copy a
+  // Sim by value).
+  n7cl  = sim_item_display_name(sim_new_gen(7, 1), cl);
+  n7cl2 = sim_item_display_name(sim_new_gen(7, 1), cl);
+  n7spd = sim_item_display_name(sim_new_gen(7, 1), spd);
+  n7sp2 = sim_item_display_name(sim_new_gen(7, 1), spd);
+  n8cl  = sim_item_display_name(sim_new_gen(8, 1), cl);
+  n8spd = sim_item_display_name(sim_new_gen(8, 1), spd);
+  n8det = sim_item_display_name(sim_new_gen(8, 1), detm);
+  n7det = sim_item_display_name(sim_new_gen(7, 1), detm);
+  same_seed = n7cl == n7cl2 && n7spd == n7sp2;
+  // compare the whole potion map across seeds — full collision is ~0
+  diff_seed = n7cl != n8cl || n7spd != n8spd || n7det != n8det;
+
+  // 6) Exempt: an IF_KNOWN bundle item (the antivenin) always shows its real name, never a flavour.
+  exempt = sim_item_display_name(s, anti) == "Naga's Antivenin";
+
+  // 7) Scroll of Identify reveals the first carried mystery (here: the Potion of Speed).
+  si = sim_new_gen(7, 1);
+  sim_give_item(si, "potion_speed");
+  sim_give_item(si, "scroll_identify");
+  before_id = !sim_identified(si, spd);
+  use_item(si, sim_find_item(si, "scroll_identify"));
+  scroll_id = before_id && sim_identified(si, spd);
+
+  // 8) Wielding identifies a worn item's kind (rings/amulets).
+  eq = sim_new_gen(7, 1);
+  sim_give_item(eq, "ring_protection");
+  ring_hidden = !sim_identified(eq, ring);
+  sim_equip(eq, sim_find_item(eq, "ring_protection"));
+  wield_id = ring_hidden && sim_identified(eq, ring)
+          && sim_item_display_name(eq, ring) == "Ring of Protection";
+
+  println("hidden={hidden} distinct={distinct} revealed={revealed} carried={carried}");
+  println("same_seed={same_seed} diff_seed={diff_seed} exempt={exempt} scroll_id={scroll_id} wield_id={wield_id}");
+  println("  (cure_light shows as '{disp0}')");
+  ok = hidden && distinct && revealed && carried && same_seed && diff_seed && exempt && scroll_id && wield_id;
+  if ok { println("=== UNKNOWN OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -249,6 +249,9 @@ test:
 	@echo "  [special] monster specials: gaze paralysis + venom + antivenin ward (+ deadlock/struggle) ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/specialtest.loft | tee /tmp/story_special.log
 	@grep -q "SPECIAL OK" /tmp/story_special.log || { echo "    FAIL: special"; exit 1; }
+	@echo "  [unknown] unknown items: per-game flavours / identify-on-use / carry / IF_KNOWN exempt ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/unknowntest.loft | tee /tmp/story_unknown.log
+	@grep -q "UNKNOWN OK" /tmp/story_unknown.log || { echo "    FAIL: unknown"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

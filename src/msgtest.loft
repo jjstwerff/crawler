@@ -41,9 +41,10 @@ fn main() {
   nm0 = sim_enemy_name(k, 0);
   kill_ok = !sim_enemy_alive(k, 0) && nm0 != "" && sim_msg_at(k, 0) == "Your shot slays the {nm0}.";
 
-  // 5) an inert item is HONEST: "Nothing happens." (phase door has no effect built yet)
+  // 5) an inert item is HONEST: "Nothing happens." (Recall has no effect built yet — phase door now
+  // blinks, so this check uses a still-inert consumable instead).
   n = sim_new();
-  sim_give_item(n, "scroll_phase_door");         // auto-slotted to slot 0
+  sim_give_item(n, "scroll_recall");             // auto-slotted to slot 0
   r = use_slot(n, 0);
   nothing_ok = r == 0 && sim_msg_at(n, 0) == "Nothing happens.";
 

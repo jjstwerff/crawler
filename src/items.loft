@@ -37,6 +37,7 @@ pub const SLOT_RING2  = 12;   // right ring (faithful Angband — two ring locat
 pub const IF_NONE      = 0;
 pub const IF_STACKABLE = 1;
 pub const IF_QUEST     = 2;    // a quest keepsake: never auto-slotted/consumed; inspect for its lore
+pub const IF_KNOWN     = 4;    // always identified by sight (skips the unknown-flavour system)
 
 pub struct ItemDef {
   i_key: text, i_name: text, i_glyph: text,
@@ -263,6 +264,52 @@ pub fn item_is_quest(table: vector<ItemDef>, idx: integer) -> boolean {
   v = false;
   if idx >= 0 && idx < len(table) { m = table[idx]; v = (m.i_flags & IF_QUEST) != 0; }
   v
+}
+
+// ── Unknown items (Angband mystery): the "magic" goods are FLAVOURED until identified ──────────────
+// The flavour <-> real mapping is shuffled per game (sim assigns each def a flavour index from seed);
+// the display name resolves through sim (real if identified/known-flag, else the flavour). These give
+// the engine the vocabulary; sim owns the per-game state.
+
+// Categories whose items start UNIDENTIFIED (shown as a flavour).
+pub fn item_unknown_type(cat: integer) -> boolean {
+  cat == IT_POTION || cat == IT_SCROLL || cat == IT_WAND ||
+  cat == IT_STAFF  || cat == IT_RING   || cat == IT_AMULET
+}
+
+// Always-known by sight (IF_KNOWN: e.g. the antivenin escape hatch) or a quest item (IF_QUEST).
+pub fn item_known_flag(table: vector<ItemDef>, idx: integer) -> boolean {
+  v = false;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = (m.i_flags & (IF_KNOWN | IF_QUEST)) != 0; }
+  v
+}
+
+// All flavour pools are this wide; sim shuffles [0..FLAVOUR_POOL) per category per game. Must be
+// >= the per-category def count, or two kinds collide onto one flavour (fine for this slice).
+pub const FLAVOUR_POOL = 12;
+
+fn potion_colours() -> vector<text> {
+  ["Cloudy", "Azure", "Crimson", "Murky", "Golden", "Silver", "Viridian", "Rose", "Inky", "Pale", "Amber", "Smoky"]
+}
+fn scroll_titles() -> vector<text> {
+  ["grok zar", "lo bre", "klaa tu", "xyzzy", "vli nok", "ish kar", "mun dro", "fel zib", "qua roth", "nyx vel", "po tash", "wur gle"]
+}
+fn metal_flavours() -> vector<text> {
+  ["Bronze", "Iron", "Silver", "Gold", "Jade", "Bone", "Crystal", "Copper", "Onyx", "Pewter", "Ivory", "Brass"]
+}
+fn wood_flavours() -> vector<text> {
+  ["Oak", "Birch", "Ash", "Elm", "Yew", "Pine", "Maple", "Ebony", "Walnut", "Cedar", "Hazel", "Rowan"]
+}
+
+// The display name of an UNIDENTIFIED item of category `cat` whose shuffled flavour index is `idx`.
+pub fn flavour_name(cat: integer, idx: integer) -> text {
+  if cat == IT_POTION { f = potion_colours(); c = f[idx % len(f) ?? 0] ?? "strange"; return "a {c} Potion"; }
+  if cat == IT_SCROLL { f = scroll_titles(); c = f[idx % len(f) ?? 0] ?? "..."; return "a Scroll titled \"{c}\""; }
+  if cat == IT_WAND   { f = metal_flavours(); c = f[idx % len(f) ?? 0] ?? "plain"; return "a {c} Wand"; }
+  if cat == IT_STAFF  { f = wood_flavours();  c = f[idx % len(f) ?? 0] ?? "plain"; return "a {c} Staff"; }
+  if cat == IT_RING   { f = metal_flavours(); c = f[idx % len(f) ?? 0] ?? "plain"; return "a {c} Ring"; }
+  if cat == IT_AMULET { f = metal_flavours(); c = f[idx % len(f) ?? 0] ?? "plain"; return "an {c} Amulet"; }
+  "something"
 }
 
 // Table index of the item with `key`, or -1 if none.

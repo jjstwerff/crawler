@@ -19,17 +19,25 @@ use potion_detect_monsters;
 pub fn use_item(s: &Sim, slot: integer) -> boolean {
   key = sim_inv_key(s, slot);
   if key == "" { return false; }
-  nm = sim_inv_name(s, slot);
+  nm = sim_inv_name(s, slot);            // the name AS SHOWN now (the flavour, if still unidentified)
+  gi = game_items();
+  defidx = item_index(gi, key);
   p = player_new(0);
   fired = item_effect(s, p, key);
   if fired {
-    gi = game_items();
-    c = item_cat(gi, item_index(gi, key));
+    c = item_cat(gi, defidx);
     verb = "use";
     if c == IT_POTION { verb = "quaff"; }
     if c == IT_SCROLL { verb = "read"; }
     if c == IT_FOOD { verb = "eat"; }
-    sim_log(s, "You {verb} the {nm}.");
+    vn = nm;                             // flavours read "a Crimson Potion"; real names take "the"
+    if !(starts_with(nm, "a ") || starts_with(nm, "an ")) { vn = "the {nm}"; }
+    sim_log(s, "You {verb} {vn}.");
+    // Using it identifies the KIND (the Angband reveal); only a genuine mystery announces itself.
+    newid = sim_identify(s, defidx);
+    if newid && item_unknown_type(c) && !item_known_flag(gi, defidx) {
+      sim_log(s, "It was {item_name(gi, defidx)}!");
+    }
     sim_consume_inv(s, slot);
   }
   fired
@@ -80,6 +88,12 @@ fn item_effect(s: &Sim, p: Player, key: text) -> boolean {
   if key == "scroll_phase_door" { sim_blink(s, 5); return true; }    // short random blink
   if key == "scroll_teleport"   { sim_blink(s, 40); return true; }   // long-range escape
   if key == "scroll_magic_mapping" { sim_reveal_map(s); return true; }
+  if key == "scroll_identify" {                                      // reveal a carried mystery
+    di = sim_identify_carried(s);
+    if di >= 0 { sim_log(s, "It was {item_name(game_items(), di)}!"); }
+    else { sim_log(s, "You sense nothing you carry is a mystery."); }
+    return true;
+  }
   if key == "naga_antivenin" {
     itbl = game_items();
     sim_cure_venom(s, item_power(itbl, item_index(itbl, key)));   // i_power = the venom-ward ticks

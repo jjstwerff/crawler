@@ -27,6 +27,22 @@ variants / expansions are bundles layered on top. A bundle carries three things:
 Bundles **compose into one pool**: load base + active bundles, merge by key, resolve
 cross-references. A bundle references what's already in the pool *and* extends it.
 
+### Standing check — keep bundles library-like
+
+Every time you touch the **engine↔bundle seam**, *re-evaluate* that bundles still adhere
+to their intentional library-like nature — don't assume; it erodes one convenient shortcut
+at a time. The invariant: **a stranger can drop a bundle folder in and rebuild without
+touching `src/`, and their game is byte-identical.** Concretely:
+
+- **Content/data lives bundle-side** (monsters, items, stencils, placement rules, flavour
+  text). The engine holds only generic **mechanism + vocabulary** (the records, the flags,
+  routines-by-id, the placer/stamp, the catalog merge).
+- **No bundle edits an engine source file** to add its content.
+- **The engine never references a bundle by key/name** — it dispatches generically through
+  the generated glue + key→index resolution.
+- A bundle *setting* an engine flag/record (`IF_KNOWN`, `MF_GAZE`, a `Placement`) is correct:
+  the engine *providing* the flag is mechanism, the bundle *using* it is content.
+
 ## Bundles compose — and the entry point is a bundle too
 
 **Bundles link to other bundles via scripts (routines).** A bundle's hooks can

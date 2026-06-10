@@ -145,6 +145,10 @@ pub struct Sim {
   poison_until: integer not null,  // poisoned while ticks < this, taking poison_dmg HP per tick
   poison_dmg:   integer not null,
   venom_until:  integer not null,  // venom-WARD (antivenin): poison can't apply/tick while ticks < this
+  // Unknown items (per GAME, carried across levels): which item TYPES are identified, and each def's
+  // shuffled flavour index (the unidentified display). Indexed by catalog def index.
+  known:        vector<integer> not null,
+  flavour_idx:  vector<integer> not null,
   wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
   up_r:    integer not null,
@@ -390,6 +394,7 @@ pub fn sim_equip(s: &Sim, ii: integer) {
   if ii < 0 || ii >= s.ninv || ii >= len(iv) { return; }
   defidx = iv[ii] ?? -1;
   if defidx < 0 { return; }
+  sim_identify(s, defidx);                  // wielding reveals the kind (rings/amulets) for the game
   itbl = game_items();
   sl = item_slot(itbl, defidx);
   eq = s.eq;
@@ -561,6 +566,63 @@ pub fn sim_qs_count(s: Sim, k: integer) -> integer {
   n
 }
 
+// ── Unknown items (the Angband "mystery") ──────────────────────────────────────────────────
+// Magic goods (potions/scrolls/wands/staves/rings/amulets) read as a shuffled FLAVOUR ("a Crimson
+// Potion") until the KIND is identified — using one (quaff/read/wield) or a Scroll of Identify
+// reveals it for the whole GAME. `known[defidx]` = this kind is identified; `flavour_idx[defidx]` =
+// its per-game flavour. IF_KNOWN/IF_QUEST items (e.g. the antivenin) skip the system. The mapping +
+// known set are assigned once (assign_flavours) and carried across levels/death.
+
+// Has this item KIND been identified this game?
+pub fn sim_identified(s: Sim, defidx: integer) -> boolean {
+  kv = s.known;
+  if defidx < 0 || defidx >= len(kv) { return false; }
+  (kv[defidx] ?? 0) != 0
+}
+
+// Mark this item KIND identified. Returns true if it was NEWLY revealed (for the "It was …!" line).
+pub fn sim_identify(s: &Sim, defidx: integer) -> boolean {
+  kv = s.known;
+  if defidx < 0 || defidx >= len(kv) { return false; }
+  if (kv[defidx] ?? 0) != 0 { return false; }
+  kv[defidx] = 1;                            // index-write on a captured field vector persists (C18)
+  true
+}
+
+// The name to SHOW for item `defidx`: the real name once identified / always-known / not a mystery
+// type; otherwise the per-game flavour. The one place the view/messages resolve an item's name.
+pub fn sim_item_display_name(s: Sim, defidx: integer) -> text {
+  itbl = game_items();
+  if defidx < 0 || defidx >= len(itbl) { return ""; }
+  d = itbl[defidx];
+  cat = d.i_cat;
+  if !item_unknown_type(cat) || item_known_flag(itbl, defidx) || sim_identified(s, defidx) {
+    return item_name(itbl, defidx);
+  }
+  fi = s.flavour_idx;
+  flavour_name(cat, fi[defidx] ?? 0)
+}
+
+// Scroll of Identify (slice behaviour — no per-item prompt yet): reveal the first carried item whose
+// KIND is still a mystery. Returns the def identified, or -1 if nothing carried is unknown.
+pub fn sim_identify_carried(s: &Sim) -> integer {
+  iv = s.inv;
+  itbl = game_items();
+  for i in 0..s.ninv {
+    if i < len(iv) {
+      di = iv[i] ?? -1;
+      if di >= 0 && di < len(itbl) {
+        d = itbl[di];
+        if item_unknown_type(d.i_cat) && !item_known_flag(itbl, di) && !sim_identified(s, di) {
+          sim_identify(s, di);
+          return di;
+        }
+      }
+    }
+  }
+  -1
+}
+
 // Inventory slot -> item key (for use/inspect routines). "" if empty or out of range.
 pub fn sim_inv_key(s: Sim, slot: integer) -> text {
   iv = s.inv;
@@ -574,7 +636,7 @@ pub fn sim_inv_name(s: Sim, slot: integer) -> text {
   iv = s.inv;
   if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
   defidx = iv[slot] ?? -1;
-  item_name(game_items(), defidx)
+  sim_item_display_name(s, defidx)
 }
 // Description of the carried item in `slot` (the inventory hub's examine line). "" if empty.
 pub fn sim_inv_desc(s: Sim, slot: integer) -> text {
@@ -1151,7 +1213,7 @@ pub fn sim_pickup(s: &Sim) {
             di = fd[i] ?? -1;
             iv[ni] = di;
             s.ninv = ni + 1;
-            sim_log(s, "You pick up the {item_name(game_items(), di)}.");
+            sim_log(s, "You pick up the {sim_item_display_name(s, di)}.");
             sim_qs_autoslot(s, di);    // auto-fill a quick-slot on first pickup of a useable item
           }
         }
@@ -1710,7 +1772,7 @@ pub fn sim_equipped(s: Sim, slot: integer) -> integer {
 pub fn sim_equipped_name(s: Sim, slot: integer) -> text {
   d = sim_equipped(s, slot);
   if d < 0 { return ""; }
-  item_name(game_items(), d)
+  sim_item_display_name(s, d)
 }
 // Damage `raw` would deal after the player's armour DR (never below 1).
 pub fn sim_mitigate(s: Sim, raw: integer) -> integer { apply_dr(raw, s.pac) }
@@ -1877,7 +1939,7 @@ pub fn sim_new() -> Sim {
     cr: 200, cg: 60, cb: 50, glyph: "r", name: "training rat", alive: true };
   enemies: vector<Enemy> = [e0];
 
-  Sim {
+  s = Sim {
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
@@ -1895,8 +1957,11 @@ pub fn sim_new() -> Sim {
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
+    known: zeros(len(game_items())), flavour_idx: zeros(len(game_items())),
     room_q0: [], room_r0: [], room_w: [], room_h: [],   // hand-built level: no rooms → pure smooth
-  }
+  };
+  assign_flavours(s, 12345);   // training stub: a fixed-seed flavour map (real games key off the world seed)
+  s
 }
 
 // ── Monster placement (Angband get_mon_num) ──────────────────────────
@@ -1959,6 +2024,43 @@ fn tile_solid(tiles: vector<integer>, w: integer, h: integer, q: integer, r: int
 // Thin wrapper: the common 2-arg entry (tests, the open arena) generates with NO quest progress —
 // so a bare sim_new_gen never triggers the bundle's "way out" infestation. The game path
 // (sim_descend) passes the carried boss_slain so the brood appears only after the boss dies.
+// Per-GAME flavour assignment (the Angband "mystery"): give each unknown-type def a flavour index,
+// shuffled per category from the world seed, so the flavour↔kind mapping changes each game. `known`
+// stays all-0 (nothing identified yet). Deterministic + self-contained (its own LCG; level-independent
+// — keyed on the pure world `seed`, not the per-depth gseed — so descend/respawn see the same map).
+fn assign_flavours(s: &Sim, seed: integer) {
+  itbl = game_items();
+  n = len(itbl);
+  fl = s.flavour_idx;                       // captured field vector — index-writes persist (C18)
+  cats = [IT_POTION, IT_SCROLL, IT_WAND, IT_STAFF, IT_RING, IT_AMULET];
+  for ci in 0..len(cats) {
+    cat = cats[ci] ?? 0;
+    pool: vector<integer> = [for j in 0..FLAVOUR_POOL { j }];   // a fresh [0..POOL) to shuffle
+    // per-category LCG seed: MULTIPLY (Knuth hash) to diffuse the world seed's low bits — adding
+    // barely moves it and `| 1` would collapse adjacent seeds onto one map.
+    rs = (((seed * 2654435761) ^ ((cat + 1) * 1610612741)) & 2147483647) | 1;
+    j = FLAVOUR_POOL - 1;
+    while j > 0 {                            // Fisher–Yates
+      rs = (rs * 1103515245 + 12345) & 2147483647;
+      kk = rs % (j + 1) ?? 0;
+      tmp = pool[j] ?? 0;
+      pool[j] = pool[kk] ?? 0;
+      pool[kk] = tmp;
+      j -= 1;
+    }
+    t = 0;                                   // hand each def of this category the next shuffled flavour
+    for i in 0..n {
+      if i < len(itbl) {
+        m = itbl[i];
+        if m.i_cat == cat {
+          fl[i] = pool[t % FLAVOUR_POOL ?? 0] ?? 0;
+          t += 1;
+        }
+      }
+    }
+  }
+}
+
 pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   sim_new_gen_p(seed, depth, 0)
 }
@@ -2178,8 +2280,10 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
+    known: zeros(len(game_items())), flavour_idx: zeros(len(game_items())),
     room_q0: rq0s, room_r0: rr0s, room_w: rws, room_h: rhs,
   };
+  assign_flavours(s, seed);  // per-GAME flavour map from the world seed (descend/respawn carry it forward)
   sim_starting_loadout(s);   // every new character starts with its class kit (§3a #4)
   // World-bundle QUEST GRANT: hand the player the bundle's keepsake on its quest depth (the surface).
   // Only the genuine start sticks — descending overwrites the inventory with the carried one.
@@ -2187,7 +2291,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     qp = world_placement();
     if depth == qp.quest_depth && qp.quest_item != "" {
       sim_give_item(s, qp.quest_item);
-      sim_log(s, "{item_name(game_items(), item_index(game_items(), qp.quest_item))} is pressed into your hand.");
+      sim_log(s, "{sim_item_display_name(s, item_index(game_items(), qp.quest_item))} is pressed into your hand.");
     }
   }
   s
@@ -2245,6 +2349,8 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.boss_slain = s.boss_slain;     // carry quest progress (gates the infestation on the way out)
   ns.msg_q = s.msg_q;               // the message log is continuous across levels
   ns.msg_n = s.msg_n;
+  ns.known = s.known;               // identifications + the per-game flavour map carry across levels
+  ns.flavour_idx = s.flavour_idx;
   if dir > 0 { sim_log(ns, "You descend to depth {nd}."); }
   if dir < 0 { sim_log(ns, "You climb to depth {nd}."); }
   if dir < 0 {
@@ -2282,6 +2388,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.boss_slain = s.boss_slain;   // quest progress survives death (the brood stays loose)
   rs.msg_q = s.msg_q;             // the log persists through death
   rs.msg_n = s.msg_n;
+  rs.known = s.known;             // what you've identified survives death (the mapping is per-game)
+  rs.flavour_idx = s.flavour_idx;
   sim_log(rs, "You wake at the last shrine, your wounds knit.");
   rs.wdam = s.wdam;
   rs.pac = s.pac;

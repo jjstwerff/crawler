@@ -48,6 +48,12 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
 - Hex map, moros geometry (`L = √3`, pointy-top). Continuous player + heading;
   hex-locked enemies. **Distance-driven clock:** every `HEX_LEN` travelled = one
   `sim_tick`; turning is free; `sim_wait` forces one tick in place.
+- **Bundles stay library-like.** Game content (monsters/items/stencils/placement/quests) lives in
+  self-contained `bundles/<name>/` folders the engine merges generically — a stranger drops a bundle
+  in, rebuilds without touching `src/`, and plays it against an unchanged game. **Every time you
+  touch the engine↔bundle seam, re-evaluate that this still holds** (content bundle-side, mechanism
+  engine-side, no engine-references-a-bundle-by-key). The standing check: **BUNDLE.md → "Standing
+  check — keep bundles library-like"**.
 
 ## Conventions
 
@@ -139,6 +145,10 @@ Use ONLY these proven-safe shapes when touching vectors/structs:
   integer `+=` on a field persists; append / whole-field reassign don't.
 - Keep a **`&Struct`-mutating helper in the same module** as its callers
   (cross-module `&` mutation is lost — C4; e.g. `sim` has its own `SimRng`).
+- **Never hold several large structs (`Sim`) live at once** — consume each
+  `sim_new_gen(...)` straight into a small value (`text`/`bool`); holding ~7 + a deferred
+  field comparison gives a **wrong result** that a stray `println` flips (C22 / loft#303,
+  the C2 Heisenbug). Same reason the kernel/view never copy `Sim` by value.
 - `!x` on an **integer is not logical-not** — compare `== 0` (C6). No chained `as`
   casts (split them — C7). `false ?? x` is unreliable; use int flags (C10). Doubled
   braces `{{`/`}}` in strings (C14). A `println` can change results — don't trust
