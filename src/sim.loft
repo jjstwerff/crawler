@@ -21,6 +21,7 @@ FRONT_AIM  = 3.0;     // auto-aim: a dead-ahead target counts as up to this many
 pub const QS_N = 11;  // quick-slots: indices 0..8 = number keys 1-9, 9 = active Q, 10 = active E
 pub const QS_Q = 9;   // active slot Q (launcher fire / repeated action)
 pub const QS_E = 10;  // active slot E (spell / second repeated action)
+MSG_MAX = 64;         // message-log ring capacity (the view shows the most recent few)
 COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
@@ -86,6 +87,7 @@ pub struct Enemy {
   cg:    integer not null,
   cb:    integer not null,
   glyph: text,                // single-char map symbol (e.g. "r", "k", "o")
+  name:  text,                // display name (for the message log: "You have slain the giant rat.")
   alive: boolean not null,
 }
 
@@ -131,6 +133,8 @@ pub struct Sim {
   grave_gold:  integer not null,
   boss_slain:  integer not null,  // quest progress: 1 once a set-piece UNIQUE has died (releases the
                                   //   bundle's infestation on the way out). Carried across levels.
+  msg_q:   vector<text> not null,  // message-log ring buffer (size MSG_MAX); index-written, never grown
+  msg_n:   integer not null,       // total messages ever logged (the ring write head)
   wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
   up_r:    integer not null,
@@ -782,12 +786,41 @@ pub fn sim_light_radius(s: Sim) -> integer {
 
 // Award XP and level up while the threshold is met; each level refreshes derived
 // stats (max HP grows by the gentle per-level step; current HP gains the delta).
+// ── Message log ──────────────────────────────────────────────────────────────────────
+// A small ring of game messages (kernel data; the view renders the most recent few). Events across
+// the kernel + the item API push lines via sim_log; the view reads them through sim_msg_count /
+// sim_msg_at (k=0 = newest). Fixed array + write head — C18-safe (index-write + integer increment on
+// a struct field both persist; never grow the vector).
+pub fn sim_log(s: &Sim, m: text) {
+  q = s.msg_q;
+  i = (s.msg_n % MSG_MAX) ?? 0;
+  if i >= 0 && i < len(q) { q[i] = m; }
+  s.msg_n = s.msg_n + 1;
+}
+pub fn sim_msg_count(s: Sim) -> integer {
+  if s.msg_n < MSG_MAX { return s.msg_n; }
+  MSG_MAX
+}
+// Total messages ever logged (monotonic) — the view watches this to rebake only when it changes.
+pub fn sim_msg_total(s: Sim) -> integer { s.msg_n }
+// The k-th most-recent message (k = 0 is newest); "" if out of range.
+pub fn sim_msg_at(s: Sim, k: integer) -> text {
+  c = sim_msg_count(s);
+  if k < 0 || k >= c { return ""; }
+  q = s.msg_q;
+  idx = ((s.msg_n - 1 - k) % MSG_MAX) ?? 0;
+  if idx < 0 { idx = idx + MSG_MAX; }
+  if idx >= 0 && idx < len(q) { return q[idx] ?? ""; }
+  ""
+}
+
 pub fn sim_award_xp(s: &Sim, amount: integer) {
   if amount > 0 { s.xp += amount; }
   while s.clevel < MAX_CLEVEL && s.xp >= xp_for_level(s.clevel + 1) {
     s.clevel += 1;
     refresh_stats(s);   // max HP grows with level (hero_maxhp); the gained HP is granted
     s.stat_pts += 1;    // BANK a stat-growth point — never auto-spent; the player picks when ready
+    sim_log(s, "Welcome to level {s.clevel}!");
   }
 }
 
@@ -899,7 +932,11 @@ fn player_attack(s: &Sim, idx: integer) {
         gain = e.xp * e.mlvl / s.clevel ?? 0;
         if gain < 1 { gain = 1; }
         drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
-        if (e.flags & MF_UNIQUE) != 0 { s.boss_slain = 1; }   // a named boss fell -> quest progresses
+        sim_log(s, "You have slain the {e.name}.");
+        if (e.flags & MF_UNIQUE) != 0 {                       // a named boss fell -> quest progresses
+          s.boss_slain = 1;
+          sim_log(s, "{e.name} falls — its brood breaks loose!");
+        }
       }
       enemies[idx] = e;
       if gain > 0 { sim_award_xp(s, gain); }
@@ -967,8 +1004,14 @@ pub fn sim_fire(s: &Sim) -> integer {
     gain = e.xp * e.mlvl / s.clevel ?? 0;
     if gain < 1 { gain = 1; }
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
-    if (e.flags & MF_UNIQUE) != 0 { s.boss_slain = 1; }   // shot the boss dead -> quest progresses
+    sim_log(s, "Your shot slays the {e.name}.");
+    if (e.flags & MF_UNIQUE) != 0 {                       // shot the boss dead -> quest progresses
+      s.boss_slain = 1;
+      sim_log(s, "{e.name} falls — its brood breaks loose!");
+    }
     ret = 4;
+  } else {
+    sim_log(s, "Your shot strikes the {e.name}.");
   }
   enemies[target] = e;
   sim_consume_inv(s, ammo_slot);
@@ -1015,12 +1058,14 @@ pub fn sim_pickup(s: &Sim) {
         amt = fg[i] ?? 0;
         if amt > 0 {
           s.gold += amt;
+          sim_log(s, "You find {amt} gold.");
         } else {
           ni = s.ninv;
           if ni >= 0 && ni < len(iv) {
             di = fd[i] ?? -1;
             iv[ni] = di;
             s.ninv = ni + 1;
+            sim_log(s, "You pick up the {item_name(game_items(), di)}.");
             sim_qs_autoslot(s, di);    // auto-fill a quick-slot on first pickup of a useable item
           }
         }
@@ -1240,10 +1285,14 @@ pub fn sim_tick(s: &Sim) {
         }
         if e.awake {
           if d <= 1 {
-            s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.clevel), s.pac);  // strike: ratio cap, then armour DR
+            if e.dam > 0 {     // 0-melee monsters (the floating eye — its threat is the unbuilt GAZE)
+                               // truly deal no melee; without this the capped-dmg floor gives them 1
+              s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.clevel), s.pac);  // ratio cap, then armour DR
+              sim_log(s, "The {e.name} hits you.");
+              if s.php <= 0 { s.over = true; sim_log(s, "You die."); }
+            }
             e.tgt_q = e.cur_q;
             e.tgt_r = e.cur_r;
-            if s.php <= 0 { s.over = true; }
           } else if (e.flags & MF_NEVER_MOVE) != 0 {
             e.tgt_q = e.cur_q;         // stationary (molds, eyes): never steps
             e.tgt_r = e.cur_r;
@@ -1611,6 +1660,14 @@ pub fn sim_enemy_glyph(s: Sim, i: integer) -> text {
   g
 }
 
+// Enemy display name (for the message log).
+pub fn sim_enemy_name(s: Sim, i: integer) -> text {
+  enemies = s.enemies;
+  n = "";
+  if i >= 0 && i < len(enemies) { e = enemies[i]; n = e.name ?? ""; }
+  n
+}
+
 // World-space angle the enemy faces: its current move (cur→tgt), or — when it
 // isn't moving — toward the player. Feeds the rotating sprite (the view snaps it
 // to the 12-direction model). Hex-locked, so a moving facing is one of 6 dirs.
@@ -1678,7 +1735,7 @@ pub fn sim_new() -> Sim {
   e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
     xp: 2, mlvl: 1, vision: 8, flags: 0, awake: true, speed: ENERGY_STEP, energy: 0,
     slow_until: 0, stun_until: 0,
-    cr: 200, cg: 60, cb: 50, glyph: "r", alive: true };
+    cr: 200, cg: 60, cb: 50, glyph: "r", name: "training rat", alive: true };
   enemies: vector<Enemy> = [e0];
 
   Sim {
@@ -1692,6 +1749,7 @@ pub fn sim_new() -> Sim {
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
+    msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     rstate: 12345, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
@@ -1732,7 +1790,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     vision: md.m_vision, flags: md.m_flags, awake: false,
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
-    cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, alive: true }
+    cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, name: md.m_name, alive: true }
 }
 
 // Is any already-placed enemy on this hex?
@@ -1973,6 +2031,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
+    msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     rstate: (gseed ^ 99173) & 2147483647, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
@@ -1985,7 +2044,10 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
   // Only the genuine start sticks — descending overwrites the inventory with the carried one.
   if world_has_placement() == 1 {
     qp = world_placement();
-    if depth == qp.quest_depth && qp.quest_item != "" { sim_give_item(s, qp.quest_item); }
+    if depth == qp.quest_depth && qp.quest_item != "" {
+      sim_give_item(s, qp.quest_item);
+      sim_log(s, "{item_name(game_items(), item_index(game_items(), qp.quest_item))} is pressed into your hand.");
+    }
   }
   s
 }
@@ -2040,6 +2102,10 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.grave_r = s.grave_r;
   ns.grave_gold = s.grave_gold;
   ns.boss_slain = s.boss_slain;     // carry quest progress (gates the infestation on the way out)
+  ns.msg_q = s.msg_q;               // the message log is continuous across levels
+  ns.msg_n = s.msg_n;
+  if dir > 0 { sim_log(ns, "You descend to depth {nd}."); }
+  if dir < 0 { sim_log(ns, "You climb to depth {nd}."); }
   if dir < 0 {
     (ax, ay) = hex_to_px(ns.dn_q, ns.dn_r);
     ns.px = ax;
@@ -2073,6 +2139,9 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.eq = s.eq;
   rs.qs = s.qs;           // quick-slot bindings survive death (kept like inventory/equipment)
   rs.boss_slain = s.boss_slain;   // quest progress survives death (the brood stays loose)
+  rs.msg_q = s.msg_q;             // the log persists through death
+  rs.msg_n = s.msg_n;
+  sim_log(rs, "You wake at the last shrine, your wounds knit.");
   rs.wdam = s.wdam;
   rs.pac = s.pac;
   rs.phpmax = s.phpmax;

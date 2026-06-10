@@ -1,0 +1,53 @@
+// msgtest — the message-log system: the kernel ring buffer (sim_log / sim_msg_count / sim_msg_at,
+// newest-first, wraps at MSG_MAX) and that real events push lines (level-up, descend, a kill, and
+// the honest "Nothing happens" for an item whose effect is not built yet).
+use sim;
+use catalog;
+use itemfx;
+
+fn main() {
+  println("=== story message-log test ===");
+
+  // 1) ring buffer: newest-first, count, wrap at MSG_MAX(64)
+  s = sim_new();
+  base = sim_msg_count(s);                       // arena starts empty
+  sim_log(s, "alpha");
+  sim_log(s, "beta");
+  sim_log(s, "gamma");
+  ring = sim_msg_at(s, 0) == "gamma" && sim_msg_at(s, 2) == "alpha" && sim_msg_count(s) == base + 3;
+  for i in 0..100 { sim_log(s, "x{i}"); }        // overflow the ring
+  wrap = sim_msg_count(s) == 64 && sim_msg_at(s, 0) == "x99" && sim_msg_at(s, 63) == "x36";
+
+  // 2) level-up logs "Welcome to level N!"
+  lv = sim_new();
+  sim_award_xp(lv, 100000);
+  level_ok = sim_clevel(lv) > 1 && sim_msg_at(lv, 0) == "Welcome to level {sim_clevel(lv)}!";
+
+  // 3) descend logs the depth
+  dn = sim_descend(sim_new_gen(7, 1), 1);
+  descend_ok = sim_msg_at(dn, 0) == "You descend to depth 2.";
+
+  // 4) a kill logs the slain monster BY NAME (arena + bow, like rangedtest). The auto-aim picks the
+  // front-most enemy, so find whichever one actually died and check its slay line.
+  k = sim_new();
+  sim_equip_by_key(k, "short_bow");
+  for _ in 0..8 { sim_give_item(k, "arrow"); }
+  (ex, ey) = sim_enemy_pos(k, 0);
+  k.heading = atan2(ey - k.py, ex - k.px);
+  sim_compute_fov(k);
+  for _ in 0..40 { sim_fire(k); }
+  // the arena has one enemy; the kill is the last logging event (later no-target shots are silent),
+  // so the slay line is the newest message.
+  nm0 = sim_enemy_name(k, 0);
+  kill_ok = !sim_enemy_alive(k, 0) && nm0 != "" && sim_msg_at(k, 0) == "Your shot slays the {nm0}.";
+
+  // 5) an inert item is HONEST: "Nothing happens." (phase door has no effect built yet)
+  n = sim_new();
+  sim_give_item(n, "scroll_phase_door");         // auto-slotted to slot 0
+  r = use_slot(n, 0);
+  nothing_ok = r == 0 && sim_msg_at(n, 0) == "Nothing happens.";
+
+  println("ring={ring} wrap={wrap} level={level_ok} descend={descend_ok} kill={kill_ok} nothing={nothing_ok}");
+  ok = ring && wrap && level_ok && descend_ok && kill_ok && nothing_ok;
+  if ok { println("=== MSG OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -759,3 +759,51 @@ pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<i
     y += lh;
   }
 }
+
+// ── The message log (SLICE §3): the most recent kernel messages, drawn over the dungeon view ──
+// Newest at the bottom, on a faint dark strip for readability over the lit floor. The textures are
+// baked by build_msglog and only REBAKED when sim_msg_total changes (story.loft watches it), so the
+// hot loop never churns textures; free_msglog releases the old set before a rebake.
+MSGLOG_SIZE = 15.0;   // message line point size
+MSG_SHOW    = 5;      // how many recent lines to show
+
+pub fn build_msglog(s: Sim, font: integer) -> vector<integer> {
+  out: vector<integer> = [];
+  if font >= 0 {
+    n = sim_msg_count(s);
+    show = MSG_SHOW;
+    if show > n { show = n; }
+    for k in 0..show {
+      m = sim_msg_at(s, show - 1 - k);   // oldest-shown first -> out[0] = oldest, out[show-1] = newest
+      out += [graphics::create_text_texture(font, m, MSGLOG_SIZE, graphics::rgba(228, 222, 200, 255))];
+    }
+  }
+  out
+}
+
+pub fn free_msglog(ml: vector<integer>) {
+  for k in 0..len(ml) {
+    t = ml[k] ?? 0;
+    if t != 0 { graphics::gl_delete_texture(t); }
+  }
+}
+
+pub fn draw_msglog(painter: graphics::Painter2D, s: Sim, hud: Hud, ml: vector<integer>) {
+  if hud.font < 0 { return; }
+  n = len(ml);
+  if n == 0 { return; }
+  lh = graphics::gl_text_height(hud.font, MSGLOG_SIZE) as float + 3.0;
+  x = SIDEBAR_W + 12.0;
+  blk = (n as float) * lh + 8.0;
+  y0 = VIEW_H - 10.0 - blk;
+  graphics::draw_rect_at(painter, SIDEBAR_W, y0 - 2.0, VIEW_W - SIDEBAR_W, blk + 4.0, 0.05, 0.06, 0.09, 0.55);
+  for k in 0..n {
+    t = ml[k] ?? 0;
+    if t != 0 {
+      m = sim_msg_at(s, n - 1 - k);   // same order as build; recompute width for crisp draw
+      w = graphics::gl_measure_text(hud.font, m, MSGLOG_SIZE);
+      h = graphics::gl_text_height(hud.font, MSGLOG_SIZE) as float;
+      graphics::draw_texture_at(painter, t, x, y0 + 6.0 + (k as float) * lh, w, h);
+    }
+  }
+}

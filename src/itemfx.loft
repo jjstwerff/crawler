@@ -10,6 +10,7 @@
 // gen_items.py index (one arm per usable item, exactly like the bundles index).
 use sim;
 use items;
+use catalog;   // game_items() — the merged catalog (engine + bundle items)
 use player;
 use potion_detect_monsters;
 
@@ -18,9 +19,19 @@ use potion_detect_monsters;
 pub fn use_item(s: &Sim, slot: integer) -> boolean {
   key = sim_inv_key(s, slot);
   if key == "" { return false; }
+  nm = sim_inv_name(s, slot);
   p = player_new(0);
   fired = item_effect(s, p, key);
-  if fired { sim_consume_inv(s, slot); }
+  if fired {
+    gi = game_items();
+    c = item_cat(gi, item_index(gi, key));
+    verb = "use";
+    if c == IT_POTION { verb = "quaff"; }
+    if c == IT_SCROLL { verb = "read"; }
+    if c == IT_FOOD { verb = "eat"; }
+    sim_log(s, "You {verb} the {nm}.");
+    sim_consume_inv(s, slot);
+  }
   fired
 }
 
@@ -32,15 +43,19 @@ pub fn use_item(s: &Sim, slot: integer) -> boolean {
 pub fn use_slot(s: &Sim, k: integer) -> integer {
   defidx = sim_qs_def(s, k);
   if defidx < 0 { return 0; }                 // empty slot -> no-op
-  cat = item_cat(item_table(), defidx);
+  cat = item_cat(game_items(), defidx);
   if cat == IT_BOW {
     fr = sim_fire(s);                          // launcher: auto-aim + consume ammo (kernel)
+    if fr == 0 { sim_log(s, "You have no launcher readied."); }
+    if fr == 1 { sim_log(s, "You are out of ammunition."); }
+    if fr == 2 { sim_log(s, "Nothing is in your sights."); }
     if fr >= 3 { return 2; }
     return 0;
   }
   j = sim_inv_find(s, defidx);                 // consumable: resolve the binding to a live inv entry
-  if j < 0 { return 0; }                       // bound but none carried (e.g. drank the last one)
+  if j < 0 { sim_log(s, "You have none left."); return 0; }   // bound but none carried
   if use_item(s, j) { return 1; }
+  sim_log(s, "Nothing happens.");              // an item whose effect is not built yet (still honest)
   0
 }
 

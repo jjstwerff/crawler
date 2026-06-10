@@ -237,6 +237,9 @@ test:
 	@echo "  [quest] desert_surprise overlay: throne set-piece + grant + boss -> infestation ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/questtest.loft | tee /tmp/story_quest.log
 	@grep -q "QUEST OK" /tmp/story_quest.log || { echo "    FAIL: quest"; exit 1; }
+	@echo "  [msg] message log: ring buffer + event lines (kill/level/descend/nothing) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/msgtest.loft | tee /tmp/story_msg.log
+	@grep -q "MSG OK" /tmp/story_msg.log || { echo "    FAIL: msg"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
