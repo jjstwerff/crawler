@@ -28,6 +28,8 @@ POISON_DUR = 8;       // ticks a venom dose lasts
 POISON_DMG = 2;       // HP lost per poisoned tick
 STRUGGLE_X = 4;       // paralysis fast-forward: struggling (pressing move) advances the clock Nx the
                       //   pure-wait pace — same ticks/outcome, just less real-time staring
+REGEN_EVERY = 10;     // natural regeneration: +1 HP every N ticks (Angband: wounds slowly knit);
+                      //   RF_REGEN (half-troll) halves the interval; poison blocks it entirely
 COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
@@ -762,6 +764,23 @@ fn race_hp_bonus(s: Sim) -> integer {
   rd.r_hd * (s.clevel + 2) / 2 ?? 0
 }
 
+// XP required to BE at level `lvl` for THIS character: the base curve scaled by the race's
+// experience factor (r_xp %, human = 100) — stronger races pay more per level (Angband's expfact).
+fn xp_need(s: Sim, lvl: integer) -> integer {
+  rd = player_race(s);
+  xp_for_level(lvl) * rd.r_xp / 100 ?? 0
+}
+
+// A stat is SUSTAINED when the race carries its RF_SUST_* flag — drain simply fails (Angband
+// sustains). Only STR/DEX/CON have sustain flags in the vocabulary.
+fn stat_sustained(s: Sim, i: integer) -> boolean {
+  rd = player_race(s);
+  if i == ST_STR { return race_has_flag(rd, RF_SUST_STR); }
+  if i == ST_DEX { return race_has_flag(rd, RF_SUST_DEX); }
+  if i == ST_CON { return race_has_flag(rd, RF_SUST_CON); }
+  false
+}
+
 // Apply the race's STAT BLOCK (creation-time): re-derive innate max + current from the uniform base
 // + the race mods. Idempotent (re-derives from base), so a race change re-applies cleanly. Default
 // "human" is all-zeros => a no-op, so an unset character is unchanged.
@@ -818,6 +837,7 @@ pub fn sim_grant_stat(s: &Sim, stat: text, n: integer) {
 pub fn sim_drain_stat(s: &Sim, stat: text, n: integer) {
   i = stat_index(stat);
   if i >= 0 {
+    if stat_sustained(s, i) { sim_log(s, "Your body resists the drain."); return; }
     cu = s.stat_cur;
     c = (cu[i] ?? 0) - n;
     if c < 1 { c = 1; }
@@ -1035,7 +1055,7 @@ pub fn sim_msg_at(s: Sim, k: integer) -> text {
 
 pub fn sim_award_xp(s: &Sim, amount: integer) {
   if amount > 0 { s.xp += amount; }
-  while s.clevel < MAX_CLEVEL && s.xp >= xp_for_level(s.clevel + 1) {
+  while s.clevel < MAX_CLEVEL && s.xp >= xp_need(s, s.clevel + 1) {   // race expfact scales the curve
     s.clevel += 1;
     refresh_stats(s);   // max HP grows with level (hero_maxhp); the gained HP is granted
     s.stat_pts += 1;    // BANK a stat-growth point — never auto-spent; the player picks when ready
@@ -1499,6 +1519,13 @@ pub fn sim_tick(s: &Sim) {
     s.php -= s.poison_dmg;
     if s.php <= 0 { s.php = 0; s.over = true; sim_log(s, "The venom stops your heart."); }
   }
+  // Natural HP regeneration (Angband: everyone's wounds slowly knit; RF_REGEN — the half-troll —
+  // doubles the pace). POISON blocks it entirely (venom keeps the wounds open).
+  if !s.over && s.php < s.phpmax && s.poison_until <= s.ticks {
+    every = REGEN_EVERY;
+    if race_has_flag(player_race(s), RF_REGEN) { every = every / 2 ?? every; }
+    if (s.ticks % every ?? 0) == 0 { s.php += 1; }
+  }
   // Temporary stat modifiers (good/bad potions) tick down; expired ones stop applying.
   ttv = s.stat_tmp_t;
   for si in 0..NUM_STATS {
@@ -1830,8 +1857,8 @@ pub fn sim_gold(s: Sim) -> integer { s.gold }
 
 // Fraction from the current level toward the next (0..1) — for the XP bar.
 pub fn sim_xp_frac(s: Sim) -> float {
-  lo = xp_for_level(s.clevel);
-  hi = xp_for_level(s.clevel + 1);
+  lo = xp_need(s, s.clevel);       // the XP bar tracks the race-scaled curve (expfact)
+  hi = xp_need(s, s.clevel + 1);
   f = 0.0;
   if hi > lo {
     f = (s.xp - lo) as float / (hi - lo) as float ?? 0.0;

@@ -11,6 +11,25 @@ use hexgeo;
 fn maxhp_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_player_hp_max(s) }
 fn melee_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_skill_melee(s) }
 fn save_of(key: text)  -> integer { s = sim_new(); sim_set_race(s, key); sim_player_save(s) }
+fn level_after(key: text, xp: integer) -> integer {
+  s = sim_new(); sim_set_race(s, key); sim_award_xp(s, xp); sim_clevel(s)
+}
+fn stat_after_drain(key: text, stat: text) -> integer {
+  s = sim_new(); sim_set_race(s, key); sim_drain_stat(s, stat, 3); sim_stat(s, stat)
+}
+// HP after `ticks` of pure resting from 5 HP: the rat is put to sleep AND the player moved out of
+// its wake range, so the only actor is the regen clock. pois=1 poisons harmlessly (dmg 0) to show
+// poison BLOCKS regeneration.
+fn hp_regen(key: text, ticks: integer, pois: integer) -> integer {
+  s = sim_new(); sim_set_race(s, key);
+  sim_set_awake(s, 0, false);
+  (fx, fy) = hex_to_px(2, 2);
+  s.px = fx; s.py = fy;
+  s.php = 5;
+  if pois == 1 { s.poison_until = s.ticks + 1000; s.poison_dmg = 0; }
+  for _ in 0..ticks { sim_tick(s); }
+  sim_player_hp(s)
+}
 
 fn main() {
   println("=== story race-apply test (stat block / hit-die HP / skills / save / free-action) ===");
@@ -43,8 +62,25 @@ fn main() {
   // 5) RES-POISON: no base race carries it, so a human reads false (the gate is wired for custom races).
   respois = !sim_player_res_poison(hmn);
 
+  // 6) XP FACTOR (expfact): level 2 costs a human 10 XP but a half_troll (r_xp 137) 13.
+  xp_pace = level_after("human", 10) == 2
+         && level_after("half_troll", 10) == 1
+         && level_after("half_troll", 13) == 2;
+
+  // 7) SUSTAIN: the halfling's DEX (RF_SUST_DEX, 19) shrugs the drain; its unsustained STR (14) drops.
+  sustain = stat_after_drain("halfling", "dex") == 19 && stat_after_drain("halfling", "str") == 11;
+
+  // 8) REGENERATION: resting 20 ticks from 5 HP — human +2 (every 10), half_troll +4 (RF_REGEN
+  //    halves the interval), poisoned human +0 (poison blocks the knitting).
+  rg_h = hp_regen("human", 20, 0);
+  rg_t = hp_regen("half_troll", 20, 0);
+  rg_p = hp_regen("human", 20, 1);
+  regen = rg_h == 7 && rg_t == 9 && rg_p == 5;
+
   println("statblock={statblock}(str={dstr} int={dint}) hp_order={hp_order}({ht}>{hu}>{el})");
   println("melee_race={melee_race} save_race={save_race} fa_acc={fa_acc} fa_immune={fa_immune} respois={respois}");
-  ok = statblock && hp_order && melee_race && save_race && fa_acc && fa_immune && respois;
+  println("xp_pace={xp_pace} sustain={sustain} regen={regen}(h={rg_h} t={rg_t} pois={rg_p})");
+  ok = statblock && hp_order && melee_race && save_race && fa_acc && fa_immune && respois
+    && xp_pace && sustain && regen;
   if ok { println("=== RACE OK ==="); } else { println("=== FAIL ==="); }
 }

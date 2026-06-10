@@ -118,32 +118,39 @@ say, a 2-race game by dropping in just those two folders.
   `sim_set_race` bakes the **stat block**; **hit-die** shifts max HP; **skill + save** mods derive
   live; **free-action ↔ gaze** and **res-poison ↔ venom** gates wired. Tests: `deftest` (DEFS) +
   `racetest` (RACE), gate green.
-- **Remaining:** `r_xp` into the level curve; **SP** (rides the spell system, class side); the
-  other `RF_*` flags (sustains / regen / res-blind / see-invis) await their systems; then
-  **classes** (Phase D) once the spell system + routine-by-id dispatch land.
+- **Apply (Phase B finish, races):** `r_xp` scales the level curve (`xp_need` in award + the XP
+  bar); **sustains** block drain; **natural regeneration** built (+1 HP/`REGEN_EVERY` ticks,
+  poison blocks) with `RF_REGEN` at double pace. **6 of 10 races now fully done** (human,
+  half_elf, gnome, halfling, highborn, half_troll); dwarf/elf/half_orc/high_elf gated on the
+  blindness / light / dark / invisibility hazard systems.
+- **Remaining:** the gated hazard systems above; **SP** (rides the spell system, class side);
+  then **classes** (Phase D) once the spell system + routine-by-id dispatch land.
 
 ---
 
 ## Phase A — Engine seam (generic merge; no per-bundle references)
 
 - [ ] `gen_bundles.py`: scan `kind:"character"` for a `"class"` def module → emit
-      `src/class_defs_gen.loft` exposing `bundle_classes()` (mirror `gen_world_defs`).
-- [ ] `gen_bundles.py`: add a `kind:"race"` scanner → emit `src/race_defs_gen.loft`
-      exposing `bundle_races()`.
-- [ ] `catalog.loft` (or new `creation_catalog.loft`): add `class_catalog()` / `race_catalog()`
-      = merged bundle defs (+ `class_none()`/`race_none()` fallback for "not chosen").
-- [ ] `make check` clean; gate green (deftest still passes against the catalog accessors).
+      `src/class_defs_gen.loft` exposing `bundle_classes()` (mirror `gen_race_defs`).
+- [x] `gen_bundles.py`: add a `kind:"race"` scanner → emit `src/race_defs_gen.loft`
+      exposing `bundle_races()` (def fns globally unique — C23/loft#305).
+- [x] `catalog.loft`: `race_catalog()` = merged bundle defs (`race_none()` fallback exists).
+      [ ] `class_catalog()` (with classes).
+- [x] `make check` clean; gate green (deftest reads `race_catalog()`, asserts engine base empty).
 
 ## Phase B — Apply to play (HP / SP / stats / skills)
 
-- [ ] `Sim` gains a chosen **class key** + **race key** (carried across descend/respawn).
-- [ ] `hero_maxhp` factors the **hit-die** (`c_hd + r_hd`) and CON; both Sim literals + level-up.
-- [ ] Race+class **stat block** applied onto `start_stats()` at creation.
-- [ ] **Skill mods** (`*_melee/bow/device/disarm/stealth/save`) folded into `sim_skill_*`.
-- [ ] **XP factor** (`c_xp`·`r_xp`) applied to the level curve (`xp_for_level`).
+- [x] `Sim` gains a chosen **race key** (carried across descend/respawn). [ ] **class key**.
+- [x] Max HP factors the race **hit-die** (`race_hp_bonus`, level-scaled). [ ] `c_hd` (classes).
+- [x] Race **stat block** applied onto `start_stats()` (`sim_set_race`/`apply_race`). [ ] class's.
+- [x] Race **skill mods** (`r_melee/r_bow/r_stealth` → `sim_skill_*`; `r_save` → the saving
+      throw). [ ] class's; [ ] device/disarm (their skills don't exist yet).
+- [x] **XP factor**: `r_xp` scales the curve (`xp_need` in `sim_award_xp` + `sim_xp_frac`).
+      [ ] `c_xp` (classes).
 - [ ] **SP pool** on the `Sim`: `sp`/`spmax` derived from realm + spell-stat + level (0 if
       `realm == none`); sidebar SP row shows real SP (un-repurpose when a caster).
-- [ ] `applytest.loft`: a warrior vs a mage differ in HP/SP/stats as authored. Wire to gate.
+- [x] Race apply test = `racetest.loft` (stat block / HP order / skills / save / flags / xp /
+      sustain / regen), in the gate. [ ] `applytest` for warrior-vs-mage (classes).
 
 ## Phase C — Spell system (engine MECHANISM only; spells are bundle content)
 
@@ -194,22 +201,24 @@ with a unique innate **spell** (none of the 10 base races carry one, but a custo
 ships that spell — def + effect routine — in **its own `bundles/<race>/`**, via Phase C.
 
 Supporting systems (build, then wire):
-- [ ] **free-action** → gate the gaze paralysis (EXISTS — just wire `RF_FREE_ACTION`).
-- [ ] **sustain-stat** → block `sim_drain_stat` when `RF_SUST_*` (stat-drain already exists).
-- [ ] **regeneration** → faster HP regen-rate when `RF_REGEN`.
+- [x] **free-action** → gates the gaze paralysis (`sim_player_free_action` in the strike block).
+- [x] **sustain-stat** → `sim_drain_stat` fails on a sustained stat ("Your body resists the
+      drain."); STR/DEX/CON map to their `RF_SUST_*`.
+- [x] **regeneration** → natural regen built (Angband-faithful: +1 HP / `REGEN_EVERY=10` ticks
+      for everyone, poison blocks it) with `RF_REGEN` halving the interval.
 - [ ] **resist-blind / blindness** → a blindness status + `RF_RES_BLIND` immunity.
 - [ ] **see-invisible / resist light / resist dark** → as their hazards land (dormant-but-
       tracked until then; a race carrying only these is *gated*, not silently inert).
 
-Races (bundle + stat/HP applied + flags wired):
-- [ ] **human** (no flags) · [ ] **half_elf** (none) — finishable immediately after Phase A/B.
-- [ ] **gnome** (free-action) · [ ] **halfling** (free-action + sust-dex).
-- [ ] **dwarf** (res-blind + sust-con) · [ ] **highborn** (sust-con) · [ ] **half_troll**
-      (regen + sust-str).
+Races (bundle + stat/HP/XP applied + flags wired; SP is class-realm-side, n/a to base races):
+- [x] **human** (no flags) · [x] **half_elf** (none).
+- [x] **gnome** (free-action) · [x] **halfling** (free-action + sust-dex).
+- [ ] **dwarf** (sust-con ✓; **res-blind gated** on a blindness system) · [x] **highborn**
+      (sust-con) · [x] **half_troll** (regen + sust-str).
 - [ ] **elf** (res-light) · [ ] **half_orc** (res-dark) · [ ] **high_elf** (see-invis +
       res-light) — gated on their hazard systems.
-- [ ] Remove the 10 `RaceDef` rows from `src/races.loft` (keep struct + `RF_*` + `race_none`
-      + `race_find` + `race_has_flag`); `race_table()` gone/empty.
+- [x] Remove the 10 `RaceDef` rows from `src/races.loft` (struct + `RF_*` + helpers kept);
+      `race_table()` empty (deftest asserts it).
 
 ## Phase F — Verify the library-like invariant
 
