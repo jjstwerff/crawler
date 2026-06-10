@@ -125,7 +125,7 @@ say, a 2-race game by dropping in just those two folders.
   `racetest` (RACE), gate green.
 - **Apply (Phase B finish, races):** `r_xp` scales the level curve (`xp_need` in award + the XP
   bar); **sustains** block drain; **natural regeneration** built (+1 HP/`REGEN_EVERY` ticks,
-  poison blocks) with `RF_REGEN` at double pace. **6 of 10 races now fully done** (human,
+  poison blocks) with `RF_REGEN` at double pace. **6 of 10 races fully done** (human,
   half_elf, gnome, halfling, highborn, half_troll); dwarf/elf/half_orc/high_elf gated on the
   blindness / light / dark / invisibility hazard systems.
 - **Remaining:** the gated hazard systems above; **SP** (rides the spell system, class side);
@@ -214,16 +214,21 @@ mechanism dispatches them by id). Order by spell-debt so the system fills in inc
       applied; stats single-sourced in the ClassDef; the story quick-start boots it.
 - [x] **mage** — DONE: `mage_class.loft` + `mage_spells.loft` (Magic Dart / Blink / Sense
       Creatures — defs + fx routines, all three implemented); SP 6/6 at start; E quick-casts.
-- [ ] **rogue** — bundle + HP/SP; arcane starter spell(s) implemented (e.g. detect, blink).
-- [ ] **ranger** — bundle + HP/SP; nature starter spell(s) implemented.
-- [ ] **paladin** — bundle + HP/SP; divine starter spell(s) implemented.
-- [ ] **priest** — bundle + HP/SP; divine starters (cure, bless, detect) implemented.
-- [ ] **druid** — bundle + HP/SP; nature starters implemented.
-- [ ] **necromancer** — bundle + HP/SP; arcane/necro starters implemented.
-- [ ] **explorer** — decide: give it a `ClassDef` (a real starter class) or retire it to a
-      demo. Resolve the script-only special case.
-- [ ] Remove the 8 `ClassDef` rows from `src/classes.loft` (keep struct + vocab + `class_none`
-      + `class_find`); `class_table()` gone/empty.
+- [x] **priest** — DONE: owns the DIVINE book (`priest_spells.loft`: Mend Wounds heal /
+      Blessing CON-ward / Sense Foes reveal — all implemented); mace + litany kit.
+- [x] **paladin** — DONE: shares the divine book (realm model); knightly kit.
+- [x] **druid** — DONE: owns the NATURE book (`druid_spells.loft`: Thorn Lash bolt /
+      Knit Flesh heal / Beast Sense reveal — all implemented); staff + lore kit.
+- [x] **ranger** — DONE: shares the nature book; bow + arrows + a dagger (bundletest's
+      every-class-arms-a-weapon-and-light invariant caught the knifeless ranger).
+- [x] **rogue** — DONE: shares the arcane book (quick-casts magic_dart); stealthy kit.
+- [x] **necromancer** — DONE: shares the arcane book (its own grave book is future
+      content); frail scholar kit.
+- [x] **explorer** — resolved as a LOADOUT-ONLY demo bundle (no `ClassDef`, so it does not
+      appear on the crystal page / in class_catalog; it remains the custom-item-script
+      exemplar). A real class later if wanted.
+- [x] Remove all 8 `ClassDef` rows from `src/classes.loft` (struct + `class_none` +
+      `class_find` kept); `class_table()` EMPTY (deftest + classtest assert it).
 
 ## Phase E — Races → bundles (each *fully done*)
 

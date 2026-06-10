@@ -1,0 +1,18 @@
+{
+  "key": "ranger",
+  "name": "Ranger",
+  "kind": "character",
+  "module": "ranger",
+  "entry": "activate",
+  "class": "ranger_class",
+  "desc": "Bow-master of the wilds; calls on nature's lore.",
+  "gold": 20,
+  "kit": [
+    "dagger",
+    "short_bow",
+    "arrow",
+    "arrow",
+    "soft_leather_armor",
+    "wooden_torch"
+  ]
+}

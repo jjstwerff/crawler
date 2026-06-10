@@ -1,0 +1,12 @@
+// Druid — the class DEFINITION (one bundle = one class; merged via class_catalog()).
+use classes;
+
+pub fn druid_class_defs() -> vector<ClassDef> {
+  t: vector<ClassDef> = [];
+  t += [ClassDef { c_key: "druid", c_name: "Druid", c_hd: 2, c_xp: 125,
+    c_str: -1, c_int: 0, c_wis: 3, c_dex: 0, c_con: 0, c_chr: 1,
+    c_melee: 10, c_bow: 14, c_device: 18, c_disarm: 20, c_stealth: 4, c_save: 30,
+    c_realm: "nature", c_spell_stat: "wis",
+    c_desc: "Keeper of the green; nature's magic runs deepest in them." }];
+  t
+}

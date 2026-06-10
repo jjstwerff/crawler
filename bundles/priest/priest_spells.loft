@@ -1,0 +1,39 @@
+// Priest — the DIVINE starter book (clean-room names, Angband novice-priest mechanics).
+// Realm-shared: every divine caster (priest, paladin) knows these — the priest bundle OWNS
+// them (spells live with their owning class; realm-mates share, the Angband book model).
+// Defs + fx routines together: the routine-by-id seam.
+use sim;
+use player;
+use spells;
+
+pub fn priest_spells_defs() -> vector<SpellDef> {
+  t: vector<SpellDef> = [];
+  // Cure Light Wounds faithful: the divine starter heal.
+  t += [SpellDef { s_key: "mend_wounds", s_name: "Mend Wounds", s_realm: "divine",
+    s_level: 1, s_cost: 1, s_fail: 12, s_effect: "mend_wounds", s_power: 12,
+    s_desc: "Closes torn flesh with a murmured rite." }];
+  // Bless faithful (as a constitution ward — raises the save + endurance for a time).
+  t += [SpellDef { s_key: "blessing", s_name: "Blessing", s_realm: "divine",
+    s_level: 1, s_cost: 2, s_fail: 18, s_effect: "blessing", s_power: 25,
+    s_desc: "A ward of grace steadies body and will for a time." }];
+  // Detect Evil faithful: feel the foes through the walls.
+  t += [SpellDef { s_key: "sense_foes", s_name: "Sense Foes", s_realm: "divine",
+    s_level: 2, s_cost: 2, s_fail: 20, s_effect: "sense_foes", s_power: 30,
+    s_desc: "Reveals the hostile presences pressing near, felt through stone." }];
+  t
+}
+
+pub fn fx_mend_wounds(s: &Sim, p: Player, power: integer) -> boolean {
+  p.heal(s, power);
+  true
+}
+
+pub fn fx_blessing(s: &Sim, p: Player, power: integer) -> boolean {
+  p.buff_stat(s, "con", 2, power);   // CON ward: save + endurance, expiring on the clock
+  true
+}
+
+pub fn fx_sense_foes(s: &Sim, p: Player, power: integer) -> boolean {
+  p.reveal_monsters(s, power);
+  true
+}

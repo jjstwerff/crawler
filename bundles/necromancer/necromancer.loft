@@ -1,0 +1,13 @@
+// Necromancer bundle — loading script (the warrior/mage model): the class KIT + a little
+// coin. Stats come from the ClassDef (necromancer_class.loft); spells (if any) ride beside it.
+use sim;
+use player;
+
+pub fn activate(s: &Sim, p: Player) {
+  p.equip(s, "dagger");
+  p.equip(s, "cloak");
+  p.equip(s, "wooden_torch");
+  p.give_item(s, "potion_cure_light");
+  p.give_item(s, "book_arcane_primer");
+  p.grant_gold(s, 15);
+}

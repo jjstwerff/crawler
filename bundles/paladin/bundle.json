@@ -1,0 +1,16 @@
+{
+  "key": "paladin",
+  "name": "Paladin",
+  "kind": "character",
+  "module": "paladin",
+  "entry": "activate",
+  "class": "paladin_class",
+  "desc": "Holy knight. Heavy arms under a sworn oath; divine backing.",
+  "gold": 25,
+  "kit": [
+    "short_sword",
+    "hard_leather_armor",
+    "small_shield",
+    "wooden_torch"
+  ]
+}

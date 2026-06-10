@@ -1,0 +1,39 @@
+// Druid — the NATURE starter book (clean-room names, Angband nature-realm mechanics).
+// Realm-shared: every nature caster (druid, ranger) knows these — the druid bundle OWNS
+// them (spells live with their owning class; realm-mates share, the Angband book model).
+use sim;
+use player;
+use spells;
+
+pub fn druid_spells_defs() -> vector<SpellDef> {
+  t: vector<SpellDef> = [];
+  // Stinging thorn bolt: nature's starter attack (the auto-aim bolt verb).
+  t += [SpellDef { s_key: "thorn_lash", s_name: "Thorn Lash", s_realm: "nature",
+    s_level: 1, s_cost: 1, s_fail: 15, s_effect: "thorn_lash", s_power: 6,
+    s_desc: "A whip of barbed briar snaps at the foe in your sights." }];
+  // Nature's slow mending.
+  t += [SpellDef { s_key: "knit_flesh", s_name: "Knit Flesh", s_realm: "nature",
+    s_level: 1, s_cost: 2, s_fail: 18, s_effect: "knit_flesh", s_power: 10,
+    s_desc: "Green life threads the wound closed." }];
+  // Feel the living creatures around you.
+  t += [SpellDef { s_key: "beast_sense", s_name: "Beast Sense", s_realm: "nature",
+    s_level: 2, s_cost: 2, s_fail: 20, s_effect: "beast_sense", s_power: 30,
+    s_desc: "Every heartbeat nearby brushes against your senses." }];
+  t
+}
+
+pub fn fx_thorn_lash(s: &Sim, p: Player, power: integer) -> boolean {
+  r = sim_bolt(s, power);
+  if r == 0 { sim_log(s, "The briar lashes at empty air."); }
+  true
+}
+
+pub fn fx_knit_flesh(s: &Sim, p: Player, power: integer) -> boolean {
+  p.heal(s, power);
+  true
+}
+
+pub fn fx_beast_sense(s: &Sim, p: Player, power: integer) -> boolean {
+  p.reveal_monsters(s, power);
+  true
+}

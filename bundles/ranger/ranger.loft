@@ -1,0 +1,14 @@
+// Ranger bundle — loading script (the warrior/mage model): the class KIT + a little
+// coin. Stats come from the ClassDef (ranger_class.loft); spells (if any) ride beside it.
+use sim;
+use player;
+
+pub fn activate(s: &Sim, p: Player) {
+  p.equip(s, "dagger");   // a melee fallback under the bow — no ranger goes knifeless
+  p.equip(s, "short_bow");
+  p.give_item(s, "arrow");
+  p.give_item(s, "arrow");
+  p.equip(s, "soft_leather_armor");
+  p.equip(s, "wooden_torch");
+  p.grant_gold(s, 20);
+}

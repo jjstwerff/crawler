@@ -1,0 +1,18 @@
+{
+  "key": "druid",
+  "name": "Druid",
+  "kind": "character",
+  "module": "druid",
+  "entry": "activate",
+  "class": "druid_class",
+  "desc": "Keeper of the green; nature's magic runs deepest in them.",
+  "gold": 20,
+  "kit": [
+    "quarterstaff",
+    "cloak",
+    "wooden_torch",
+    "potion_cure_light",
+    "book_nature_lore"
+  ],
+  "spells": "druid_spells"
+}

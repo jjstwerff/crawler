@@ -3,26 +3,44 @@
 // coupling: drop a bundle dir, run `make bundles`, and it is wired here. See BUNDLE.md.
 use sim;
 use player;
+use druid;
 use explorer;
 use mage;
+use necromancer;
+use paladin;
+use priest;
+use ranger;
+use rogue;
 use warrior;
 
 // Activate a character bundle by key for the active player — runs its load-script.
 pub fn bundle_activate(s: &Sim, key: text) {
   p = player_new(0);
+  if key == "druid" { druid::activate(s, p); }
   if key == "explorer" { explorer::activate(s, p); }
   if key == "mage" { mage::activate(s, p); }
+  if key == "necromancer" { necromancer::activate(s, p); }
+  if key == "paladin" { paladin::activate(s, p); }
+  if key == "priest" { priest::activate(s, p); }
+  if key == "ranger" { ranger::activate(s, p); }
+  if key == "rogue" { rogue::activate(s, p); }
   if key == "warrior" { warrior::activate(s, p); }
 }
 
 // The keys of every available character bundle (for a class-select screen, later).
 pub fn bundle_keys() -> vector<text> {
-  ["explorer", "mage", "warrior"]
+  ["druid", "explorer", "mage", "necromancer", "paladin", "priest", "ranger", "rogue", "warrior"]
 }
 
 pub fn bundle_name(key: text) -> text {
+  if key == "druid" { return "Druid"; }
   if key == "explorer" { return "Explorer"; }
   if key == "mage" { return "Mage"; }
+  if key == "necromancer" { return "Necromancer"; }
+  if key == "paladin" { return "Paladin"; }
+  if key == "priest" { return "Priest"; }
+  if key == "ranger" { return "Ranger"; }
+  if key == "rogue" { return "Rogue"; }
   if key == "warrior" { return "Warrior"; }
   ""
 }

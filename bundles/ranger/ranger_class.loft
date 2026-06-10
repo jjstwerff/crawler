@@ -1,0 +1,12 @@
+// Ranger — the class DEFINITION (one bundle = one class; merged via class_catalog()).
+use classes;
+
+pub fn ranger_class_defs() -> vector<ClassDef> {
+  t: vector<ClassDef> = [];
+  t += [ClassDef { c_key: "ranger", c_name: "Ranger", c_hd: 4, c_xp: 130,
+    c_str: 2, c_int: 2, c_wis: 0, c_dex: 1, c_con: 1, c_chr: 1,
+    c_melee: 18, c_bow: 32, c_device: 22, c_disarm: 30, c_stealth: 4, c_save: 28,
+    c_realm: "nature", c_spell_stat: "int",
+    c_desc: "Bow-master of the wilds; calls on nature's lore." }];
+  t
+}

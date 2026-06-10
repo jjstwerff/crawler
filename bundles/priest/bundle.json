@@ -1,0 +1,18 @@
+{
+  "key": "priest",
+  "name": "Priest",
+  "kind": "character",
+  "module": "priest",
+  "entry": "activate",
+  "class": "priest_class",
+  "desc": "Divine caster. Healing and protection; prefers blunt weapons.",
+  "gold": 25,
+  "kit": [
+    "mace",
+    "soft_leather_armor",
+    "wooden_torch",
+    "potion_cure_light",
+    "book_holy_litany"
+  ],
+  "spells": "priest_spells"
+}

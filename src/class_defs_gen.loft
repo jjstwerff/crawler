@@ -2,13 +2,31 @@
 // Aggregates the class defs of the kind:"character" bundles (one class per bundle) so the
 // catalog merge (catalog.loft) can fold them into class_catalog(). See BUNDLE.md.
 use classes;
+use druid_class;
 use mage_class;
+use necromancer_class;
+use paladin_class;
+use priest_class;
+use ranger_class;
+use rogue_class;
 use warrior_class;
 
 pub fn bundle_classes() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
+  s_druid_class = druid_class::druid_class_defs();
+  for i in 0..len(s_druid_class) { if i < len(s_druid_class) { t += [s_druid_class[i]]; } }
   s_mage_class = mage_class::mage_class_defs();
   for i in 0..len(s_mage_class) { if i < len(s_mage_class) { t += [s_mage_class[i]]; } }
+  s_necromancer_class = necromancer_class::necromancer_class_defs();
+  for i in 0..len(s_necromancer_class) { if i < len(s_necromancer_class) { t += [s_necromancer_class[i]]; } }
+  s_paladin_class = paladin_class::paladin_class_defs();
+  for i in 0..len(s_paladin_class) { if i < len(s_paladin_class) { t += [s_paladin_class[i]]; } }
+  s_priest_class = priest_class::priest_class_defs();
+  for i in 0..len(s_priest_class) { if i < len(s_priest_class) { t += [s_priest_class[i]]; } }
+  s_ranger_class = ranger_class::ranger_class_defs();
+  for i in 0..len(s_ranger_class) { if i < len(s_ranger_class) { t += [s_ranger_class[i]]; } }
+  s_rogue_class = rogue_class::rogue_class_defs();
+  for i in 0..len(s_rogue_class) { if i < len(s_rogue_class) { t += [s_rogue_class[i]]; } }
   s_warrior_class = warrior_class::warrior_class_defs();
   for i in 0..len(s_warrior_class) { if i < len(s_warrior_class) { t += [s_warrior_class[i]]; } }
   t

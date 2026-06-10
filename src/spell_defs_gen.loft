@@ -5,18 +5,30 @@
 use sim;
 use player;
 use spells;
+use druid_spells;
 use mage_spells;
+use priest_spells;
 
 pub fn bundle_spells() -> vector<SpellDef> {
   t: vector<SpellDef> = [];
+  s_druid_spells = druid_spells::druid_spells_defs();
+  for i in 0..len(s_druid_spells) { if i < len(s_druid_spells) { t += [s_druid_spells[i]]; } }
   s_mage_spells = mage_spells::mage_spells_defs();
   for i in 0..len(s_mage_spells) { if i < len(s_mage_spells) { t += [s_mage_spells[i]]; } }
+  s_priest_spells = priest_spells::priest_spells_defs();
+  for i in 0..len(s_priest_spells) { if i < len(s_priest_spells) { t += [s_priest_spells[i]]; } }
   t
 }
 
 pub fn spell_effect(s: &Sim, p: Player, effect: text, power: integer) -> boolean {
+  if effect == "thorn_lash" { return druid_spells::fx_thorn_lash(s, p, power); }
+  if effect == "knit_flesh" { return druid_spells::fx_knit_flesh(s, p, power); }
+  if effect == "beast_sense" { return druid_spells::fx_beast_sense(s, p, power); }
   if effect == "magic_dart" { return mage_spells::fx_magic_dart(s, p, power); }
   if effect == "blink" { return mage_spells::fx_blink(s, p, power); }
   if effect == "sense_creatures" { return mage_spells::fx_sense_creatures(s, p, power); }
+  if effect == "mend_wounds" { return priest_spells::fx_mend_wounds(s, p, power); }
+  if effect == "blessing" { return priest_spells::fx_blessing(s, p, power); }
+  if effect == "sense_foes" { return priest_spells::fx_sense_foes(s, p, power); }
   false
 }

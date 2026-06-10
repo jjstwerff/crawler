@@ -10,7 +10,7 @@ fn main() {
   ct = class_catalog();       // merged: the not-yet-migrated engine rows + the per-class bundles
   rt = race_catalog();        // races are bundle content now (one race per bundle)
   eng_rt = race_table();      // the engine base race table — MUST be empty post-migration
-  eng_ct = class_table();     // engine classes shrink as each migrates (warrior + mage are out)
+  eng_ct = class_table();     // the engine class table is EMPTY post-migration (all 8 in bundles)
   it = item_table();
   println("classes={len(ct)} (engine-base={len(eng_ct)}) races={len(rt)} (engine-base={len(eng_rt)}) items={len(it)}");
 
@@ -33,7 +33,7 @@ fn main() {
   println("weapons={len(weapons)} potions={len(potions)}");
 
   miss = item_find(it, "nope");
-  ok_classes = len(ct) >= 8 && len(eng_ct) == 6 && w.c_hd > 0 && m.c_str < 0 && m.c_realm == "arcane";
+  ok_classes = len(ct) >= 8 && len(eng_ct) == 0 && w.c_hd > 0 && m.c_str < 0 && m.c_realm == "arcane";
   ok_races   = len(rt) >= 8 && len(eng_rt) == 0 && hf.r_dex > 0 && race_has_flag(hf, RF_FREE_ACTION) && race_has_flag(ht, RF_REGEN);
   ok_items   = len(it) >= 25 && ls.i_dd > 0 && len(weapons) >= 8 && len(potions) >= 3 && item_stackable(pot) && miss.i_key == "";
   println("classes : {ok_classes}");

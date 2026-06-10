@@ -20,10 +20,11 @@ fn level_at(key: text, xp: integer) -> integer {
 fn main() {
   println("=== story class test (bundle merge / apply / SP / the spell chain) ===");
 
-  // 1) MERGE: warrior + mage come from their bundles; the engine table holds only the 6 unmigrated.
+  // 1) MERGE: all 8 classes come from their bundles; the engine table is EMPTY.
   ct = class_catalog();
-  merged = len(ct) == 8 && len(class_table()) == 6
-        && class_find(ct, "warrior").c_hd == 9 && class_find(ct, "mage").c_realm == "arcane";
+  merged = len(ct) == 8 && len(class_table()) == 0
+        && class_find(ct, "warrior").c_hd == 9 && class_find(ct, "mage").c_realm == "arcane"
+        && class_find(ct, "priest").c_realm == "divine" && class_find(ct, "druid").c_realm == "nature";
 
   // 2) APPLY: warrior hit-die (+13 at level 1) vs the unclassed 30; mage stat block bakes.
   base_hp = maxhp_of_class("");
@@ -82,8 +83,27 @@ fn main() {
   for _ in 0..12 { sim_tick(g); }
   sp_regen = sim_player_sp(g) == 3;
 
+  // 9) THE REALM MATRIX: realm-mates share books (the Angband model). A priest casts the
+  //    divine Mend Wounds (heals); a druid the nature Knit Flesh; a rogue quick-casts the
+  //    ARCANE book it shares with the mage; a paladin knows the divine book.
+  // (cast can honestly fizzle — every fresh Sim shares the same first roll, so single-shot
+  //  checks fail deterministically together; retry within the SP budget, like the blink check)
+  pr = sim_new(); sim_set_class(pr, "priest");
+  pr.php = 5;
+  for _ in 0..4 { if sim_player_hp(pr) <= 5 { cast_spell(pr, "mend_wounds"); } }
+  pr_heal = sim_player_hp(pr) > 5;
+  dr = sim_new(); sim_set_class(dr, "druid");
+  dr.php = 5;
+  for _ in 0..3 { if sim_player_hp(dr) <= 5 { cast_spell(dr, "knit_flesh"); } }
+  dr_heal = sim_player_hp(dr) > 5;
+  rg = sim_new(); sim_set_class(rg, "rogue");
+  rg_arc = first_castable(rg) == "magic_dart";
+  pl = sim_new(); sim_set_class(pl, "paladin");
+  pl_div = first_castable(pl) == "mend_wounds";
+  realms = pr_heal && dr_heal && rg_arc && pl_div;
+
   println("merged={merged} hp_apply={hp_apply} stat_apply={stat_apply} sp_pool={sp_pool}");
-  println("xp_fac={xp_fac} respec={respec} bolt={bolt}(r={br}) qc={qc} no_realm={no_realm} cast_ok={cast_ok}(moved={moved} spent={spent}) sp_regen={sp_regen}");
-  ok = merged && hp_apply && stat_apply && sp_pool && xp_fac && respec && bolt && qc && no_realm && cast_ok && sp_regen;
+  println("xp_fac={xp_fac} respec={respec} bolt={bolt}(r={br}) qc={qc} no_realm={no_realm} cast_ok={cast_ok}(moved={moved} spent={spent}) sp_regen={sp_regen} realms={realms}");
+  ok = merged && hp_apply && stat_apply && sp_pool && xp_fac && respec && bolt && qc && no_realm && cast_ok && sp_regen && realms;
   if ok { println("=== CLASS OK ==="); } else { println("=== FAIL ==="); }
 }
