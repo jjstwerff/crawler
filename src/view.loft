@@ -752,6 +752,11 @@ pub fn draw_charpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<
 // (cursor-marked) · [2+n .. 2+n+12) the 12 worn locations · [..] examine line · [..] hint.
 INV_LOCS = 12;
 DESC_W   = 680.0;   // wrap width (px) for the examine line, within the hub panel
+// Each hub column is clamped to its own pixel width so the two columns can NEVER collide, whatever
+// the names are (a guaranteed gutter). Carried: xL(60)->xR(430) less a gutter. Equipped: xR(430)->
+// panel-right(VIEW_W-36) less a margin. Names that fit are untouched; only an over-long one ellipsises.
+COL_CARRIED_W = 354.0;
+COL_EQUIP_W   = 318.0;
 
 // Greedy word-wrap `str` to lines no wider than `max_w` px (the examine description can be long, e.g.
 // the quest scroll's orders). Splits on spaces; a single over-long word gets its own line.
@@ -785,7 +790,7 @@ fn inv_hub_lines(s: Sim, cursor: integer, font: integer) -> vector<text> {
   for i in 0..n {
     mark = "  ";
     if i == cursor { mark = "> "; }
-    out += ["{mark}{sim_inv_name(s, i)}"];
+    out += [fit_text(font, "{mark}{sim_inv_name(s, i)}", COL_CARRIED_W, CHARPAGE_SIZE)];
   }
   elocs = [SLOT_WEAPON, SLOT_BOW, SLOT_BODY, SLOT_SHIELD, SLOT_HEAD, SLOT_HANDS,
            SLOT_FEET, SLOT_CLOAK, SLOT_LIGHT, SLOT_RING, SLOT_RING2, SLOT_AMULET];
@@ -794,7 +799,7 @@ fn inv_hub_lines(s: Sim, cursor: integer, font: integer) -> vector<text> {
   for j in 0..INV_LOCS {
     en = sim_equipped_name(s, elocs[j] ?? 0);
     if en == "" { en = "-"; }
-    out += ["{elabs[j] ?? \"\"} : {en}"];
+    out += [fit_text(font, "{elabs[j] ?? \"\"} : {en}", COL_EQUIP_W, CHARPAGE_SIZE)];
   }
   d = sim_inv_desc(s, cursor);
   if d == "" { d = "(nothing selected)"; }
