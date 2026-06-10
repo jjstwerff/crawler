@@ -56,7 +56,8 @@ pub struct Hud {
   itex:   vector<integer> not null,   // item display name per def index (quick-slot + inventory)
   statlbl: vector<integer> not null,  // the 6 stat labels "STR".."CHR" (sidebar)
   hplbl:  integer not null,           // "HP" sidebar label
-  splbl:  integer not null,           // "SP" sidebar label (reserved row)
+  splbl:  integer not null,           // "SP" sidebar label (live bar for casters; dim otherwise)
+  castlbl: integer not null,          // dim "cast" hint on an unbound E slot for casters
   qlbl:   integer not null,           // active-slot "Q" key label
   elbl:   integer not null,           // active-slot "E" key label
   dash:   integer not null,           // dim "-" for an empty quick-slot
@@ -207,6 +208,7 @@ pub fn build_hud(s: Sim) -> Hud {
   statlbl: vector<integer> = [for _ in 0..6 { 0 }];
   hplbl = 0;
   splbl = 0;
+  castlbl = 0;
   qlbl = 0;
   elbl = 0;
   dash = 0;
@@ -238,6 +240,7 @@ pub fn build_hud(s: Sim) -> Hud {
     // and the inventory column) — baked once so the always-visible bar never churns textures.
     hplbl = graphics::create_text_texture(font, "HP", SB_SIZE, graphics::rgba(210, 150, 150, 255));
     splbl = graphics::create_text_texture(font, "SP", SB_SIZE, graphics::rgba(150, 170, 215, 255));
+    castlbl = graphics::create_text_texture(font, "cast", SB_SIZE, graphics::rgba(140, 160, 215, 255));
     qlbl  = graphics::create_text_texture(font, "Q", SB_SIZE, graphics::rgba(225, 215, 160, 255));
     elbl  = graphics::create_text_texture(font, "E", SB_SIZE, graphics::rgba(225, 215, 160, 255));
     dash  = graphics::create_text_texture(font, "-", SB_SIZE, graphics::rgba(110, 115, 125, 255));
@@ -258,7 +261,7 @@ pub fn build_hud(s: Sim) -> Hud {
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
     spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
     stair_up: stair_up, stair_dn: stair_dn, panel: panel, itex: itex, statlbl: statlbl,
-    hplbl: hplbl, splbl: splbl, qlbl: qlbl, elbl: elbl, dash: dash, hints: hints,
+    hplbl: hplbl, splbl: splbl, castlbl: castlbl, qlbl: qlbl, elbl: elbl, dash: dash, hints: hints,
     stat_para: stat_para, stat_pois: stat_pois, stat_ward: stat_ward }
 }
 
@@ -500,7 +503,19 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   else if sim_player_poisoned(s) { sb_text(painter, hud, hud.stat_pois, "POISONED", pad, 31.0); }
   else {
     sb_text(painter, hud, hud.splbl, "SP", pad, 31.0);
-    graphics::draw_rect_at(painter, barx, 33.0, barw, 8.0, 0.10, 0.12, 0.20, 1.0);
+    spmax = sim_player_sp_max(s);
+    if spmax > 0 {
+      // a CASTER: a live mana bar + number, the HP row's pattern in arcane blue
+      sp = sim_player_sp(s);
+      spfr = sp as float / spmax as float ?? 0.0;
+      if spfr < 0.0 { spfr = 0.0; }
+      if spfr > 1.0 { spfr = 1.0; }
+      graphics::draw_rect_at(painter, barx, 32.0, barw, 12.0, 0.08, 0.10, 0.26, 1.0);
+      graphics::draw_rect_at(painter, barx, 32.0, barw * spfr, 12.0, 0.30, 0.42, 0.85, 1.0);
+      draw_number(painter, hud, sp, barx + 4.0, 28.0);
+    } else {
+      graphics::draw_rect_at(painter, barx, 33.0, barw, 8.0, 0.10, 0.12, 0.20, 1.0);
+    }
   }
 
   // CL + gold on one row, the XP bar under them.
@@ -549,6 +564,8 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
         nw = graphics::gl_measure_text(hud.font, nm, SB_SIZE);
         draw_number(painter, hud, cnt, nx + nw + 6.0, qy - 2.0);
       }
+    } else if k == QS_E && sim_player_realm(s) != "none" {
+      sb_text(painter, hud, hud.castlbl, "cast", nx, qy);   // quick-cast: E casts the first affordable spell
     } else {
       sb_text(painter, hud, hud.dash, "-", nx, qy);
     }

@@ -152,7 +152,7 @@ real choice) → the CRYSTAL PAGE: RACE | CLASS columns off the merged catalogs 
 roster accessors (dropped-in bundles appear automatically), W/S cursor, A/D column, Enter
 reshapes (`sim_shrine_apply`: re-derive + full heal + full mind; inventory untouched — the
 kit is a new-game-only grant), Q steps away. `crystaltest` in the gate. The in-window page
-look = the user's visual verify (make play). Still open: the caster SP sidebar row.
+look = the user's visual verify (make play). The caster SP sidebar row is in (live mana bar in arcane blue when spmax>0; status pips still win the row; an unbound E shows a dim "cast" hint for casters).
 
 ---
 
@@ -176,8 +176,8 @@ look = the user's visual verify (make play). Still open: the caster SP sidebar r
 - [x] **XP factor**: `r_xp` scales the curve (`xp_need` in `sim_award_xp` + `sim_xp_frac`).
       [ ] `c_xp` (classes).
 - [x] **SP pool** on the `Sim` (`sp`/`spmax` from realm + spell-stat + level, SP regen on
-      the clock, spend gate) — verified at gate 32/32. [ ] sidebar SP row shows real SP for
-      a caster (view wiring still to do).
+      the clock, spend gate) — verified at gate. [x] sidebar SP row shows a live mana bar
+      for a caster (status pips still win the row); unbound E shows the "cast" hint.
 - [x] Race apply test = `racetest.loft` (stat block / HP order / skills / save / flags / xp /
       sustain / regen), in the gate. [ ] `applytest` for warrior-vs-mage (classes).
 
