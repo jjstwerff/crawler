@@ -623,6 +623,19 @@ pub fn sim_identify_carried(s: &Sim) -> integer {
   -1
 }
 
+// Number of item defs in the MERGED catalog (base + bundles) — the view sizes its baked name array
+// to this so a quick-slotted BUNDLE item (whose defid sits past the base table) still shows its name.
+pub fn sim_item_count() -> integer { len(game_items()) }
+
+// Category (IT_*) of merged-catalog def `defidx`, or -1 if out of range. Lets the view classify a
+// quick-slot's bound item (launcher vs consumable) without importing the catalog merge itself.
+pub fn sim_item_cat(defidx: integer) -> integer {
+  itbl = game_items();
+  if defidx < 0 || defidx >= len(itbl) { return -1; }
+  d = itbl[defidx];
+  d.i_cat
+}
+
 // How many item KINDS are identified this game. The view watches this to know when a quick-slot
 // name changed (flavour → real) and re-bakes the always-visible bar (it bakes once, not per frame).
 pub fn sim_known_count(s: Sim) -> integer {

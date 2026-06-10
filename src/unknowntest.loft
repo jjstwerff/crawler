@@ -86,10 +86,20 @@ fn main() {
   short_real = sim_item_short_name(sn, cl) == "Cure Light Wounds";    // short REAL name (no "Potion of")
   bar_ok = kc0 == 0 && kc1 == 1 && short_hidden && short_real;
 
+  // 10) The bar fix: a BUNDLE item (the antivenin) sits PAST the base table but within the merged
+  // count the bar now sizes to — and its short name + category resolve through the merged accessors
+  // (so it no longer shows "-" when quick-slotted).
+  base_n = len(item_table());
+  merged_n = sim_item_count();
+  bundle_in_bar = anti >= base_n && anti < merged_n
+               && sim_item_short_name(sn, anti) == "Naga's Antivenin"
+               && sim_item_cat(anti) == IT_POTION;
+
   println("hidden={hidden} distinct={distinct} revealed={revealed} carried={carried}");
   println("same_seed={same_seed} diff_seed={diff_seed} exempt={exempt} scroll_id={scroll_id} wield_id={wield_id}");
   println("bar_ok={bar_ok} (kc0={kc0} kc1={kc1} short_hidden={short_hidden} short_real={short_real})");
+  println("bundle_in_bar={bundle_in_bar} (anti={anti} base_n={base_n} merged_n={merged_n})");
   println("  (cure_light shows as '{disp0}')");
-  ok = hidden && distinct && revealed && carried && same_seed && diff_seed && exempt && scroll_id && wield_id && bar_ok;
+  ok = hidden && distinct && revealed && carried && same_seed && diff_seed && exempt && scroll_id && wield_id && bar_ok && bundle_in_bar;
   if ok { println("=== UNKNOWN OK ==="); } else { println("=== FAIL ==="); }
 }

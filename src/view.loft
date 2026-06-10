@@ -130,8 +130,7 @@ fn fit_text(font: integer, str: text, max_w: float, size: float) -> text {
 // whenever identification changes — see hud_rebuild_items. (font must be valid.)
 fn bake_itex(font: integer, s: Sim) -> vector<integer> {
   itex: vector<integer> = [];
-  itbl = item_table();
-  for ii in 0..len(itbl) {
+  for ii in 0..sim_item_count() {        // merged catalog: covers bundle items too (indexed past base)
     nm = fit_text(font, sim_item_short_name(s, ii), SB_NAME_W, SB_SIZE);
     itex += [graphics::create_text_texture(font, nm, SB_SIZE, graphics::rgba(220, 220, 205, 255))];
   }
@@ -480,7 +479,6 @@ fn sb_text(painter: graphics::Painter2D, hud: Hud, tex: integer, str: text, x: f
 fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   if hud.panel != 0 { graphics::draw_texture_at(painter, hud.panel, 0.0, 0.0, SIDEBAR_W, VIEW_H); }
   if hud.font < 0 { return; }
-  itbl = item_table();
   pad = 10.0;
   barx = pad + 24.0;
   barw = SIDEBAR_W - barx - pad;
@@ -547,7 +545,7 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
       nm = fit_text(hud.font, sim_item_short_name(s, defidx), SB_NAME_W, SB_SIZE);   // flavour-aware short + ellipsis-fit
       sb_text(painter, hud, hud.itex[defidx] ?? 0, nm, nx, qy);
       cnt = sim_qs_count(s, k);
-      if item_cat(itbl, defidx) == IT_BOW || cnt > 1 {
+      if sim_item_cat(defidx) == IT_BOW || cnt > 1 {
         nw = graphics::gl_measure_text(hud.font, nm, SB_SIZE);
         draw_number(painter, hud, cnt, nx + nw + 6.0, qy - 2.0);
       }
