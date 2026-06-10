@@ -86,7 +86,11 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   presentations (and other 2D art), upgrading the text-glyph placeholders. **2D only —
   we do not rely on the 3D path.** Workflow: iterate a sprite with the skill (it
   outputs a PNG to a tmp dir + a cheap text report), then copy the final PNG into
-  `assets/` for the game to load as a texture and composite where the glyph was. The
+  `assets/sprites/` — **the view resolves sprites BY NAME, no code per sprite**:
+  a monster loads `<monster_key>.png` (+ optional `<key>_gaze.png` ACTION variant, shown in
+  striking contact), the player `player.png`, floor loot per-category (`sword.png`,
+  `potion.png`, … see `cat_sprite_name`), gold `gold_pile.png`; a missing file falls back
+  to the glyph. Drop the PNG in and it's in the game. The
   PNG output is reviewable, so Claude *can* self-critique the sprite (the loop closes
   here); the **user still verifies how it composites in the live frame**. Also handy
   for setting a visual target (wall aesthetic, palette). Not the runtime renderer; not

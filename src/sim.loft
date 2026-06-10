@@ -97,6 +97,7 @@ pub struct Enemy {
   cg:    integer not null,
   cb:    integer not null,
   glyph: text,                // single-char map symbol (e.g. "r", "k", "o")
+  key:   text,                // monster-def key ("giant_rat") — the view resolves <key>.png sprites
   name:  text,                // display name (for the message log: "You have slain the giant rat.")
   alive: boolean not null,
 }
@@ -2144,6 +2145,15 @@ pub fn sim_enemy_glyph(s: Sim, i: integer) -> text {
 }
 
 // Enemy display name (for the message log).
+// Monster-def key of enemy `i` ("" out of range) — the view maps it to assets/sprites/<key>.png
+// (and <key>_gaze.png for an ACTION variant), falling back to the glyph when no sprite exists.
+pub fn sim_enemy_key(s: Sim, i: integer) -> text {
+  enemies = s.enemies;
+  k = "";
+  if i >= 0 && i < len(enemies) { e = enemies[i]; k = e.key; }
+  k
+}
+
 pub fn sim_enemy_name(s: Sim, i: integer) -> text {
   enemies = s.enemies;
   n = "";
@@ -2218,7 +2228,7 @@ pub fn sim_new() -> Sim {
   e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
     xp: 2, mlvl: 1, vision: 8, flags: 0, awake: true, speed: ENERGY_STEP, energy: 0,
     slow_until: 0, stun_until: 0,
-    cr: 200, cg: 60, cb: 50, glyph: "r", name: "training rat", alive: true };
+    cr: 200, cg: 60, cb: 50, glyph: "r", key: "giant_rat", name: "training rat", alive: true };
   enemies: vector<Enemy> = [e0];
 
   s = Sim {
@@ -2279,7 +2289,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     vision: md.m_vision, flags: md.m_flags, awake: false,
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
-    cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, name: md.m_name, alive: true }
+    cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true }
 }
 
 // Is any already-placed enemy on this hex?
