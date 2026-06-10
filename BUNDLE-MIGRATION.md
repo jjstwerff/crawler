@@ -55,20 +55,19 @@ castable in an unchanged game. Concretely:
   bringing its own spell — appear and work with no engine change. If any needs an `src/` edit,
   the boundary is not clean yet.
 
-## Current state (2026-06-10)
+## Current state (END OF DAY 2026-06-10 — the migration is essentially DONE)
 
-- **Classes**: half-migrated — `kind:"character"` bundles exist for `warrior`, `mage`,
-  `explorer` (loadout `activate` script + `bundle.json` stats/gold/kit), but the **8
-  `ClassDef` rows still live in `src/classes.loft`**. No bundle for priest/rogue/ranger/
-  paladin/druid/necromancer. `explorer` is script-only (no `ClassDef`).
-- **Races**: fully engine-side (`src/races.loft`, 10 rows + `RF_*` vocab). No `kind:"race"`,
-  no bundles, **not applied** (`sim.loft` doesn't even `use races`).
-- **HP**: `hero_maxhp(clevel) + ac` — ignores the hit-die. **SP**: no pool (sidebar SP row is
-  repurposed to status pips). **Spells**: no data, no system.
-- **Casters** (owe SP + spells): mage·priest·rogue·ranger·paladin·druid·necromancer.
-  **Martial** (HP only): warrior. Realms: arcane (mage/rogue/necro), divine (priest/paladin),
-  nature (ranger/druid); spell-stat int (arcane/nature-int) / wis (divine/druid).
-- Only consumer of the tables today: `src/deftest.loft` (tiny blast radius).
+- **Classes: 8/8 fully migrated** — one bundle each, starter spells implemented via the
+  realm-book model (priest owns divine, druid owns nature, mage owns arcane; realm-mates
+  share); `class_table()` EMPTY. `explorer` = loadout-only demo (no ClassDef).
+- **Races: 10/10 migrated, 6/10 fully done** — dwarf/elf/half_orc/high_elf wait only on
+  their hazard systems (blindness / light / dark / invisibility); `race_table()` EMPTY.
+- **Applied to play**: stat blocks, stacking hit-dies, race+class XP factors, skills/save
+  mods, SP pool + regen + live sidebar bar, natural HP regen, sustains, free-action↔gaze,
+  res-poison↔venom. Quick-start = human warrior; the CRYSTAL re-specs race/class in-game.
+- **Open**: Phase F (the drop-in proof test), the 4 gated races, deeper per-realm spell
+  lists (each class's own bundle, incrementally).
+- (The original baseline this plan started from is preserved in git history.)
 
 ## Sequencing decision (2026-06-10) — content first, races first
 
@@ -158,28 +157,27 @@ look = the user's visual verify (make play). The caster SP sidebar row is in (li
 
 ## Phase A — Engine seam (generic merge; no per-bundle references)
 
-- [ ] `gen_bundles.py`: scan `kind:"character"` for a `"class"` def module → emit
-      `src/class_defs_gen.loft` exposing `bundle_classes()` (mirror `gen_race_defs`).
+- [x] `gen_bundles.py`: scan `kind:"character"` for a `"class"` def module → emit
+      `src/class_defs_gen.loft` exposing `bundle_classes()` (+ the `"spells"` scan →
+      `spell_defs_gen.loft` defs + routine-by-id dispatch).
 - [x] `gen_bundles.py`: add a `kind:"race"` scanner → emit `src/race_defs_gen.loft`
       exposing `bundle_races()` (def fns globally unique — C23/loft#305).
-- [x] `catalog.loft`: `race_catalog()` = merged bundle defs (`race_none()` fallback exists).
-      [ ] `class_catalog()` (with classes).
+- [x] `catalog.loft`: `race_catalog()` + `class_catalog()` (merged; `*_none()` fallbacks).
 - [x] `make check` clean; gate green (deftest reads `race_catalog()`, asserts engine base empty).
 
 ## Phase B — Apply to play (HP / SP / stats / skills)
 
-- [x] `Sim` gains a chosen **race key** (carried across descend/respawn). [ ] **class key**.
-- [x] Max HP factors the race **hit-die** (`race_hp_bonus`, level-scaled). [ ] `c_hd` (classes).
-- [x] Race **stat block** applied onto `start_stats()` (`sim_set_race`/`apply_race`). [ ] class's.
-- [x] Race **skill mods** (`r_melee/r_bow/r_stealth` → `sim_skill_*`; `r_save` → the saving
-      throw). [ ] class's; [ ] device/disarm (their skills don't exist yet).
-- [x] **XP factor**: `r_xp` scales the curve (`xp_need` in `sim_award_xp` + `sim_xp_frac`).
-      [ ] `c_xp` (classes).
+- [x] `Sim` gains chosen **race + class keys** (carried across descend/respawn/death).
+- [x] Max HP factors BOTH hit-dies (`rc_hd`, level-scaled — race + class stack).
+- [x] Race + class **stat blocks** applied onto `start_stats()` (`apply_creation`, idempotent).
+- [x] Race + class **skill mods** (cached `rc_*`; class numbers via CLASS_SKILL_DIV).
+      [ ] device/disarm (their skills don't exist yet — vocabulary kept).
+- [x] **XP factor**: `r_xp` × `c_xp` scale the curve (`xp_need`).
 - [x] **SP pool** on the `Sim` (`sp`/`spmax` from realm + spell-stat + level, SP regen on
       the clock, spend gate) — verified at gate. [x] sidebar SP row shows a live mana bar
       for a caster (status pips still win the row); unbound E shows the "cast" hint.
-- [x] Race apply test = `racetest.loft` (stat block / HP order / skills / save / flags / xp /
-      sustain / regen), in the gate. [ ] `applytest` for warrior-vs-mage (classes).
+- [x] Apply tests in the gate: `racetest` + `classtest` (incl. warrior-vs-mage HP/SP and
+      the realm matrix).
 
 ## Phase C — Spell system (engine MECHANISM only; spells are bundle content)
 

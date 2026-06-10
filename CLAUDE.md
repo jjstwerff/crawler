@@ -73,7 +73,8 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently 8/8: self, combat, wiring, ai, placement, levels, hero, compile).
+  (currently 33 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
+  msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/…).
   Keep it **warning-clean**.
 - **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
   Xvfb is positionally off — LOFT_ISSUES C17). Verify *logic* headlessly; the
@@ -217,10 +218,16 @@ All siblings under `/home/jurjen/workspace/`:
 
 ## Where things are
 
-- `sim.loft` — world/player/enemies, combat, monster AI (awareness + flow-field
-  pathing), XP/level (`sim_award_xp`), stairs/depth (`sim_descend`), the clock.
+- `sim.loft` — world/player/enemies, combat (+`sim_bolt`), monster AI (awareness +
+  flow-field pathing), XP/level (race+class-scaled `xp_need`), HP/SP pools + natural
+  regen, statuses (paralysis/poison/ward), race+class apply (`apply_creation`, the
+  cached `rc_*` derivations), the shrine re-spec, unknown-item flavours, stairs/depth,
+  the clock.
 - `gen.loft` — procedural dungeon (rooms+corridors), `world_key_seed`.
-- `view.loft` — egocentric renderer; `Hud` + `build_hud` bake glyph/HUD textures
-  (font in `assets/`; reached as `../story/assets/…` — gl_load_font resolves vs the
-  `--path` root, C8). `wallgeo.loft` — wall outline (rounded; DP straightener parked
-  in `patches/`).
+- `catalog.loft` — the merges: `game_monsters`/`game_items`/`race_catalog`/`class_catalog`.
+- `castfx.loft` / `itemfx.loft` — the API layer above the kernel: cast + use-item verbs,
+  dispatching to BUNDLE routines via the generated `spell_defs_gen`/effect arms.
+- `view.loft` — egocentric renderer; `Hud` + `build_hud` bake glyph/HUD textures AND the
+  sprites (by-name from `assets/sprites/`: `<monster_key>.png`, `player.png`, per-category
+  loot; glyph fallback); overlays: char page, inv hub, crystal page. `wallgeo.loft` —
+  wall outline (rounded; DP straightener parked in `patches/`).
