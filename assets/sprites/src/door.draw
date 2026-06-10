@@ -8,9 +8,9 @@
 size 256x256
 Background transparent
 
-# the top edge — the slab's narrow lit upper surface
+# the top edge — the slab's narrow upper surface, PRONOUNCED DARK (end-grain in shadow)
 name topedge
-Poly (0.05,0.405) (0.95,0.405) (0.95,0.455) (0.05,0.455) rgb=138,102,62
+Poly (0.05,0.405) (0.95,0.405) (0.95,0.455) (0.05,0.455) rgb=70,48,28
 
 # the face — the door front, foreshortened (the larger band below the edge)
 name face
