@@ -1,42 +1,44 @@
 # PLAYER ('@') — the adventurer, top-down, FRONT=UP. The most-seen sprite in the game:
-# must POP against floor + monsters — the BLUE cloak is the only blue in the world.
-# Clothed = colour doctrine. Sword drawn forward-right (the attack means), round shield
-# on the left arm, steel pauldrons, hair seen from above. Slight foreshortening: the
-# shoulders/cloak dominate (we look down on a standing person).
+# the BLUE cloak is the only blue in the world. CLOAK rule (learned): wide at the BOTTOM,
+# contained A-line — a big back-fan reads like rising out of the ground. ARMS attached and
+# in BODY SCALE: they emerge from under the pauldrons, hands visible — shield strapped on
+# the left forearm, the sword drawn from the right hand. Humanoid-from-above: hair only.
 # Source for assets/sprites/player.png.
 size 256x256
 Background transparent
 
-# the cloak — a broad teardrop falling behind the shoulders (the silhouette base)
+# the cloak — an A-line falling from the shoulder line: modest widening, curved hem,
+# and a GRADIENT down the fall (lit at the shoulders, shadow at the hem — the drop reads)
 name cloak
-Circle (0.50,0.52) r=0.205 rgb=46,66,108
-Poly (0.335,0.56) (0.665,0.56) (0.575,0.88) (0.425,0.88) rgb=46,66,108
-# cloak hem shadow
-Poly (0.45,0.84) (0.55,0.84) (0.535,0.885) (0.465,0.885) rgb=32,46,78
+Poly (0.345,0.40) (0.655,0.40) (0.705,0.60)~ (0.66,0.775) (0.50,0.815)~ (0.34,0.775) (0.295,0.60)~ grad=60,86,138>24,34,60 dir=0.5,0.40,0.5,0.82
 
-# the shield — a round rim on the LEFT arm (steel ring, wooden boss)
+# arms — in scale with the body, emerging from under the shoulder line
+name armL
+Poly (0.405,0.405)@13 (0.345,0.315)@10 stroke=96,70,44
+name armR
+Poly (0.595,0.405)@13 (0.655,0.315)@10 stroke=96,70,44
+name handL
+Circle (0.336,0.295) r=0.028 rgb=190,152,118
+name handR
+Circle (0.664,0.295) r=0.028 rgb=190,152,118
+
+# the shield — strapped over the LEFT forearm/hand (steel rim, wooden boss)
 name shield
-Circle (0.295,0.475) r=0.110 rgb=140,144,152
-Circle (0.295,0.475) r=0.082 rgb=110,80,48
-Circle (0.295,0.475) r=0.028 rgb=140,144,152
+Circle (0.325,0.315) r=0.105 rgb=140,144,152
+Circle (0.325,0.315) r=0.078 rgb=110,80,48
+Circle (0.325,0.315) r=0.026 rgb=140,144,152
 
-# shoulders/pauldrons — two steel masses over the cloak
-name pauldrons
-Circle (0.392,0.418) r=0.072 rgb=128,132,142
-Circle (0.608,0.418) r=0.072 rgb=128,132,142
-
-# the torso between them — leather chest seen from above
-name torso
-Circle (0.50,0.43) r=0.085 rgb=96,70,44
-
-# the sword — drawn, pointing forward-right past the shoulder (steel + edge)
-name sword_arm
-Poly (0.595,0.40)@9 (0.665,0.33)@6 stroke=150,116,82
+# the sword — from the right hand, angled forward (steel + guard)
 name blade
-Poly (0.652,0.345) (0.685,0.31) (0.78,0.115) (0.745,0.10) (0.638,0.315) rgb=188,192,202
+Poly (0.655,0.285) (0.685,0.275) (0.745,0.095) (0.712,0.085) rgb=188,192,202
 name guard
-Line (0.628,0.305) - (0.694,0.345) w=5
+Line (0.630,0.270) - (0.700,0.300) w=5
 
-# the head — hair from above, over the torso (one clean dark-brown crown)
+# pauldrons — steel caps at the shoulder roots (the arms visibly attach under them)
+name pauldrons
+Circle (0.405,0.395) r=0.062 rgb=128,132,142
+Circle (0.595,0.395) r=0.062 rgb=128,132,142
+
+# the head — hair from above (no face: humanoid rule)
 name head
-Circle (0.50,0.35) r=0.078 rgb=76,50,30
+Circle (0.50,0.345) r=0.075 rgb=76,50,30
