@@ -197,8 +197,9 @@ All siblings under `/home/jurjen/workspace/`:
 **Installed loft** (what `make` targets use by default after `make install`):
 - binary `/usr/local/bin/loft` (0.8.5); stdlib `/usr/local/share/loft/` (`default/`, `deps/`,
   `libloft.rlib`, `wasm32-*`). Refresh = `make install` in a loft repo (sudo); check with
-  `make loft-doctor`. (Live graphics under the installed loft is currently flaky — use
-  `LOFT_REPO=../loft2` for `make play` until that's resolved.)
+  `make loft-doctor`. (Re-installed 2026-06-10 from loft2 `bug123` — the loft#306 fix;
+  gate 32/32 on the DEFAULT toolchain, doctor all green. Bare `make play` should work
+  again — visual confirm pending.)
 
 **User library store `~/.loft/`:**
 - `registry/` — *built/published* libs **auto-loaded on `use`**: `graphics-0.1.0`,

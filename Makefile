@@ -64,7 +64,9 @@ endif
 
 # Character bundles live in bundles/<name>/; add each as a lib dir so the generated
 # src/bundles.loft can `use` them. Auto-discovered — drop a bundle dir and it's included.
-LOFTFLAGS := $(LOFTFLAGS) $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
+# (BUNDLE_LIBS is separate so loft-doctor's installed-binary smoke can use it too.)
+BUNDLE_LIBS := $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
+LOFTFLAGS := $(LOFTFLAGS) $(BUNDLE_LIBS)
 
 # Which loft repo `make loft-doctor` compares the installed binary against.
 REF_REPO ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../loft2)
@@ -153,8 +155,8 @@ loft-doctor:
 	        echo "              fix:  sudo rm -f $$(echo $$extra | tr '\n' ' ')"; \
 	    else echo "  stdlib    : clean (no leftover files vs $(REF_REPO)/default)"; fi; \
 	fi
-	@printf "  smoke     : "; loft --interpret --check $(KTEST) </dev/null >/dev/null 2>&1 \
-	    && echo "OK — installed loft runs the kernel headlessly (no --path/--lib)" \
+	@printf "  smoke     : "; loft --interpret --check $(BUNDLE_LIBS) $(KTEST) </dev/null >/dev/null 2>&1 \
+	    && echo "OK — installed loft runs the kernel headlessly (no --path/--lib; bundle libs only)" \
 	    || echo "FAIL — installed loft errors (usually a stale stdlib; run the refresh above)"
 
 test:
