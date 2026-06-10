@@ -6,7 +6,7 @@ use catalog;
 use itemfx;
 use player;
 use items;
-use hexgeo;
+use hexgrid;
 
 fn main() {
   println("=== story use-item effects test (blink / heal / restore / mapping) ===");

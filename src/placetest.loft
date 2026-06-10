@@ -2,7 +2,7 @@
 // identical roster; the budgeted count lands in range; no monster spawns within
 // the start-safety radius of the player; every spawn sits on floor. Deterministic.
 
-use hexgeo;
+use hexgrid;
 use sim;
 
 fn main() {

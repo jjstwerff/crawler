@@ -2,7 +2,7 @@
 // is wired correctly: player lands on floor, rooms get monsters from the DB,
 // and every spawned monster sits on a floor hex with a glyph. Deterministic.
 
-use hexgeo;
+use hexgrid;
 use sim;
 
 fn main() {

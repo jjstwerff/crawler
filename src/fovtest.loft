@@ -3,7 +3,7 @@
 // seen and then turned away from becomes *remembered* (not visible, not unseen).
 // Deterministic; uses the trivial map. (Visibility set is renderer-agnostic — RENDER.md.)
 
-use hexgeo;
+use hexgrid;
 use sim;
 
 fn main() {

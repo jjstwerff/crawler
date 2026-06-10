@@ -1,18 +1,18 @@
 // gridtest — headless check of the square ("90-degree") grid geometry.
 
-use gridgeo;
+use hexgrid;
 
 fn main() {
   println("=== grid geometry test ===");
   (x, y) = cell_to_px(3, 5);
   (cq, cr) = px_to_cell(3.1, 4.8);
   (eq2, er2) = cell_neighbor(2, 2, 0);
-  d0 = neighbor_dir(0, 0, 1, 0);
-  d3 = neighbor_dir(0, 0, 0, -1);
-  dx = neighbor_dir(0, 0, 1, 1);
+  d0 = cell_neighbor_dir(0, 0, 1, 0);
+  d3 = cell_neighbor_dir(0, 0, 0, -1);
+  dx = cell_neighbor_dir(0, 0, 1, 1);
   dist = cell_distance(0, 0, 3, 2);
-  (ca, cb) = edge_corners(0);
-  (oq, owr, oe) = canon_edge(5, 5, 2);
+  (ca, cb) = cell_edge_corners(0);
+  (oq, owr, oe) = cell_canon_edge(5, 5, 2);
   println("to_px=({x},{y}) px_to_cell=({cq},{cr}) E_nbr=({eq2},{er2})");
   println("dirE={d0} dirN={d3} diag={dx} dist={dist} edge0=({ca},{cb}) canonW=({oq},{owr},{oe})");
 

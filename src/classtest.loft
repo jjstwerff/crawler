@@ -8,7 +8,7 @@ use catalog;
 use classes;
 use castfx;
 use itemfx;
-use hexgeo;
+use hexgrid;
 use player;
 
 fn maxhp_of_class(key: text) -> integer { s = sim_new(); sim_set_class(s, key); sim_player_hp_max(s) }

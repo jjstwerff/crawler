@@ -2,7 +2,7 @@
 // Proves the distance-driven clock: turning is free, forward movement ticks
 // the world, and the enemy closes on the player.  Deterministic.
 
-use hexgeo;
+use hexgrid;
 use sim;
 use wallgeo;
 

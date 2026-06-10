@@ -4,7 +4,7 @@
 // death spot — recover it by returning there; in single-player a fresh death forfeits the
 // prior grave. Deterministic.
 
-use hexgeo;
+use hexgrid;
 use sim;
 
 fn main() {

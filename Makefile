@@ -70,7 +70,7 @@ endif
 # `git -C ../loft-libs-core worktree add ../loft-libs-core-main origin/main`) so crawler
 # tracks the MERGED lib state regardless of which branch the working repo has checked out.
 # After a registry release these move to version deps and the worktree flag drops.
-LIB_DEPS    := --lib ../loft-libs-core-main/
+LIB_DEPS    := --lib ../loft-libs-core-main/ --lib ../loft-libs-game/
 BUNDLE_LIBS := $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
 LOFTFLAGS := $(LOFTFLAGS) $(LIB_DEPS) $(BUNDLE_LIBS)
 

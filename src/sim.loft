@@ -4,7 +4,7 @@
 // enemies; a distance-driven clock: every HEX_LEN of player travel = one tick,
 // turning costs no distance and therefore no time.  NO graphics dependency.
 
-use hexgeo;
+use hexgrid;
 use gen;
 use monsters;
 use items;
@@ -234,7 +234,7 @@ pub fn edge_wall_raw(s: Sim, q: integer, r: integer, edge: integer) -> integer {
 // Wall value on the edge leaving (q,r) in direction `dir` (resolves the
 // canonical owner: dirs 3,4,5 read the neighbour's edge).
 pub fn edge_wall(s: Sim, q: integer, r: integer, dir: integer) -> integer {
-  (oq, owr, oe) = canon_edge(q, r, dir);
+  (oq, owr, oe) = hex_canon_edge(q, r, dir);
   edge_wall_raw(s, oq, owr, oe)
 }
 
@@ -243,7 +243,7 @@ pub fn edge_wall(s: Sim, q: integer, r: integer, dir: integer) -> integer {
 // on the shared edge.
 pub fn is_blocked_move(s: Sim, q1: integer, r1: integer, q2: integer, r2: integer) -> boolean {
   if is_wall(s, q2, r2) { return true; }
-  bd = neighbor_dir(q1, r1, q2, r2);
+  bd = hex_neighbor_dir(q1, r1, q2, r2);
   if bd < 0 { return false; }
   edge_wall(s, q1, r1, bd) != 0
 }

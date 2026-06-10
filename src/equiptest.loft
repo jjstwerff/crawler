@@ -3,7 +3,7 @@
 // damage (never to 0); unequip reverts; re-equipping from inventory restores. Uses
 // sim_new_gen (the real-game constructor, which seeds the starting kit). Deterministic.
 
-use hexgeo;
+use hexgrid;
 use sim;
 use items;
 use player;
