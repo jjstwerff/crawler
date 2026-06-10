@@ -1,5 +1,10 @@
 # EXTRACTION.md — pushing crawler's reusable routines to the library layer
 
+> The FAMILY-side plan (how these routines merge with hex_world / gridmesh / dryopea's
+> wall.loft / moros tooling into one coherent basis, + the capability roadmap: round
+> towers, 24-direction walls, cliffs, water flow, collision, LOS, hearing):
+> **loft-libs-world/CONVERGENCE.md**.
+
 The standing goal (everything here is built toward a coherent reusable library for many
 games) gets its concrete plan. Verified ground (2026-06-10): the cross-module `&Struct`
 bug (C4) is **fixed** — the one structural blocker for shared libraries is gone; the two
