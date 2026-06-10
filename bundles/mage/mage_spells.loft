@@ -1,0 +1,43 @@
+// Mage — starter SPELLS (authored content, Angband Book-1 mechanics with clean-room names).
+// Spells live in the bundle of the class that owns them — def AND effect routine together, the
+// routine-by-id seam (SCRIPTING.md): the generated spell_defs_gen.loft aggregates the defs and
+// dispatches each s_effect id to the fx_* routine below. The engine never names a spell; routines
+// compose engine primitives (the Player API + pub sim verbs). s_power is the routine's data knob.
+use sim;
+use player;
+use spells;
+
+pub fn mage_spells_defs() -> vector<SpellDef> {
+  t: vector<SpellDef> = [];
+  // Magic Missile faithful: the level-1 attack spell, a bolt at the auto-aimed foe.
+  t += [SpellDef { s_key: "magic_dart", s_name: "Magic Dart", s_realm: "arcane",
+    s_level: 1, s_cost: 1, s_fail: 15, s_effect: "magic_dart", s_power: 7,
+    s_desc: "Hurls a dart of raw force at the foe in your sights." }];
+  // Phase Door faithful: the short escape blink.
+  t += [SpellDef { s_key: "blink", s_name: "Blink", s_realm: "arcane",
+    s_level: 1, s_cost: 2, s_fail: 20, s_effect: "blink", s_power: 10,
+    s_desc: "Steps you a short, random distance through space." }];
+  // Detect Monsters faithful: feel nearby creatures through the walls for a time.
+  t += [SpellDef { s_key: "sense_creatures", s_name: "Sense Creatures", s_realm: "arcane",
+    s_level: 2, s_cost: 2, s_fail: 20, s_effect: "sense_creatures", s_power: 30,
+    s_desc: "Attunes you to nearby creatures, felt through the walls for a time." }];
+  t
+}
+
+// ── Effect routines (one per s_effect id; dispatched by the generated spell_effect) ──────────
+
+pub fn fx_magic_dart(s: &Sim, p: Player, power: integer) -> boolean {
+  r = sim_bolt(s, power);                 // auto-aim bolt (kernel verb); 0 = nothing in sights
+  if r == 0 { sim_log(s, "The dart fizzles into the dark."); }
+  true
+}
+
+pub fn fx_blink(s: &Sim, p: Player, power: integer) -> boolean {
+  sim_blink(s, power);
+  true
+}
+
+pub fn fx_sense_creatures(s: &Sim, p: Player, power: integer) -> boolean {
+  p.reveal_monsters(s, power);
+  true
+}

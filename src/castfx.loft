@@ -1,0 +1,57 @@
+// castfx — the "cast a spell" verb (the spell sibling of itemfx's use-item verb).
+//
+// LAYERING: API layer, ABOVE the kernel — the kernel owns the SP pool / realm / the effect
+// primitives (sim_bolt, sim_blink, …); the spells themselves are bundle content reached through
+// the GENERATED spell_defs_gen (defs + the effect-id -> routine dispatch). The engine never names
+// a spell (the routine-by-id seam — SCRIPTING.md). The view calls cast_spell()/cast_first().
+use sim;
+use spells;
+use player;
+use spell_defs_gen;   // bundle_spells() + spell_effect() — the owning bundles' defs + routines
+
+// The player's KNOWN spells: every bundle spell of their class realm (level-gated at cast time).
+pub fn known_spells(s: Sim) -> vector<SpellDef> {
+  realm = sim_player_realm(s);
+  out: vector<SpellDef> = [];
+  if realm == "none" || realm == "" { return out; }
+  t = bundle_spells();
+  for i in 0..len(t) {
+    sp = t[i] ?? spell_none();
+    if sp.s_realm == realm { out += [sp]; }
+  }
+  out
+}
+
+// Cast spell `key`. Honest gating in Angband order: must know it (realm), be deep enough
+// (s_level), and have the SP; then a FAILURE roll (concentration can break — the SP is still
+// spent, as in Angband); then the bundle's routine fires. Returns whether the effect ran.
+pub fn cast_spell(s: &Sim, key: text) -> boolean {
+  sp = spell_find(known_spells(s), key);
+  if sp.s_key == "" { sim_log(s, "You do not know that spell."); return false; }
+  if sim_clevel(s) < sp.s_level { sim_log(s, "You are not yet equal to {sp.s_name}."); return false; }
+  if !sim_spend_sp(s, sp.s_cost) { sim_log(s, "You lack the spell points."); return false; }
+  // fail% shrinks with level headroom past the spell's minimum (never below 2, never above 95)
+  fail = sp.s_fail - 3 * (sim_clevel(s) - sp.s_level);
+  if fail < 2 { fail = 2; }
+  if fail > 95 { fail = 95; }
+  if sim_roll(s, 0, 99) < fail {
+    sim_log(s, "You fail to hold the spell in mind!");
+    return false;
+  }
+  p = player_new(0);
+  fired = spell_effect(s, p, sp.s_effect, sp.s_power);
+  if fired { sim_log(s, "You cast {sp.s_name}."); }
+  else { sim_log(s, "Nothing happens."); }   // an effect id with no routine — still honest
+  fired
+}
+
+// The E-key quick-cast: the first KNOWN spell the character can afford right now ("" = none).
+// (A spell PICKER on the cast list comes with the creation UI; first-castable keeps E useful now.)
+pub fn first_castable(s: Sim) -> text {
+  ks = known_spells(s);
+  for i in 0..len(ks) {
+    sp = ks[i] ?? spell_none();
+    if sim_clevel(s) >= sp.s_level && sim_player_sp(s) >= sp.s_cost { return sp.s_key; }
+  }
+  ""
+}

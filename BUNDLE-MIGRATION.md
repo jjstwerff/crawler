@@ -107,6 +107,11 @@ say, a 2-race game by dropping in just those two folders.
   hold many large `Sim`s live (C22).
 - Base table → merged catalog is a prefix; defids stay valid. A drained engine table must still
   return a **typed** empty (`t: vector<T> = []; t`), not a bare `[]` (infers as void).
+- **Never merge a catalog in a hot path.** `race_catalog()`/`class_catalog()` build fresh
+  vectors per call — calling them from per-tick/per-roll code (skills, save, xp, regen) is both
+  the wrong idiom (the engine caches derived combat numbers: wdam/pac) and real store pressure
+  (C24/loft#306 territory). Bake derivations onto the Sim at apply time (`rc_*` fields); catalog
+  lookups happen ONLY in `apply_creation`.
 
 ## Landed so far (2026-06-10) — races
 
@@ -125,6 +130,30 @@ say, a 2-race game by dropping in just those two folders.
   blindness / light / dark / invisibility hazard systems.
 - **Remaining:** the gated hazard systems above; **SP** (rides the spell system, class side);
   then **classes** (Phase D) once the spell system + routine-by-id dispatch land.
+
+## Class track status (2026-06-10) — BUILT, held on loft#306
+
+Phase C + the first two Phase-D classes are **implemented and headlessly proven**
+(`classtest` 11/11: merge, apply, SP pool, xp factor, re-spec, kernel bolt, quick-cast,
+realm gating, the full cast chain via the GENERATED routine-by-id dispatch, SP regen):
+warrior + mage in their own bundles (`*_class.loft`, mage's spells + fx routines in
+`mage_spells.loft`); `class_catalog()`; SP on the Sim; `sim_bolt`; `castfx`; the E-key
+quick-cast; the story quick-start (human warrior + kit). Race/class derivations are CACHED
+on the Sim (`rc_*`, the wdam/pac idiom — catalog merges only at apply, never per call).
+
+**Held uncommitted:** the program growth trips a loft store-pressure threshold —
+`quickslottest`'s descend SIGSEGVs (with OR without any specific new wiring; pure
+allocation volume). Filed **loft#306** (C24); the vector-lifetime fix in active
+development should cover it. Re-run `make test LOFT_REPO=../loft2` when it lands.
+
+**Minimal creation UI (agreed direction, next after the unblock):** quick-start = the story
+boots a **human warrior + kit**, zero menus (BUILT, held with the rest). The **spawning
+crystal** (already in-world, 6 hexes west of the surface spawn) becomes the re-spec point:
+bump = INTERACT (a shrine-flag on `spawn_crystal`, mirroring the stairs edge-trigger — it
+stays arrow-destructible, a real choice), opening one overlay — RACE | CLASS columns off
+`race_catalog()`/`class_catalog()` (dropped-in bundles appear automatically), W/S cursor,
+A/D column, Enter applies (`sim_set_race`/`sim_set_class` re-derive; full heal; kit is a
+new-game-only grant), Esc closes. No main menu / name entry / point-buy.
 
 ---
 
@@ -147,12 +176,18 @@ say, a 2-race game by dropping in just those two folders.
       throw). [ ] class's; [ ] device/disarm (their skills don't exist yet).
 - [x] **XP factor**: `r_xp` scales the curve (`xp_need` in `sim_award_xp` + `sim_xp_frac`).
       [ ] `c_xp` (classes).
-- [ ] **SP pool** on the `Sim`: `sp`/`spmax` derived from realm + spell-stat + level (0 if
-      `realm == none`); sidebar SP row shows real SP (un-repurpose when a caster).
+- [ ] **SP pool** on the `Sim` — **BUILT, held on loft#306** (`sp`/`spmax` from realm +
+      spell-stat + level, SP regen on the clock, spend gate). [ ] sidebar SP row shows real
+      SP for a caster (view wiring still to do).
 - [x] Race apply test = `racetest.loft` (stat block / HP order / skills / save / flags / xp /
       sustain / regen), in the gate. [ ] `applytest` for warrior-vs-mage (classes).
 
 ## Phase C — Spell system (engine MECHANISM only; spells are bundle content)
+
+> **STATUS: every item below is BUILT and headlessly proven (`classtest` 11/11) — boxes stay
+> unchecked only because the gate is red at [quickslot] on **loft#306** (C24, the
+> store-pressure SIGSEGV; the vector-lifetime fix in development should cover it). When it
+> lands: `make test LOFT_REPO=../loft2` → commit → flip these to [x].**
 
 The engine owns the *mechanism*; **the spells themselves are a section of the owning
 class/race bundle** (Phase D/E), merged generically — never an engine table.
@@ -178,13 +213,15 @@ class/race bundle** (Phase D/E), merged generically — never an engine table.
 Each class's spell list — **defs + effect routines — ships in its own bundle** (the Phase C
 mechanism dispatches them by id). Order by spell-debt so the system fills in incrementally:
 
-- [ ] **warrior** — ClassDef → `bundles/warrior/` (`warrior_class_defs()`); HP applied; no
-      spells (realm none). Reconcile `bundle.json` stats/gold/kit vs the ClassDef (one source).
+- [ ] **warrior** — **BUILT, held on loft#306**: ClassDef → `bundles/warrior/warrior_class.loft`;
+      hit-die HP applied; stats single-sourced in the ClassDef (grant_stat dropped from the
+      script); the story quick-start boots it.
+- [ ] **mage** — **BUILT, held on loft#306**: `mage_class.loft` + `mage_spells.loft` (Magic
+      Dart / Blink / Sense Creatures — defs + fx routines, all three implemented: bolt /
+      sim_blink / reveal); SP 6/6 at start; E quick-casts.
 - [ ] **rogue** — bundle + HP/SP; arcane starter spell(s) implemented (e.g. detect, blink).
 - [ ] **ranger** — bundle + HP/SP; nature starter spell(s) implemented.
 - [ ] **paladin** — bundle + HP/SP; divine starter spell(s) implemented.
-- [ ] **mage** — bundle (exists: add ClassDef) + HP/SP; arcane starters (magic bolt, phase,
-      detect, light) implemented.
 - [ ] **priest** — bundle + HP/SP; divine starters (cure, bless, detect) implemented.
 - [ ] **druid** — bundle + HP/SP; nature starters implemented.
 - [ ] **necromancer** — bundle + HP/SP; arcane/necro starters implemented.

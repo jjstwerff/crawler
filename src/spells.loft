@@ -1,0 +1,35 @@
+// spells.loft — the SPELL vocabulary (engine mechanism; renderer-agnostic, no graphics).
+//
+// The engine defines WHAT a spell is; the spells themselves are CONTENT and live in the bundle of
+// the class (or race) that owns them — there is no kind:"spell" bundle and no spell rows in src/
+// (BUNDLE.md granularity). Each owning bundle exports a uniquely-named `<key>_spell_defs()` plus
+// one effect ROUTINE per spell; tools/gen_bundles.py aggregates the defs and emits the
+// effect-id -> routine dispatch (spell_defs_gen.loft), so the engine never names a spell.
+//
+// s_effect is the routine id resolved through that generated dispatch — the embryonic
+// routine-by-id seam (SCRIPTING.md): never a hardcoded engine ladder.
+
+pub struct SpellDef {
+  s_key: text,               // unique spell key ("magic_dart")
+  s_name: text,              // display name ("Magic Dart")
+  s_realm: text,             // which realm's casters know it: "arcane" / "divine" / "nature"
+  s_level: integer not null, // minimum character level to cast
+  s_cost: integer not null,  // SP spent per cast
+  s_fail: integer not null,  // base fail % (reduced by level headroom; Angband spell failure)
+  s_effect: text,            // effect ROUTINE id (dispatched via the generated spell_effect)
+  s_power: integer not null, // the routine's data knob (damage / heal / blink range / turns)
+  s_desc: text,
+}
+
+pub fn spell_none() -> SpellDef {
+  SpellDef { s_key: "", s_name: "", s_realm: "none", s_level: 0, s_cost: 0,
+    s_fail: 0, s_effect: "", s_power: 0, s_desc: "" }
+}
+
+pub fn spell_find(table: vector<SpellDef>, key: text) -> SpellDef {
+  for si in 0..len(table) {
+    sp = table[si] ?? spell_none();
+    if sp.s_key == key { return sp; }
+  }
+  spell_none()
+}

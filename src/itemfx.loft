@@ -12,6 +12,7 @@ use sim;
 use items;
 use catalog;   // game_items() — the merged catalog (engine + bundle items)
 use player;
+use castfx;    // the E-key falls through to quick-cast when no item is bound there
 use potion_detect_monsters;
 
 // Use the consumable in inventory slot `slot`: run its effect, then consume one on success.
@@ -50,7 +51,18 @@ pub fn use_item(s: &Sim, slot: integer) -> boolean {
 //   2 = the launcher fired (hit or kill)
 pub fn use_slot(s: &Sim, k: integer) -> integer {
   defidx = sim_qs_def(s, k);
-  if defidx < 0 { return 0; }                 // empty slot -> no-op
+  if defidx < 0 {
+    // E with nothing bound = QUICK-CAST: the first known spell the caster can afford (castfx).
+    // Non-casters fall through to the no-op (realm "none" has no known spells).
+    if k == QS_E {
+      fk = first_castable(s);
+      if fk != "" {
+        if cast_spell(s, fk) { return 1; }
+        return 0;                              // refused / fizzled (castfx already logged why)
+      }
+    }
+    return 0;                                  // empty slot -> no-op
+  }
   cat = item_cat(game_items(), defidx);
   if cat == IT_BOW {
     fr = sim_fire(s);                          // launcher: auto-aim + consume ammo (kernel)

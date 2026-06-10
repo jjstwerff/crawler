@@ -8,8 +8,10 @@
 use monsters;
 use items;
 use races;
+use classes;
 use bundle_defs;
 use race_defs_gen;
+use class_defs_gen;
 
 pub fn game_monsters() -> vector<MonsterDef> {
   t = monster_table();
@@ -32,6 +34,15 @@ pub fn game_items() -> vector<ItemDef> {
 pub fn race_catalog() -> vector<RaceDef> {
   t = race_table();
   src = bundle_races();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}
+
+// The playable-class roster = the not-yet-migrated engine rows + every migrated class's bundle
+// def (one class per bundle). Same merge; each class leaves class_table() as its bundle lands.
+pub fn class_catalog() -> vector<ClassDef> {
+  t = class_table();
+  src = bundle_classes();
   for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
   t
 }

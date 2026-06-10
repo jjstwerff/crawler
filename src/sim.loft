@@ -8,8 +8,9 @@ use hexgeo;
 use gen;
 use monsters;
 use items;
-use catalog;          // game_monsters()/game_items()/race_catalog() — base tables + bundle defs (merge)
+use catalog;          // game_monsters()/game_items()/race_catalog()/class_catalog() — the merges
 use races;            // RaceDef + RF_* ability flags + race_find/race_has_flag (the chosen race applies)
+use classes;          // ClassDef + class_find (the chosen class applies: stats/HP/SP/skills/realm)
 use worldtypes;       // Stencil / Placement — the world-bundle vocabulary
 use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
@@ -30,6 +31,7 @@ STRUGGLE_X = 4;       // paralysis fast-forward: struggling (pressing move) adva
                       //   pure-wait pace — same ticks/outcome, just less real-time staring
 REGEN_EVERY = 10;     // natural regeneration: +1 HP every N ticks (Angband: wounds slowly knit);
                       //   RF_REGEN (half-troll) halves the interval; poison blocks it entirely
+SP_REGEN_EVERY = 6;   // mana returns a little faster than wounds knit; poison does NOT block the mind
 COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
 FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
@@ -121,6 +123,22 @@ pub struct Sim {
   xp:      integer not null,   // experience points
   gold:    integer not null,   // gold (income arrives with items, I1)
   race:    text not null,      // chosen race key (default "human"); its RaceDef applies to stats/HP/skills/flags
+  pclass:  text not null,      // chosen class key ("" = the unclassed baseline; the FRONT-END picks the
+                               //   quick-start default — story boots a warrior; the crystal re-specs)
+  sp:      integer not null,   // spell points (0/0 for realm-less classes; regenerates over the clock)
+  spmax:   integer not null,
+  // CACHED race+class derivations (the wdam/pac idiom): apply_creation bakes these so the hot
+  // paths (skills per tick, save rolls, xp checks, regen) read FIELDS — never re-merging the
+  // race/class catalogs per call (catalog construction in a hot loop = store churn, loft#303).
+  rc_flags:   integer not null,   // the race's RF_* ability bitmask
+  rc_melee:   integer not null,   // combined race+class skill mods (class on the Angband scale, pre-divided)
+  rc_bow:     integer not null,
+  rc_stealth: integer not null,
+  rc_save:    integer not null,
+  rc_hd:      integer not null,   // combined hit-die (race + class)
+  rc_xpf:     integer not null,   // combined experience factor % (100 = baseline)
+  rc_realm:   text not null,      // the class's casting realm ("none" = no SP/cast)
+  rc_spi:     integer not null,   // spell-stat index (stat_index of c_spell_stat; -1 = none)
   // Statistics — three layers per stat (STR/INT/WIS/DEX/CON/CHR, see stat_index):
   //   stat_max = innate; stat_cur = current (permanent drain lowers, restore returns to max);
   //   stat_tmp/stat_tmp_t = a temporary +/- modifier (good/bad potion) with turns remaining.
@@ -376,12 +394,27 @@ fn refresh_stats(s: &Sim) {
   s.wdam = wd;
   s.pac = ac;
   oldmax = s.phpmax;
-  newmax = hero_maxhp(s.clevel) + ac + race_hp_bonus(s);   // race hit-die shifts max HP (tanky/frail)
+  newmax = hero_maxhp(s.clevel) + ac + rc_hp_bonus(s);   // the cached race+class hit-die, level-scaled
   if newmax < 1 { newmax = 1; }
   if newmax > oldmax { s.php += newmax - oldmax; }   // donning armour grants the HP
   if s.php > newmax { s.php = newmax; }
   if s.php < 1 { s.php = 1; }
   s.phpmax = newmax;
+  // Max SP: realm casters draw from their spell stat (level + stat headroom); realm "none" => 0/0
+  // (the sidebar SP row stays the status pip). Mirrors the HP grant-on-increase. Reads the CACHED
+  // realm/spell-stat (apply_creation bakes them — no catalog merge in here).
+  newsp = 0;
+  if s.rc_realm != "none" && s.rc_realm != "" {
+    bonus = 0;
+    if s.rc_spi >= 0 { bonus = stat_eff(s, s.rc_spi) - HERO_CON; }
+    newsp = 2 + s.clevel + bonus;
+    if newsp < 1 { newsp = 1; }
+  }
+  oldsp = s.spmax;
+  if newsp > oldsp { s.sp += newsp - oldsp; }
+  if s.sp > newsp { s.sp = newsp; }
+  if s.sp < 0 { s.sp = 0; }
+  s.spmax = newsp;
 }
 
 // Reduce an incoming hit by armour class as a never-100% percentage (§3a #2/#3:
@@ -754,60 +787,80 @@ fn start_stats() -> vector<integer> {
 // The race key lives on the Sim; everything but the STAT BLOCK is derived LIVE from it (skills /
 // hit-die / save / flags), so only the stat block needs baking into stat_max (grants mutate that).
 
-// The player's chosen RaceDef (from the merged per-race bundles), or the all-zero baseline if unset.
-fn player_race(s: Sim) -> RaceDef { race_find(race_catalog(), s.race) }
-
-// Hit-die HP contribution of the race at the current level (scales with level, like Angband's
-// per-level hit-die): r_hd>0 => tankier (half-troll), <0 => frailer (elf). refresh_stats folds it in.
-fn race_hp_bonus(s: Sim) -> integer {
-  rd = player_race(s);
-  rd.r_hd * (s.clevel + 2) / 2 ?? 0
+// Hit-die HP at the current level from the CACHED combined hit-die (race + class; baked by
+// apply_creation): rc_hd>0 => tankier (warrior/half-troll), <0 => frailer (elf). Level-scaled.
+fn rc_hp_bonus(s: Sim) -> integer {
+  s.rc_hd * (s.clevel + 2) / 2 ?? 0
 }
 
-// XP required to BE at level `lvl` for THIS character: the base curve scaled by the race's
-// experience factor (r_xp %, human = 100) — stronger races pay more per level (Angband's expfact).
+// XP required to BE at level `lvl` for THIS character: the base curve scaled by the CACHED
+// combined race × class experience factor (Angband's expfact; 100 = baseline).
 fn xp_need(s: Sim, lvl: integer) -> integer {
-  rd = player_race(s);
-  xp_for_level(lvl) * rd.r_xp / 100 ?? 0
+  xp_for_level(lvl) * s.rc_xpf / 100 ?? 0
 }
 
 // A stat is SUSTAINED when the race carries its RF_SUST_* flag — drain simply fails (Angband
 // sustains). Only STR/DEX/CON have sustain flags in the vocabulary.
 fn stat_sustained(s: Sim, i: integer) -> boolean {
-  rd = player_race(s);
-  if i == ST_STR { return race_has_flag(rd, RF_SUST_STR); }
-  if i == ST_DEX { return race_has_flag(rd, RF_SUST_DEX); }
-  if i == ST_CON { return race_has_flag(rd, RF_SUST_CON); }
+  if i == ST_STR { return (s.rc_flags & RF_SUST_STR) != 0; }
+  if i == ST_DEX { return (s.rc_flags & RF_SUST_DEX) != 0; }
+  if i == ST_CON { return (s.rc_flags & RF_SUST_CON) != 0; }
   false
 }
 
-// Apply the race's STAT BLOCK (creation-time): re-derive innate max + current from the uniform base
-// + the race mods. Idempotent (re-derives from base), so a race change re-applies cleanly. Default
-// "human" is all-zeros => a no-op, so an unset character is unchanged.
-fn apply_race(s: &Sim) {
-  rd = player_race(s);
+// Angband class skill numbers ride a 0..40ish scale; our passive skills are small flat bonuses.
+// One adapter constant maps between them (tuning knob, §3a: systems faithful, numbers friendly).
+CLASS_SKILL_DIV = 6;
+
+// Apply the CREATION choices: bake the race+class STAT BLOCKS onto the uniform base, and CACHE
+// every derived number the hot paths read (the wdam/pac idiom — skills/save/xp/regen read fields,
+// never re-merging the catalogs per call; catalog churn in a hot loop = store pressure, loft#303).
+// Idempotent (re-derives from base), so the crystal's re-spec re-applies cleanly; the catalog
+// lookups happen ONLY here.
+fn apply_creation(s: &Sim) {
+  rd = race_find(race_catalog(), s.race);
+  cd = class_find(class_catalog(), s.pclass);
   base = start_stats();
-  mods = [rd.r_str, rd.r_int, rd.r_wis, rd.r_dex, rd.r_con, rd.r_chr];
+  rmods = [rd.r_str, rd.r_int, rd.r_wis, rd.r_dex, rd.r_con, rd.r_chr];
+  cmods = [cd.c_str, cd.c_int, cd.c_wis, cd.c_dex, cd.c_con, cd.c_chr];
   sm = s.stat_max;
   sc = s.stat_cur;
   for i in 0..NUM_STATS {
-    v = (base[i] ?? 0) + (mods[i] ?? 0);
+    v = (base[i] ?? 0) + (rmods[i] ?? 0) + (cmods[i] ?? 0);
+    if v < 3 { v = 3; }
     sm[i] = v;
     sc[i] = v;
   }
-  refresh_stats(s);   // CON + hit-die changed -> recompute max HP
+  s.rc_flags = rd.r_flags;
+  s.rc_melee = rd.r_melee + cd.c_melee / CLASS_SKILL_DIV;
+  s.rc_bow = rd.r_bow + cd.c_bow / CLASS_SKILL_DIV;
+  s.rc_stealth = rd.r_stealth + cd.c_stealth;   // class stealth is already on the small scale
+  s.rc_save = rd.r_save + cd.c_save / CLASS_SKILL_DIV;
+  s.rc_hd = rd.r_hd + cd.c_hd;
+  s.rc_xpf = rd.r_xp * cd.c_xp / 100 ?? 100;
+  s.rc_realm = cd.c_realm;
+  s.rc_spi = stat_index(cd.c_spell_stat);
+  refresh_stats(s);   // CON + hit-dies + realm changed -> recompute max HP and max SP
 }
 
-// Choose the player's race (creation-time): set the key, then bake its stat block + recompute HP.
+// Choose race / class (creation or the crystal's re-spec): set the key, re-bake, recompute.
 pub fn sim_set_race(s: &Sim, key: text) {
   s.race = key;
-  apply_race(s);
+  apply_creation(s);
+}
+pub fn sim_set_class(s: &Sim, key: text) {
+  s.pclass = key;
+  apply_creation(s);
 }
 pub fn sim_player_race(s: Sim) -> text { s.race }
+pub fn sim_player_class(s: Sim) -> text { s.pclass }
+// The class's casting realm ("none" for the unclassed/warrior) — castfx + the view read this.
+pub fn sim_player_realm(s: Sim) -> text { s.rc_realm }
 // Race ability flags wired to the systems that exist: free-action gates the gaze paralysis; resist-
 // poison gates monster venom. (Other RF_* flags wait on their systems — see BUNDLE-MIGRATION.md.)
-pub fn sim_player_free_action(s: Sim) -> boolean { race_has_flag(player_race(s), RF_FREE_ACTION) }
-pub fn sim_player_res_poison(s: Sim) -> boolean { race_has_flag(player_race(s), RF_RES_POISON) }
+// All read the CACHED flag bitmask (no catalog merge per query).
+pub fn sim_player_free_action(s: Sim) -> boolean { (s.rc_flags & RF_FREE_ACTION) != 0 }
+pub fn sim_player_res_poison(s: Sim) -> boolean { (s.rc_flags & RF_RES_POISON) != 0 }
 
 // Effective value of stat i = current + the temporary modifier WHILE it is still active.
 fn stat_eff(s: Sim, i: integer) -> integer {
@@ -917,8 +970,7 @@ pub fn sim_damage(s: &Sim, amount: integer, kind: text) {
 // level, equipped armour (AC), and Constitution — so gearing up and stat upgrades both help.
 // Capped below 100% (friendly but fair — never total immunity; §3a).
 pub fn sim_player_save(s: Sim) -> integer {
-  rd = player_race(s);
-  sv = 5 + s.clevel + s.pac / 4 + stat_eff(s, ST_CON) / 3 + rd.r_save;   // race saving-throw bonus
+  sv = 5 + s.clevel + s.pac / 4 + stat_eff(s, ST_CON) / 3 + s.rc_save;   // cached race+class bonus
   if sv > 75 { sv = 75; }
   if sv < 0 { sv = 0; }
   sv
@@ -928,6 +980,16 @@ pub fn sim_player_save(s: Sim) -> integer {
 // resists more often. (Early on save is low, so the floating eye is genuinely deadly.)
 fn sim_save_fails(s: &Sim) -> boolean {
   sim_roll(s, 0, 99) >= sim_player_save(s)
+}
+
+// SP (spell points): pool accessors + the spend gate castfx uses. spmax is derived in
+// refresh_stats from the class realm + spell stat; regen rides sim_tick.
+pub fn sim_player_sp(s: Sim) -> integer { s.sp }
+pub fn sim_player_sp_max(s: Sim) -> integer { s.spmax }
+pub fn sim_spend_sp(s: &Sim, n: integer) -> boolean {
+  if n > s.sp { return false; }
+  s.sp -= n;
+  true
 }
 
 // PLAYER status queries (the view shows a pip; the step/tick logic gates on these).
@@ -947,8 +1009,7 @@ pub fn sim_cure_venom(s: &Sim, dur: integer) {
 // baseline (level 1, starting STR), so it never shifts early combat; it grows as you level AND as
 // you spend stat points on STR (the stat-choice payoff). refresh_stats folds it into wdam.
 pub fn sim_skill_melee(s: Sim) -> integer {
-  rd = player_race(s);
-  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_STR) - HERO_CON) + rd.r_melee;   // race melee aptitude
+  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_STR) - HERO_CON) + s.rc_melee;   // cached race+class aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -957,8 +1018,7 @@ pub fn sim_skill_melee(s: Sim) -> integer {
 // range at which a monster notices you (its effective vision in the awareness check), so a stealthy
 // (high-level / high-DEX) character can slip closer before waking sleepers. refresh-free (derived).
 pub fn sim_skill_stealth(s: Sim) -> integer {
-  rd = player_race(s);
-  b = (s.clevel - 1) / 3 + (stat_eff(s, ST_DEX) - HERO_CON) + rd.r_stealth;   // race stealth aptitude
+  b = (s.clevel - 1) / 3 + (stat_eff(s, ST_DEX) - HERO_CON) + s.rc_stealth;   // cached race+class
   if b < 0 { b = 0; }
   b
 }
@@ -966,8 +1026,7 @@ pub fn sim_skill_stealth(s: Sim) -> integer {
 // Passive SHOOTING skill — a flat to-damage bonus for missiles, from level + DEX (Angband shoots
 // off DEX). 0 at the baseline; grows with level and DEX-spending. Added to the launched damage.
 pub fn sim_skill_shoot(s: Sim) -> integer {
-  rd = player_race(s);
-  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_DEX) - HERO_CON) + rd.r_bow;   // race bow aptitude
+  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_DEX) - HERO_CON) + s.rc_bow;   // cached race+class aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -1097,7 +1156,7 @@ pub fn sim_can_raise_stat(s: Sim, stat: text) -> boolean {
 
 // Drop-RNG: advance the per-Sim LCG (same module as its caller, so the `&`
 // mutation sticks) and return a value in [lo, hi].
-fn sim_roll(s: &Sim, lo: integer, hi: integer) -> integer {
+pub fn sim_roll(s: &Sim, lo: integer, hi: integer) -> integer {   // pub: castfx rolls spell failure
   if hi <= lo { return lo; }
   s.rstate = (s.rstate * 1103515245 + 12345) & 2147483647;
   lo + (s.rstate % (hi - lo + 1) ?? 0)
@@ -1206,23 +1265,11 @@ fn player_attack(s: &Sim, idx: integer) {
 // level-ratio cap as melee (crawler combat is auto-hit-capped, not a to-hit roll). A quick-slot
 // (Q/E or 1-9) triggers this; the action itself is input-scheme-agnostic.
 // Returns: 0 no launcher, 1 no ammo, 2 no target, 3 hit, 4 kill.
-pub fn sim_fire(s: &Sim) -> integer {
-  bow = s.eq[SLOT_BOW] ?? 0;
-  if bow == 0 { return 0; }
-  itbl = game_items();
-  mult = item_power(itbl, bow - 1);
-  iv = s.inv;
-  ammo_slot = -1;
-  for k in 0..s.ninv {
-    if ammo_slot < 0 && k < len(iv) {
-      di = iv[k] ?? -1;
-      if item_cat(itbl, di) == IT_AMMO { ammo_slot = k; }
-    }
-  }
-  if ammo_slot < 0 { return 1; }
-  // Auto-aim: among SEEN enemies in range, score by distance with a frontal bonus — very near
-  // wins on distance, but at roughly equal range the one more dead-ahead of your heading wins.
-  // A mob BEHIND the character (front <= 0) cannot be targeted at all.
+// Auto-aim (shared by the launcher AND attack spells): among SEEN enemies in range, score by
+// distance with a frontal bonus — very near wins on distance, but at roughly equal range the one
+// more dead-ahead of your heading wins. A mob BEHIND the character (front <= 0) can never be
+// targeted. Returns the enemy index, or -1 with nothing in your sights.
+fn aim_target(s: Sim) -> integer {
   enemies = s.enemies;
   hx = cos(s.heading);
   hy = sin(s.heading);
@@ -1248,7 +1295,52 @@ pub fn sim_fire(s: &Sim) -> integer {
       }
     }
   }
+  target
+}
+
+// Hurl a magic BOLT (an attack spell's kernel verb): the launcher's auto-aim, no launcher or ammo.
+// `dam` is the spell's damage knob (its s_power). Returns 0 = nothing in sights, 3 = hit, 4 = slain.
+pub fn sim_bolt(s: &Sim, dam: integer) -> integer {
+  target = aim_target(s);
+  if target < 0 { return 0; }
+  enemies = s.enemies;
+  e = enemies[target];
+  e.hp -= capped_dmg(dam, s.clevel, e.mlvl);
+  ret = 3;
+  gain = 0;
+  if e.hp <= 0 {
+    e.alive = false;
+    gain = e.xp * e.mlvl / s.clevel ?? 0;
+    if gain < 1 { gain = 1; }
+    drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
+    sim_log(s, "Your bolt slays the {e.name}.");
+    if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
+    ret = 4;
+  } else {
+    sim_log(s, "Your bolt strikes the {e.name}.");
+  }
+  enemies[target] = e;
+  if gain > 0 { sim_award_xp(s, gain); }
+  ret
+}
+
+pub fn sim_fire(s: &Sim) -> integer {
+  bow = s.eq[SLOT_BOW] ?? 0;
+  if bow == 0 { return 0; }
+  itbl = game_items();
+  mult = item_power(itbl, bow - 1);
+  iv = s.inv;
+  ammo_slot = -1;
+  for k in 0..s.ninv {
+    if ammo_slot < 0 && k < len(iv) {
+      di = iv[k] ?? -1;
+      if item_cat(itbl, di) == IT_AMMO { ammo_slot = k; }
+    }
+  }
+  if ammo_slot < 0 { return 1; }
+  target = aim_target(s);
   if target < 0 { return 2; }
+  enemies = s.enemies;
   ad = iv[ammo_slot] ?? -1;
   avg = item_dd(itbl, ad) * (item_ds(itbl, ad) + 1) / 2 ?? 0;
   base = avg * mult + sim_skill_shoot(s);
@@ -1523,8 +1615,12 @@ pub fn sim_tick(s: &Sim) {
   // doubles the pace). POISON blocks it entirely (venom keeps the wounds open).
   if !s.over && s.php < s.phpmax && s.poison_until <= s.ticks {
     every = REGEN_EVERY;
-    if race_has_flag(player_race(s), RF_REGEN) { every = every / 2 ?? every; }
+    if (s.rc_flags & RF_REGEN) != 0 { every = every / 2 ?? every; }
     if (s.ticks % every ?? 0) == 0 { s.php += 1; }
+  }
+  // Mana returns over the clock too (casters only — spmax 0 otherwise).
+  if !s.over && s.sp < s.spmax {
+    if (s.ticks % SP_REGEN_EVERY ?? 0) == 0 { s.sp += 1; }
   }
   // Temporary stat modifiers (good/bad potions) tick down; expired ones stop applying.
   ttv = s.stat_tmp_t;
@@ -2058,7 +2154,9 @@ pub fn sim_new() -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0, race: "human",
+    clevel: 1, xp: 0, gold: 0, race: "human", pclass: "", sp: 0, spmax: 0,
+    rc_flags: 0, rc_melee: 0, rc_bow: 0, rc_stealth: 0, rc_save: 0,
+    rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
@@ -2381,7 +2479,9 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0, race: "human",
+    clevel: 1, xp: 0, gold: 0, race: "human", pclass: "", sp: 0, spmax: 0,
+    rc_flags: 0, rc_melee: 0, rc_bow: 0, rc_stealth: 0, rc_save: 0,
+    rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
@@ -2438,7 +2538,19 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.clevel = s.clevel;   // carry the hero across levels
   ns.xp = s.xp;
   ns.gold = s.gold;
-  ns.race = s.race;       // the chosen race travels with the character
+  ns.race = s.race;       // the chosen race + class travel with the character
+  ns.pclass = s.pclass;
+  ns.sp = s.sp;           // the mana pool persists across levels (like HP)
+  ns.spmax = s.spmax;
+  ns.rc_flags = s.rc_flags;     // the baked race+class cache travels too (apply_creation's output)
+  ns.rc_melee = s.rc_melee;
+  ns.rc_bow = s.rc_bow;
+  ns.rc_stealth = s.rc_stealth;
+  ns.rc_save = s.rc_save;
+  ns.rc_hd = s.rc_hd;
+  ns.rc_xpf = s.rc_xpf;
+  ns.rc_realm = s.rc_realm;
+  ns.rc_spi = s.rc_spi;
   ns.stat_max = s.stat_max;     // carry the stat block: innate + current + active temp mods
   ns.stat_cur = s.stat_cur;
   ns.stat_tmp = s.stat_tmp;
@@ -2482,7 +2594,17 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs = sim_new_gen_p(s.wseed, s.save_depth, s.boss_slain);
   rs.clevel = s.clevel;
   rs.xp = s.xp;
-  rs.race = s.race;             // race persists through death (identity)
+  rs.race = s.race;             // race + class persist through death (identity)
+  rs.pclass = s.pclass;
+  rs.rc_flags = s.rc_flags;     // the baked race+class cache survives with them
+  rs.rc_melee = s.rc_melee;
+  rs.rc_bow = s.rc_bow;
+  rs.rc_stealth = s.rc_stealth;
+  rs.rc_save = s.rc_save;
+  rs.rc_hd = s.rc_hd;
+  rs.rc_xpf = s.rc_xpf;
+  rs.rc_realm = s.rc_realm;
+  rs.rc_spi = s.rc_spi;
   rs.stat_max = s.stat_max;     // keep innate stats + any permanent drain across death;
   rs.stat_cur = s.stat_cur;     // temporary modifiers reset (fresh from sim_new_gen) on respawn
   rs.stat_pts = s.stat_pts;             // banked stat points + cooldowns survive death (progression)
@@ -2510,6 +2632,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.pac = s.pac;
   rs.phpmax = s.phpmax;
   rs.php = s.phpmax;          // full heal on respawn
+  rs.spmax = s.spmax;
+  rs.sp = s.spmax;            // and a full mind
   rs.save_depth = s.save_depth;
   rs.over = false;
   rs

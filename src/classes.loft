@@ -26,18 +26,11 @@ fn class_none() -> ClassDef {
     c_realm: "none", c_spell_stat: "none", c_desc: "" }
 }
 
+// warrior + mage have MOVED to their bundles (bundles/warrior|mage/, one class per bundle) and
+// merge back via class_catalog() (catalog.loft). The rows below are the NOT-yet-migrated classes;
+// each leaves this table as its bundle lands (BUNDLE-MIGRATION.md Phase D).
 pub fn class_table() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
-  t += [ClassDef { c_key: "warrior", c_name: "Warrior", c_hd: 9, c_xp: 100,
-    c_str: 3, c_int: -2, c_wis: -2, c_dex: 2, c_con: 2, c_chr: -1,
-    c_melee: 30, c_bow: 25, c_device: 5, c_disarm: 25, c_stealth: 1, c_save: 18,
-    c_realm: "none", c_spell_stat: "none",
-    c_desc: "Master of arms. No magic, highest hit points, best melee." }];
-  t += [ClassDef { c_key: "mage", c_name: "Mage", c_hd: 0, c_xp: 130,
-    c_str: -5, c_int: 3, c_wis: -2, c_dex: 1, c_con: -2, c_chr: -1,
-    c_melee: 5, c_bow: 5, c_device: 36, c_disarm: 30, c_stealth: 2, c_save: 30,
-    c_realm: "arcane", c_spell_stat: "int",
-    c_desc: "Arcane spellcaster. Fragile, but commands the deepest magic." }];
   t += [ClassDef { c_key: "priest", c_name: "Priest", c_hd: 2, c_xp: 120,
     c_str: -1, c_int: -3, c_wis: 3, c_dex: -1, c_con: 0, c_chr: 2,
     c_melee: 12, c_bow: 10, c_device: 20, c_disarm: 25, c_stealth: 2, c_save: 32,

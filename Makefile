@@ -258,6 +258,9 @@ test:
 	@echo "  [race] chosen race applies: stat block / hit-die HP / skills / save / free-action gate ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/racetest.loft | tee /tmp/story_race.log
 	@grep -q "RACE OK" /tmp/story_race.log || { echo "    FAIL: race"; exit 1; }
+	@echo "  [class] classes from bundles: apply / SP pool / the spell chain (routine-by-id) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/classtest.loft | tee /tmp/story_class.log
+	@grep -q "CLASS OK" /tmp/story_class.log || { echo "    FAIL: class"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

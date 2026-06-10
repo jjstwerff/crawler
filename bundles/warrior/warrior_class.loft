@@ -1,0 +1,14 @@
+// Warrior — the class DEFINITION (authored content; one bundle = one class). Merged into
+// class_catalog() via the generated class_defs_gen.loft; the loadout script (warrior.loft) grants
+// the kit, this row owns the numbers. Uses only the engine vocabulary from `classes`.
+use classes;
+
+pub fn warrior_class_defs() -> vector<ClassDef> {
+  t: vector<ClassDef> = [];
+  t += [ClassDef { c_key: "warrior", c_name: "Warrior", c_hd: 9, c_xp: 100,
+    c_str: 3, c_int: -2, c_wis: -2, c_dex: 2, c_con: 2, c_chr: -1,
+    c_melee: 30, c_bow: 25, c_device: 5, c_disarm: 25, c_stealth: 1, c_save: 18,
+    c_realm: "none", c_spell_stat: "none",
+    c_desc: "Master of arms. No magic, highest hit points, best melee." }];
+  t
+}

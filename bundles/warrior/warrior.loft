@@ -9,6 +9,6 @@ pub fn activate(s: &Sim, p: Player) {
   p.equip(s, "small_shield");
   p.equip(s, "wooden_torch");
   p.give_item(s, "potion_cure_light");
-  p.grant_stat(s, "con", 2);
+  // stats come from the ClassDef (warrior_class.loft) via the class apply — not granted here
   p.grant_gold(s, 30);
 }
