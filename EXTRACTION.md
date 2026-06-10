@@ -175,6 +175,19 @@ thread-local can't be saved with the Sim.
 
 ---
 
+### 5. `hex_terrain` — the overland terrain layer (NEW, landed 2026-06-11)
+
+The OVERLAND.md blueprint ported as the hex_* family's terrain axis
+(loft-libs-world PR #4, merged, CI green): overland cells + priority-flood
+hydrology + neighbor-relief verticality + edge-bit/control-point/fractal rivers
+with shoreline attach + additive slope-shaped carving + per-point sampling.
+Pure functions; the window-independence invariant tested by rebuild-and-compare.
+LESSONS (the --deny-warnings sweep): `??` binds TIGHTER than `/` — defend
+divisions as `(a / b) ?? f`; struct-field index WRITES need the alias idiom
+(`v = s.field; if i < len(v) { v[i] = x; }` — a guard on `len(s.field)` is not
+recognized); compound guards with `||`/`??` subexpressions aren't recognized.
+crawler consumes when the wilderness lands (blocks sample `terrain_sample`).
+
 ## Tier 2 — one decoupling each, then they join `hexgrid`
 
 - [ ] **`wallgeo`** (hex-region → smoothed wall outlines): replace its `use sim` with
