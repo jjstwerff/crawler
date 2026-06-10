@@ -242,6 +242,17 @@ pub fn item_power(table: vector<ItemDef>, idx: integer) -> integer {
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_power; }
   v
 }
+// Short display name for tight UI (the quick-slot bar): drop the redundant "Category of " prefix —
+// "Potion of Cure Light Wounds" -> "Cure Light Wounds", "Scroll of Phase Door" -> "Phase Door". Names
+// without " of " (a weapon, a bow) are returned unchanged. The category is conveyed by context.
+pub fn item_short(name: text) -> text {
+  parts = name.split_text(" of ");
+  if len(parts) >= 2 { p = parts[1]; return p; }
+  name
+}
+pub fn item_short_idx(table: vector<ItemDef>, idx: integer) -> text {
+  item_short(item_name(table, idx))
+}
 pub fn item_desc(table: vector<ItemDef>, idx: integer) -> text {
   v = "";
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_desc; }

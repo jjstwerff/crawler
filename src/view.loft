@@ -59,6 +59,7 @@ pub struct Hud {
   qlbl:   integer not null,           // active-slot "Q" key label
   elbl:   integer not null,           // active-slot "E" key label
   dash:   integer not null,           // dim "-" for an empty quick-slot
+  hints:  vector<integer> not null,   // baked keyboard-hint lines (the non-obvious keys), sidebar foot
 }
 
 // Roguelike map glyph for an item category (IT_*).
@@ -100,6 +101,12 @@ fn load_sprite(fname: text) -> integer {
     }
   }
   tex
+}
+
+// The non-obvious keyboard hints shown at the sidebar foot. The common keys (WASD glide/turn, Q/E
+// active slots, 1-9 quick-slots) are self-evident and deliberately left out to keep it quiet.
+fn key_hints() -> vector<text> {
+  ["C  character", "I  inventory", "G  grab", ".  wait", "Esc  quit"]
 }
 
 pub fn build_hud(s: Sim) -> Hud {
@@ -163,6 +170,7 @@ pub fn build_hud(s: Sim) -> Hud {
   qlbl = 0;
   elbl = 0;
   dash = 0;
+  hints: vector<integer> = [];
   if font >= 0 {
     ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
     died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
@@ -190,19 +198,24 @@ pub fn build_hud(s: Sim) -> Hud {
     qlbl  = graphics::create_text_texture(font, "Q", SB_SIZE, graphics::rgba(225, 215, 160, 255));
     elbl  = graphics::create_text_texture(font, "E", SB_SIZE, graphics::rgba(225, 215, 160, 255));
     dash  = graphics::create_text_texture(font, "-", SB_SIZE, graphics::rgba(110, 115, 125, 255));
+    // keyboard hints for the non-obvious keys (the common WASD / Q-E / 1-9 are left out)
+    khs = key_hints();
+    for hi in 0..len(khs) {
+      hints += [graphics::create_text_texture(font, khs[hi] ?? "", SB_SIZE, graphics::rgba(150, 155, 165, 255))];
+    }
     snames = ["STR", "INT", "WIS", "DEX", "CON", "CHR"];
     for si in 0..6 {
       statlbl[si] = graphics::create_text_texture(font, snames[si] ?? "", SB_SIZE, graphics::rgba(190, 195, 175, 255));
     }
     itbl = item_table();
     for ii in 0..len(itbl) {
-      itex += [graphics::create_text_texture(font, item_name(itbl, ii), SB_SIZE, graphics::rgba(220, 220, 205, 255))];
+      itex += [graphics::create_text_texture(font, item_short_idx(itbl, ii), SB_SIZE, graphics::rgba(220, 220, 205, 255))];
     }
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
     spider: spider, sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
     stair_up: stair_up, stair_dn: stair_dn, panel: panel, itex: itex, statlbl: statlbl,
-    hplbl: hplbl, splbl: splbl, qlbl: qlbl, elbl: elbl, dash: dash }
+    hplbl: hplbl, splbl: splbl, qlbl: qlbl, elbl: elbl, dash: dash, hints: hints }
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
@@ -479,7 +492,7 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
     nx = pad + 18.0;
     defidx = sim_qs_def(s, k);
     if defidx >= 0 && defidx < len(hud.itex) {
-      nm = item_name(itbl, defidx);
+      nm = item_short_idx(itbl, defidx);   // short name in the tight bar (drop "Category of ")
       sb_text(painter, hud, hud.itex[defidx] ?? 0, nm, nx, qy);
       cnt = sim_qs_count(s, k);
       if item_cat(itbl, defidx) == IT_BOW || cnt > 1 {
@@ -490,6 +503,19 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
       sb_text(painter, hud, hud.dash, "-", nx, qy);
     }
     qy += 18.0;
+  }
+
+  // keyboard hints at the foot (the non-obvious keys), below the quick-slots with a small gap
+  khs = key_hints();
+  hy = qy + 14.0;
+  for hi in 0..len(hud.hints) {
+    t = hud.hints[hi] ?? 0;
+    if t != 0 && hi < len(khs) {
+      m = khs[hi] ?? "";
+      hw = graphics::gl_measure_text(hud.font, m, SB_SIZE);
+      hh = graphics::gl_text_height(hud.font, SB_SIZE) as float;
+      graphics::draw_texture_at(painter, t, pad, hy + (hi as float) * 18.0, hw, hh);
+    }
   }
 }
 
