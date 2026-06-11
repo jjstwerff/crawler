@@ -35,12 +35,12 @@ TILE_M = 1500.0         # overland hex pitch — the NATURAL scale (game compres
 WORLD_W = 72000.0       # world extent in meters (fixed across scales for the strip)
 WORLD_H = 48000.0
 SEA_LEVEL = 0.0
-RIVER_ACC = 6           # tiles of accumulation before a stream is a river
+RIVER_ACC = 6           # DISPLAY threshold only (overlays) — geometry uses EVERY flow (7k)
 MEANDER_K = 0.34        # fractal displacement strength
 SEG_MIN_M = 84.0        # stop subdividing below this segment length
 VALLEY_W = 138.0        # smallest valley falloff (m); per-river up to VALLEY_MAX
 VALLEY_MAX = 390.0      # the biggest river carves this wide a falloff
-CARVE_M = 22.0          # max valley depth (m), grows with river size
+CARVE_M = 120.0         # max valley depth (m) — ages of waterflow cut deep (7k)
 RIPARIAN_W = 330.0      # moisture greening falloff (m)
 APRON_M = 1680.0        # apron >= the HARD cutoffs (4*VALLEY_MAX, 3*RIPARIAN_W)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_overland")
@@ -203,22 +203,29 @@ class Overland:
         # in-tile VERTICALITY input: a cell's relief = max height delta to its
         # neighbors — but WATER-FLOW cells (rivers/lakes/sea) contribute ZERO,
         # so the dry land rises around them and the water cuts deep for free.
-        self.wet = (self.acc >= RIVER_ACC) | (self.h <= SEA_LEVEL) | is_lake
+        self.wet = (self.h <= SEA_LEVEL) | is_lake
         self.relief = np.zeros((self.ny, self.nx))
         for r in range(self.ny):
             for c in range(self.nx):
                 if self.wet[r, c]:
                     continue
-                m, nsteep = 0.0, 0
+                m, nsteep, nbacc = 0.0, 0, 0.0
                 for nc, nr in self.neighbors(c, r):
                     if 0 <= nc < self.nx and 0 <= nr < self.ny:
                         d = abs(self.h[r, c] - self.h[nr, nc])
                         m = max(m, d)
                         if d > STEEP_DELTA:
                             nsteep += 1
+                        nbacc = max(nbacc, self.acc[nr, nc])
                 # MORE steep neighbors -> the effect compounds (a cell ringed by
                 # steep terrain soars; one steep contact only lifts moderately)
-                self.relief[r, c] = m * (NEIGHBOR_BASE + NEIGHBOR_BOOST * nsteep)
+                rel = m * (NEIGHBOR_BASE + NEIGHBOR_BOOST * nsteep)
+                # GRADED water mitigation (naturalization): sizable rivers flatten
+                # their own cell; BIG rivers flatten their shoulders too — corridor
+                # width grows with size.  Small streams keep their relief: gorges.
+                s_self = min(1.0, max(0.0, (self.acc[r, c] - 8.0) / 16.0))
+                s_nb = min(1.0, max(0.0, (nbacc - 20.0) / 60.0))
+                self.relief[r, c] = rel * (1.0 - max(s_self, 0.85 * s_nb))
         # materials
         for r in range(self.ny):
             for c in range(self.nx):
@@ -436,10 +443,10 @@ def shape_factors(ov, pts):
     xs = np.array([q[0] for q in pts], dtype=np.float64)
     ys = np.array([q[1] for q in pts], dtype=np.float64)
     e = 60.0
-    h0 = blend_fields(ov, xs, ys)["h"]
+    f0 = blend_fields(ov, xs, ys)
     hx = blend_fields(ov, xs + e, ys)["h"] - blend_fields(ov, xs - e, ys)["h"]
     hy = blend_fields(ov, xs, ys + e)["h"] - blend_fields(ov, xs, ys - e)["h"]
-    return h0, np.sqrt(hx * hx + hy * hy) / (2 * e)
+    return f0["h"], np.sqrt(hx * hx + hy * hy) / (2 * e), f0["relief"]
 
 def trim_to_shore(ov, fp, fv):
     """ATTACH the course to the water lines: split into land pieces whose ends
@@ -532,29 +539,63 @@ def displace(ov, pts, vals, lvl=0):
         return out_p, out_v
     return displace(ov, out_p, out_v, lvl + 1)
 
+def flow_links(ov):
+    """The WHOLE flow tree as per-cell links (7k: every water flow counts):
+    each land cell contributes ONE link control->edge-crossing->downstream
+    control, carrying its accumulation.  No duplication; confluences meet at
+    the shared control points by construction."""
+    links = []
+    for r in range(ov.ny):
+        for c in range(ov.nx):
+            if ov.h[r, c] <= SEA_LEVEL:
+                continue
+            bi = ov.flow[r, c]
+            if bi < 0:
+                continue
+            nc, nr = ov.neighbors(c, r)[bi]
+            if not (0 <= nc < ov.nx and 0 <= nr < ov.ny):
+                continue
+            a = ov.control_pt(c, r)
+            e = ov.edge_cross(c, r, nc, nr)
+            b = ov.control_pt(nc, nr)
+            links.append(([a, e, b], float(ov.acc[r, c]), c, r))
+    # STABILITY rule (user): bigger rivers are counted FIRST — a canonical
+    # order, so contested pixels (tied distances, overlapping claims) always
+    # resolve to the bigger water, independent of any scan order.
+    links.sort(key=lambda L: (-L[1], L[3], L[2]))
+    return [(anch, acc) for anch, acc, _, _ in links]
+
 def fine_rivers(ov):
-    """All river courses as fine polylines with per-vertex width+depth (meters).
-    Deterministic from the overland data alone -> identical in every window."""
+    """Every flow link as a fine course piece, its character decided by the
+    TERRAIN AROUND each vertex (the naturalization rule): hilly stretches ->
+    narrow deep gorge; open stretches -> wide water, broad floodplain, an
+    alluvial band.  Accumulation only sets the water budget.
+    Tuples: (pts, width, depth, vwid, alluv, rad)."""
     rivers = []
-    for cells in ov.river_paths():
-        pts, accs = ov.coarse_course(cells)
-        fp, fv = displace(ov, pts, accs)
+    for anchors, acc in flow_links(ov):
+        fp, fv = displace(ov, anchors, [acc, acc, acc])
         fp = chaikin(fp, 1)
-        t = np.linspace(0, len(fv) - 1, len(fp))
-        fv = list(np.interp(t, np.arange(len(fv)), np.array(fv, dtype=float)))
+        fv = [acc] * len(fp)
         for pp, pv in trim_to_shore(ov, fp, fv):   # ends ON the shorelines
-            pva = np.array(pv)
-            h0, sl = shape_factors(ov, pp)
-            fs = np.minimum(1.0, sl / 0.0167)      # 0 = flat plain, 1 = steep
-            base = 3.0 + 1.7 * np.sqrt(pva)
-            # gorges in steep land, wide shallow floodplains on the flats,
-            # and a near-sea-level bonus: the carved mouth lets the SEA inland
-            depth = np.minimum(CARVE_M, base * (0.45 + 0.55 * fs)
+            h0, sl, rel = shape_factors(ov, pp)
+            fs = np.minimum(1.0, sl / 0.0167)      # 0 = flat/open, 1 = steep
+            open_ = 1.0 - fs
+            relctx = np.clip(rel / 250.0, 0.0, 1.0)
+            sq = math.sqrt(acc)
+            base = 4.0 + 5.5 * sq
+            # gorges where the surrounding land is steep/high (ages cut deep),
+            # wide shallow floodplains on the open flats, and the near-sea
+            # bonus: the carved mouth lets the SEA inland (the ria)
+            depth = np.minimum(CARVE_M, base * (0.45 + 0.55 * fs) * (1.0 + 1.5 * relctx)
                                + base * 0.90 * np.exp(-np.maximum(h0, 0.0) / 14.0))
-            vwid = np.minimum(VALLEY_MAX,
-                              (24.0 + 11.0 * np.sqrt(pva)) * (1.6 - 0.6 * fs))
-            width = [min(26.0, 2.2 + 1.35 * math.sqrt(v)) for v in pv]
-            rivers.append((pp, width, list(depth), list(vwid)))
+            # SUBTLE: brooks cut deep but NARROW (no landscape-wide veining);
+            # only sizable water earns wide valleys and the alluvial floor
+            vwid = np.minimum(VALLEY_MAX, (20.0 + 45.0 * sq) * (1.6 - 0.6 * fs))
+            width = (1.0 + 1.7 * sq) * (0.3 + 0.7 * open_)   # terrain decides
+            alluv = open_ * max(0.0, 75.0 * (sq - 1.4))      # the 7g floor band
+            rad = float(4.0 * vwid.max() + alluv.max() + 60.0)
+            rivers.append((pp, list(width), list(depth), list(vwid),
+                           list(alluv), rad))
     return rivers
 
 # ------------------------------------------------ chamfer distance transform
@@ -622,53 +663,54 @@ def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height
     # world-anchored blocks instead, where exactness is automatic.)
     dist_m = np.full((H, W), 1e7)      # to the nearest course (water + riparian)
     wfield = np.zeros((H, W))
-    carve = np.zeros((H, W))           # ADDITIVE: every course digs its own valley
-    rad_m = VALLEY_MAX * 4.0
+    afield = np.zeros((H, W))          # alluvial half-width at the nearest course
+    carve = np.zeros((H, W))           # MAX of link carves: joints stay smooth
     ox, oy = kx - ap, ky - ap
     wx0, wy0 = ox * px_m, oy * px_m
-    for fp, width, depth, vwid in rivers:
-        cd = np.full((H, W), 1e7)      # this course's own distance field
-        cdep = np.zeros((H, W))
-        cvw = np.full((H, W), VALLEY_W)
+    for fp, width, depth, vwid, alluv, rad in rivers:
+        fxs = [q[0] for q in fp]
+        fys = [q[1] for q in fp]
+        jx0 = max(0, int((min(fxs) - rad - wx0) / px_m) - 1)
+        jx1 = min(W, int((max(fxs) + rad - wx0) / px_m) + 2)
+        jy0 = max(0, int((min(fys) - rad - wy0) / px_m) - 1)
+        jy1 = min(H, int((max(fys) + rad - wy0) / px_m) + 2)
+        if jx0 >= jx1 or jy0 >= jy1:
+            continue
+        pxs = xs[jy0:jy1, jx0:jx1]
+        pys = ys[jy0:jy1, jx0:jx1]
+        cd = np.full(pxs.shape, 1e7)   # this link's own distance field
+        cdep = np.zeros(pxs.shape)
+        cvw = np.full(pxs.shape, VALLEY_W)
         hit = False
         for i in range(len(fp) - 1):
             ax, ay = fp[i]
             bx, by = fp[i + 1]
-            jx0 = max(0, int((min(ax, bx) - rad_m - wx0) / px_m) - 1)
-            jx1 = min(W, int((max(ax, bx) + rad_m - wx0) / px_m) + 2)
-            jy0 = max(0, int((min(ay, by) - rad_m - wy0) / px_m) - 1)
-            jy1 = min(H, int((max(ay, by) + rad_m - wy0) / px_m) + 2)
-            if jx0 >= jx1 or jy0 >= jy1:
-                continue
-            pxs = xs[jy0:jy1, jx0:jx1]
-            pys = ys[jy0:jy1, jx0:jx1]
             ex, ey = bx - ax, by - ay
             ee = ex * ex + ey * ey
             if ee < 1e-9:
                 continue
             t = np.clip(((pxs - ax) * ex + (pys - ay) * ey) / ee, 0.0, 1.0)
             d = np.hypot(pxs - (ax + t * ex), pys - (ay + t * ey))
-            dv = cd[jy0:jy1, jx0:jx1]
-            upd = d < dv                     # first-in-order wins ties
+            upd = d < cd                     # first-in-order wins ties
             if not upd.any():
                 continue
             hit = True
-            cd[jy0:jy1, jx0:jx1] = np.where(upd, d, dv)
-            for fld, vals in ((cdep, depth), (cvw, vwid)):
-                fv = fld[jy0:jy1, jx0:jx1]
-                vt = vals[i] * (1.0 - t) + vals[i + 1] * t   # value at nearest POINT
-                fld[jy0:jy1, jx0:jx1] = np.where(upd, vt, fv)
-            # the global nearest-course field drives water width + riparian
+            cd = np.where(upd, d, cd)
+            cdep = np.where(upd, depth[i] * (1.0 - t) + depth[i + 1] * t, cdep)
+            cvw = np.where(upd, vwid[i] * (1.0 - t) + vwid[i + 1] * t, cvw)
+            # the global nearest-course fields drive water width + riparian + 7g
             gd = dist_m[jy0:jy1, jx0:jx1]
             gupd = d < gd
             if gupd.any():
                 dist_m[jy0:jy1, jx0:jx1] = np.where(gupd, d, gd)
                 wv = width[i] * (1.0 - t) + width[i + 1] * t
-                gw = wfield[jy0:jy1, jx0:jx1]
-                wfield[jy0:jy1, jx0:jx1] = np.where(gupd, wv, gw)
+                av = alluv[i] * (1.0 - t) + alluv[i + 1] * t
+                wfield[jy0:jy1, jx0:jx1] = np.where(gupd, wv, wfield[jy0:jy1, jx0:jx1])
+                afield[jy0:jy1, jx0:jx1] = np.where(gupd, av, afield[jy0:jy1, jx0:jx1])
         if hit:
-            carve = carve + cdep * np.exp(-cd / cvw) * np.clip(1.0 - cd / (4 * cvw), 0, 1)
-    carve = np.minimum(carve, CARVE_M * 1.25)   # confluences deepen, but capped
+            lc = cdep * np.exp(-cd / cvw) * np.clip(1.0 - cd / (4 * cvw), 0, 1)
+            carve[jy0:jy1, jx0:jx1] = np.maximum(carve[jy0:jy1, jx0:jx1], lc)
+    carve = np.minimum(carve, CARVE_M)
 
     # THE SHORELINE RULE: the coast is the fine height-zero contour, a lake shore
     # the wateriness contour — the river exists only LANDWARD of those lines.
@@ -678,6 +720,7 @@ def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height
     river_water = (dist_m < wfield * 0.5) & (height > SEA_LEVEL) \
                 & (h_base > SEA_LEVEL) & (f["watery"] < 0.5)
     riparian = np.exp(-dist_m / RIPARIAN_W) * np.clip(1.0 - dist_m / (3 * RIPARIAN_W), 0, 1)
+    riparian = riparian * np.clip((wfield - 1.2) / 5.0, 0.12, 1.0)   # size-gated
 
     # --- coloring
     col = matcol
@@ -685,6 +728,13 @@ def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height
     g = np.clip(riparian * 0.45 + np.clip(f["moist"] - 0.5, 0, 1) * 0.15, 0, 1)
     g = g * (height > SEA_LEVEL)
     col = col * (1 - g[..., None]) + green[None, None, :] * g[..., None]
+    # the 7g ALLUVIAL FLOOR: inside a big river's open-valley band the flatter
+    # material claims the ground — the river's own plain (color/claim only;
+    # the heights already flattened via carve + graded relief suppression)
+    am = np.clip(1.0 - dist_m / np.maximum(afield, 1.0), 0.0, 1.0) * 0.65
+    am = am * (height > SEA_LEVEL)
+    plaincol = np.array([124.0, 152.0, 84.0])
+    col = col * (1 - am[..., None]) + plaincol[None, None, :] * am[..., None]
     # beach band hugs the fractal coastline; lake shores get their own sand rim
     beach = np.clip(1.0 - np.abs(h_base - 1.6) / 2.4, 0, 1) * (h_base > SEA_LEVEL)
     lshore = np.clip(1.0 - np.abs(lk - 0.43) / 0.07, 0, 1) * (h_base > SEA_LEVEL)
@@ -708,6 +758,10 @@ def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height
     rcol = np.array([50.0, 108.0, 158.0])
     rdepth = np.clip(carve / CARVE_M, 0.25, 1.0)
     col = np.where(river_water[..., None], rcol[None, None, :] * (1.15 - rdepth[..., None] * 0.45), col)
+    # 7j: WHITEWATER — small steep streams step (falls in mountains, slides in
+    # hills); big graded rivers never foam (they built their own beds)
+    rapids = river_water & (np.hypot(gx, gy) > 0.022) & (wfield < 8.0)
+    col = np.where(rapids[..., None], np.array([208.0, 222.0, 238.0])[None, None, :], col)
 
     dith = hash01(np.round(xs).astype(np.int64), np.round(ys).astype(np.int64), 91)
     col = col * (0.84 + 0.32 * dith)[..., None]
@@ -745,10 +799,15 @@ def sample_terrain(ov, rivers, xs, ys):
     dist = np.full(xs.shape, 1e7)
     wf = np.zeros(xs.shape)
     carve = np.zeros(xs.shape)
-    rad_m = VALLEY_MAX * 4.0
-    bx0, bx1 = xs.min() - rad_m, xs.max() + rad_m
-    by0, by1 = ys.min() - rad_m, ys.max() + rad_m
-    for fp, width, depth, vwid in rivers:
+    bx0, bx1 = xs.min(), xs.max()
+    by0, by1 = ys.min(), ys.max()
+    for fp, width, depth, vwid, alluv, rad in rivers:
+        fxs = [q[0] for q in fp]
+        fys = [q[1] for q in fp]
+        if max(fxs) + rad < bx0 or min(fxs) - rad > bx1:
+            continue
+        if max(fys) + rad < by0 or min(fys) - rad > by1:
+            continue
         cd = np.full(xs.shape, 1e7)
         cdep = np.zeros(xs.shape)
         cvw = np.full(xs.shape, VALLEY_W)
@@ -756,8 +815,6 @@ def sample_terrain(ov, rivers, xs, ys):
         for i in range(len(fp) - 1):
             ax, ay = fp[i]
             bx, by = fp[i + 1]
-            if max(ax, bx) < bx0 or min(ax, bx) > bx1 or max(ay, by) < by0 or min(ay, by) > by1:
-                continue
             ex, ey = bx - ax, by - ay
             ee = ex * ex + ey * ey
             if ee < 1e-9:
@@ -775,8 +832,8 @@ def sample_terrain(ov, rivers, xs, ys):
             dist = np.where(gupd, d, dist)
             wf = np.where(gupd, width[i] * (1 - t) + width[i + 1] * t, wf)
         if hit:
-            carve = carve + cdep * np.exp(-cd / cvw) * np.clip(1.0 - cd / (4 * cvw), 0, 1)
-    h = h - np.minimum(carve, CARVE_M * 1.25)
+            carve = np.maximum(carve, cdep * np.exp(-cd / cvw) * np.clip(1.0 - cd / (4 * cvw), 0, 1))
+    h = h - np.minimum(carve, CARVE_M)
     lk = lake_field(f, xs, ys)
     river = (dist < wf * 0.5) & (h > SEA_LEVEL) & (h_base > SEA_LEVEL) & (f["watery"] < 0.5)
     water = (h <= SEA_LEVEL) | (lk >= 0.5) | river
@@ -813,7 +870,7 @@ def panel_profile(ov, rivers, fname):
         d2 = ImageDraw.Draw(im)
         sl = Hp - 40
         d2.line([(0, sl), (Wp, sl)], fill=(90, 140, 190), width=1)   # sea level
-        d2.text((10, 8), "side view " + label + "  (9 km wide)", fill=(255, 255, 90))
+        d2.text((10, 8), "side view " + label + "  (27 km wide)", fill=(255, 255, 90))
         panels.append(im)
     sheet = Image.new("RGB", (Wp, Hp * 2 + 8), (0, 0, 0))
     for i, im in enumerate(panels):
@@ -829,7 +886,9 @@ def panel_view3d(ov, rivers, fname):
     img2d, hgt = render_window(ov, rivers, 0.0, 0.0, Wg, Hg, pm, want_height=True)
     im2 = Image.fromarray(img2d)             # bake the river overlay into the colors
     d2 = ImageDraw.Draw(im2)
-    for fp, width, _, _ in rivers:
+    for fp, width, _, _, _, _ in rivers:
+        if max(width) < 4.0:
+            continue
         for i in range(len(fp) - 1):
             wpx2 = max(1, int(round(width[i] / pm * 1.6)))
             d2.line([(fp[i][0] / pm, fp[i][1] / pm),
@@ -894,7 +953,7 @@ def panel_overland(ov, fname):
 def pick_mouth(ov, rivers):
     """The biggest river's last-land vertex — the meander showcase spot."""
     best, spot = -1.0, (WORLD_W / 2, WORLD_H / 2)
-    for fp, width, _, _ in rivers:
+    for fp, width, _, _, _, _ in rivers:
         if width[-1] > best:
             best = width[-1]
             spot = fp[max(0, len(fp) - 1 - len(fp) // 4)]   # a bit inland of the mouth
@@ -917,7 +976,9 @@ def main():
                             borders=False)
         im = Image.fromarray(img)
         dr = ImageDraw.Draw(im)
-        for fp, width, _, _ in rivers:      # map-layer overlay: courses stay visible
+        for fp, width, _, _, _, _ in rivers:      # map-layer overlay: courses stay visible
+            if max(width) < 4.0:
+                continue
             for i in range(len(fp) - 1):
                 wpx2 = max(1, int(round(width[i] / pm * 1.6)))
                 dr.line([(fp[i][0] / pm, fp[i][1] / pm),
@@ -975,7 +1036,9 @@ def main():
             img = render_window(o2, r2, 0.0, 0.0, 750, int(WORLD_H / pm), pm)
             im = Image.fromarray(img)
             d2 = ImageDraw.Draw(im)
-            for fp, width, _, _ in r2:
+            for fp, width, _, _, _, _ in r2:
+                if max(width) < 4.0:
+                    continue
                 for i in range(len(fp) - 1):
                     wpx2 = max(1, int(round(width[i] / pm * 1.6)))
                     d2.line([(fp[i][0] / pm, fp[i][1] / pm),

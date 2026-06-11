@@ -299,8 +299,20 @@ required — but that pass must be **SUBTLE**. Its charter:
   evaluation's finding: suppression width ∝ size, not binary).
 - SUBTLE means: no re-randomizing, no global smoothing, no form change a
   player would notice as a "pass" — only local, terrain-justified adjustments
-  of what already exists. Status: charter recorded; the pass is the next
-  bench phase, then the lib follows.
+  of what already exists. **Status: STARTED in the bench (2026-06-11)** — landed:
+  the flow-TREE link model (every cell = one course link, 7k; no duplication,
+  confluences at shared control points), terrain-decided per-vertex character
+  (gorge vs valley along one course: width/(depth×relief-context)/valley-breadth/
+  alluvial band all from local slope+relief; accumulation = budget only), graded
+  peak-row suppression (self from acc≈8, shoulders from acc≈20 — corridor ∝ size),
+  the 7g alluvial floor as a color/claim band (heights untouched — no trim cycle),
+  7j whitewater (river pixels foam where bed steep × stream small), MAX-of-links
+  carving (smooth at link joints; replaces additive), and the STABILITY rule:
+  links sort biggest-water-first so contested claims resolve canonically.
+  SUBTLETY lesson: brooks cut deep but NARROW — wide falloffs, riparian green and
+  alluvial bands are size-gated, else the lattice reads as a honeycomb. Seam test
+  byte-identical throughout. The lib (hex_terrain) follows once the bench look is
+  user-approved.
 
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
