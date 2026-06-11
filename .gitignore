@@ -14,3 +14,4 @@ native-auto/
 .DS_Store
 tools/__pycache__/
 tools/_overland/
+tools/_triangle/
