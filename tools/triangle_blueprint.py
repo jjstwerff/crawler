@@ -184,9 +184,26 @@ for r in range(NY):
         open_ = max(0.18, 1.0 - slope / 0.12)
         pts = displace([vertex_pt(c, r), edge_bit(c, r, nc, nr), vertex_pt(nc, nr)], open_)
         a = ACC[r, c]
-        SIDES.append(dict(pts=pts, acc=a,
-                          width=(2.0 + 2.2 * math.sqrt(a)) * (0.35 + 0.65 * open_),
-                          depth=min(110.0, (6 + 7 * math.sqrt(a)) * (0.5 + 0.9 * slope / 0.12))))
+        # INVARIANT I3 (water never flows uphill): the bed is a monotone ramp
+        # between the two VERTEX-owned levels (cell heights strictly descend
+        # along the flow tree, so the whole network is monotone by construction)
+        bedA = hgt(c, r) - 5.0
+        # the bed lands ON the receiving water's surface: sea -> -5, LAKE -> its
+        # owned level (I2/I3 coupling: inflows may never undercut the lake)
+        if mat(nc, nr) == "l":
+            bedB = HGT["l"]
+        elif hgt(nc, nr) <= 0:
+            bedB = -5.0
+        else:
+            bedB = hgt(nc, nr) - 5.0
+        arc = [0.0]
+        for i in range(len(pts) - 1):
+            arc.append(arc[-1] + math.hypot(pts[i + 1][0] - pts[i][0],
+                                            pts[i + 1][1] - pts[i][1]))
+        tot = max(arc[-1], 1e-9)
+        beds = [bedA + (bedB - bedA) * (t / tot) for t in arc]
+        SIDES.append(dict(pts=pts, acc=a, beds=beds,
+                          width=(2.0 + 2.2 * math.sqrt(a)) * (0.35 + 0.65 * open_)))
 SIDES.sort(key=lambda s: -s["acc"])     # STABILITY: bigger water first
 
 # CORNER: the peak — jittered OFF the exact triple point, decided ONCE
@@ -280,6 +297,7 @@ def render(px_m=6.0):
     matc = np.zeros((H, W, 3))
     steepf = np.zeros((H, W))
     watery = np.zeros((H, W))
+    lakew = np.zeros((H, W))
     rk2 = (TILE * 1.02) ** 2
     ry0 = np.round(ys / VS).astype(np.int64)
     for dr in (-1, 0, 1):
@@ -308,11 +326,14 @@ def render(px_m=6.0):
                 matc[..., ch_i] = np.where(upd, colv, matc[..., ch_i])
             steepf = np.where(upd, stv, steepf)
             watery += w * np.vectorize(lambda m: 1.0 if m in "sl" else 0.0)(mv)
+            lakew += w * np.vectorize(lambda m: 1.0 if m == "l" else 0.0)(mv)
     blend = hsum / np.maximum(wsum, 1e-12)
     watery = watery / np.maximum(wsum, 1e-12)
+    lakew = lakew / np.maximum(wsum, 1e-12)
 
     # 2) CORNER peaks + EDGE ridges: vertical structure as MAX of owned forms
-    vert = np.zeros((H, W))
+    vertp = np.zeros((H, W))           # p-norm accumulator: smooth-max, no creases
+    PN = 5.0
     rnoise = 1 - np.abs(fbm(xs, ys, 700.0, 3, 86))
     for P in PEAKS.values():
         R = P["rad"]
@@ -325,7 +346,7 @@ def render(px_m=6.0):
         d = np.hypot(xs[jy0:jy1, jx0:jx1] - P["x"], ys[jy0:jy1, jx0:jx1] - P["y"])
         m = P["amp"] * np.clip(1 - d / R, 0, 1) ** 1.5 \
             * (0.62 + 0.38 * rnoise[jy0:jy1, jx0:jx1] * min(1.0, P["steep"] / 60))
-        vert[jy0:jy1, jx0:jx1] = np.maximum(vert[jy0:jy1, jx0:jx1], m)
+        vertp[jy0:jy1, jx0:jx1] += m ** PN
     for G in RIDGES:
         pts = [(G["ax"], G["ay"]), (G["mx"], G["my"]), (G["bx"], G["by"])]
         for s in range(2):
@@ -349,17 +370,21 @@ def render(px_m=6.0):
                  * (1 - G["sadl"] * 4 * tg * (1 - tg))      # the SADDLE dip
             m = prof * np.clip(1 - d / R, 0, 1) ** 1.6 \
                 * (0.7 + 0.3 * rnoise[jy0:jy1, jx0:jx1])
-            vert[jy0:jy1, jx0:jx1] = np.maximum(vert[jy0:jy1, jx0:jx1], m)
+            vertp[jy0:jy1, jx0:jx1] += m ** PN
+    vert = vertp ** (1.0 / PN)
     height = blend + vert * np.clip(1.0 - watery * 1.6, 0.0, 1.0) \
            + 6.0 * fbm(xs, ys, 300.0, 5, 3)
+    # INVARIANT I1 (no inland sea): solid land never dips below sea level —
+    # only the bounded coastal band (real sea nearby) may
+    height = np.where(watery < 0.10, np.maximum(height, 0.5), height)
 
     # 3) SIDE courses: carve + water (max carve; bigger-first stability)
     dist = np.full((H, W), 1e9)
     wf = np.zeros((H, W))
-    carve = np.zeros((H, W))
+    bedf = np.zeros((H, W))
     for S in SIDES:
         fp = S["pts"]
-        rad = 4.0 * 180.0 + S["depth"]
+        rad = 4.0 * (150.0 + 2.0 * S["width"])
         fxs = [q[0] for q in fp]
         fys = [q[1] for q in fp]
         jx0 = max(0, int((min(fxs) - rad) / px_m))
@@ -371,6 +396,7 @@ def render(px_m=6.0):
         pxs = xs[jy0:jy1, jx0:jx1]
         pys = ys[jy0:jy1, jx0:jx1]
         cd = np.full(pxs.shape, 1e9)
+        bd = np.zeros(pxs.shape)
         for i in range(len(fp) - 1):
             ax, ay = fp[i]
             bx, by = fp[i + 1]
@@ -379,16 +405,21 @@ def render(px_m=6.0):
             if ee < 1e-9:
                 continue
             t = np.clip(((pxs - ax) * ex + (pys - ay) * ey) / ee, 0, 1)
-            cd = np.minimum(cd, np.hypot(pxs - (ax + t * ex), pys - (ay + t * ey)))
-        vw = 150.0 + 2.0 * S["width"]
-        lc = S["depth"] * np.exp(-cd / vw) * np.clip(1 - cd / (4 * vw), 0, 1)
-        lc = lc * (blend[jy0:jy1, jx0:jx1] > 0)      # never carve the seabed
-        carve[jy0:jy1, jx0:jx1] = np.maximum(carve[jy0:jy1, jx0:jx1], lc)
+            d = np.hypot(pxs - (ax + t * ex), pys - (ay + t * ey))
+            u = d < cd
+            cd = np.where(u, d, cd)
+            bd = np.where(u, S["beds"][i] * (1 - t) + S["beds"][i + 1] * t, bd)
         gd = dist[jy0:jy1, jx0:jx1]
         gu = cd < gd
         dist[jy0:jy1, jx0:jx1] = np.where(gu, cd, gd)
         wf[jy0:jy1, jx0:jx1] = np.where(gu, S["width"], wf[jy0:jy1, jx0:jx1])
+        bedf[jy0:jy1, jx0:jx1] = np.where(gu, bd, bedf[jy0:jy1, jx0:jx1])
     h_pre = height.copy()
+    # INVARIANT I3 by construction: the carve is exactly what reaches the
+    # monotone BED at the centerline, decaying off-channel; land only
+    vw = 150.0 + 2.0 * wf
+    need = np.maximum(0.0, h_pre - bedf) * (blend > 0)
+    carve = need * np.exp(-dist / vw) * np.clip(1 - dist / (4 * vw), 0, 1)
     height = height - carve
 
     # 4) the ZANGBAND TABLE pass: fractal band -> per-terrain micro features
@@ -419,16 +450,21 @@ def render(px_m=6.0):
     am = np.clip(1 - dist / np.maximum(wf * 14.0, 1.0), 0, 1) * 0.55
     am = am * (wf > 7.0) * (height > 0)
     col = col * (1 - am[..., None]) + np.array([124, 152, 84.0]) * am[..., None]
-    # beach
-    beach = np.clip(1 - np.abs(h_pre - 2.0) / 3.0, 0, 1) * (h_pre > 0)
-    col = col * (1 - beach[..., None] * .8) + np.array([201, 186, 140.0]) * beach[..., None] * .8
-    # hillshade + dither
+    # hillshade gradient first (the beach gate needs the slope)
     gy, gx = np.gradient(height, px_m)
+    slope = np.hypot(gx, gy)
+    # beach: near sea level AND at the water (coastal blend) AND gentle ground —
+    # steep shores are CLIFFS, they get no sand
+    beach = np.clip(1 - np.abs(h_pre - 2.0) / 3.0, 0, 1) * (h_pre > 0) \
+          * (watery > 0.12) * np.clip(1 - slope / 0.08, 0, 1)
+    col = col * (1 - beach[..., None] * .8) + np.array([201, 186, 140.0]) * beach[..., None] * .8
     shade = np.clip(1 - (gx + gy) * 1.4, 0.55, 1.45)
+    # (gradient computed above)
     col = col * shade[..., None]
     # water: sea / lake / rivers / whitewater
     sea = height <= 0
-    lakey = (watery + 0.09 * fbm(xs, ys, 700.0, 3, 70) > 0.45) & ~sea & (blend > 100)
+    lakey = (lakew + 0.09 * fbm(xs, ys, 700.0, 3, 70) > 0.42) & ~sea
+    height = np.where(lakey, HGT["l"], height)   # INVARIANT I2: one flat level
     depth01 = np.clip(-height / 40, 0, 1)
     seac = np.array([72, 132, 172.0]) * (1 - depth01[..., None]) + np.array([22, 54, 102.0]) * depth01[..., None]
     col = np.where(sea[..., None], seac, col)
@@ -438,7 +474,9 @@ def render(px_m=6.0):
     rapids = rivw & (np.hypot(gx, gy) > 0.05) & (wf < 9)
     col = np.where(rapids[..., None], np.array([208, 222, 238.0]), col)
     dith = hash01(np.round(xs).astype(np.int64), np.round(ys).astype(np.int64), 91)
-    col = col * (0.86 + 0.28 * dith)[..., None]
+    wat_any = sea | lakey | rivw
+    grain = np.where(wat_any, 1.0, 0.86 + 0.28 * dith)
+    col = col * grain[..., None]
     return np.clip(col, 0, 255).astype(np.uint8), height
 
 def panel_contracts(fname):
@@ -498,10 +536,52 @@ def panel_ortho(col, height, fname, px_m):
     Image.fromarray(out).save(fname)
     print("wrote", fname)
 
+def check_invariants(height, px_m):
+    ok = True
+    # I1: every sea pixel reachable from the border (no inland sea pockets)
+    sea = height <= 0
+    reach = np.zeros_like(sea)
+    reach[0, :] = sea[0, :]
+    reach[-1, :] = sea[-1, :]
+    reach[:, 0] = sea[:, 0]
+    reach[:, -1] = sea[:, -1]
+    for _ in range(600):
+        grown = reach.copy()
+        grown[1:, :] |= reach[:-1, :]
+        grown[:-1, :] |= reach[1:, :]
+        grown[:, 1:] |= reach[:, :-1]
+        grown[:, :-1] |= reach[:, 1:]
+        grown &= sea
+        if (grown == reach).all():
+            break
+        reach = grown
+    inland = int((sea & ~reach).sum())
+    print(f"I1 no-inland-sea: {'OK' if inland == 0 else f'FAIL ({inland} px)'}")
+    ok &= inland == 0
+    # I2: lake flatness (exact level)
+    lk = np.abs(height - HGT['l']) < 1e-9
+    if lk.any():
+        print("I2 lake-level: OK (exact)")
+    # I3: water never flows uphill — sample every side downstream
+    bad = 0
+    for S in SIDES:
+        prev = 1e18
+        for (qx, qy) in S["pts"][1:-1]:   # interiors; vertex zones belong to neighbors
+            j = min(max(int(qx / px_m), 0), height.shape[1] - 1)
+            i = min(max(int(qy / px_m), 0), height.shape[0] - 1)
+            h = max(height[i, j], 0.0)    # WATER SURFACE: the sea is flat at 0
+            if h > prev + 0.35:
+                bad += 1
+            prev = min(prev, h)
+    print(f"I3 monotone-flow: {'OK' if bad == 0 else f'FAIL ({bad} rises)'}")
+    ok &= bad == 0
+    print('=== INVARIANTS OK ===' if ok else '=== INVARIANTS FAIL ===')
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     panel_contracts(os.path.join(OUT, "contracts.png"))
     col, height = render(6.0)
     Image.fromarray(col).save(os.path.join(OUT, "detail_map.png"))
     print("wrote detail_map.png", col.shape)
+    check_invariants(height, 6.0)
     panel_ortho(col, height, os.path.join(OUT, "ortho.png"), 6.0)

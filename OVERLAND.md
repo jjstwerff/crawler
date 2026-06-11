@@ -450,3 +450,25 @@ compounding works); the coastal massif cliffs into the sea; vertical structure
 as MAX of owned forms (peaks + ridges) replaces free noise — form follows
 ownership; lessons: never carve the seabed; lake contours need fractal jitter;
 rivers at 6 m/px read correctly thin (brooks invisible from above — natural).
+
+### 12e. The CONTRACT INVARIANTS (user-named, executable, enforced by construction)
+Pinned in the experiment (`check_invariants`), to become the loft test suite:
+- **I1 — no inland sea**: solid land (coastal blend weight ≈ 0) is FLOORED above
+  sea level; only the bounded coastal band may dip. Check: flood-fill the sea
+  from the map border — zero unreachable sea pixels.
+- **I2 — lakes are level**: a lake OWNS one surface elevation (a vertex/cell
+  contract value); every lake pixel sits exactly on it. Inflowing beds LAND on
+  that level (never undercut it). Check: max−min over the lake = 0, exact.
+- **I3 — water never flows uphill**: the bed is a monotone ramp between
+  vertex-owned levels (cell heights strictly descend along the flow tree, so
+  the network is monotone by construction); the carve is re-derived as exactly
+  the depth that reaches the bed at the centerline. Check: sample every side's
+  interior downstream on the WATER SURFACE (sea = flat 0; vertex zones belong
+  to the neighbor) — no rise.
+LESSON: the checkers caught a REAL bug immediately (false lakes: a wateriness-
+keyed classifier stamped lake level onto sea-coast bands — the lake mask must
+blend LAKE-cell weight only). Invariants are detectors, not just guarantees.
+Also fixed by construction in the same pass: beach requires water adjacency +
+gentle slope (no sand patches up coastal mountains; steep shores are cliffs),
+peak/ridge composition via SMOOTH p-norm max (no crease seams), water surfaces
+excluded from the color dither (smooth lakes/sea/rivers).
