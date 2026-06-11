@@ -134,10 +134,29 @@ that fits on this map.
 - **The bed is the surface anchor:** death with `save_depth = 0` respawns in
   your own bed (the crystal stays the shrine/re-spec, not the spawn point).
   Sleeping in it to pass the night is a natural follow-on (optional, noted).
+- **KINFOLK — a place in the world for every race (user direction):** the hero
+  does not live alone; each race bundle present in the build gets ONE small
+  enclave in the world — a handful of homes and **2–5 kin** (villager-role
+  NPCs wearing the race's skin, living the daily loop: sleep, wander, tend) —
+  sited by the same `home` affinity (the dwarf hold in the foothills by the
+  mine, a few elven lodges under the eaves of the forest, halfling burrows by
+  the fields, a half-orc camp outside the walls). Deliberately NOT abundant —
+  no second town, just enough that meeting your own kind (and the others')
+  makes the world feel peopled. Enclaves are world features (an `OvEnclave`
+  contract beside towns/forts/towers: scored sites, spacing against towns,
+  ruins and each other), so they stamp in whichever WINDOW holds them — some
+  races live windows away, and visiting them is a journey. The hero's Phase-H
+  house stands IN their race's enclave (class hints nudge it to its edge —
+  the necromancer at the unquiet end). The occasional lone WANDERER of another
+  race on the roads (one per window at most, gatherer-style) keeps the rest
+  of the map from reading empty. Removability: no race bundle → no enclave;
+  a race bundle without a `home` section → house-only fallback near town.
 - Tests: every shipped race/class combo resolves a home (fixed seed → house
   exists, bed inside, start-on-bed, location matches the affinity — the dwarf
-  wakes in the foothills, the elf under the trees); a race bundle with no
-  `home` section falls back to the town square start (removability holds).
+  wakes in the foothills among dwarves, the elf under the trees among elves);
+  each present race resolves exactly one enclave with 2–5 kin on the daily
+  loop; a race bundle with no `home` section falls back to the town square
+  start (removability holds).
 
 ## Phase F — the removal MATRIX (the "own game" guarantee)
 
