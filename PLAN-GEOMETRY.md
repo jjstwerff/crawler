@@ -48,6 +48,11 @@ Concrete plotted end-results (candidates below are seeded in
   offset outlines** (±w/2) and **rounded junctions** (arc fillets), plus a fork.
 - **T3 `target_fence.png`** — a fence polyline at odd 15° angles attached to a
   building corner (thin band; posts as dots at the snap vertices).
+- **T4 `target_door.png`** — a building wall with a DOOR: the gap in the band is
+  capped by clean perpendicular JAMBS (engine-rendered — sprites carry no
+  architecture, per CLAUDE.md), a door leaf fits the gap exactly (rotated to the
+  wall direction), and the SAME gap WITHOUT a leaf still reads as a deliberate
+  entrance (capped jambs + threshold), never a ragged hole.
 
 Invariants to pin (each gets an assert in the prototype before the port):
 - **SNAP**: every emitted face direction = k·15° exactly.
@@ -59,6 +64,9 @@ Invariants to pin (each gets an assert in the prototype before the port):
   structure — attachment is the only legal open end).
 - **COLLISION=RENDER**: the triangle band (WALLS.md model) and the rendered faces
   classify the same area (sampled agreement on a fine grid).
+- **JAMB**: every band gap (door/entrance) is capped: a segment ⟂ the band's
+  centerline joins inner face to outer face at BOTH gap ends; the gap width is
+  exact (the leaf must fit); cap directions are in the 24-snap set too.
 
 ### Step 1.1 — kernel data model: outline SPECS beside the tiles
 Today `stamp_round_tower`/walls/roads write only tiles; the circle is forgotten.
@@ -74,7 +82,9 @@ within w/2 of a recorded centerline (`outlinetest.loft`, part 1).
 Port the blueprint: specs → **segments + arcs**. Band faces from centerlines
 (±w/2), **miter** at sharp junctions, **arc fillets** at rounded ones,
 **tangent-attach** for circles, full circles for free-standing towers.
-Output: `OutSeg` (like `WallSeg`) + `OutArc {cx, cy, r, a0, a1}`.
+**Doors/entrances**: a gap in the band emits its two JAMB cap segments
+(inner→outer face, ⟂ centerline) so an opening reads cleanly with or without a
+leaf. Output: `OutSeg` (like `WallSeg`) + `OutArc {cx, cy, r, a0, a1}`.
 Test: golden fixtures exported by the Python blueprint (same input spec → same
 coordinates, ε = 1e-3) + the five invariants re-asserted in loft
 (`outlinetest.loft`, part 2). The dungeon's carved-rock outline stays on today's
@@ -92,7 +102,9 @@ The view consumes `OutSeg` exactly like `WallSeg` today; **arcs** get a chord-fa
 draw (N chords per arc, N by radius — a new small helper beside the segment
 draw). Tile-4 hexes STOP emitting hex-boundary wobble (skipped in `wallgeo`) —
 the circle replaces them. Roads draw their outline strokes over the tint;
-fences draw as thin 24-snapped lines with posts. Verify: `make check`, gate
+fences draw as thin 24-snapped lines with posts. Doors: the leaf is a sprite
+sized/rotated to the gap (the engine's jambs frame it — the sprite carries no
+stonework); a doorless entrance renders as the capped opening alone. Verify: `make check`, gate
 green, geodump-PNG unchanged (the view consumes, never reshapes), THEN the user
 plays a fortress/town/road seed and judges the live frame.
 

@@ -178,8 +178,43 @@ def t_layers():
     im.save(os.path.join(OUT, "target_layers.png"))
 
 
+def t4_door():
+    im, d = canvas()
+    w = 26.0
+
+    def wall_with_gap(ax, ay, steps, length, leaf_steps=None):
+        bx, by = snap_leg(ax, ay, steps, length)
+        dx, dy = bx - ax, by - ay
+        L = math.hypot(dx, dy)
+        ux, uy = dx / L, dy / L
+        nx, ny = -uy * w / 2, ux * w / 2
+        gap0, gap1 = 0.40, 0.60
+        for t0, t1 in [(0.0, gap0), (gap1, 1.0)]:
+            thick_leg(d, ax + t0 * L * ux, ay + t0 * L * uy,
+                      ax + t1 * L * ux, ay + t1 * L * uy, w)
+        for t in (gap0, gap1):       # JAMB caps: inner face -> outer face
+            jx, jy = ax + t * L * ux, ay + t * L * uy
+            d.line([(jx + nx, jy + ny), (jx - nx, jy - ny)], fill=ACCENT, width=5)
+        if leaf_steps is not None:   # the leaf, hinged at gap0, drawn ajar
+            g0x, g0y = ax + gap0 * L * ux, ay + gap0 * L * uy
+            lx, ly = snap_leg(g0x, g0y, leaf_steps, (gap1 - gap0) * L)
+            d.line([(g0x, g0y), (lx, ly)], fill=WALL, width=6)
+        return ax + 0.5 * L * ux, ay + 0.5 * L * uy
+
+    mx, my = wall_with_gap(90, 110, 1, 460, leaf_steps=4)
+    d.text((mx - 60, my - 56), "DOOR: leaf fits the gap exactly,", fill=WALL)
+    d.text((mx - 60, my - 44), "hinged at a jamb (jambs in red)", fill=ACCENT)
+    mx2, my2 = wall_with_gap(110, 390, 0, 460)
+    d.text((mx2 - 60, my2 + 40), "OPEN ENTRANCE, no leaf: the same", fill=WALL)
+    d.text((mx2 - 60, my2 + 52), "capped jambs - never a ragged hole", fill=ACCENT)
+    d.text((12, 8), "T4 doors: a gap in the band, capped by perpendicular"
+                    " engine-rendered jambs (red); with + without a leaf", fill=WALL)
+    im.save(os.path.join(OUT, "target_door.png"))
+
+
 t1_curtain()
 t2_road()
 t3_fence()
+t4_door()
 t_layers()
 print("targets written to", OUT)
