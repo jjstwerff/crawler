@@ -1875,58 +1875,6 @@ fn import_key(i: integer) -> text {
 // WHERE THE WILD THINGS LIVE: each terrain kind carries its natural fauna
 // (branch selectors — C27). Tier 1 = the nearer wilds, tier 2 = the far and
 // high. Engine keys only — bundle monsters place through their own rules.
-fn habitat_key(kind: integer, tier: integer, pick: integer) -> text {
-  r = pick % 3 ?? 0;
-  if kind == K_FOREST {
-    if tier >= 2 {
-      if r == 0 { return "giant_spider"; }
-      if r == 1 { return "dark_elf"; }
-      return "ogre";
-    }
-    if r == 0 { return "centipede"; }
-    if r == 1 { return "giant_spider"; }
-    return "giant_rat";
-  }
-  if kind == K_MEADOW {
-    if tier >= 2 && r == 0 { return "harpy"; }
-    if r == 1 { return "white_snake"; }
-    return "white_mouse";
-  }
-  if kind == K_SCREE {
-    if tier >= 2 {
-      if r == 0 { return "basilisk"; }
-      if r == 1 { return "troll"; }
-      return "kobold";
-    }
-    if r == 0 { return "kobold"; }
-    if r == 1 { return "giant_bat"; }
-    return "cave_spider";
-  }
-  if kind == K_SNOW || kind == K_ICE {
-    if r == 0 { return "wyvern"; }
-    if r == 1 { return "stone_giant"; }
-    return "harpy";
-  }
-  if kind == K_SWAMP {
-    if tier >= 2 && r == 0 { return "ghoul"; }
-    if r == 1 { return "grey_mold"; }
-    return "giant_frog";
-  }
-  if kind == K_SAND {
-    if r == 0 { return "giant_ant"; }
-    return "white_snake";
-  }
-  // the open grass and fields
-  if tier >= 2 {
-    if r == 0 { return "gnoll"; }
-    if r == 1 { return "ogre"; }
-    return "jackal";
-  }
-  if r == 0 { return "jackal"; }
-  if r == 1 { return "giant_ant"; }
-  return "giant_rat";
-}
-
 // The cart's TRADE: at the home market it loads what the makers offer — but
 // only weapons/armour, only the LIGHT ones (a cart is no ox-train), and only
 // two slots (not much choice); at the route's far end it sets them out.
@@ -3291,12 +3239,14 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                 }
               }
             }
-            // the nest: goblins + their leader, sleeping among the stones
-            gld = mon_find(ctbl2, "goblin_leader");
+            // the nest: whoever nests in broken places, and their leader,
+            // sleeping among the stones (trait-picked — never by key)
+            rsalt = (ruq * 2654435761 ^ rur * 40503) & 2147483647;
+            gld = mon_pick_tag(ctbl2, TAG_RUIN_BOSS, rsalt);
             if gld.m_hp > 0 && !occupied_hex(enemies, ruq, rur) {
               enemies += [mk_enemy(gld, ruq, rur)];
             }
-            gob = mon_find(ctbl2, "goblin");
+            gob = mon_pick_tag(ctbl2, TAG_RUIN_NEST, rsalt);
             if gob.m_hp > 0 {
               ngob = 2 + ru2.ru_size;
               for gb2 in 0..ngob {
@@ -3308,8 +3258,8 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
             }
             if ru2.ru_size >= 3 {
               // the DEAD CITY keeps its dead
-              skl = mon_find(ctbl2, "skeleton");
-              zmb = mon_find(ctbl2, "zombie");
+              skl = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt);
+              zmb = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt + 1);
               if skl.m_hp > 0 && !occupied_hex(enemies, ruq + 3, rur + 2) {
                 enemies += [mk_enemy(skl, ruq + 3, rur + 2)];
               }
@@ -3344,7 +3294,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               }
               if hasface && haswater {
                 if tic2 < len(tiles) { tiles[tic2] = 6; }
-                bat2 = mon_find(ctbl2, "giant_bat");
+                bat2 = mon_pick_tag(ctbl2, TAG_CAVE_ROOST, cvq * 31 + cvr);
                 if bat2.m_hp > 0 && !occupied_hex(enemies, cvq + 1, cvr) {
                   enemies += [mk_enemy(bat2, cvq + 1, cvr)];
                 }
@@ -3380,7 +3330,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                   }
                 }
               }
-              skl2 = mon_find(ctbl2, "skeleton");
+              skl2 = mon_pick_tag(ctbl2, TAG_TOWER_DWELLER, wzi2);
               if skl2.m_hp > 0 && !occupied_hex(enemies, wzq, wzr) {
                 enemies += [mk_enemy(skl2, wzq, wzr)];
               }
@@ -3407,8 +3357,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           if tkw != K_LAKE && tkw != K_SEA && tkw != K_RIVER && tkw != K_ROAD && tkw != K_FIELD {
             wtier = 1;
             if wd9 >= 40 { wtier = 2; }
-            wkey9 = habitat_key(tkw, wtier, rng.get(0, 2000000000) ?? 0);
-            wdef = mon_find(ctbl2, wkey9);
+            wdef = mon_choose_habitat(ctbl2, tkw, wtier, rng.get(0, 2000000000) ?? 0);
             if wdef.m_hp > 0 {
               enemies += [mk_enemy(wdef, wq9, wr9)];
               wplaced = wplaced + 1;
@@ -4035,6 +3984,30 @@ pub fn sim_stair_under(s: Sim) -> integer {
 
 pub fn sim_down_hex(s: Sim) -> (integer, integer) { (s.dn_q, s.dn_r) }
 pub fn sim_up_hex(s: Sim) -> (integer, integer) { (s.up_q, s.up_r) }
+
+// THE TRAIT SEAM's honesty check: every wild creature on the surface that
+// DECLARES a habitat is standing on terrain it claims (either tier). Civilians,
+// nests/roosts (tag-placed) and the crystal pass through. 1 = all good.
+pub fn sim_wilds_ok(s: Sim) -> integer {
+  tbl = game_monsters();
+  for ei in 0..len(s.enemies) {
+    e = s.enemies[ei];
+    dfar = 0;
+    if e != null { dfar = hex_distance(e.cur_q, e.cur_r, s.lw / 2, s.lh / 2); }
+    if e != null && e.alive && e.role == 0 && dfar >= 25 {
+      md = mon_find(tbl, e.key);
+      hb = md.m_habitat ?? 0;
+      if hb != 0 {
+        tkk = sim_tile_kind(s, e.cur_q, e.cur_r);
+        if tkk >= 0 {
+          bits = (1 << tkk) | ((1 << tkk) * HB_T2);
+          if (hb & bits) == 0 { return 0; }
+        }
+      }
+    }
+  }
+  1
+}
 
 // ── MULTI-WINDOW TRAVEL: the wilderness continues past the window's edge ──────
 pub fn sim_window(s: Sim) -> (integer, integer) { (s.win_x, s.win_y) }

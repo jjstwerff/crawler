@@ -20,6 +20,29 @@ pub const MF_POISON     = 256;  // a venomous bite — its melee can poison the 
 pub const MF_SHRINE     = 512;  // bump = INTERACT, not melee (the spawning crystal's re-spec);
                                 //   still targetable by ranged fire — destroying it is a choice
 
+// ── THE TRAIT SEAM (PLAN-BUNDLES Phase A) ────────────────────────────────────
+// The engine never asks for a monster BY KEY — it asks the merged catalog for
+// one that FITS A PLACE. Defs declare where they live (m_habitat: a bitmask
+// over the overland terrain kinds, low 16 bits = the near/tier-1 wilds, high
+// bits (x HB_T2) = the far/tier-2 wilds) and what placement roles they fill
+// (m_tags). Both are nullable: a def that declares nothing is dungeon-only.
+// The HB_* values are 1 << K_<kind> — pinned against overland by the gate.
+pub HB_GRASS  = 1;        // 1 << K_GRASS(0)
+pub HB_FOREST = 2;        // 1 << K_FOREST(1)
+pub HB_SAND   = 4;        // 1 << K_SAND(2)
+pub HB_SCREE  = 8;        // 1 << K_SCREE(3)
+pub HB_MEADOW = 16;       // 1 << K_MEADOW(4)
+pub HB_SNOW   = 32;       // 1 << K_SNOW(5)
+pub HB_ICE    = 128;      // 1 << K_ICE(7)
+pub HB_SWAMP  = 8192;     // 1 << K_SWAMP(13)
+pub HB_T2     = 65536;    // multiply a HB_* by this for the far-tier bit (<< 16)
+
+pub TAG_RUIN_NEST     = 1;   // nests in the broken places (band spawn)
+pub TAG_RUIN_BOSS     = 2;   // leads a ruin nest
+pub TAG_GRAVE         = 4;   // the dead city keeps its dead
+pub TAG_CAVE_ROOST    = 8;   // sleeps at a cave mouth
+pub TAG_TOWER_DWELLER = 16;  // haunts an abandoned tower
+
 pub struct MonsterDef {
   m_key:    text,                 // stable id, e.g. "giant_rat"
   m_name:   text,                 // display name
@@ -36,6 +59,8 @@ pub struct MonsterDef {
   m_vision: integer not null,     // aggro / detection range (hexes)
   m_xp:     integer not null,     // experience reward
   m_flags:  integer not null,
+  m_habitat: integer,             // terrain bitmask (HB_*; null = dungeon-only)
+  m_tags:    integer,             // placement roles (TAG_*; null = none)
 }
 
 pub fn mon_none() -> MonsterDef {
@@ -49,43 +74,43 @@ pub fn mon_none() -> MonsterDef {
 pub fn monster_table() -> vector<MonsterDef> {
   t: vector<MonsterDef> = [];
   // ── shallow (1-3) ──
-  t += [MonsterDef { m_key: "giant_rat", m_name: "giant rat", m_glyph: "r", m_cr: 150, m_cg: 90, m_cb: 60, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 0, m_dam: 1, m_vision: 6, m_xp: 1, m_flags: MF_GROUP | MF_BREEDER }];
+  t += [MonsterDef { m_key: "giant_rat", m_name: "giant rat", m_glyph: "r", m_cr: 150, m_cg: 90, m_cb: 60, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 0, m_dam: 1, m_vision: 6, m_xp: 1, m_flags: MF_GROUP | MF_BREEDER , m_habitat: HB_FOREST | HB_GRASS }];
   // The surface spawning crystal (placed explicitly on the desert; rarity 0 = never random). A
   // stationary, harmless-but-destructible landmark that has spawned the knot of monsters around it.
   t += [MonsterDef { m_key: "spawn_crystal", m_name: "spawning crystal", m_glyph: "*", m_cr: 120, m_cg: 220, m_cb: 240, m_depth: 0, m_rarity: 0, m_hp: 25, m_ac: 10, m_speed: 0, m_dam: 0, m_vision: 0, m_xp: 10, m_flags: MF_NEVER_MOVE | MF_SHRINE }];
-  t += [MonsterDef { m_key: "white_mouse", m_name: "white mouse", m_glyph: "r", m_cr: 220, m_cg: 220, m_cb: 220, m_depth: 1, m_rarity: 1, m_hp: 2, m_ac: 3, m_speed: 0, m_dam: 1, m_vision: 5, m_xp: 1, m_flags: MF_BREEDER }];
-  t += [MonsterDef { m_key: "giant_bat", m_name: "giant bat", m_glyph: "b", m_cr: 140, m_cg: 90, m_cb: 160, m_depth: 1, m_rarity: 1, m_hp: 4, m_ac: 5, m_speed: 5, m_dam: 2, m_vision: 8, m_xp: 2, m_flags: MF_ERRATIC }];
+  t += [MonsterDef { m_key: "white_mouse", m_name: "white mouse", m_glyph: "r", m_cr: 220, m_cg: 220, m_cb: 220, m_depth: 1, m_rarity: 1, m_hp: 2, m_ac: 3, m_speed: 0, m_dam: 1, m_vision: 5, m_xp: 1, m_flags: MF_BREEDER , m_habitat: HB_MEADOW | HB_MEADOW * HB_T2 }];
+  t += [MonsterDef { m_key: "giant_bat", m_name: "giant bat", m_glyph: "b", m_cr: 140, m_cg: 90, m_cb: 160, m_depth: 1, m_rarity: 1, m_hp: 4, m_ac: 5, m_speed: 5, m_dam: 2, m_vision: 8, m_xp: 2, m_flags: MF_ERRATIC , m_habitat: HB_SCREE, m_tags: TAG_CAVE_ROOST }];
   // a fast, simple straight-line chaser: m_speed +5 => 1.5 actions/tick (1 step one tick, 2 the next)
-  t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "j", m_cr: 170, m_cg: 140, m_cb: 90, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 5, m_dam: 1, m_vision: 8, m_xp: 1, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "centipede", m_name: "crawling centipede", m_glyph: "c", m_cr: 200, m_cg: 120, m_cb: 40, m_depth: 1, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 0, m_dam: 2, m_vision: 6, m_xp: 2, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "white_snake", m_name: "white snake", m_glyph: "J", m_cr: 230, m_cg: 230, m_cb: 230, m_depth: 2, m_rarity: 1, m_hp: 8, m_ac: 4, m_speed: 0 - 5, m_dam: 3, m_vision: 6, m_xp: 3, m_flags: MF_POISON }];
-  t += [MonsterDef { m_key: "grey_mold", m_name: "grey mold", m_glyph: "m", m_cr: 140, m_cg: 140, m_cb: 140, m_depth: 2, m_rarity: 2, m_hp: 10, m_ac: 2, m_speed: 0, m_dam: 2, m_vision: 2, m_xp: 3, m_flags: MF_NEVER_MOVE | MF_BREEDER }];
-  t += [MonsterDef { m_key: "kobold", m_name: "kobold", m_glyph: "k", m_cr: 120, m_cg: 180, m_cb: 80, m_depth: 2, m_rarity: 1, m_hp: 6, m_ac: 8, m_speed: 0, m_dam: 3, m_vision: 8, m_xp: 3, m_flags: MF_GROUP }];
-  t += [MonsterDef { m_key: "cave_spider", m_name: "cave spider", m_glyph: "S", m_cr: 90, m_cg: 90, m_cb: 200, m_depth: 3, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 10, m_dam: 2, m_vision: 8, m_xp: 3, m_flags: MF_GROUP }];
-  t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "C", m_cr: 180, m_cg: 140, m_cb: 70, m_depth: 3, m_rarity: 1, m_hp: 6, m_ac: 7, m_speed: 5, m_dam: 3, m_vision: 10, m_xp: 3, m_flags: MF_GROUP }];
-  t += [MonsterDef { m_key: "goblin", m_name: "goblin", m_glyph: "g", m_cr: 100, m_cg: 160, m_cb: 90, m_depth: 3, m_rarity: 1, m_hp: 9, m_ac: 10, m_speed: 0, m_dam: 4, m_vision: 9, m_xp: 4, m_flags: MF_GROUP }];
-  t += [MonsterDef { m_key: "goblin_leader", m_name: "goblin leader", m_glyph: "g", m_cr: 140, m_cg: 180, m_cb: 80, m_depth: 5, m_rarity: 2, m_hp: 22, m_ac: 16, m_speed: 0, m_dam: 7, m_vision: 11, m_xp: 14, m_flags: MF_GROUP }];
+  t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "j", m_cr: 170, m_cg: 140, m_cb: 90, m_depth: 1, m_rarity: 1, m_hp: 3, m_ac: 4, m_speed: 5, m_dam: 1, m_vision: 8, m_xp: 1, m_flags: MF_NONE , m_habitat: HB_GRASS }];
+  t += [MonsterDef { m_key: "centipede", m_name: "crawling centipede", m_glyph: "c", m_cr: 200, m_cg: 120, m_cb: 40, m_depth: 1, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 0, m_dam: 2, m_vision: 6, m_xp: 2, m_flags: MF_NONE , m_habitat: HB_FOREST }];
+  t += [MonsterDef { m_key: "white_snake", m_name: "white snake", m_glyph: "J", m_cr: 230, m_cg: 230, m_cb: 230, m_depth: 2, m_rarity: 1, m_hp: 8, m_ac: 4, m_speed: 0 - 5, m_dam: 3, m_vision: 6, m_xp: 3, m_flags: MF_POISON , m_habitat: HB_MEADOW | HB_SAND | (HB_MEADOW | HB_SAND) * HB_T2 }];
+  t += [MonsterDef { m_key: "grey_mold", m_name: "grey mold", m_glyph: "m", m_cr: 140, m_cg: 140, m_cb: 140, m_depth: 2, m_rarity: 2, m_hp: 10, m_ac: 2, m_speed: 0, m_dam: 2, m_vision: 2, m_xp: 3, m_flags: MF_NEVER_MOVE | MF_BREEDER , m_habitat: HB_SWAMP | HB_SWAMP * HB_T2 }];
+  t += [MonsterDef { m_key: "kobold", m_name: "kobold", m_glyph: "k", m_cr: 120, m_cg: 180, m_cb: 80, m_depth: 2, m_rarity: 1, m_hp: 6, m_ac: 8, m_speed: 0, m_dam: 3, m_vision: 8, m_xp: 3, m_flags: MF_GROUP , m_habitat: HB_SCREE | HB_SCREE * HB_T2 }];
+  t += [MonsterDef { m_key: "cave_spider", m_name: "cave spider", m_glyph: "S", m_cr: 90, m_cg: 90, m_cb: 200, m_depth: 3, m_rarity: 1, m_hp: 5, m_ac: 6, m_speed: 10, m_dam: 2, m_vision: 8, m_xp: 3, m_flags: MF_GROUP , m_habitat: HB_SCREE }];
+  t += [MonsterDef { m_key: "jackal", m_name: "jackal", m_glyph: "C", m_cr: 180, m_cg: 140, m_cb: 70, m_depth: 3, m_rarity: 1, m_hp: 6, m_ac: 7, m_speed: 5, m_dam: 3, m_vision: 10, m_xp: 3, m_flags: MF_GROUP , m_habitat: HB_GRASS * HB_T2 }];
+  t += [MonsterDef { m_key: "goblin", m_name: "goblin", m_glyph: "g", m_cr: 100, m_cg: 160, m_cb: 90, m_depth: 3, m_rarity: 1, m_hp: 9, m_ac: 10, m_speed: 0, m_dam: 4, m_vision: 9, m_xp: 4, m_flags: MF_GROUP , m_tags: TAG_RUIN_NEST }];
+  t += [MonsterDef { m_key: "goblin_leader", m_name: "goblin leader", m_glyph: "g", m_cr: 140, m_cg: 180, m_cb: 80, m_depth: 5, m_rarity: 2, m_hp: 22, m_ac: 16, m_speed: 0, m_dam: 7, m_vision: 11, m_xp: 14, m_flags: MF_GROUP , m_tags: TAG_RUIN_BOSS }];
   // Faithful design: 0 melee, its threat is a paralysing GAZE (the Tier-2 special-attack system).
   // Do NOT give it a stand-in bite — implement the gaze instead.
   t += [MonsterDef { m_key: "floating_eye", m_name: "floating eye", m_glyph: "e", m_cr: 240, m_cg: 220, m_cb: 60, m_depth: 3, m_rarity: 2, m_hp: 11, m_ac: 3, m_speed: 0, m_dam: 0, m_vision: 5, m_xp: 5, m_flags: MF_NEVER_MOVE | MF_CASTER | MF_GAZE }];
   // ── mid (4-10) ──
-  t += [MonsterDef { m_key: "giant_frog", m_name: "giant frog", m_glyph: "R", m_cr: 90, m_cg: 200, m_cb: 90, m_depth: 4, m_rarity: 1, m_hp: 14, m_ac: 8, m_speed: 0, m_dam: 4, m_vision: 7, m_xp: 5, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "giant_frog", m_name: "giant frog", m_glyph: "R", m_cr: 90, m_cg: 200, m_cb: 90, m_depth: 4, m_rarity: 1, m_hp: 14, m_ac: 8, m_speed: 0, m_dam: 4, m_vision: 7, m_xp: 5, m_flags: MF_NONE , m_habitat: HB_SWAMP | HB_SWAMP * HB_T2 }];
   t += [MonsterDef { m_key: "orc", m_name: "orc", m_glyph: "o", m_cr: 90, m_cg: 150, m_cb: 70, m_depth: 4, m_rarity: 1, m_hp: 16, m_ac: 12, m_speed: 0, m_dam: 5, m_vision: 10, m_xp: 6, m_flags: MF_GROUP }];
-  t += [MonsterDef { m_key: "skeleton", m_name: "skeleton", m_glyph: "s", m_cr: 230, m_cg: 230, m_cb: 210, m_depth: 5, m_rarity: 1, m_hp: 15, m_ac: 11, m_speed: 0, m_dam: 5, m_vision: 9, m_xp: 6, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "zombie", m_name: "zombie", m_glyph: "z", m_cr: 110, m_cg: 140, m_cb: 90, m_depth: 5, m_rarity: 1, m_hp: 22, m_ac: 9, m_speed: 0 - 5, m_dam: 5, m_vision: 8, m_xp: 7, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "giant_ant", m_name: "giant ant", m_glyph: "a", m_cr: 160, m_cg: 60, m_cb: 40, m_depth: 5, m_rarity: 1, m_hp: 12, m_ac: 14, m_speed: 5, m_dam: 4, m_vision: 8, m_xp: 6, m_flags: MF_GROUP }];
-  t += [MonsterDef { m_key: "gnoll", m_name: "gnoll", m_glyph: "n", m_cr: 180, m_cg: 140, m_cb: 60, m_depth: 6, m_rarity: 1, m_hp: 20, m_ac: 13, m_speed: 0, m_dam: 6, m_vision: 10, m_xp: 8, m_flags: MF_GROUP }];
-  t += [MonsterDef { m_key: "ghoul", m_name: "ghoul", m_glyph: "G", m_cr: 130, m_cg: 160, m_cb: 120, m_depth: 7, m_rarity: 2, m_hp: 24, m_ac: 14, m_speed: 5, m_dam: 6, m_vision: 10, m_xp: 10, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "ogre", m_name: "ogre", m_glyph: "O", m_cr: 160, m_cg: 110, m_cb: 70, m_depth: 8, m_rarity: 1, m_hp: 40, m_ac: 16, m_speed: 0, m_dam: 10, m_vision: 10, m_xp: 14, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "harpy", m_name: "harpy", m_glyph: "H", m_cr: 200, m_cg: 170, m_cb: 90, m_depth: 8, m_rarity: 2, m_hp: 22, m_ac: 14, m_speed: 10, m_dam: 5, m_vision: 11, m_xp: 10, m_flags: MF_GROUP | MF_ERRATIC }];
-  t += [MonsterDef { m_key: "dark_elf", m_name: "dark elf", m_glyph: "h", m_cr: 150, m_cg: 90, m_cb: 200, m_depth: 9, m_rarity: 2, m_hp: 26, m_ac: 15, m_speed: 5, m_dam: 6, m_vision: 12, m_xp: 14, m_flags: MF_CASTER }];
+  t += [MonsterDef { m_key: "skeleton", m_name: "skeleton", m_glyph: "s", m_cr: 230, m_cg: 230, m_cb: 210, m_depth: 5, m_rarity: 1, m_hp: 15, m_ac: 11, m_speed: 0, m_dam: 5, m_vision: 9, m_xp: 6, m_flags: MF_NONE , m_tags: TAG_GRAVE | TAG_TOWER_DWELLER }];
+  t += [MonsterDef { m_key: "zombie", m_name: "zombie", m_glyph: "z", m_cr: 110, m_cg: 140, m_cb: 90, m_depth: 5, m_rarity: 1, m_hp: 22, m_ac: 9, m_speed: 0 - 5, m_dam: 5, m_vision: 8, m_xp: 7, m_flags: MF_NONE , m_tags: TAG_GRAVE }];
+  t += [MonsterDef { m_key: "giant_ant", m_name: "giant ant", m_glyph: "a", m_cr: 160, m_cg: 60, m_cb: 40, m_depth: 5, m_rarity: 1, m_hp: 12, m_ac: 14, m_speed: 5, m_dam: 4, m_vision: 8, m_xp: 6, m_flags: MF_GROUP , m_habitat: HB_GRASS | HB_SAND | HB_SAND * HB_T2 }];
+  t += [MonsterDef { m_key: "gnoll", m_name: "gnoll", m_glyph: "n", m_cr: 180, m_cg: 140, m_cb: 60, m_depth: 6, m_rarity: 1, m_hp: 20, m_ac: 13, m_speed: 0, m_dam: 6, m_vision: 10, m_xp: 8, m_flags: MF_GROUP , m_habitat: HB_GRASS * HB_T2 }];
+  t += [MonsterDef { m_key: "ghoul", m_name: "ghoul", m_glyph: "G", m_cr: 130, m_cg: 160, m_cb: 120, m_depth: 7, m_rarity: 2, m_hp: 24, m_ac: 14, m_speed: 5, m_dam: 6, m_vision: 10, m_xp: 10, m_flags: MF_NONE , m_habitat: HB_SWAMP * HB_T2 }];
+  t += [MonsterDef { m_key: "ogre", m_name: "ogre", m_glyph: "O", m_cr: 160, m_cg: 110, m_cb: 70, m_depth: 8, m_rarity: 1, m_hp: 40, m_ac: 16, m_speed: 0, m_dam: 10, m_vision: 10, m_xp: 14, m_flags: MF_NONE , m_habitat: (HB_FOREST | HB_GRASS) * HB_T2 }];
+  t += [MonsterDef { m_key: "harpy", m_name: "harpy", m_glyph: "H", m_cr: 200, m_cg: 170, m_cb: 90, m_depth: 8, m_rarity: 2, m_hp: 22, m_ac: 14, m_speed: 10, m_dam: 5, m_vision: 11, m_xp: 10, m_flags: MF_GROUP | MF_ERRATIC , m_habitat: HB_MEADOW * HB_T2 | HB_SNOW | HB_ICE | (HB_SNOW | HB_ICE) * HB_T2 }];
+  t += [MonsterDef { m_key: "dark_elf", m_name: "dark elf", m_glyph: "h", m_cr: 150, m_cg: 90, m_cb: 200, m_depth: 9, m_rarity: 2, m_hp: 26, m_ac: 15, m_speed: 5, m_dam: 6, m_vision: 12, m_xp: 14, m_flags: MF_CASTER , m_habitat: HB_FOREST * HB_T2 }];
   t += [MonsterDef { m_key: "wraith", m_name: "wraith", m_glyph: "W", m_cr: 90, m_cg: 90, m_cb: 140, m_depth: 10, m_rarity: 2, m_hp: 30, m_ac: 16, m_speed: 0, m_dam: 7, m_vision: 12, m_xp: 18, m_flags: MF_CASTER }];
   // ── deep (12+) ──
-  t += [MonsterDef { m_key: "troll", m_name: "troll", m_glyph: "T", m_cr: 90, m_cg: 170, m_cb: 90, m_depth: 12, m_rarity: 1, m_hp: 65, m_ac: 20, m_speed: 0, m_dam: 14, m_vision: 12, m_xp: 30, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "giant_spider", m_name: "giant spider", m_glyph: "S", m_cr: 140, m_cg: 80, m_cb: 200, m_depth: 13, m_rarity: 2, m_hp: 45, m_ac: 18, m_speed: 10, m_dam: 8, m_vision: 12, m_xp: 28, m_flags: MF_CASTER }];
-  t += [MonsterDef { m_key: "wyvern", m_name: "wyvern", m_glyph: "w", m_cr: 120, m_cg: 140, m_cb: 200, m_depth: 14, m_rarity: 2, m_hp: 70, m_ac: 22, m_speed: 10, m_dam: 12, m_vision: 14, m_xp: 40, m_flags: MF_NONE }];
-  t += [MonsterDef { m_key: "basilisk", m_name: "basilisk", m_glyph: "R", m_cr: 110, m_cg: 200, m_cb: 110, m_depth: 16, m_rarity: 2, m_hp: 80, m_ac: 24, m_speed: 0, m_dam: 12, m_vision: 12, m_xp: 55, m_flags: MF_CASTER }];
-  t += [MonsterDef { m_key: "stone_giant", m_name: "stone giant", m_glyph: "P", m_cr: 160, m_cg: 160, m_cb: 160, m_depth: 18, m_rarity: 2, m_hp: 120, m_ac: 26, m_speed: 0, m_dam: 20, m_vision: 12, m_xp: 80, m_flags: MF_NONE }];
+  t += [MonsterDef { m_key: "troll", m_name: "troll", m_glyph: "T", m_cr: 90, m_cg: 170, m_cb: 90, m_depth: 12, m_rarity: 1, m_hp: 65, m_ac: 20, m_speed: 0, m_dam: 14, m_vision: 12, m_xp: 30, m_flags: MF_NONE , m_habitat: HB_SCREE * HB_T2 }];
+  t += [MonsterDef { m_key: "giant_spider", m_name: "giant spider", m_glyph: "S", m_cr: 140, m_cg: 80, m_cb: 200, m_depth: 13, m_rarity: 2, m_hp: 45, m_ac: 18, m_speed: 10, m_dam: 8, m_vision: 12, m_xp: 28, m_flags: MF_CASTER , m_habitat: HB_FOREST | HB_FOREST * HB_T2 }];
+  t += [MonsterDef { m_key: "wyvern", m_name: "wyvern", m_glyph: "w", m_cr: 120, m_cg: 140, m_cb: 200, m_depth: 14, m_rarity: 2, m_hp: 70, m_ac: 22, m_speed: 10, m_dam: 12, m_vision: 14, m_xp: 40, m_flags: MF_NONE , m_habitat: HB_SNOW | HB_ICE | (HB_SNOW | HB_ICE) * HB_T2 }];
+  t += [MonsterDef { m_key: "basilisk", m_name: "basilisk", m_glyph: "R", m_cr: 110, m_cg: 200, m_cb: 110, m_depth: 16, m_rarity: 2, m_hp: 80, m_ac: 24, m_speed: 0, m_dam: 12, m_vision: 12, m_xp: 55, m_flags: MF_CASTER , m_habitat: HB_SCREE * HB_T2 }];
+  t += [MonsterDef { m_key: "stone_giant", m_name: "stone giant", m_glyph: "P", m_cr: 160, m_cg: 160, m_cb: 160, m_depth: 18, m_rarity: 2, m_hp: 120, m_ac: 26, m_speed: 0, m_dam: 20, m_vision: 12, m_xp: 80, m_flags: MF_NONE , m_habitat: HB_SNOW | HB_ICE | (HB_SNOW | HB_ICE) * HB_T2 }];
   t += [MonsterDef { m_key: "lich", m_name: "lich", m_glyph: "L", m_cr: 180, m_cg: 120, m_cb: 220, m_depth: 20, m_rarity: 3, m_hp: 110, m_ac: 28, m_speed: 5, m_dam: 14, m_vision: 16, m_xp: 140, m_flags: MF_CASTER }];
   // ── uniques (original names; rarity 0) ──
   t += [MonsterDef { m_key: "skarn_rat_king", m_name: "Skarn, the Rat King", m_glyph: "r", m_cr: 200, m_cg: 60, m_cb: 60, m_depth: 3, m_rarity: 0, m_hp: 30, m_ac: 10, m_speed: 5, m_dam: 5, m_vision: 12, m_xp: 25, m_flags: MF_UNIQUE | MF_GROUP | MF_BREEDER }];
@@ -99,6 +124,50 @@ pub fn monster_table() -> vector<MonsterDef> {
 
 pub fn mon_has_flag(m: MonsterDef, flag: integer) -> boolean {
   (m.m_flags & flag) != 0
+}
+
+// A monster that LIVES HERE: terrain kind + danger tier -> a fitting def from
+// the merged catalog (deterministic via salt; mon_none when nothing fits —
+// an empty land stays silent, never crashes). Uniques (rarity 0) never roam.
+pub fn mon_choose_habitat(table: vector<MonsterDef>, kind: integer, tier: integer, salt: integer) -> MonsterDef {
+  bit = 1 << kind;
+  if tier >= 2 { bit = bit * HB_T2; }
+  n = 0;
+  for mi in 0..len(table) {
+    m = table[mi] ?? mon_none();
+    if m.m_hp > 0 && m.m_rarity > 0 && ((m.m_habitat ?? 0) & bit) != 0 { n += 1; }
+  }
+  if n == 0 { return mon_none(); }
+  pick = salt % n ?? 0;
+  k = 0;
+  for mj in 0..len(table) {
+    m2 = table[mj] ?? mon_none();
+    if m2.m_hp > 0 && m2.m_rarity > 0 && ((m2.m_habitat ?? 0) & bit) != 0 {
+      if k == pick { return m2; }
+      k += 1;
+    }
+  }
+  mon_none()
+}
+
+// A monster that FILLS THIS ROLE (ruin nest, grave, roost, ...). Same contract.
+pub fn mon_pick_tag(table: vector<MonsterDef>, tag: integer, salt: integer) -> MonsterDef {
+  n = 0;
+  for mi in 0..len(table) {
+    m = table[mi] ?? mon_none();
+    if m.m_hp > 0 && ((m.m_tags ?? 0) & tag) != 0 { n += 1; }
+  }
+  if n == 0 { return mon_none(); }
+  pick = salt % n ?? 0;
+  k = 0;
+  for mj in 0..len(table) {
+    m2 = table[mj] ?? mon_none();
+    if m2.m_hp > 0 && ((m2.m_tags ?? 0) & tag) != 0 {
+      if k == pick { return m2; }
+      k += 1;
+    }
+  }
+  mon_none()
 }
 
 pub fn mon_find(table: vector<MonsterDef>, key: text) -> MonsterDef {

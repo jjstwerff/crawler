@@ -278,6 +278,10 @@ test:
 	@echo "  [cave] natural caves: mouths on the surface, narrow winding levels ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/cavetest.loft | tee /tmp/story_cave.log
 	@grep -q "CAVE OK" /tmp/story_cave.log || { echo "    FAIL: cave"; exit 1; }
+	@echo "  [seam] trait seam: no engine spawn by monster key (PLAN-BUNDLES A) ..."
+	@if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then \
+	  echo "    FAIL: engine references a monster key:"; \
+	  grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal; exit 1; fi
 	@echo "  [travel] window crossing + the desert gate ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/traveltest.loft | tee /tmp/story_travel.log
 	@grep -q "TRAVEL OK" /tmp/story_travel.log || { echo "    FAIL: travel"; exit 1; }

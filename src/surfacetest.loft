@@ -14,6 +14,7 @@ fn main() {
   nc = sim_enemy_count(surf) - sim_npc_count(surf);   // hostiles only (the town is populated too)
   knot = nc >= 1 && nc < 30;                     // crystal knot + the wilds + ruin nests
   nostair = sim_stair_under(surf) == 0;          // standing on open ground, not a stair
+  wilds_fit = sim_wilds_ok(surf) == 1;           // every wild creature stands on terrain it claims
 
   // THE DAILY LOOP: the town is POPULATED (villagers/farmers/guards/fisher,
   // boats where there is water); it is day at dawn; sixty ticks of life run
@@ -34,9 +35,9 @@ fn main() {
     }
   }
 
-  println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} no-town-entrance={noent}");
+  println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} no-town-entrance={noent} wilds-fit={wilds_fit}");
   println("town: npcs={npcs0} day={at_day} alive-after-60-ticks={alive_still}");
-  ok = d0 == 0 && openc && kinds_live && knot && nostair && noent
+  ok = d0 == 0 && openc && kinds_live && knot && nostair && noent && wilds_fit
     && populated_town && at_day && alive_still;
   if ok { println("=== SURFACE OK ==="); } else { println("=== FAIL ==="); }
 }

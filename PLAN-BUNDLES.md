@@ -48,7 +48,7 @@ walks through walls. That is a new engine MECHANISM (`MF_PHASE`: pathing ignores
 wall tiles, FOV/light still applies, never opens doors) built in this plan — we
 do not ship wall-respecting "ghosts".
 
-## Phase A — the TRAIT seam (engine de-keyed; content not moved yet)
+## Phase A — the TRAIT seam (engine de-keyed; content not moved yet) — **LANDED 2026-06-11**
 
 `MonsterDef` gains two data columns (integers — bitmasks, no text in hot paths):
 - `m_habitat`: bit k = lives on terrain kind k (forest/meadow/scree/snow/swamp/
@@ -65,10 +65,17 @@ nest stays silent, never a crash):
 - cave-mouth `giant_bat` → `TAG_CAVE_ROOST`
 - abandoned tower `skeleton` → `TAG_TOWER_DWELLER`
 
-Gate: behaviour-identical spawns this phase (the tags reproduce today's table —
-assert a fixed-seed surface spawns the same census before/after); plus a
-grep-test in `bundledeftest`: **no `mon_find("` literal in `src/` outside
-`spawn_crystal`**. The standing BUNDLE.md seam check runs at every phase end.
+Landed as designed with one honest refinement: the chooser picks uniformly
+over the candidates in catalog order (faithful DISTRIBUTION, not bit-exact
+census — the old `pick % 3` triple orderings carried no design weight), so the
+gate asserts habitat CORRECTNESS instead: `sim_wilds_ok` proves every wild
+creature that declares a habitat stands on terrain it claims (surfacetest),
+and a `make test` seam step fails the build on any `mon_find("` literal in
+`src/` outside `spawn_crystal`. `habitat_key()` is deleted; ruins/graves/
+roosts/towers pick by TAG with per-site deterministic salts. The two jackal
+entries split honestly: the lone depth-1 jackal roams the near grass, the
+depth-3 pack the far. The standing BUNDLE.md seam check runs at every phase
+end.
 
 ## Phase B — the `theme` bundle kind + the canary (undead)
 
