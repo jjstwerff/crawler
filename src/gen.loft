@@ -143,3 +143,100 @@ pub fn world_key_seed(wx: integer, wy: integer, depth: integer) -> integer {
   (wx * 73856093 ^ wy * 19349663 ^ depth * 83492791) & GEN_MASK
 }
 
+
+// ── NATURAL CAVES (OVERLAND 13g): not the Angband layout — NARROW, winding,
+// with never-straight walls. A wobbling deterministic walk carves passages
+// one hex wide (with hash bulges) from the heart to hashed far points, each
+// ending in a ragged pocket. No rooms; the walls are wherever the wobble
+// didn't go.
+fn cave_hash(seed: integer, a: integer, b: integer, ch: integer) -> integer {
+  n = (seed * 1597334677) & 0x7FFFFFFF;
+  n = (n ^ ((a * 73856093) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((b * 19349663) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = (n ^ (ch * 83492791)) & 0x7FFFFFFF;
+  n = (n ^ (n >> 13)) & 0x7FFFFFFF;
+  n = (n * 1274126177) & 0x7FFFFFFF;
+  (n ^ (n >> 16)) & 0x7FFFFFFF
+}
+
+pub fn gen_cave(seed: integer, w: integer, h: integer) -> GenLevel {
+  tiles: vector<integer> = [];
+  for _ in 0..w * h { tiles += [1]; }
+  cx = w / 2;
+  cy = h / 2;
+  // the heart: a small ragged pocket
+  for r in 0..5 {
+    for q in 0..5 {
+      pq = cx + q - 2;
+      pr = cy + r - 2;
+      if pq >= 1 && pq < w - 1 && pr >= 1 && pr < h - 1
+         && hex_distance(pq, pr, cx, cy) <= 2
+         && cave_hash(seed, pq, pr, 1) % 10 < 8 {
+        ti = pr * w + pq;
+        if ti < len(tiles) { tiles[ti] = 0; }
+      }
+    }
+  }
+  // four winding galleries to hashed far points
+  for b in 0..4 {
+    tx = 3 + (cave_hash(seed, b, 0, 2) % (w - 6) ?? 0);
+    ty = 3 + (cave_hash(seed, b, 1, 3) % (h - 6) ?? 0);
+    wq = cx;
+    wr = cy;
+    guard = 0;
+    while (wq != tx || wr != ty) && guard < w * h {
+      guard = guard + 1;
+      // the wobble: usually the best step toward the target, often the
+      // second-best — the walls never run straight
+      best = -1;
+      second = -1;
+      bd = 9999;
+      sd = 9999;
+      for d in 0..6 {
+        (nq, nr) = hex_neighbor(wq, wr, d);
+        if nq >= 1 && nq < w - 1 && nr >= 1 && nr < h - 1 {
+          nd = hex_distance(nq, nr, tx, ty);
+          if nd < bd {
+            second = best;
+            sd = bd;
+            best = d;
+            bd = nd;
+          } else {
+            if nd < sd { second = d; sd = nd; }
+          }
+        }
+      }
+      pick = best;
+      wob = cave_hash(seed, wq * 131 + wr, guard, 4) % 10;
+      if wob < 4 && second >= 0 { pick = second; }
+      if pick < 0 { guard = w * h; } else {
+        (wq, wr) = hex_neighbor(wq, wr, pick);
+        ti = wr * w + wq;
+        if ti >= 0 && ti < len(tiles) { tiles[ti] = 0; }
+        // a bulge: sometimes the passage widens one hex
+        if wob == 9 {
+          (bq, br2) = hex_neighbor(wq, wr, (wob + guard) % 6 ?? 0);
+          if bq >= 1 && bq < w - 1 && br2 >= 1 && br2 < h - 1 {
+            tj = br2 * w + bq;
+            if tj < len(tiles) { tiles[tj] = 0; }
+          }
+        }
+      }
+    }
+    // the gallery ends in a ragged pocket
+    for r in 0..7 {
+      for q in 0..7 {
+        pq = tx + q - 3;
+        pr = ty + r - 3;
+        if pq >= 1 && pq < w - 1 && pr >= 1 && pr < h - 1
+           && hex_distance(pq, pr, tx, ty) <= 3
+           && cave_hash(seed, pq, pr, 5) % 10 < 6 {
+          ti = pr * w + pq;
+          if ti < len(tiles) { tiles[ti] = 0; }
+        }
+      }
+    }
+  }
+  GenLevel { g_w: w, g_h: h, g_tiles: tiles,
+             g_rq: [], g_rr: [], g_rq0: [], g_rr0: [], g_rw: [], g_rh: [] }
+}

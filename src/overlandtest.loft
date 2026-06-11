@@ -108,7 +108,26 @@ fn main() {
     }
   }
 
-  println("built={built} same={same} i1={i1} i2={i2}(lake px={lk}) i3={i3} scale={scale} kinds={kinds} settle={settle}(fields={fields}) road={road_ok}");
-  ok = built && same && i1 && i2 && i3 && scale && kinds && settle && road_ok;
+  // 8) WIZARD TOWERS: they exist, they keep their privacy (far from every
+  //    town), and at least one was abandoned long ago
+  wiz_ok = len(o.ov_wiz) >= 1;
+  wiz_dead = 0;
+  for wi in 0..len(o.ov_wiz) {
+    wz = o.ov_wiz[wi];
+    if wz != null {
+      if wz.wz_dead == 1 { wiz_dead = wiz_dead + 1; }
+      for ti2 in 0..len(o.ov_towns) {
+        tw2 = o.ov_towns[ti2];
+        if tw2 != null {
+          dd = sqrt((tw2.ot_x - wz.wz_x) * (tw2.ot_x - wz.wz_x) + (tw2.ot_y - wz.wz_y) * (tw2.ot_y - wz.wz_y));
+          if dd < 1.05 * 1500.0 { wiz_ok = false; }  // privacy: > a full tile from any town
+        }
+      }
+    }
+  }
+  wiz_ok = wiz_ok && wiz_dead >= 1;
+
+  println("built={built} same={same} i1={i1} i2={i2}(lake px={lk}) i3={i3} scale={scale} kinds={kinds} settle={settle}(fields={fields}) road={road_ok} wiz={wiz_ok}(n={len(o.ov_wiz)} dead={wiz_dead})");
+  ok = built && same && i1 && i2 && i3 && scale && kinds && settle && road_ok && wiz_ok;
   if ok { println("=== OVERLAND OK ==="); } else { println("=== FAIL ==="); }
 }

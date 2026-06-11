@@ -2806,16 +2806,19 @@ fn stamp_round_tower(tiles: vector<integer>, tk: vector<integer>, w: integer, h:
 }
 
 pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
-  sim_new_gen_p(seed, depth, 0)
+  sim_new_gen_s(seed, depth, 0, 0)
 }
 
-pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
+pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: integer) -> Sim {
   w = 41;
   h = 41;
   if depth == 0 { w = 101; h = 101; }   // the surface: a wilderness WINDOW (1.5 km across)
   // Per-level gen seed = mix(world seed, depth) so each depth has its own layout.
   gseed = (seed ^ world_key_seed(1, 1, depth)) & 2147483647;
   lvl = gen_dungeon(gseed, w, h, 24);   // more tries: overlap-rejection thins them to distinct rooms
+  if style == 1 && depth > 0 {
+    lvl = gen_cave(gseed ^ 777, w, h);  // NATURAL CAVES: narrow, never-straight
+  }
   tiles = lvl.g_tiles;
   tk = zeros(w * h);
   if depth == 0 {
@@ -3296,6 +3299,77 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
         }
       }
 
+      // NATURAL CAVES: where running water undercuts steep rock — a floor hex
+      // beside both a FACE wall and the river gets a cave mouth (way down,
+      // cave-style); a bat sleeps at each
+      ncave = 0;
+      for cvr in 2..h - 2 {
+        for cvq in 2..w - 2 {
+          if ncave < 2 {
+            tic2 = cvr * w + cvq;
+            if (tiles[tic2] ?? 1) == 0 {
+              hasface = false;
+              haswater = false;
+              for d12 in 0..6 {
+                (nq12, nr12) = hex_neighbor(cvq, cvr, d12);
+                if nq12 >= 0 && nq12 < w && nr12 >= 0 && nr12 < h {
+                  tj12 = nr12 * w + nq12;
+                  if tj12 < len(tk) {
+                    if (tk[tj12] ?? 0) == K_FACE + 1 { hasface = true; }
+                    if (tk[tj12] ?? 0) == K_RIVER + 1 { haswater = true; }
+                  }
+                }
+              }
+              if hasface && haswater {
+                if tic2 < len(tiles) { tiles[tic2] = 6; }
+                bat2 = mon_find(ctbl2, "giant_bat");
+                if bat2.m_hp > 0 && !occupied_hex(enemies, cvq + 1, cvr) {
+                  enemies += [mk_enemy(bat2, cvq + 1, cvr)];
+                }
+                ncave = ncave + 1;
+              }
+            }
+          }
+        }
+      }
+
+      // WIZARD TOWERS within the window: the living one keeps its wizard at
+      // home; the abandoned one stands breached with a skeleton in the dust
+      for wzi2 in 0..len(ovw.ov_wiz) {
+        wz2 = ovw.ov_wiz[wzi2];
+        if wz2 != null {
+          wzx = ((wz2.wz_x - ax + cwx) / sstep) ?? 0.0;
+          wzy = ((wz2.wz_y - ay + cwy) / sstep) ?? 0.0;
+          (wzq, wzr) = px_to_hex(wzx, wzy);
+          if wzq >= 6 && wzq < w - 6 && wzr >= 5 && wzr < h - 5 {
+            stamp_round_tower(tiles, tk, w, h, wzq, wzr, 3);
+            if wz2.wz_dead == 1 {
+              for br4 in 0..9 {
+                for bq4 in 0..9 {
+                  dq4 = wzq + bq4 - 4;
+                  dr4 = wzr + br4 - 4;
+                  if dq4 >= 1 && dq4 < w - 1 && dr4 >= 1 && dr4 < h - 1 {
+                    ti14 = dr4 * w + dq4;
+                    if ti14 < len(tiles) && (tiles[ti14] ?? 0) == 4
+                       && ((dq4 * 2654435761 ^ dr4 * 40503) & 7) < 3 {
+                      tiles[ti14] = 0;
+                      if ti14 < len(tk) { tk[ti14] = K_SCREE + 1; }
+                    }
+                  }
+                }
+              }
+              skl2 = mon_find(ctbl2, "skeleton");
+              if skl2.m_hp > 0 && !occupied_hex(enemies, wzq, wzr) {
+                enemies += [mk_enemy(skl2, wzq, wzr)];
+              }
+            } else {
+              enemies += [mk_npc(1, "wizard", "wizard", "@", 170, 140, 220,
+                                 wzq, wzr, wzq, wzr, wzq, wzr, wzq, wzr)];
+            }
+          }
+        }
+      }
+
       // THE WILDS: the land carries its natural fauna — habitat-keyed, far
       // from town (distance = danger), asleep until disturbed
       wguard = 0;
@@ -3495,6 +3569,8 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
           }
         }
         if mnq >= 0 {
+          ti13 = mnr * w + mnq;
+          if ti13 < len(tiles) { tiles[ti13] = 6; }   // the mine IS a cave mouth
           // the furnace sits OUTSIDE the wall, toward the mine
           fdx = (mnq - w / 2) as float;
           fdy = (mnr - h / 2) as float;
@@ -3596,7 +3672,9 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
   ti_up = pr * w + pq;
   if depth != 0 && ti_up >= 0 && ti_up < len(tiles) { tiles[ti_up] = 3; }   // no up-stair on the surface
   ti_dn = dnr * w + dnq;
-  if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = 2; }
+  dnv = 2;
+  if style == 1 && depth > 0 { dnv = 6; }   // deeper into the cave, cave-style
+  if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = dnv; }
 
   // ── World-bundle PLACEMENT (the engine executor; the rules + content are bundle-side) ──────────
   // The active overlay (world_place_gen, generated from bundles/desert_surprise) decides; we stamp.
@@ -3726,7 +3804,9 @@ fn is_save_depth(d: integer) -> integer {
 pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   nd = s.depth + dir;
   if nd < 1 { nd = 1; }
-  ns = sim_new_gen_p(s.wseed, nd, s.boss_slain);   // carry quest progress so the way-out infestation fires
+  style = 0;
+  if dir > 0 && sim_stair_under(s) == 6 { style = 1; }   // a NATURAL CAVE way
+  ns = sim_new_gen_s(s.wseed, nd, s.boss_slain, style);  // carry quest progress so the way-out infestation fires
   // Per-level persistence: carry the delta store, record the level we're leaving (its dead
   // spawns), then replay the destination depth's stored deaths onto its fresh spawns. A
   // never-visited depth has an empty block, so this is a no-op and generation is unchanged.
@@ -3794,7 +3874,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
 // keep the character (level/XP/gold/items/equipment), full-healed. The dive is lost (the
 // save-point level regenerates; the dungeon state explored since is discarded).
 pub fn sim_respawn(s: Sim) -> Sim {
-  rs = sim_new_gen_p(s.wseed, s.save_depth, s.boss_slain);
+  rs = sim_new_gen_s(s.wseed, s.save_depth, s.boss_slain, 0);
   rs.clevel = s.clevel;
   rs.xp = s.xp;
   rs.race = s.race;             // race + class persist through death (identity)
@@ -3864,7 +3944,8 @@ pub fn sim_grave_r(s: Sim) -> integer { s.grave_r }
 // Tile under the player: 2 = down-stair, 3 = up-stair, else floor/wall.
 pub fn sim_stair_under(s: Sim) -> integer {
   (pq, pr) = px_to_hex(s.px, s.py);
-  tile_at(s, pq, pr)
+  t = tile_at(s, pq, pr);
+  t
 }
 // (sim_player_hex — the player's current hex, used by the walk-onto-stairs
 //  edge-trigger — already defined above near the enemy/FOV accessors.)

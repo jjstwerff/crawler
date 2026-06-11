@@ -184,6 +184,9 @@ pressure). What still bites:
   (loft#320: `w = s.v; w += [x]; s.v = w` → len 0). Direct `s.v += [x]` works now; the
   pre-allocated array + count + **index-write** idiom (`enemies`/floor-items) stays the
   default for hot collections.
+- **STILL LIVE — a thin arity-reducing pub wrapper around a big-struct-returning pub fn
+  panics codegen** (loft#339: "Too few parameters on n_<fn>"): don't wrap; pass the
+  defaulted arg at the call sites.
 - `!x` on a **non-boolean is a NULL test, not logical-not** — BY DESIGN (loft C69; an
   always-false warning covers `not null` operands). Compare `== 0`.
 - **NEVER swap struct elements of a vector in place via a temp link** (`tmp = v[j];

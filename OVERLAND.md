@@ -660,6 +660,41 @@ wilderness spawns by them, distance = danger (tier 2 beyond ~40 hexes):
 All wild spawns sleep until disturbed; none within 25 hexes of the town —
 the daily loop stays safe, the far wilds carry the strain.
 
+### 13g. NATURAL CAVES (user direction, implemented; gated by cavetest)
+Caves form where they really would — under STEEP CLIFFS NEAR WATERWAYS
+(face-kind cells adjacent to river/lake, ≤2 mouths per window; the MINE's
+shaft is one too). A mouth is **tile 6**: a cave-style entrance the player
+walks onto and descends. The level below is `gen_cave` (gen.loft), NOT the
+Angband rooms+corridors layout — the user's rule: **narrow, with
+never-straight walls**. Built as an all-wall map with a ragged heart pocket
+and four WOBBLING galleries (each step picks the best-or-second-best
+neighbor by hash, so no wall runs straight), bulges along the way, ragged
+end pockets. Its down-way is tile 6 again, so a cave CHAIN stays cave-style
+(`sim_descend` detects the style from the stair underfoot). A bat roosts at
+each mouth. cavetest asserts: a mouth exists on the surface, descending
+lands at depth 1, the floor fraction is cave-narrow, the way deeper and the
+way back both exist.
+
+### 13h. DESERT BIOMES (user direction, implemented)
+Full deserts sit in the RAIN SHADOW of mountains: a plains cell with a
+mountain ≤2 cells to its west (the weather side) becomes material 6 —
+DESERT (40 m base). Deserts contribute almost nothing to the rivers
+(runoff 0.1 versus a plain's 1.0), exactly as asked. In play they zone by
+the band hash: mostly K_SAND with K_SCREE crusts; the desert bundle's own
+serpents spawn there through its placement rules. On the ASCII map they
+read as `,`.
+
+### 13i. WIZARD TOWERS (user direction, implemented)
+Wizards want their PRIVACY: tower sites are the cells FARTHEST from every
+town, ruin, and each other (must clear ~a full tile; decent land — plain,
+forest, or hill). Two stand in the example world: one LIT — a round tower
+(tile 4) with its wizard at home (a civilian NPC who keeps to the tower) —
+and one ABANDONED LONG AGO — the same tower breached by the ruin hash,
+scree in the gaps, a skeleton in the dust. The lit one sits high in the
+northern mountains, the dead one deep in the southern forest. ASCII map:
+`W` lit, `w` abandoned. overlandtest asserts existence, the privacy
+distance, and that at least one is dead.
+
 NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
 coastal towns, multi-window travel, nicer buildings, true round rendering
 (tile 4) + light fences (tile 5), the lib-ward extraction into hex_terrain.

@@ -1,0 +1,48 @@
+// cavetest — NATURAL CAVES (OVERLAND 13g): a cave mouth exists on the surface
+// (the mine is one; water-undercut cliffs make more), descending it lands in a
+// NATURAL cave level — narrow, winding, never-straight walls, NOT the Angband
+// rooms+corridors layout — with its own way deeper that KEEPS the cave style.
+use sim;
+use hex_grid;
+
+fn main() {
+  println("=== story cave test (mouths / narrow winding levels) ===");
+  surf = sim_new_gen(777, 0);
+  cq = -1;
+  cr = -1;
+  for r in 0..101 {
+    for q in 0..101 {
+      if cq < 0 && tile_at(surf, q, r) == 6 { cq = q; cr = r; }
+    }
+  }
+  mouth = cq >= 0;
+
+  sim_teleport(surf, cq, cr);
+  on_mouth = sim_stair_under(surf) == 6;
+  cave = sim_descend(surf, 1);
+  d1 = sim_depth(cave) == 1;
+
+  // NARROW: a natural cave is mostly rock — far below a room level's openness
+  floor = 0;
+  for r in 0..41 {
+    for q in 0..41 {
+      t = tile_at(cave, q, r);
+      if t != 1 && t != 4 && t != 5 { floor = floor + 1; }
+    }
+  }
+  narrow = floor > 60 && floor < 600;     // winding galleries, not halls
+
+  // the way DEEPER keeps the cave style (tile 6), and the way back exists
+  deeper = false;
+  upway = false;
+  for r in 0..41 {
+    for q in 0..41 {
+      if tile_at(cave, q, r) == 6 { deeper = true; }
+      if tile_at(cave, q, r) == 3 { upway = true; }
+    }
+  }
+
+  println("mouth={mouth} on_mouth={on_mouth} depth1={d1} floor={floor} narrow={narrow} deeper={deeper} upway={upway}");
+  ok = mouth && on_mouth && d1 && narrow && deeper && upway;
+  if ok { println("=== CAVE OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -76,6 +76,7 @@ fn ov_hgt_of(m: integer) -> float {
   if m == 2 { return 25.0; }    // plains lie LOW and FLAT (the floodplain)
   if m == 3 { return 45.0; }
   if m == 4 { return 270.0; }
+  if m == 6 { return 40.0; }    // DESERT: the rain shadow's dry floor
   950.0
 }
 fn ov_boost_of(m: integer) -> float {
@@ -83,6 +84,7 @@ fn ov_boost_of(m: integer) -> float {
   if m == 2 { return 18.0; }
   if m == 3 { return 35.0; }
   if m == 4 { return 110.0; }
+  if m == 6 { return 14.0; }
   330.0
 }
 fn ov_steep_of(m: integer) -> float {
@@ -90,6 +92,7 @@ fn ov_steep_of(m: integer) -> float {
   if m == 2 { return 2.5; }
   if m == 3 { return 5.0; }
   if m == 4 { return 28.0; }
+  if m == 6 { return 4.0; }
   80.0
 }
 
@@ -147,6 +150,12 @@ pub struct OvRoad {
   rd_faded: integer not null,   // 1 = a SPOTTED path to a ruin (history's leftovers)
 }
 
+pub struct OvWiz {
+  wz_x:    float not null,    // a wizard's tower: REMOTE (they want privacy)
+  wz_y:    float not null,
+  wz_dead: integer not null,  // 1 = abandoned long ago
+}
+
 pub struct OvRuin {
   ru_x:    float not null,    // a settlement that FELL — the maximal history's loss
   ru_y:    float not null,
@@ -184,6 +193,7 @@ pub struct Overland {
   ov_swamps: vector<OvSwamp> not null,
   ov_stops:  vector<OvStop> not null,
   ov_ruins:  vector<OvRuin> not null,
+  ov_wiz:    vector<OvWiz> not null,
 }
 
 const OV_RC = 866.0254037844386;     // OV_TILE / sqrt(3): circumradius
@@ -305,9 +315,30 @@ fn ov_corner_nb(k: integer) -> (integer, integer) {
 pub fn overland_new() -> Overland {
   mats = ov_mat_rows();
   n = OV_NX * OV_NY;
+  // THE RAIN SHADOW: the prevailing wind blows west -> east; plains lying
+  // within two cells EAST of a mountain get no rain — full DESERT biome
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      i = r * OV_NX + c;
+      if (mats[i] ?? 0) == 2 {
+        shadow = false;
+        for back in 1..3 {
+          if ov_mat(mats, c - back, r) == 5 { shadow = true; }
+        }
+        if shadow {
+          if i < len(mats) { mats[i] = 6; }
+        }
+      }
+    }
+  }
   flow: vector<integer> = [];
   acc: vector<float> = [];
-  for _ in 0..n { flow += [-1]; acc += [1.0]; }
+  for fi9 in 0..n {
+    flow += [-1];
+    runoff = 1.0;
+    if (mats[fi9] ?? 0) == 6 { runoff = 0.1; }   // deserts feed the rivers almost nothing
+    acc += [runoff];
+  }
   // steepest descent (lake cells terminate; sea has no flow)
   for r in 0..OV_NY {
     for c in 0..OV_NX {
@@ -696,6 +727,52 @@ pub fn overland_new() -> Overland {
     }
   }
 
+  // WIZARD TOWERS: wizards want their PRIVACY — the remotest decent land,
+  // far from every town and ruin. One still burns its lamp; one was
+  // abandoned long ago.
+  wiz: vector<OvWiz> = [];
+  for wzi in 0..2 {
+    bwz = -1;
+    bwd = -1.0;
+    for wci in 0..n {
+      m = mats[wci] ?? 0;
+      if m == 2 || m == 3 || m == 4 {
+        bc = (wci % OV_NX) ?? 0;
+        br = ((wci - bc) / OV_NX) ?? 0;
+        (wx5, wy5) = ov_vertex(bc, br);
+        nearest = 1.0e18;
+        for q in 0..len(towns) {
+          tq = towns[q];
+          if tq != null {
+            dd = sqrt((tq.ot_x - wx5) * (tq.ot_x - wx5) + (tq.ot_y - wy5) * (tq.ot_y - wy5));
+            if dd < nearest { nearest = dd; }
+          }
+        }
+        for q in 0..len(ruins) {
+          rq = ruins[q];
+          if rq != null {
+            dd = sqrt((rq.ru_x - wx5) * (rq.ru_x - wx5) + (rq.ru_y - wy5) * (rq.ru_y - wy5));
+            if dd < nearest { nearest = dd; }
+          }
+        }
+        for q in 0..len(wiz) {
+          wq2 = wiz[q];
+          if wq2 != null {
+            dd = sqrt((wq2.wz_x - wx5) * (wq2.wz_x - wx5) + (wq2.wz_y - wy5) * (wq2.wz_y - wy5));
+            if dd < nearest { nearest = dd; }
+          }
+        }
+        if nearest > bwd { bwd = nearest; bwz = wci; }
+      }
+    }
+    if bwz >= 0 && bwd > 1.05 * OV_TILE {
+      bc = (bwz % OV_NX) ?? 0;
+      br = ((bwz - bc) / OV_NX) ?? 0;
+      (wx5, wy5) = ov_vertex(bc, br);
+      wiz += [OvWiz { wz_x: wx5, wz_y: wy5, wz_dead: wzi }];
+    }
+  }
+
   // ROADS: each town connects to the nearest earlier town by the EASIEST
   // walking route over the cell graph (slope + terrain costs; water heavy)
   roads: vector<OvRoad> = [];
@@ -863,12 +940,12 @@ pub fn overland_new() -> Overland {
   ov0 = Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
                    ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
                    ov_towns: towns, ov_roads: roads, ov_forts: [], ov_swamps: swamps,
-                   ov_stops: stops, ov_ruins: ruins };
+                   ov_stops: stops, ov_ruins: ruins, ov_wiz: wiz };
   forts = ov_fort_sites(ov0);
   Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
              ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
              ov_towns: towns, ov_roads: roads, ov_forts: forts, ov_swamps: swamps,
-             ov_stops: stops, ov_ruins: ruins }
+             ov_stops: stops, ov_ruins: ruins, ov_wiz: wiz }
 }
 
 // distance to the nearest LIVING road centerline (faded paths claim nothing)
@@ -909,7 +986,7 @@ fn ov_blend(o: Overland, x: float, y: float) -> (float, float, float, integer) {
   hsum = 0.0;
   watsum = 0.0;
   laksum = 0.0;
-  wm0 = 0.0; wm1 = 0.0; wm2 = 0.0; wm3 = 0.0; wm4 = 0.0; wm5 = 0.0;
+  wm0 = 0.0; wm1 = 0.0; wm2 = 0.0; wm3 = 0.0; wm4 = 0.0; wm5 = 0.0; wm6 = 0.0;
   for dr in 0..3 {
     rr = ry0 + dr - 1;
     off = 0.5 * ((rr & 1) as float);
@@ -936,6 +1013,7 @@ fn ov_blend(o: Overland, x: float, y: float) -> (float, float, float, integer) {
         if m == 3 { wm3 = wm3 + w; }
         if m == 4 { wm4 = wm4 + w; }
         if m == 5 { wm5 = wm5 + w; }
+        if m == 6 { wm6 = wm6 + w; }
       }
     }
   }
@@ -945,11 +1023,13 @@ fn ov_blend(o: Overland, x: float, y: float) -> (float, float, float, integer) {
   sc3 = wm3 * 2.2360;
   sc4 = wm4 * 5.2915;
   sc5 = wm5 * 8.9442;
+  sc6 = wm6 * 2.0;
   bestm = 2;
   bestsc = sc2;
   if sc3 > bestsc { bestm = 3; bestsc = sc3; }
   if sc4 > bestsc { bestm = 4; bestsc = sc4; }
   if sc5 > bestsc { bestm = 5; bestsc = sc5; }
+  if sc6 > bestsc { bestm = 6; bestsc = sc6; }
   (hsum * iw, watsum * iw, laksum * iw, bestm)
 }
 
@@ -1214,6 +1294,11 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
   if mdom == 3 {
     if band > 0.30 { return (h, K_FOREST); }
     return (h, K_GRASS);
+  }
+  if mdom == 6 {
+    // the DESERT floor: sand with rocky patches, never green
+    if band > 0.62 { return (h, K_SCREE); }
+    return (h, K_SAND);
   }
   (h, K_GRASS)
 }

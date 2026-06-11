@@ -275,6 +275,9 @@ test:
 	@echo "  [overland] the contract wilderness: invariants / walked scale / towns+roads ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/overlandtest.loft | tee /tmp/story_overland.log
 	@grep -q "OVERLAND OK" /tmp/story_overland.log || { echo "    FAIL: overland"; exit 1; }
+	@echo "  [cave] natural caves: mouths on the surface, narrow winding levels ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/cavetest.loft | tee /tmp/story_cave.log
+	@grep -q "CAVE OK" /tmp/story_cave.log || { echo "    FAIL: cave"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
