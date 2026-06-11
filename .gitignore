@@ -12,3 +12,5 @@ native-auto/
 *.swp
 *~
 .DS_Store
+tools/__pycache__/
+tools/_overland/
