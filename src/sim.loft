@@ -1817,7 +1817,8 @@ fn forge_weapon_key(i: integer) -> text {
   if i == 6 { return "war_hammer"; }
   if i == 7 { return "broad_sword"; }
   if i == 8 { return "battle_axe"; }
-  "halberd"
+  if i == 9 { return "halberd"; }
+  "light_crossbow"
 }
 fn forge_armor_key(i: integer) -> text {
   if i == 0 { return "leather_boots"; }
@@ -1961,7 +1962,7 @@ pub fn sim_tick(s: &Sim) {
       // THE FORGE rotates its whole repertoire: weapons on even days, armour
       // on odd — the heavy pieces never leave town (the cart's weight cap)
       if (day3 % 2 ?? 0) == 0 {
-        wkey3 = forge_weapon_key(((day3 / 2) ?? 0) % 10 ?? 0);
+        wkey3 = forge_weapon_key(((day3 / 2) ?? 0) % 11 ?? 0);
         sim_drop_item(s, stq3, str3, wkey3);
       } else {
         akey3 = forge_armor_key(((day3 / 2) ?? 0) % 9 ?? 0);
