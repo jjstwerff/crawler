@@ -144,6 +144,12 @@ pub struct OvRoad {
   rd_y1: float not null,
 }
 
+pub struct OvFort {
+  of_x:  float not null,    // the keep's spot: ABOVE its town, watching the ways
+  of_y:  float not null,
+  of_tw: integer not null,  // the town it protects
+}
+
 pub struct Overland {
   ov_seed:   integer not null,
   ov_mat:    vector<integer> not null,
@@ -154,6 +160,7 @@ pub struct Overland {
   ov_ridges: vector<OvRidge> not null,
   ov_towns:  vector<OvTown> not null,
   ov_roads:  vector<OvRoad> not null,
+  ov_forts:  vector<OvFort> not null,
 }
 
 const OV_RC = 866.0254037844386;     // OV_TILE / sqrt(3): circumradius
@@ -664,9 +671,13 @@ pub fn overland_new() -> Overland {
                          rd_x1: x1 + 40.0, rd_y1: y1 + 40.0 }];
     }
   }
+  ov0 = Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
+                   ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
+                   ov_towns: towns, ov_roads: roads, ov_forts: [] };
+  forts = ov_fort_sites(ov0);
   Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
              ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
-             ov_towns: towns, ov_roads: roads }
+             ov_towns: towns, ov_roads: roads, ov_forts: forts }
 }
 
 // distance to the nearest road centerline
@@ -987,4 +998,42 @@ pub fn ov_hex_world(q: integer, r: integer) -> (float, float) {
   (hx, hy) = hex_to_px(q, r);
   s = OV_STEP / HEX_LEN;
   (hx * s, hy * s)
+}
+
+// FORTRESSES: above and away from the towns they protect — but not too far,
+// and with CLEAR SIGHT on the waterways and roads they watch. (Defined after
+// the sampling functions: tuple destructuring needs the callee known.)
+fn ov_fort_sites(ov0: Overland) -> vector<OvFort> {
+  forts: vector<OvFort> = [];
+  for fti in 0..len(ov0.ov_towns) {
+    tw3 = ov0.ov_towns[fti];
+    if tw3 != null && tw3.ot_size >= 2 {
+      th3 = ov_height(ov0, tw3.ot_x, tw3.ot_y);
+      bx3 = 0.0;
+      by3 = 0.0;
+      bsc3 = 0.0 - 1.0e18;
+      for ai in 0..16 {
+        ang3 = (ai as float) * 0.39269908;
+        for ri3 in 0..3 {
+          rad3 = 330.0 + 160.0 * (ri3 as float);
+          sx3 = tw3.ot_x + rad3 * cos(ang3);
+          sy3 = tw3.ot_y + rad3 * sin(ang3);
+          hh3 = ov_height(ov0, sx3, sy3);
+          if hh3 > th3 + 6.0 {                          // must stand ABOVE the town
+            (wd3, fb3, fw3, fi3, fv3) = ov_course(ov0, sx3, sy3);
+            rd3 = ov_road_dist(ov0, sx3, sy3);
+            watch = min(wd3, rd3);
+            if watch < 450.0 {                          // clear sight on the ways
+              sc3 = (hh3 - th3) - watch * 0.04 - (rad3 - 330.0) * 0.02;
+              if sc3 > bsc3 { bsc3 = sc3; bx3 = sx3; by3 = sy3; }
+            }
+          }
+        }
+      }
+      if bsc3 > 0.0 - 1.0e17 {
+        forts += [OvFort { of_x: bx3, of_y: by3, of_tw: fti }];
+      }
+    }
+  }
+  forts
 }

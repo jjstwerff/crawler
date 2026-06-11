@@ -524,6 +524,26 @@ The loft port is LIVE in crawler:
   ' ' sea, '~' river, '=' lake, ',' sand, '.' grass, '+' field, '-' road,
   'T' forest, '"' meadow, ':' scree, '^' rock face, '*' snow, '%' glacier,
   digits = towns by size.
+### 13a. The settlement ARCHITECTURE (user rules, implemented)
+- **Small houses** (5×4 hexes ≈ 7.5×6 m — ARCHITECTURE IS TRUE-SCALE: 1.5 m
+  per walked hex, while the TERRAIN is compressed at 15 natural m per hex);
+  count grows with town size, doors face the village square.
+- **Round towers** for size-2+ towns; the BIG town gets a **wall ring with
+  LOOKOUT TOWERS in it**, gated wherever a road crosses.
+- **Fortresses** (a contract object): sited ABOVE and away from the town they
+  protect, but close enough for CLEAR SIGHT on the waterways/roads they watch
+  (elevation + watch-distance scoring over a candidate ring); built as a
+  walled keep with four round corner towers, gate facing the town.
+- **Round detectability** (user rule): round structures stamp tile value 4 —
+  solid like a wall, but a later pass (true circles in wallgeo / the 3D mesh)
+  can DETECT rings of 4s as round shapes with center + radius. Tile 5 = the
+  farmers' FENCES (straight + light) along roads where fields border them,
+  with gaps; solid for now, light rendering later.
+- **24 directions** (user ruling): stamped walls/roads WOBBLE on the hex
+  lattice for now; the 24-direction vocabulary + straightening (the parked DP
+  straightener, CONVERGENCE) make them clean later.
+
 NEXT: multi-window travel (blocks/triangles beyond one window), town NPCs +
-shops (bundle content), nicer buildings, the lib-ward extraction of the
+shops (bundle content), nicer building interiors, true round rendering for
+tile-4 rings + light fences for tile-5, the lib-ward extraction of the
 contract layer into hex_terrain once it survives a second consumer.

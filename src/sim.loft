@@ -220,7 +220,8 @@ pub fn tile_at(s: Sim, q: integer, r: integer) -> integer {
 }
 
 pub fn is_wall(s: Sim, q: integer, r: integer) -> boolean {
-  tile_at(s, q, r) == 1
+  t = tile_at(s, q, r);
+  t == 1 || t == 4 || t == 5
 }
 
 // Read a stored canonical edge wall directly (edge 0=N,1=NE,2=SE on this hex).
@@ -2332,7 +2333,10 @@ fn tile_solid(tiles: vector<integer>, w: integer, h: integer, q: integer, r: int
   if q < 0 || r < 0 || q >= w || r >= h { return true; }
   ti = r * w + q;
   solid = true;
-  if ti < len(tiles) { solid = (tiles[ti] ?? 1) == 1; }
+  if ti < len(tiles) {
+    tv = tiles[ti] ?? 1;
+    solid = tv == 1 || tv == 4 || tv == 5;
+  }
   solid
 }
 
@@ -2372,6 +2376,53 @@ fn assign_flavours(s: &Sim, seed: integer) {
   }
 }
 
+// ── surface architecture stamps (walls into tiles, ground kind into tk) ────
+fn st_set(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integer,
+          q: integer, r: integer, v: integer, kind: integer) {
+  if q >= 1 && q < w - 1 && r >= 1 && r < h - 1 {
+    ti = r * w + q;
+    if ti < len(tiles) { tiles[ti] = v; }
+    if kind >= 0 && ti < len(tk) { tk[ti] = kind + 1; }
+  }
+}
+
+// a small rectangular HOUSE: walls + a door in the middle of one side
+// (doorside: 0=N 1=E 2=S 3=W)
+fn stamp_house(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integer,
+               x0: integer, y0: integer, ww: integer, hh: integer, doorside: integer) {
+  for rr in 0..hh {
+    for qq in 0..ww {
+      edge = qq == 0 || rr == 0 || qq == ww - 1 || rr == hh - 1;
+      v = 0;
+      if edge { v = 1; }
+      if doorside == 0 && rr == 0 && qq == ww / 2 { v = 0; }
+      if doorside == 1 && qq == ww - 1 && rr == hh / 2 { v = 0; }
+      if doorside == 2 && rr == hh - 1 && qq == ww / 2 { v = 0; }
+      if doorside == 3 && qq == 0 && rr == hh / 2 { v = 0; }
+      st_set(tiles, tk, w, h, x0 + qq, y0 + rr, v, K_GRASS);
+    }
+  }
+}
+
+// a ROUND TOWER: a hex-distance ring of wall with a cleared interior + a door
+fn stamp_round_tower(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integer,
+                     cx: integer, cy: integer, rad: integer) {
+  doored = false;
+  for rr in 0..(rad * 2 + 1) {
+    for qq in 0..(rad * 2 + 1) {
+      tq = cx + qq - rad;
+      tr = cy + rr - rad;
+      d = hex_distance(tq, tr, cx, cy);
+      if d < rad { st_set(tiles, tk, w, h, tq, tr, 0, K_GRASS); }
+      if d == rad {
+        v = 4;                       // ROUND wall: detectable later as a circle
+        if !doored && tr > cy && tq == cx { v = 0; doored = true; }   // the door
+        st_set(tiles, tk, w, h, tq, tr, v, K_GRASS);
+      }
+    }
+  }
+}
+
 pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   sim_new_gen_p(seed, depth, 0)
 }
@@ -2406,40 +2457,99 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
         if ti3 < len(tiles) { tiles[ti3] = sv; }
       }
     }
-    // BUILDINGS (dungeon-style rooms for now): a small cluster offset from the
-    // town center, rectangular walls with a door facing the center.
-    bq0: vector<integer> = [9, -10, 4];
-    br0: vector<integer> = [4, 6, -11];
-    for bi2 in 0..3 {
-      ox2 = w / 2 + (bq0[bi2] ?? 0);
-      oy2 = h / 2 + (br0[bi2] ?? 0);
-      for rr2 in 0..5 {
-        for qq2 in 0..7 {
-          tq2 = ox2 + qq2;
-          tr2 = oy2 + rr2;
-          if tq2 >= 1 && tq2 < w - 1 && tr2 >= 1 && tr2 < h - 1 {
-            ti4 = tr2 * w + tq2;
-            edge2 = qq2 == 0 || rr2 == 0 || qq2 == 6 || rr2 == 4;
-            v2 = 0;
-            if edge2 { v2 = 1; }
-            if edge2 && rr2 == 4 && qq2 == 3 { v2 = 0; }    // the door
-            if ti4 < len(tiles) { tiles[ti4] = v2; }
-            if ti4 < len(tk) { tk[ti4] = K_GRASS + 1; }
+    // The FARMERS' FENCES: a field bordering the road gets a fence (tile 5,
+    // straight + light — keeps travellers out of the crops) with gaps so the
+    // farmers themselves get in.
+    for fr5 in 1..h - 1 {
+      for fq5 in 1..w - 1 {
+        ti7 = fr5 * w + fq5;
+        isf5 = false;
+        if ti7 < len(tk) { isf5 = (tk[ti7] ?? 0) == K_FIELD + 1; }
+        if isf5 {
+          nearroad = false;
+          for d5 in 0..6 {
+            (nq5, nr5) = hex_neighbor(fq5, fr5, d5);
+            if nq5 >= 0 && nq5 < w && nr5 >= 0 && nr5 < h {
+              tj7 = nr5 * w + nq5;
+              if tj7 < len(tk) && (tk[tj7] ?? 0) == K_ROAD + 1 { nearroad = true; }
+            }
+          }
+          if nearroad && ((fq5 * 31 + fr5 * 17) & 7) != 0 {
+            if ti7 < len(tiles) { tiles[ti7] = 5; }
           }
         }
       }
     }
-    // the spawn knot's ground: keep the start / crystal / entrance walkable
+
+    // THE TOWN'S ARCHITECTURE: small HOUSES (count by size); larger towns get
+    // ROUND TOWERS; the big town gets a WALL around it with LOOKOUT TOWERS in
+    // it, gated wherever a road crosses the ring.
+    tsize = 1;
+    if t0 != null { tsize = t0.ot_size; }
+    nhouse = 3 + tsize * 2;
+    for hb in 0..nhouse {
+      hang = ((hb as float) + 0.35) * 6.2831853 / (nhouse as float);
+      hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
+      hx0 = w / 2 + round(hrad * cos(hang)) as integer - 2;
+      hy0 = h / 2 + round(hrad * sin(hang) * 0.866) as integer - 1;
+      ds = 0;
+      if hy0 < h / 2 { ds = 2; }                       // door faces the square
+      stamp_house(tiles, tk, w, h, hx0, hy0, 5, 4, ds);
+    }
+    if tsize >= 2 {
+      stamp_round_tower(tiles, tk, w, h, w / 2 + 11, h / 2 - 7, 2);
+      stamp_round_tower(tiles, tk, w, h, w / 2 - 12, h / 2 + 6, 2);
+    }
+    if tsize >= 3 {
+      // the town WALL: a hex-distance ring, roads make the gates
+      wrad = 15;
+      for wr2 in 0..h {
+        for wq2 in 0..w {
+          if hex_distance(wq2, wr2, w / 2, h / 2) == wrad {
+            ti6 = wr2 * w + wq2;
+            road6 = false;
+            if ti6 < len(tk) { road6 = (tk[ti6] ?? 0) == K_ROAD + 1; }
+            if !road6 { st_set(tiles, tk, w, h, wq2, wr2, 1, -1); }
+          }
+        }
+      }
+      // LOOKOUT TOWERS in the wall, one per 60 degrees
+      for lt in 0..6 {
+        lang = (lt as float) * 1.0471976 + 0.5236;
+        lq = w / 2 + round((wrad as float) * cos(lang)) as integer;
+        lr = h / 2 + round((wrad as float) * sin(lang) * 0.866) as integer;
+        stamp_round_tower(tiles, tk, w, h, lq, lr, 2);
+      }
+    }
+    // THE FORTRESS: above and away, watching the ways — a walled keep with
+    // four ROUND corner towers, its gate facing the town it protects
+    sstep = OV_STEP / HEX_LEN;
+    for ff in 0..len(ovw.ov_forts) {
+      ft = ovw.ov_forts[ff];
+      if ft != null && ft.of_tw == 0 {
+        fux = (ft.of_x - ax + cwx) / sstep ?? 0.0;
+        fuy = (ft.of_y - ay + cwy) / sstep ?? 0.0;
+        (fq, fr) = px_to_hex(fux, fuy);
+        if fq >= 8 && fq < w - 8 && fr >= 7 && fr < h - 7 {
+          ds2 = 0;
+          if fr < h / 2 { ds2 = 2; }                   // the gate faces the town
+          stamp_house(tiles, tk, w, h, fq - 5, fr - 4, 11, 9, ds2);
+          stamp_round_tower(tiles, tk, w, h, fq - 5, fr - 4, 2);
+          stamp_round_tower(tiles, tk, w, h, fq + 5, fr - 4, 2);
+          stamp_round_tower(tiles, tk, w, h, fq - 5, fr + 4, 2);
+          stamp_round_tower(tiles, tk, w, h, fq + 5, fr + 4, 2);
+        }
+      }
+    }
+    // the village SQUARE: keep the start / crystal / entrance area open
     for cr3 in 0..h {
       for cq3 in 0..w {
-        if hex_distance(cq3, cr3, w / 2, h / 2) <= 7 {
+        if hex_distance(cq3, cr3, w / 2, h / 2) <= 4
+           || hex_distance(cq3, cr3, w / 2 - 6, h / 2) <= 1
+           || hex_distance(cq3, cr3, w / 2 + 3, h / 2) <= 1 {
           ti5 = cr3 * w + cq3;
-          tk5 = 0;
-          if ti5 < len(tk) { tk5 = (tk[ti5] ?? 1) - 1; }
-          if tk5 == K_FACE || tk5 == K_LAKE || tk5 == K_SEA {
-            if ti5 < len(tk) { tk[ti5] = K_GRASS + 1; }
-            if ti5 < len(tiles) { tiles[ti5] = 0; }
-          }
+          if ti5 < len(tk) { tk[ti5] = K_GRASS + 1; }
+          if ti5 < len(tiles) { tiles[ti5] = 0; }
         }
       }
     }
