@@ -526,7 +526,10 @@ The loft port is LIVE in crawler:
   digits = towns by size.
 ### 13a. The settlement ARCHITECTURE (user rules, implemented)
 - **Small houses** (5×4 hexes ≈ 7.5×6 m — ARCHITECTURE IS TRUE-SCALE: 1.5 m
-  per walked hex, while the TERRAIN is compressed at 15 natural m per hex);
+  per walked hex, while the TERRAIN is compressed at 15 natural m per hex).
+  This 1/10 terrain-vs-true split is the standard overland-game illusion
+  (user ruling); the compression is ONE dial (`OV_STEP`) and is EVALUATED BY
+  GAMEPLAY, not by theory — play sessions decide if 15 walks right;
   count grows with town size, doors face the village square.
 - **Round towers** for size-2+ towns; the BIG town gets a **wall ring with
   LOOKOUT TOWERS in it**, gated wherever a road crosses.
