@@ -627,6 +627,22 @@ ROLE — never aggressive, never punched; the player's bump slides past):
   deep contexts and PANIC when indexed in call args — production repertoires
   are branch-selector functions instead.
 
+### 13e. THE HISTORY: the maximal past, broken (user direction, implemented)
+The world's history derives from its own settlement scoring: re-score the
+sites with a LOWER bar and looser spacing — the runners-up the living world
+rejected were inhabited ONCE, in the maximal past. Something went wrong; they
+stand as RUINS now (size-tiered: fallen village / broken castle-town / dead
+city). Each ruin keeps a SPOTTED PATH toward the nearest living town — a
+displaced trace claimed only in hash-patches (the land swallowed the rest),
+and faded paths feed NO road claims (no roadside farms along dead ways).
+Within the window, ruins stamp as broken architecture (houses and walls
+breached by per-cell hash, rubble drifted over the floors, a tumbled tower,
+the dead city's wall reduced to arcs) — and GOBLINS nest in them: a band with
+its LEADER (new monster def), asleep among the stones until someone pokes.
+The STRAIN this places on the economy is structural: fewer living settlements
+than the land once fed, dangerous ruins beside the trade ways, and the spotted
+paths as the player's invitation toward history.
+
 NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
 coastal towns, multi-window travel, nicer buildings, true round rendering
 (tile 4) + light fences (tile 5), the lib-ward extraction into hex_terrain.

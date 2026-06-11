@@ -2,7 +2,7 @@
 // Legend (adapted from the ZAngband wilderness vocabulary):
 //   ' ' sea   '~' river   '=' lake   ',' sand   '.' grass   '+' field
 //   '-' road  'T' forest  '"' meadow ':' scree  '^' rock face (wall)
-//   '*' snow  '%' glacier 's' swamp  1/2/3 town (by size)
+//   '*' snow  '%' glacier 's' swamp  1/2/3 town (by size)  'X' ruin
 use overland;
 
 fn kind_ch(k: integer) -> text {
@@ -36,6 +36,13 @@ fn main() {
       y = ((r as float) + 0.5) * sy;
       (_, k) = ov_sample(o, x, y);
       ch = kind_ch(k);
+      for ri2 in 0..len(o.ov_ruins) {
+        ru = o.ov_ruins[ri2];
+        if ru != null {
+          ddr = sqrt((x - ru.ru_x) * (x - ru.ru_x) + (y - ru.ru_y) * (y - ru.ru_y));
+          if ddr < sx * 0.75 { ch = "X"; }
+        }
+      }
       for ti in 0..len(o.ov_towns) {
         tw = o.ov_towns[ti];
         if tw != null {

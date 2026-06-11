@@ -144,6 +144,13 @@ pub struct OvRoad {
   rd_y0: float not null,
   rd_x1: float not null,
   rd_y1: float not null,
+  rd_faded: integer not null,   // 1 = a SPOTTED path to a ruin (history's leftovers)
+}
+
+pub struct OvRuin {
+  ru_x:    float not null,    // a settlement that FELL — the maximal history's loss
+  ru_y:    float not null,
+  ru_size: integer not null,  // 1 village ruin, 2 broken castle-town, 3 dead city
 }
 
 pub struct OvSwamp {
@@ -176,6 +183,7 @@ pub struct Overland {
   ov_forts:  vector<OvFort> not null,
   ov_swamps: vector<OvSwamp> not null,
   ov_stops:  vector<OvStop> not null,
+  ov_ruins:  vector<OvRuin> not null,
 }
 
 const OV_RC = 866.0254037844386;     // OV_TILE / sqrt(3): circumradius
@@ -633,6 +641,61 @@ pub fn overland_new() -> Overland {
                          ot_fld: 260.0 + 130.0 * (size as float) }];
     }
   }
+  // THE HISTORY: the land supported MORE once. Re-score the settlement sites
+  // with a lower bar and looser spacing — the runners-up were inhabited in
+  // the maximal past, and something went wrong: they stand as RUINS now.
+  ruins: vector<OvRuin> = [];
+  rscore: vector<float> = [];
+  for rsi in 0..n {
+    m = mats[rsi] ?? 0;
+    sc = -1.0;
+    if m == 2 || m == 3 {
+      flat = 1.0 - ov_steep_of(m) / 80.0;
+      fert = 1.0;
+      if m == 3 { fert = 0.8; }
+      water = min(1.0, (acc[rsi] ?? 1.0) / 6.0) * 1.5;
+      sc = flat * 1.2 + fert + water;
+    }
+    rscore += [sc];
+  }
+  for _ in 0..4 {
+    best = -1;
+    bs = 0.9;
+    for rwi in 0..n {
+      if (rscore[rwi] ?? -1.0) > bs {
+        bc = (rwi % OV_NX) ?? 0;
+        br = ((rwi - bc) / OV_NX) ?? 0;
+        (rx5, ry5) = ov_vertex(bc, br);
+        farok = true;
+        for q in 0..len(towns) {
+          tq = towns[q];
+          if tq != null {
+            dd = sqrt((tq.ot_x - rx5) * (tq.ot_x - rx5) + (tq.ot_y - ry5) * (tq.ot_y - ry5));
+            if dd < 1.6 * OV_TILE { farok = false; }
+          }
+        }
+        for q in 0..len(ruins) {
+          rq = ruins[q];
+          if rq != null {
+            dd = sqrt((rq.ru_x - rx5) * (rq.ru_x - rx5) + (rq.ru_y - ry5) * (rq.ru_y - ry5));
+            if dd < 1.5 * OV_TILE { farok = false; }
+          }
+        }
+        if farok { bs = rscore[rwi] ?? -1.0; best = rwi; }
+      }
+    }
+    if best >= 0 {
+      if best < len(rscore) { rscore[best] = -1.0; }
+      bc = (best % OV_NX) ?? 0;
+      br = ((best - bc) / OV_NX) ?? 0;
+      (rx5, ry5) = ov_vertex(bc, br);
+      rsz = 1;
+      if bs > 1.8 { rsz = 2; }
+      if bs > 2.4 { rsz = 3; }
+      ruins += [OvRuin { ru_x: rx5, ru_y: ry5, ru_size: rsz }];
+    }
+  }
+
   // ROADS: each town connects to the nearest earlier town by the EASIEST
   // walking route over the cell graph (slope + terrain costs; water heavy)
   roads: vector<OvRoad> = [];
@@ -729,7 +792,39 @@ pub fn overland_new() -> Overland {
       }
       roads += [OvRoad { rd_x: dxs, rd_y: dys,
                          rd_x0: x0 - 40.0, rd_y0: y0 - 40.0,
-                         rd_x1: x1 + 40.0, rd_y1: y1 + 40.0 }];
+                         rd_x1: x1 + 40.0, rd_y1: y1 + 40.0, rd_faded: 0 }];
+    }
+  }
+  // the ruins' SPOTTED paths: each ruin once had a road to the living world —
+  // a straight-enough displaced trace remains, faded to patches
+  for rri in 0..len(ruins) {
+    ru = ruins[rri];
+    if ru != null {
+      bj2 = -1;
+      bd2 = 1.0e18;
+      for tj2 in 0..len(towns) {
+        tb2 = towns[tj2];
+        if tb2 != null {
+          dd2 = sqrt((tb2.ot_x - ru.ru_x) * (tb2.ot_x - ru.ru_x) + (tb2.ot_y - ru.ru_y) * (tb2.ot_y - ru.ru_y));
+          if dd2 < bd2 { bd2 = dd2; bj2 = tj2; }
+        }
+      }
+      tb2 = towns[bj2 ?? 0];
+      if tb2 != null {
+        fxs: vector<float> = [ru.ru_x, (ru.ru_x + tb2.ot_x) * 0.5, tb2.ot_x];
+        fys: vector<float> = [ru.ru_y, (ru.ru_y + tb2.ot_y) * 0.5, tb2.ot_y];
+        gxs: vector<float> = [];
+        gys: vector<float> = [];
+        ov_displace(fxs, fys, 0.5, 0, gxs, gys);
+        x0 = gxs[0] ?? 0.0; y0 = gys[0] ?? 0.0; x1 = x0; y1 = y0;
+        for q in 0..len(gxs) {
+          x0 = min(x0, gxs[q] ?? 0.0); x1 = max(x1, gxs[q] ?? 0.0);
+          y0 = min(y0, gys[q] ?? 0.0); y1 = max(y1, gys[q] ?? 0.0);
+        }
+        roads += [OvRoad { rd_x: gxs, rd_y: gys,
+                           rd_x0: x0 - 40.0, rd_y0: y0 - 40.0,
+                           rd_x1: x1 + 40.0, rd_y1: y1 + 40.0, rd_faded: 1 }];
+      }
     }
   }
   // ROAD STOPS: a cart goes SLOW — where a road leg outruns one day's travel,
@@ -768,20 +863,20 @@ pub fn overland_new() -> Overland {
   ov0 = Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
                    ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
                    ov_towns: towns, ov_roads: roads, ov_forts: [], ov_swamps: swamps,
-                   ov_stops: stops };
+                   ov_stops: stops, ov_ruins: ruins };
   forts = ov_fort_sites(ov0);
   Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
              ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
              ov_towns: towns, ov_roads: roads, ov_forts: forts, ov_swamps: swamps,
-             ov_stops: stops }
+             ov_stops: stops, ov_ruins: ruins }
 }
 
-// distance to the nearest road centerline
+// distance to the nearest LIVING road centerline (faded paths claim nothing)
 fn ov_road_dist(o: Overland, x: float, y: float) -> float {
   gd = 1.0e9;
   for ri in 0..len(o.ov_roads) {
     rd = o.ov_roads[ri];
-    if rd != null && x >= rd.rd_x0 && x <= rd.rd_x1 && y >= rd.rd_y0 && y <= rd.rd_y1 {
+    if rd != null && rd.rd_faded == 0 && x >= rd.rd_x0 && x <= rd.rd_x1 && y >= rd.rd_y0 && y <= rd.rd_y1 {
       for k in 0..len(rd.rd_x) - 1 {
         ax = rd.rd_x[k] ?? 0.0;
         ay = rd.rd_y[k] ?? 0.0;
@@ -1010,6 +1105,12 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
   // the ROAD: fords rivers, yields only to open water and ice
   rdist = ov_road_dist(o, x, y);
   if rdist < 9.0 { return (h, K_ROAD); }
+  // the SPOTTED PATH to a ruin: only patches of it survive the years
+  fdist = ov_faded_dist(o, x, y);
+  if fdist < 8.0 {
+    spotc = ov_chash(round(x / 26.0) as integer, round(y / 26.0) as integer, 0, 0, 33);
+    if spotc < 0.45 { return (h, K_ROAD); }
+  }
   // running water (shallow, fordable)
   if dist < wf * 0.5 && watery < 0.5 { return (h, K_RIVER); }
   // TOWNS: the farmers' rule — fields on the flat ground near town; the
@@ -1115,6 +1216,33 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
     return (h, K_GRASS);
   }
   (h, K_GRASS)
+}
+
+// distance to the nearest FADED ruin-path centerline
+fn ov_faded_dist(o: Overland, x: float, y: float) -> float {
+  gd = 1.0e9;
+  for ri in 0..len(o.ov_roads) {
+    rd = o.ov_roads[ri];
+    if rd != null && rd.rd_faded == 1 && x >= rd.rd_x0 && x <= rd.rd_x1 && y >= rd.rd_y0 && y <= rd.rd_y1 {
+      for k in 0..len(rd.rd_x) - 1 {
+        ax = rd.rd_x[k] ?? 0.0;
+        ay = rd.rd_y[k] ?? 0.0;
+        bx = rd.rd_x[k + 1] ?? 0.0;
+        by = rd.rd_y[k + 1] ?? 0.0;
+        ex = bx - ax;
+        ey = by - ay;
+        ee = ex * ex + ey * ey;
+        if ee > 0.000000001 {
+          t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
+          ddx = x - (ax + t * ex);
+          ddy = y - (ay + t * ey);
+          d = sqrt(ddx * ddx + ddy * ddy);
+          if d < gd { gd = d; }
+        }
+      }
+    }
+  }
+  gd
 }
 
 // the blended wateriness at a point (I1's gate value; tests + gen use it)

@@ -3159,6 +3159,77 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
                            edgeq, edger, msq, msr, edgeq, edger, msq, msr)];
       }
 
+      // THE RUINS: where the maximal history broke — tumbled houses, breached
+      // walls, rubble ground; goblins nest in them (a band + its leader),
+      // asleep until someone comes poking
+      ctbl2 = monster_table();
+      for rui in 0..len(ovw.ov_ruins) {
+        ru2 = ovw.ov_ruins[rui];
+        if ru2 != null {
+          rux = ((ru2.ru_x - ax + cwx) / sstep) ?? 0.0;
+          ruy = ((ru2.ru_y - ay + cwy) / sstep) ?? 0.0;
+          (ruq, rur) = px_to_hex(rux, ruy);
+          if ruq >= 8 && ruq < w - 8 && rur >= 7 && rur < h - 7 {
+            // broken houses: stamped, then the years knock holes in them
+            nrh = 2 + ru2.ru_size;
+            for rh2 in 0..nrh {
+              rang = ((rh2 as float) + 0.6) * 6.2831853 / (nrh as float);
+              rhx = ruq + round(5.0 * cos(rang)) as integer - 2;
+              rhy = rur + round(5.0 * sin(rang) * 0.866) as integer - 1;
+              stamp_house(tiles, tk, w, h, rhx, rhy, 5, 4, 2);
+            }
+            if ru2.ru_size >= 2 {
+              stamp_round_tower(tiles, tk, w, h, ruq + 6, rur - 4, 2);
+            }
+            if ru2.ru_size >= 3 {
+              for wr3 in 0..h {
+                for wq3 in 0..w {
+                  if hex_distance(wq3, wr3, ruq, rur) == 10 {
+                    ti11 = wr3 * w + wq3;
+                    if ((wq3 * 53 + wr3 * 29) & 7) < 4 {
+                      if ti11 < len(tiles) { tiles[ti11] = 1; }
+                    }
+                  }
+                }
+              }
+            }
+            // the years: knock holes, scatter rubble
+            for br3 in 0..15 {
+              for bq3 in 0..15 {
+                dq3 = ruq + bq3 - 7;
+                dr3 = rur + br3 - 7;
+                if dq3 >= 1 && dq3 < w - 1 && dr3 >= 1 && dr3 < h - 1 {
+                  ti12 = dr3 * w + dq3;
+                  hbreak = (dq3 * 2654435761 ^ dr3 * 40503) & 15;
+                  if ti12 < len(tiles) && (tiles[ti12] ?? 0) == 1 && hbreak < 6 {
+                    tiles[ti12] = 0;                       // a breach
+                    if hbreak < 3 && ti12 < len(tk) { tk[ti12] = K_SCREE + 1; }
+                  }
+                  if ti12 < len(tiles) && (tiles[ti12] ?? 0) == 0 && hbreak == 7 {
+                    if ti12 < len(tk) { tk[ti12] = K_SCREE + 1; }   // rubble drifts
+                  }
+                }
+              }
+            }
+            // the nest: goblins + their leader, sleeping among the stones
+            gld = mon_find(ctbl2, "goblin_leader");
+            if gld.m_hp > 0 && !occupied_hex(enemies, ruq, rur) {
+              enemies += [mk_enemy(gld, ruq, rur)];
+            }
+            gob = mon_find(ctbl2, "goblin");
+            if gob.m_hp > 0 {
+              ngob = 2 + ru2.ru_size;
+              for gb2 in 0..ngob {
+                (gq3, gr3) = hex_neighbor(ruq, rur, gb2 % 6 ?? 0);
+                if !tile_solid(tiles, w, h, gq3, gr3) && !occupied_hex(enemies, gq3, gr3) {
+                  enemies += [mk_enemy(gob, gq3, gr3)];
+                }
+              }
+            }
+          }
+        }
+      }
+
       // ROAD STOPS within the window get a waystation hut; the MERCHANT CART
       // runs the multi-day route (far road end <-> the home market) and parks
       // the night at the nearest stop (or on the square if none is visible)
