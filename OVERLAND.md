@@ -243,6 +243,20 @@ independent numbers: HEIGHT comes from RISE (+ relief), CHARACTER from STEEP;
 age is their ratio. Status: tuning-table content (the user owns the numbers);
 no engine change needed.
 
+### 7i. Ranges form on the DIVIDES between water systems (user model)
+Mountain ranges are not placed — they stand on the watershed DIVIDES between
+drainage basins, two systems back-to-back **flowing outwards of each other**,
+the crest between them the range. (7f scaled up: within a cell the rim is the
+watershed; across the continent the basin boundary is the range.) Machinery
+mapping: accumulation is the inverse signal — high-acc cells are valley floors
+(already forced low by the zero-relief water rule), acc≈1 cells are headwaters
+= the tops; basin identity is derivable (follow flow to the mouth, label; a
+cell whose neighbor drains to a DIFFERENT mouth sits on a divide) — that
+divide-ness is where RISE should concentrate. Causality becomes water pattern
+→ divides → ranges; authored heights merely seed where the basins fall.
+Status: recorded, NOT yet coded (the candidate inputs — inverse acc, basin
+labels — are cheap derivations over existing fields).
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
