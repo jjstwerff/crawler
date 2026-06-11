@@ -212,6 +212,20 @@ not new code. (If tuning alone can't reach it, the candidate knob is anchoring
 the rise to a center→rim coordinate derived from the blend weights — seamless
 by construction — but that is parked until the numbers say it's needed.)
 
+### 7g. Materials follow the water: big rivers carve their own PLAINS (user model)
+A large river through mountains doesn't just cut a notch — it builds a FLAT
+floor. Inside a course's valley band (width size-proportional, like the carve)
+the material contest flips: **there the FLATTER type wins**, overriding the
+surrounding rock with plain/hill — so even the biggest ranges carry ribbons of
+plains and hills inside them. The carve already flattens the *height*; this
+rule makes the floor *read and play* as plain: palette, spawn tables, and the
+plain's own rise/steep numbers (calm floor, soaring walls — the zero-relief
+water rule already keeps those tiles' centers low). Consequences: the great
+valleys are the natural passes/roads/settlement sites through massifs (the
+travel layer follows them). Content side: an "alluvial floor" band is a
+transition CLAIM like sea-shore — a bundle claims it by river-size condition.
+Status: recorded, NOT yet coded — same discipline as 7f.
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
