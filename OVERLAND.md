@@ -226,6 +226,23 @@ travel layer follows them). Content side: an "alluvial floor" band is a
 transition CLAIM like sea-shore — a bundle claims it by river-size condition.
 Status: recorded, NOT yet coded — same discipline as 7f.
 
+### 7h. Mountain AGE = the rise/steep ratio (user model)
+The divide between the white and the normal mountains is geological age:
+- **Young ranges** (the white, steep Switzerland kind): high RISE **and** high
+  STEEP — they soar and they're jagged; snow caps them.
+- **Old ranges** (the gray eastern-Alps kind): the RISE remains, the STEEP has
+  eroded away — equally high but FLOWING, rounded, walkable higher up.
+- **The limit case**: even a continuous HILL pattern with enough rise (and the
+  neighbor compounding feeding it) becomes a high range that rolls instead of
+  cutting — no special case; it's just a point in rise/steep space.
+The MIX in between comes two ways: an explicit middle row in the type table
+(an "old rock / worn massif" terrain between hill and young rock), and the
+boundary contest already crossfading rise/steep where young meets old — the
+transition character is free. This is the model that VALIDATES the two
+independent numbers: HEIGHT comes from RISE (+ relief), CHARACTER from STEEP;
+age is their ratio. Status: tuning-table content (the user owns the numbers);
+no engine change needed.
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
