@@ -257,6 +257,18 @@ divide-ness is where RISE should concentrate. Causality becomes water pattern
 Status: recorded, NOT yet coded (the candidate inputs — inverse acc, basin
 labels — are cheap derivations over existing fields).
 
+### 7j. Waterfalls and slides: the small river's vertical features (user model)
+A SMALL river through a mountain tile cuts deep and normally forms WATERFALLS
+— its profile steps instead of grading. Through hills the gentler version:
+water SLIDES / rapids. Both are a bit rare in the large because of 7g: rivers
+of any size build their own natural plains and grade their beds — cascades
+concentrate on small, young, steep streams. Machinery mapping: cascade sites
+derive from existing per-vertex course data (LOW accumulation × HIGH coarse
+slope → waterfall; moderate slope → slide), placed as discrete steps in the
+carved channel profile. Content/gameplay: waterfalls are landmarks, hearing-
+channel sound sources, and passage features — bundle-placeable POIs exactly
+where the terrain is most dramatic. Status: recorded, NOT yet coded.
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
