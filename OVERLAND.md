@@ -69,10 +69,13 @@ an **encounter-pacing dial**:
 - 500 m ≈ 333 steps (~1.6 min): transitions inside a casual walk; travel mode = comfort.
 - 300 m ≈ 200 steps (~1 min): the world changes as you walk (the classic overland-game cheat).
 
-**Decision: default 500 m, kept as one named constant** (fine-hexes-per-overland-hex). The
-blueprint renders the same world at 1500/500/300 so the choice is judged by eye. Large
-same-biome regions are recovered by *authoring clusters* (three forest tiles in a row IS a
-1.5 km forest).
+**Decision (revised): the MODEL is tuned at the NATURAL scale — 1.5 km tiles** (user call:
+"that is the natural scale; the in-game world will not be natural"). Horizontal in true
+kilometers, vertical in true meters — the geology rules (7e–7j) tune against real-world
+proportions. The GAME then compresses at consumption: the fine-hexes-per-overland-tile
+ratio is a gameplay mapping (the classic overland-game cheat), deliberately un-natural,
+chosen for encounter pacing — separate from and not constraining the model. The bench
+runs at 1500 m tiles, 72×48 km world.
 
 ## 5. Seamless merge — triangular interpolation on the hex lattice
 
@@ -268,6 +271,17 @@ slope → waterfall; moderate slope → slide), placed as discrete steps in the
 carved channel profile. Content/gameplay: waterfalls are landmarks, hearing-
 channel sound sources, and passage features — bundle-placeable POIs exactly
 where the terrain is most dramatic. Status: recorded, NOT yet coded.
+
+### 7k. EVERY water flow counts (user model)
+Even the smallest stream cuts deep through ages of waterflow. Accumulation
+gates **water visibility and width**, never *whether the cut exists*: every
+cell's flow path is a course; an acc-1 brook owns a deep-but-NARROW cut (the
+gorge), a great river a wide one (+ its 7g plain). This is also what makes 7j
+possible — gorges and waterfalls live exactly on the small steep streams the
+current RIVER_ACC threshold discards. Bench/lib implication when coded: build
+courses from ALL source cells; scale width and water rendering by acc; keep
+carve depth substantially acc-independent (age does the cutting, size does the
+widening). Status: recorded, NOT yet coded.
 
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 

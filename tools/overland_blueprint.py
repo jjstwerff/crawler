@@ -31,18 +31,18 @@ np.seterr(over="ignore")   # uint32 hash wrap is intentional + deterministic
 
 # ---------------------------------------------------------------- parameters
 SEED = 1337
-TILE_M = 500.0          # overland hex horizontal pitch (THE scale parameter)
-WORLD_W = 24000.0       # world extent in meters (fixed across scales for the strip)
-WORLD_H = 16000.0
+TILE_M = 1500.0         # overland hex pitch — the NATURAL scale (game compresses later)
+WORLD_W = 72000.0       # world extent in meters (fixed across scales for the strip)
+WORLD_H = 48000.0
 SEA_LEVEL = 0.0
 RIVER_ACC = 6           # tiles of accumulation before a stream is a river
 MEANDER_K = 0.34        # fractal displacement strength
-SEG_MIN_M = 28.0        # stop subdividing below this segment length
-VALLEY_W = 46.0         # smallest valley falloff (m); per-river up to VALLEY_MAX
-VALLEY_MAX = 130.0      # the biggest river carves this wide a falloff
+SEG_MIN_M = 84.0        # stop subdividing below this segment length
+VALLEY_W = 138.0        # smallest valley falloff (m); per-river up to VALLEY_MAX
+VALLEY_MAX = 390.0      # the biggest river carves this wide a falloff
 CARVE_M = 22.0          # max valley depth (m), grows with river size
-RIPARIAN_W = 110.0      # moisture greening falloff (m)
-APRON_M = 560.0         # apron >= the HARD cutoffs (4*VALLEY_MAX, 3*RIPARIAN_W)
+RIPARIAN_W = 330.0      # moisture greening falloff (m)
+APRON_M = 1680.0        # apron >= the HARD cutoffs (4*VALLEY_MAX, 3*RIPARIAN_W)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_overland")
 
 # ===================== TERRAIN TUNING TABLE (play here) =====================
@@ -142,12 +142,12 @@ class Overland:
         C, R = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
         X = (C + 0.5 * (R & 1)) * self.hw
         Y = R * self.vs
-        n = fbm(X, Y, 7500.0, 6, 7)
-        ridge = 1.0 - np.abs(fbm(X, Y, 11000.0, 3, 23))   # ridged noise
+        n = fbm(X, Y, 22500.0, 6, 7)
+        ridge = 1.0 - np.abs(fbm(X, Y, 33000.0, 3, 23))   # ridged noise
         # broad continent, sea at the rim; DOMAIN-WARPED rim -> bays + peninsulas
         dx = (X - WORLD_W * 0.42) / (WORLD_W * 0.50)
         dy = (Y - WORLD_H * 0.48) / (WORLD_H * 0.58)
-        rad = np.maximum(0.0, np.sqrt(dx * dx + dy * dy) + 0.30 * fbm(X, Y, 6000.0, 3, 31))
+        rad = np.maximum(0.0, np.sqrt(dx * dx + dy * dy) + 0.30 * fbm(X, Y, 18000.0, 3, 31))
         # SEVERAL massifs (not one dome) -> basins between them CONVERGE drainage;
         # positions hash-jittered by the seed so each world has its own bones
         self.h = 380.0 * n + 170.0 - 1000.0 * rad ** 2.6
@@ -160,7 +160,7 @@ class Overland:
             g = np.exp(-((X - WORLD_W * fx) / (WORLD_W * sx)) ** 2
                        - ((Y - WORLD_H * fy) / (WORLD_H * sy)) ** 2)
             self.h = self.h + amp * ridge * g
-        self.moist = 0.5 + 0.5 * fbm(X, Y, 5200.0, 3, 11)
+        self.moist = 0.5 + 0.5 * fbm(X, Y, 15600.0, 3, 11)
         # PRIORITY-FLOOD pit fill: every land cell drains to the sea; cells the
         # flood raised noticeably sit in depressions -> true lakes.
         filled = self.h.copy()
@@ -324,6 +324,7 @@ def blend_fields(ov, xs, ys):
     rk = ov.hw * 1.02                       # kernel radius: covers >=3 centers anywhere
     ry0 = np.round(ys / ov.vs).astype(np.int64)
     acc = {k: np.zeros_like(xs) for k in ("w", "h", "moist", "watery", "lakey", "relief")}
+    wmax = np.zeros_like(xs)
     wm = np.zeros((len(MATS),) + xs.shape)  # per-MATERIAL weight (the contest input)
     for dr in (-1, 0, 1):
         r = ry0 + dr
@@ -346,9 +347,14 @@ def blend_fields(ov, xs, ys):
             acc["relief"] += w * ov.relief[ri, ci]
             for m in range(len(MATS)):
                 wm[m] += w * (mat == m)
+            wmax = np.maximum(wmax, w)
     iw = 1.0 / np.maximum(acc["w"], 1e-12)
     out = {k: acc[k] * iw for k in acc if k != "w"}
     out["wm"] = wm * iw[None]
+    # GEOLOGY (user model): cells are CATCHMENTS — rivers run the centers, so
+    # the watershed runs the rim and the CORNERS are the summits.  rim = 0 at
+    # a cell center, ~1 at a triple point; smooth + seamless by construction.
+    out["rim"] = np.clip((1.0 - wmax * iw) / 0.667, 0.0, 1.0)
     return out
 
 LAND_MATS = (M_SAND, M_PLAIN, M_FOREST, M_HILL, M_ROCK, M_SNOW)
@@ -358,7 +364,7 @@ def material_contest(f, xs, ys):
     ONE implementation — the renderer and the shoreline trim must agree."""
     scores = []
     for m in LAND_MATS:
-        jit = 0.72 + 0.56 * (fbm(xs, ys, 340.0, 3, 40 + m) * 0.5 + 0.5)
+        jit = 0.72 + 0.56 * (fbm(xs, ys, 1020.0, 3, 40 + m) * 0.5 + 0.5)
         scores.append(f["wm"][m] * math.sqrt(MATS[m][3]) * jit)
     S = np.stack(scores)
     i1 = np.argmax(S, axis=0)
@@ -379,31 +385,32 @@ def material_contest(f, xs, ys):
 def detail_at(xs, ys):
     """Detail fbm with DOMAIN WARP: the sampling space is swirled by a second
     noise so the value-noise lattice never reads as a repeating pattern."""
-    wx = fbm(xs, ys, 700.0, 2, 80)
-    wy = fbm(xs, ys, 700.0, 2, 81)
-    return fbm(xs + 240.0 * wx, ys + 240.0 * wy, 420.0, 8, 3)
+    wx = fbm(xs, ys, 2100.0, 2, 80)
+    wy = fbm(xs, ys, 2100.0, 2, 81)
+    return fbm(xs + 720.0 * wx, ys + 720.0 * wy, 1260.0, 8, 3)
 
 def ridge_at(xs, ys):
     """LOW-frequency ridged field (domain-warped, crest sharpened): roughly ONE
     combined crest per steep zone — peaks consolidate into ridgelines instead
     of speckling a slope with one peak per noise zero-crossing."""
-    wxr = fbm(xs, ys, 1500.0, 2, 84)
-    wyr = fbm(xs, ys, 1500.0, 2, 85)
-    r = 1.0 - np.abs(fbm(xs + 300.0 * wxr, ys + 300.0 * wyr, 950.0, 2, 86))
+    wxr = fbm(xs, ys, 4500.0, 2, 84)
+    wyr = fbm(xs, ys, 4500.0, 2, 85)
+    r = 1.0 - np.abs(fbm(xs + 900.0 * wxr, ys + 900.0 * wyr, 2850.0, 2, 86))
     return r * r * r   # sharp crests
 
 def fine_height_of(f, steep_eff, rise_eff, detail, ridge):
-    """Coarse blend + STEEP (detail jaggedness) + RISE (ridge lift scaled by
-    blended neighbor-relief / 100 m reference). The two are INDEPENDENT
-    per-terrain numbers (the MATS table). Water-flow tiles blend ZERO relief,
-    so they stay low and every river cuts deep for free."""
+    """Coarse blend + STEEP (detail jaggedness) + RISE anchored to the LATTICE
+    GEOLOGY: tile centers are the valleys (the rivers run there), tile rims the
+    watersheds, tile CORNERS the summits.  rim^1.5 shapes center->peak; the
+    low-frequency ridge noise only VARIES the summit heights (0.35 floor so
+    every high-relief corner still rises). Water tiles blend ZERO relief."""
     return f["h"] + steep_eff * detail \
-        + rise_eff * (f["relief"] / 100.0) * ridge
+        + rise_eff * (f["relief"] / 100.0) * (f["rim"] ** 1.5) * (0.35 + 0.65 * ridge)
 
 def lake_field(f, xs, ys):
     """Lake contour field: the blended lake weight, fractally jittered so the
     shore is a ragged natural line, not a rounded hexagon union."""
-    return f["lakey"] + 0.11 * fbm(xs, ys, 330.0, 4, 70)
+    return f["lakey"] + 0.11 * fbm(xs, ys, 990.0, 4, 70)
 
 def water_mask_at(ov, pts):
     """Is each point in sea/lake water? (pre-carve fine height + lake contour)"""
@@ -493,7 +500,7 @@ def chaikin(pts, n=2):
 def meander_factor(ov, x, y):
     """Flat land winds, steep land runs straight; extra wind near sea level."""
     s = coarse_slope(ov, x, y)
-    f = 0.12 + 0.88 * math.exp(-s / 0.016)
+    f = 0.12 + 0.88 * math.exp(-s / 0.00533)
     h = coarse_height(ov, x, y)
     if 0.0 < h < 60.0:
         f = min(1.25, f * (1.0 + 0.5 * (1.0 - h / 60.0)))
@@ -538,7 +545,7 @@ def fine_rivers(ov):
         for pp, pv in trim_to_shore(ov, fp, fv):   # ends ON the shorelines
             pva = np.array(pv)
             h0, sl = shape_factors(ov, pp)
-            fs = np.minimum(1.0, sl / 0.05)        # 0 = flat plain, 1 = steep
+            fs = np.minimum(1.0, sl / 0.0167)      # 0 = flat plain, 1 = steep
             base = 3.0 + 1.7 * np.sqrt(pva)
             # gorges in steep land, wide shallow floodplains on the flats,
             # and a near-sea-level bonus: the carved mouth lets the SEA inland
@@ -784,7 +791,7 @@ def panel_profile(ov, rivers, fname):
     cuts = ((ov.center(hot[1], hot[0])[0], ov.center(hot[1], hot[0])[1], "through the high massif"),
             (mx, my, "through the river mouth"))
     Wp, Hp, pz = 1500, 420, 3.2          # 3.2 m height per px
-    span = 9000.0                         # 9 km wide window
+    span = 27000.0                        # 27 km wide window
     for cx, cy, label in cuts:
         x0 = min(max(0.0, cx - span / 2), WORLD_W - span)
         img = np.zeros((Hp, Wp, 3), np.uint8)
@@ -792,7 +799,7 @@ def panel_profile(ov, rivers, fname):
         xs = x0 + (np.arange(Wp) + 0.5) * (span / Wp)
         zrow = np.arange(Hp)
         for k in range(36, -1, -1):       # far -> near, strips 40 m apart
-            yy = cy - 720.0 + k * 40.0
+            yy = cy - 2160.0 + k * 120.0
             ys = np.full(Wp, yy)
             h, mc, wat = sample_terrain(ov, rivers, xs, ys)
             fade = 0.55 + 0.45 * (1.0 - k / 36.0)
@@ -921,26 +928,26 @@ def main():
 
     if what in ("fine", "all"):
         mx, my = pick_mouth(ov, rivers)
-        x0 = min(max(0.0, mx - 2600.0), WORLD_W - 3600.0)
-        y0 = min(max(0.0, my - 1500.0), WORLD_H - 2600.0)
-        img = render_window(ov, rivers, x0, y0, 1500, 1080, 2.4, borders=True)
+        x0 = min(max(0.0, mx - 7800.0), WORLD_W - 10800.0)
+        y0 = min(max(0.0, my - 4500.0), WORLD_H - 7800.0)
+        img = render_window(ov, rivers, x0, y0, 1500, 1080, 7.2, borders=True)
         Image.fromarray(img).save(os.path.join(OUT, "fine_blend.png"))
         print(f"wrote fine_blend.png  window ({x0:.0f},{y0:.0f}) 3.6x2.6 km @2.4 m/px")
 
     if what in ("mouth", "all"):
         mx, my = pick_mouth(ov, rivers)
-        x0 = min(max(0.0, mx - 900.0), WORLD_W - 1800.0)
-        y0 = min(max(0.0, my - 900.0), WORLD_H - 1800.0)
-        img = render_window(ov, rivers, x0, y0, 900, 900, 1.2, borders=False)
+        x0 = min(max(0.0, mx - 2700.0), WORLD_W - 5400.0)
+        y0 = min(max(0.0, my - 2700.0), WORLD_H - 5400.0)
+        img = render_window(ov, rivers, x0, y0, 900, 900, 3.6, borders=False)
         Image.fromarray(img).save(os.path.join(OUT, "mouth_closeup.png"))
         print(f"wrote mouth_closeup.png  window ({x0:.0f},{y0:.0f}) 1.1x1.1 km @1.2 m/px")
 
     if what in ("seam", "all"):
         # THE invariant, executed: whole window vs four independent quadrants.
         mx, my = pick_mouth(ov, rivers)
-        x0 = min(max(0.0, mx - 1400.0), WORLD_W - 2200.0)
-        y0 = min(max(0.0, my - 1100.0), WORLD_H - 1800.0)
-        wpx, hpx, pm = 720, 560, 2.4
+        x0 = min(max(0.0, mx - 4200.0), WORLD_W - 6600.0)
+        y0 = min(max(0.0, my - 3300.0), WORLD_H - 5400.0)
+        wpx, hpx, pm = 720, 560, 7.2
         whole = render_window(ov, rivers, x0, y0, wpx, hpx, pm)
         tiles = np.zeros_like(whole)
         for qy in range(2):
