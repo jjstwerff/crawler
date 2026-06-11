@@ -202,7 +202,9 @@ for r in range(NY):
                                             pts[i + 1][1] - pts[i][1]))
         tot = max(arc[-1], 1e-9)
         beds = [bedA + (bedB - bedA) * (t / tot) for t in arc]
-        SIDES.append(dict(pts=pts, acc=a, beds=beds,
+        glac = hgt(c, r) >= 800.0          # sourced in the snow zone
+        SIDES.append(dict(pts=pts, acc=a, beds=beds, glac=glac,
+                          icew=(75.0 + 45.0 * math.sqrt(a)) if glac else 0.0,
                           width=(2.0 + 2.2 * math.sqrt(a)) * (0.35 + 0.65 * open_)))
 SIDES.sort(key=lambda s: -s["acc"])     # STABILITY: bigger water first
 
@@ -334,7 +336,9 @@ def render(px_m=6.0):
     # 2) CORNER peaks + EDGE ridges: vertical structure as MAX of owned forms
     vertp = np.zeros((H, W))           # p-norm accumulator: smooth-max, no creases
     PN = 5.0
-    rnoise = 1 - np.abs(fbm(xs, ys, 700.0, 3, 86))
+    rwx = fbm(xs, ys, 1400.0, 2, 87)
+    rwy = fbm(xs, ys, 1400.0, 2, 88)
+    rnoise = 1 - np.abs(fbm(xs + 420.0 * rwx, ys + 420.0 * rwy, 700.0, 3, 86))
     for P in PEAKS.values():
         R = P["rad"]
         jx0 = max(0, int((P["x"] - R) / px_m))
@@ -382,9 +386,11 @@ def render(px_m=6.0):
     dist = np.full((H, W), 1e9)
     wf = np.zeros((H, W))
     bedf = np.zeros((H, W))
+    icef = np.zeros((H, W))
+    vwf = np.full((H, W), 150.0)
     for S in SIDES:
         fp = S["pts"]
-        rad = 4.0 * (150.0 + 2.0 * S["width"])
+        rad = 4.0 * (150.0 + 2.0 * S["width"]) * (2.3 if S["glac"] else 1.0)
         fxs = [q[0] for q in fp]
         fys = [q[1] for q in fp]
         jx0 = max(0, int((min(fxs) - rad) / px_m))
@@ -414,16 +420,24 @@ def render(px_m=6.0):
         dist[jy0:jy1, jx0:jx1] = np.where(gu, cd, gd)
         wf[jy0:jy1, jx0:jx1] = np.where(gu, S["width"], wf[jy0:jy1, jx0:jx1])
         bedf[jy0:jy1, jx0:jx1] = np.where(gu, bd, bedf[jy0:jy1, jx0:jx1])
+        icef[jy0:jy1, jx0:jx1] = np.where(gu, S["icew"], icef[jy0:jy1, jx0:jx1])
+        svw = (150.0 + 2.0 * S["width"]) * (2.3 if S["glac"] else 1.0)
+        vwf[jy0:jy1, jx0:jx1] = np.where(gu, svw, vwf[jy0:jy1, jx0:jx1])
     h_pre = height.copy()
     # INVARIANT I3 by construction: the carve is exactly what reaches the
     # monotone BED at the centerline, decaying off-channel; land only
-    vw = 150.0 + 2.0 * wf
+    vw = vwf
     need = np.maximum(0.0, h_pre - bedf) * (blend > 0)
     carve = need * np.exp(-dist / vw) * np.clip(1 - dist / (4 * vw), 0, 1)
     height = height - carve
 
+    gy, gx = np.gradient(height, px_m)
+    slope = np.hypot(gx, gy)
+
     # 4) the ZANGBAND TABLE pass: fractal band -> per-terrain micro features
-    band = fbm(xs, ys, 240.0, 4, 55) * 0.5 + 0.5
+    bwx = fbm(xs, ys, 800.0, 2, 57)
+    bwy = fbm(xs, ys, 800.0, 2, 58)
+    band = fbm(xs + 260.0 * bwx, ys + 260.0 * bwy, 240.0, 4, 55) * 0.5 + 0.5
     col = matc.copy()
     snow = np.array([232, 236, 240.0])
     rock = np.array([128, 124, 118.0])
@@ -441,18 +455,42 @@ def render(px_m=6.0):
     # plains: grass tones + bush specks
     isp = (np.abs(col[..., 0] - 124) < 1) & (np.abs(col[..., 1] - 152) < 1)
     col = np.where((isp & (band > 0.66))[..., None], bush, col)
-    # mountain/hill: scree by band, rock by height, snow caps
-    ism = steepf > 20
-    col = np.where((ism & (band > 0.55) & (height > 250))[..., None], scree, col)
-    col = np.where((height > 520)[..., None], rock, col)
-    col = np.where((height > 880)[..., None], snow, col)
+    # mountain/hill ZONATION (user rules): trees along the slopes below the
+    # tree line; treeless slopes ERODE -> stone faces with rubble under them;
+    # ABOVE the tree line meadows along the stone faces; snow on top
+    mslope = steepf > 20
+    TREEL, SNOWL = 520.0, 880.0
+    conif = np.array([58.0, 98.0, 54.0])
+    conif2 = np.array([44.0, 78.0, 42.0])
+    face = np.array([112.0, 108.0, 102.0])
+    meadow = np.array([124.0, 158.0, 92.0])
+    # forested slopes (band picks the stands; very steep ground carries none)
+    mtree = mslope & (height > 90) & (height < TREEL) & (band > 0.34) & (slope < 0.50)
+    col = np.where(mtree[..., None], conif, col)
+    tr2 = mtree & (hash01(np.round(xs / 9).astype(np.int64),
+                          np.round(ys / 9).astype(np.int64), 78) > 0.55)
+    col = np.where(tr2[..., None], conif2, col)
+    # the erosion rule: treeless slope -> stone FACE where steep, RUBBLE below
+    bare = mslope & (height > 90) & (height < TREEL) & ~mtree
+    col = np.where((bare & (slope <= 0.34))[..., None], scree, col)         # rubble
+    col = np.where(((bare & (slope > 0.34)) | (mslope & (slope > 0.60)))[..., None],
+                   face, col)                                               # stone face
+    # the alpine zone: meadow shelves along the stone faces
+    alp = mslope & (height >= TREEL) & (height < SNOWL)
+    col = np.where(alp[..., None], rock, col)
+    col = np.where((alp & (slope < 0.42) & (band <= 0.32))[..., None], scree, col)
+    col = np.where((alp & (slope < 0.26) & (band > 0.32))[..., None], meadow, col)
+    col = np.where((alp & (slope > 0.5))[..., None], face, col)
+    # snow holds only on gentle ground: steep faces and windswept bands CUT
+    # through the cap as bare rock formations
+    sn = height >= SNOWL
+    col = np.where(sn[..., None], snow, col)
+    col = np.where((sn & (band < 0.22))[..., None], scree, col)
+    col = np.where((sn & (slope > 0.34))[..., None], face, col)
     # alluvial floors beside big water
     am = np.clip(1 - dist / np.maximum(wf * 14.0, 1.0), 0, 1) * 0.55
     am = am * (wf > 7.0) * (height > 0)
     col = col * (1 - am[..., None]) + np.array([124, 152, 84.0]) * am[..., None]
-    # hillshade gradient first (the beach gate needs the slope)
-    gy, gx = np.gradient(height, px_m)
-    slope = np.hypot(gx, gy)
     # beach: near sea level AND at the water (coastal blend) AND gentle ground —
     # steep shores are CLIFFS, they get no sand
     beach = np.clip(1 - np.abs(h_pre - 2.0) / 3.0, 0, 1) * (h_pre > 0) \
@@ -463,7 +501,13 @@ def render(px_m=6.0):
     col = col * shade[..., None]
     # water: sea / lake / rivers / whitewater
     sea = height <= 0
-    lakey = (lakew + 0.09 * fbm(xs, ys, 700.0, 3, 70) > 0.42) & ~sea
+    lkj = lakew + 0.09 * fbm(xs, ys, 700.0, 3, 70)
+    lakey = (lkj > 0.42) & ~sea
+    # the BANK: terrain within the lake's blend band descends smoothly TO the
+    # owned level — the world flows from the constraint, no cliff ring
+    bank = np.clip((lkj - 0.16) / (0.42 - 0.16), 0.0, 1.0) ** 1.4
+    height = np.where(~lakey & (height > HGT["l"]),
+                      height - (height - (HGT["l"] + 0.8)) * bank, height)
     height = np.where(lakey, HGT["l"], height)   # INVARIANT I2: one flat level
     depth01 = np.clip(-height / 40, 0, 1)
     seac = np.array([72, 132, 172.0]) * (1 - depth01[..., None]) + np.array([22, 54, 102.0]) * depth01[..., None]
