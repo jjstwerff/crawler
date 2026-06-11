@@ -589,6 +589,10 @@ ROLE — never aggressive, never punched; the player's bump slides past):
   stalls — TOWNS craft the simple goods (rations, torches), CITIES the
   complex armour and weapons (blades, leathers) — daily floor-item production
   at the market, capped.
+- **The ALCHEMIST-FACTORY** (user rule): the main cities host one, drowned
+  in requests — it only actually BREWS on some days of the week (3 of 7), and
+  each brewing day yields ONE type of potion (the type rotates by week and
+  day), set out beside the stalls in a small batch.
 - **The cart TRADES** (user rule): at the home market it loads what the
   makers offer — weapons/armour only, only the LIGHT ones (weight-capped: no
   broadswords on a cart's springs), and only TWO slots (not much choice);

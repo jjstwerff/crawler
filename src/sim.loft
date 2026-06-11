@@ -1862,6 +1862,19 @@ pub fn sim_tick(s: &Sim) {
       } else {
         sim_drop_item(s, stq3, str3, "leather_boots");
       }
+      // THE ALCHEMIST-FACTORY: drowned in requests, it only actually BREWS on
+      // some days of the week — and each brewing day is ONE type of potion
+      dow = day3 % 7 ?? 0;
+      if dow == 1 || dow == 3 || dow == 5 {
+        week3 = (day3 / 7) ?? 0;
+        pidx = (week3 * 3 + (dow / 2 ?? 0)) % 4 ?? 0;
+        pk = "potion_cure_light";
+        if pidx == 1 { pk = "potion_detect_monsters"; }
+        if pidx == 2 { pk = "potion_cure_serious"; }
+        if pidx == 3 { pk = "potion_restore"; }
+        sim_drop_item(s, stq3 + 1, str3 + 1, pk);
+        sim_drop_item(s, stq3 + 1, str3 + 1, pk);
+      }
     } else {
       if (day3 % 2 ?? 0) == 0 {
         sim_drop_item(s, stq3, str3, "ration_of_food");
