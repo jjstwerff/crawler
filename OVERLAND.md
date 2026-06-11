@@ -369,3 +369,84 @@ Round towers + 24-direction walls (CONVERGENCE roadmap, next after this); block 
 increments wiring (`world_key_seed(wx,wy,depth)` is pre-parameterized); MP sharding
 (blocks are the shards; RandStream state on Sim is syncable); hunger system build;
 overland travel mode implementation (designed in §8, built after terrain exists).
+
+## 12. THE SCALE LADDER — deriving the detailed map (theory, pinned 2026-06-11)
+
+The gap from 1.5 km tiles to 1.5 m walked hexes is bridged by a LADDER of layers,
+each a pure sampler over the one above — never a tree you descend, never data you
+store. Each layer owns roughly one order of magnitude of form: overland (biome,
+geology, trunk hydrology) → meso (~500–150 m: gullies, stands/clearings, ponds,
+cliff lines) → micro (~60 m: individual landforms, POIs, stencils) → fine (the
+walked tiles). Two channels everywhere: continuous FIELDS give the ground;
+discrete FEATURES give the forms — linear features reuse the river template,
+area features the lake template, point features the 7j site rule. Per-terrain
+INCLUSION tables (forest contains clearings/groves/ponds…) are bundle content
+over ONE generic claim mechanism. The realization unit is the block/map: sample
+fields + collect bounded-influence features + rasterize; the detailed map is a
+VIEW of a function — only player deltas persist. The game's compression constant
+(walked hex → natural meters, C ≈ 3–5) stays outside the model entirely.
+
+### 12a. The ZAngband graft
+ZAngband's wilderness gen already has this shape: per-block seeded plasma
+fractal anchored at SHARED CORNER values + per-terrain LOOKUP TABLES (fractal
+band → grass/tree/bush/rock/water) + overlays. We adopt it as the micro layer,
+upgraded: the anchors sample OUR field stack (the rough structure is followed
+by construction), the plasma residual is the per-type micro-roughness number,
+the tables are the inclusion tables (bundle rows beside rise/steep), and our
+features (courses, cliffs, sites) rasterize over the result in authority order.
+`world_key_seed(wx, wy, depth)` is the per-map seed, already parameterized.
+
+### 12b. The DUAL-TRIANGLE map (user direction)
+The local-map unit is the triangle of the DUAL lattice — vertices = three
+mutually adjacent hex CENTERS (2 triangles per hex of area). Then:
+- the SIDES are the river corridors (center→edge-bit→center = the flow links);
+  a river ROUGHLY FOLLOWS a side, never straight — the side is the AXIS, the
+  course the fractally displaced curve around it, meander belt ∝ size ×
+  openness, excursion bounded (a geometric series → the provable corridor bound);
+- the VERTICES are the valleys and confluences (hex centers, control points);
+- the INTERIOR is one coherent landform rising to the hex CORNER (triple
+  point) at the centroid — the summit (7f). No water inside an interior, ever.
+Triangle id = (hex, index) is the natural key for gen seed, persistence deltas,
+MP shards, travel. Triangles subdivide 4-fold forever (hexes can't subdivide);
+midpoint displacement on triangles is the ORIGINAL fractal terrain, and with
+endpoint-hashed offsets every level is window-independent and edge-consistent.
+Self-similar drainage: sub-gullies follow sub-triangle sides, sub-interiors
+stay whole.
+
+### 12c. THE OWNERSHIP CONTRACTS (user rules — the law of the lattice)
+**No feature ever sits ON exact lattice geometry, and every feature is owned by
+the lattice element all its observers share** — maps CONSUME contracts, never
+regenerate them. The ladder of ownership:
+- **VERTEX** (hex center): valley-floor elevation, jittered control point,
+  confluence, ONE hashed flow tangent (the through-river leaves and arrives
+  along it — C1 across the vertex; tributaries join at honest angles).
+- **SIDE** (center–center): the river — ONE size budget along the whole side
+  (= the upstream cell's accumulation; size changes ONLY at vertices where
+  tributaries join — deliberate, never generation noise), the curved course,
+  the width/depth profile (terrain-deliberate gorge/valley variation from the
+  canonical fields), banks/carve out to a bounded radius, cascade sites (7j).
+- **CORNER** (triple point): the PEAK — jittered OFF the exact point (a
+  lattice-perfect peak grid is as artificial as a ruler-straight river),
+  height/character decided ONCE from the three meeting cells (relief
+  compounding 7e, age mix 7h, water suppression 7l), bounded influence radius.
+  "Multiple triangles decide where the top is" = all evaluate the same
+  corner-owned function — agreement by construction, not negotiation.
+- **EDGE** (corner–corner = hex border): DRY → a RIDGE between the two corner
+  peaks with a hashed saddle (the divide continuing); WET → a WATER GAP where
+  the river breaches at its edge-bit point. The drainage network (dual sides)
+  and the divide network (hex edges) are interlocking duals crossing only at
+  the gaps — 7i read straight out of the geometry.
+- **INTERIOR**: everything else, anchored by all four, generated last.
+Stability throughout: bigger water first; canonical hashes from sorted ids.
+
+### 12d. The experiment (tools/triangle_blueprint.py — first results)
+A hand-authored 9×7 map (two mountains adjacent, a mountain on the sea, a
+mountain on a lake, hills/forest/plains) resolved through the contracts plus a
+first ZAngband table pass. Panels in tools/_triangle/: contracts.png (the
+ownership diagram — jittered peaks tethered to their lattice points, saddled
+ridges ringing the massifs, curved rivers), detail_map.png (6 m/px), ortho.png.
+FINDINGS: adjacent mountains merge into ONE range with a visible saddle (corner
+compounding works); the coastal massif cliffs into the sea; vertical structure
+as MAX of owned forms (peaks + ridges) replaces free noise — form follows
+ownership; lessons: never carve the seabed; lake contours need fractal jitter;
+rivers at 6 m/px read correctly thin (brooks invisible from above — natural).
