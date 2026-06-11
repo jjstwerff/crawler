@@ -111,6 +111,8 @@ pub struct Enemy {
   wr2:   integer not null,
   aq2:   integer not null,    // alt: the food stall / patrol leg B
   ar2:   integer not null,
+  c1g:   integer not null,    // cart cargo (item def idx, -1 empty): LIGHT goods only
+  c2g:   integer not null,
 }
 
 pub struct Sim {
@@ -1795,6 +1797,50 @@ fn npc_step(s: Sim, e: &Enemy) {
   }
 }
 
+// The cart's TRADE: at the home market it loads what the makers offer — but
+// only weapons/armour, only the LIGHT ones (a cart is no ox-train), and only
+// two slots (not much choice); at the route's far end it sets them out.
+fn npc_trade(s: &Sim, e: &Enemy) {
+  itbl = game_items();
+  if hex_distance(e.cur_q, e.cur_r, e.hq, e.hr) <= 2 {
+    fl = s.fi_live;
+    fq = s.fi_q;
+    fr = s.fi_r;
+    fd = s.fi_def;
+    fc = s.fi_cat;
+    fg = s.fi_gold;
+    for li in 0..s.fi_n {
+      if (fl[li] ?? 0) == 1 && (fg[li] ?? 0) == 0 {
+        dgg = hex_distance(fq[li] ?? 0, fr[li] ?? 0, e.cur_q, e.cur_r);
+        ct = fc[li] ?? -1;
+        di2 = fd[li] ?? -1;
+        if dgg <= 2 && di2 >= 0 && (ct == IT_WEAPON || ct == IT_ARMOR) {
+          dfn = itbl[di2];
+          if dfn != null && dfn.i_weight <= 75 {
+            if e.c1g < 0 {
+              e.c1g = di2;
+              if li < len(fl) { fl[li] = 0; }
+            } else if e.c2g < 0 {
+              e.c2g = di2;
+              if li < len(fl) { fl[li] = 0; }
+            }
+          }
+        }
+      }
+    }
+  }
+  if hex_distance(e.cur_q, e.cur_r, e.wq2, e.wr2) <= 1 {
+    if e.c1g >= 0 {
+      add_floor(s, e.cur_q, e.cur_r, 0, item_cat(itbl, e.c1g), e.c1g);
+      e.c1g = -1;
+    }
+    if e.c2g >= 0 {
+      add_floor(s, e.cur_q, e.cur_r, 0, item_cat(itbl, e.c2g), e.c2g);
+      e.c2g = -1;
+    }
+  }
+}
+
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   // THE ECONOMY: each morning the makers bring the night's work to the stalls
@@ -1877,6 +1923,7 @@ pub fn sim_tick(s: &Sim) {
         }
         if e.role != 0 {
           npc_step(s, e);
+          if e.role == 7 { npc_trade(s, e); }
         } else if e.awake {
           if d <= 1 {
             hit = false;
@@ -2442,7 +2489,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true,
-    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r }
+    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r, c1g: -1, c2g: -1 }
 }
 
 // A CIVILIAN: harmless, scheduled, never aggressive (and never punched: the
@@ -2455,7 +2502,7 @@ fn mk_npc(role: integer, key: text, name: text, glyph: text,
     hp: 6, maxhp: 6, dam: 0, xp: 0, mlvl: 0, vision: 0, flags: 0, awake: true,
     speed: ENERGY_STEP - 2, energy: 0, slow_until: 0, stun_until: 0,
     cr: cr, cg: cg, cb: cb, glyph: glyph, key: key, name: name, alive: true,
-    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar }
+    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1 }
 }
 
 // Is any already-placed enemy on this hex?

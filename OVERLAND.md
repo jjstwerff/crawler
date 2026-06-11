@@ -589,6 +589,10 @@ ROLE — never aggressive, never punched; the player's bump slides past):
   stalls — TOWNS craft the simple goods (rations, torches), CITIES the
   complex armour and weapons (blades, leathers) — daily floor-item production
   at the market, capped.
+- **The cart TRADES** (user rule): at the home market it loads what the
+  makers offer — weapons/armour only, only the LIGHT ones (weight-capped: no
+  broadswords on a cart's springs), and only TWO slots (not much choice);
+  at the route's far end it sets the goods out. Distribution made visible.
 NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
 coastal towns, multi-window travel, nicer buildings, true round rendering
 (tile 4) + light fences (tile 5), the lib-ward extraction into hex_terrain.
