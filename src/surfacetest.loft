@@ -1,8 +1,8 @@
 // surfacetest — the depth-0 CONTRACT WILDERNESS (OVERLAND.md 12) and its dungeon entrance.
 // The surface is a 101x101 window of the example world anchored at the biggest town: terrain
 // kinds drive walkability (faces are walls, lake/sea block, rivers ford), the start ring is
-// cleared ground, the spawning crystal + knot stand west, the down-stair ENTRANCE a few steps
-// east. Descending lands in the classic beginner dungeon — the existing descend path.
+// cleared ground, the spawning crystal + knot stand west. The dungeon entrance is NOT
+// here: it opens from the rain-shadow desert, windows to the north (see traveltest).
 use sim;
 
 fn main() {
@@ -25,18 +25,18 @@ fn main() {
   for _ in 0..60 { sim_wait(surf); }
   alive_still = sim_npc_count(surf) == npcs0 && !sim_over(surf);
 
-  sim_teleport(surf, 53, 50);                    // the entrance sits at centre+3 east (w=101 -> 53,50)
-  entrance = sim_stair_under(surf) == 2;         // a down-stair
+  // the dungeon entrance is NOT in town any more — it opens from the rain-shadow
+  // desert, windows away (traveltest walks there); the home window carries none
+  noent = true;
+  for er in 0..101 {
+    for eq in 0..101 {
+      if tile_at(surf, eq, er) == 2 { noent = false; }
+    }
+  }
 
-  dung = sim_descend(surf, 1);                   // walk in -> the classic beginner dungeon
-  d1 = sim_depth(dung);
-  walled = is_wall(dung, 0, 0);                  // the dungeon has rock (the surface has none)
-  populated = sim_enemy_count(dung) > 0;
-
-  println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} entrance={entrance}");
+  println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} no-town-entrance={noent}");
   println("town: npcs={npcs0} day={at_day} alive-after-60-ticks={alive_still}");
-  println("descend: depth={d1} walled={walled} populated={populated}");
-  ok = d0 == 0 && openc && kinds_live && knot && nostair && entrance && d1 == 1 && walled && populated
+  ok = d0 == 0 && openc && kinds_live && knot && nostair && noent
     && populated_town && at_day && alive_still;
   if ok { println("=== SURFACE OK ==="); } else { println("=== FAIL ==="); }
 }

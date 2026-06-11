@@ -1,0 +1,75 @@
+// traveltest — MULTI-WINDOW TRAVEL + THE DESERT GATE (OVERLAND 13j): the
+// wilderness continues past the window edge (walking off crosses into the
+// neighbouring 1.5 km window, hero intact), and the dungeon entrance stands
+// in the rain-shadow desert two windows north of town — on TRUE desert sand
+// (material 6, dry all around: never the beaches), descending into depth 1.
+use sim;
+use hex_grid;
+use overland;
+
+fn main() {
+  println("=== story travel test (window crossing / the desert gate) ===");
+  s0 = sim_new_gen(777, 0);
+  (w0x, w0y) = sim_window(s0);
+  home = w0x == 0 && w0y == 0;
+  noent = true;
+  for r in 0..101 {
+    for q in 0..101 {
+      if tile_at(s0, q, r) == 2 { noent = false; }
+    }
+  }
+  hp0 = sim_player_hp(s0);
+
+  // walk NORTH two windows: step to an open hex on the top edge, cross over
+  crossed = 0;
+  for _ in 0..2 {
+    eq9 = -1;
+    for q in 2..99 {
+      if eq9 < 0 && tile_at(s0, q, 1) == 0 && sim_tile_kind(s0, q, 1) != K_LAKE
+         && sim_tile_kind(s0, q, 1) != K_SEA && sim_tile_kind(s0, q, 1) != K_FACE {
+        eq9 = q;
+      }
+    }
+    if eq9 >= 0 {
+      sim_teleport(s0, eq9, 1);
+      if sim_edge_exit(s0) == 4 {
+        s0 = sim_travel(s0);
+        crossed = crossed + 1;
+      }
+    }
+  }
+  (w1x, w1y) = sim_window(s0);
+  north2 = crossed == 2 && w1x == 0 && w1y == -2;
+  carried = sim_player_hp(s0) == hp0;     // the hero crossed intact
+
+  // THE DESERT GATE stands in this window, on dry desert sand
+  entq = -1;
+  entr = -1;
+  for r in 0..101 {
+    for q in 0..101 {
+      if entq < 0 && tile_at(s0, q, r) == 2 { entq = q; entr = r; }
+    }
+  }
+  gate = entq >= 0;
+  sandy = gate && sim_tile_kind(s0, entq, entr) == K_SAND;
+  dry = gate;
+  for dn in 0..6 {
+    (nq, nr) = hex_neighbor(entq, entr, dn);
+    tkn = sim_tile_kind(s0, nq, nr);
+    if tkn == K_RIVER || tkn == K_LAKE || tkn == K_SEA { dry = false; }
+  }
+
+  // walk in: the 3-floor dungeon below (the naga throne waits at its bottom)
+  d1ok = false;
+  if gate {
+    sim_teleport(s0, entq, entr);
+    ond = sim_stair_under(s0) == 2;
+    d1 = sim_descend(s0, 1);
+    d1ok = ond && sim_depth(d1) == 1 && is_wall(d1, 0, 0) && sim_enemy_count(d1) > 0;
+  }
+
+  println("home={home} no-town-entrance={noent} north2={north2}(crossed={crossed} win={w1x},{w1y}) carried={carried}");
+  println("gate={gate}@({entq},{entr}) desert-sand={sandy} dry={dry} descend={d1ok}");
+  ok = home && noent && north2 && carried && gate && sandy && dry && d1ok;
+  if ok { println("=== TRAVEL OK ==="); } else { println("=== FAIL ==="); }
+}

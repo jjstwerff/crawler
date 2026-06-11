@@ -249,7 +249,7 @@ fn main() {
         (cq, cr) = sim_player_hex(s);
         if cq != sq || cr != sr {
           stt = sim_stair_under(s);
-          if stt == 2 {                       // '>' down
+          if stt == 2 || stt == 6 {           // '>' down (6 = a natural cave mouth)
             s = sim_descend(s, 1);
             walls = build_walls(s);
             hud = build_hud(s);
@@ -258,6 +258,14 @@ fn main() {
             (sq, sr) = sim_player_hex(s);     // arm on the arrival stair
           } else if stt == 3 && sim_depth(s) > 1 {   // '<' up (no overworld above depth 1 yet)
             s = sim_descend(s, -1);
+            walls = build_walls(s);
+            hud = build_hud(s);
+            graphics::gl_delete_vao(wvao);
+            wvao = build_world_vbo(s);
+            (sq, sr) = sim_player_hex(s);
+          } else if sim_depth(s) == 0 && sim_edge_exit(s) != 0 {
+            // the wilderness continues: walking off the window edge crosses over
+            s = sim_travel(s);
             walls = build_walls(s);
             hud = build_hud(s);
             graphics::gl_delete_vao(wvao);

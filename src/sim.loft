@@ -189,6 +189,8 @@ pub struct Sim {
   known:        vector<integer> not null,
   flavour_idx:  vector<integer> not null,
   wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
+  win_x:   integer not null,   // which wilderness WINDOW this surface is ((0,0) = the home town;
+  win_y:   integer not null,   //  neighbours abut — walking off an edge crosses over)
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
   up_r:    integer not null,
   dn_q:    integer not null,   // down-stair hex
@@ -2639,7 +2641,7 @@ pub fn sim_new() -> Sim {
     rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
-    depth: 1, wseed: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
+    depth: 1, wseed: 0, win_x: 0, win_y: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
@@ -2806,10 +2808,11 @@ fn stamp_round_tower(tiles: vector<integer>, tk: vector<integer>, w: integer, h:
 }
 
 pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
-  sim_new_gen_s(seed, depth, 0, 0)
+  sim_new_gen_s(seed, depth, 0, 0, 0, 0)
 }
 
-pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: integer) -> Sim {
+pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: integer,
+                     wwx: integer, wwy: integer) -> Sim {
   w = 41;
   h = 41;
   if depth == 0 { w = 101; h = 101; }   // the surface: a wilderness WINDOW (1.5 km across)
@@ -2830,6 +2833,17 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     ay = 5800.0;
     t0 = ovw.ov_towns[0];
     if t0 != null { ax = t0.ot_x; ay = t0.ot_y; }
+    // MULTI-WINDOW: (wwx, wwy) picks WHICH 1.5 km window of the wilderness this
+    // Sim is. (0,0) anchors at the home town; neighbours overlap by a few hexes
+    // so walking off an edge crosses into continuous terrain. Town life (houses,
+    // people, harbor, industry) belongs to the home window only; the land's own
+    // features (ruins, forts, caves, towers, wilds) place by WORLD coordinates
+    // and appear in whichever window holds them.
+    (spanx, _) = ov_hex_world(w - 4, 0);
+    (_, spany) = ov_hex_world(0, h - 4);
+    ax = ax + (wwx as float) * spanx;
+    ay = ay + (wwy as float) * spany;
+    intown = wwx == 0 && wwy == 0;
     (cwx, cwy) = ov_hex_world(w / 2, h / 2);
     for sr3 in 0..h {
       for sq3 in 0..w {
@@ -2872,6 +2886,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     tsize = 1;
     if t0 != null { tsize = t0.ot_size; }
     nhouse = 3 + tsize * 2;
+    if intown {
     for hb in 0..nhouse {
       hang = ((hb as float) + 0.35) * 6.2831853 / (nhouse as float);
       hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
@@ -2906,6 +2921,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         stamp_round_tower(tiles, tk, w, h, lq, lr, 2);
       }
     }
+    }
     // THE FORTRESS: above and away, watching the ways — a walled keep with
     // four ROUND corner towers, its gate facing the town it protects
     sstep = OV_STEP / HEX_LEN;
@@ -2936,6 +2952,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     shq = -1;
     shr = -1;
     shd = -1;
+    if intown {
     for hr2 in 2..h - 2 {
       for hq2 in 2..w - 2 {
         dd2 = hex_distance(hq2, hr2, w / 2, h / 2);
@@ -2978,8 +2995,10 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       (pier_aq, pier_ar) = hex_neighbor(pq8, pr8, shd);   // the anchorage
       stamp_house(tiles, tk, w, h, shq - 4, shr - 1, 4, 3, 1);   // the harbor hut
     }
+    }
 
-    // the village SQUARE: keep the start / crystal / entrance area open
+    // the village SQUARE: keep the start / crystal area open (home window)
+    if intown {
     for cr3 in 0..h {
       for cq3 in 0..w {
         if hex_distance(cq3, cr3, w / 2, h / 2) <= 4
@@ -2990,6 +3009,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           if ti5 < len(tiles) { tiles[ti5] = 0; }
         }
       }
+    }
     }
   }
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
@@ -3069,7 +3089,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
   // growth). A stationary crystal a few steps west of the start, ringed by a small knot of weak
   // (depth-1) monsters it has "spawned" — the entrance is to the east, so the player chooses to
   // engage the crystal or head straight in.
-  if depth == 0 {
+  if depth == 0 && wwx == 0 && wwy == 0 {
     ctbl = monster_table();
     cx = pq - 6;
     cy = pr;
@@ -3087,6 +3107,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
   }
 
   if depth == 0 {
+    if intown {
     // THE PEOPLE: the daily loop — villagers, farmers (field -> food stall),
       // guards (walls + the fortress), fishers, a lake boat, a sea ship.
       sqq = w / 2 + 2;
@@ -3217,6 +3238,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                            edgeq, edger, msq, msr, edgeq, edger, msq, msr)];
       }
 
+    }
       // THE RUINS: where the maximal history broke — tumbled houses, breached
       // walls, rubble ground; goblins nest in them (a band + its leader),
       // asleep until someone comes poking
@@ -3413,6 +3435,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           }
         }
       }
+      if intown {
       farq = w / 2;
       farr = h / 2;
       bfar = -1;
@@ -3433,9 +3456,10 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                            w / 2 + 2, h / 2 + 2, w / 2 + 2, h / 2 + 2,
                            farq, farr, parkq, parkr)];
       }
+      }
       // LIVESTOCK: cows and horses — the hides come from somewhere. A fenced
       // PEN beside the first farmhouse; they graze the nearby grass by day.
-      if true {
+      if intown {
       ph1 = w / 2 + 9;
       pr1 = h / 2 + 5;
       for pf in 0..12 {
@@ -3505,7 +3529,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       // THE MINE + the big SLAG-FURNACE outside the walls (dirty industry
       // stays out of town): miners cycle ore from the mountain face to the
       // furnace, day in day out
-      if tsize >= 2 {
+      if intown && tsize >= 2 {
         mnq = -1;
         mnr = -1;
         bmn = 999;
@@ -3599,6 +3623,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
 
       // THE MILL grinds the bread grain: WATER-powered at the riverbank if
       // the window has running water, WIND-powered on open ground otherwise
+      if intown {
       mlq = -1;
       mlr = -1;
       bml = 999;
@@ -3629,11 +3654,12 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         mlr = h / 2 - 10;
       }
       stamp_round_tower(tiles, tk, w, h, mlq, mlr, 2);
+      }
 
       // THE ALCHEMIST'S GATHERER: a rugged traveler fetching the special
       // ingredients — met on the roads or the hillsides, shunning the deeper
-      // mountains. There are not many of them: ONE walks this window.
-      if tsize >= 3 {
+      // mountains. There are not many of them: ONE walks the home window.
+      if intown && tsize >= 3 {
         hsq = -1;
         hsr = -1;
         bhs = 999;
@@ -3668,13 +3694,70 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       if dd > bestdd { bestdd = dd; dnq = cq; dnr = cr; }
     }
   }
-  if depth == 0 { dnq = pq + 3; dnr = pr; }   // surface: the dungeon entrance sits a few steps east
+  if depth == 0 {
+    // THE DESERT GATE: the way into the deep dungeon opens from the RAIN-SHADOW
+    // DESERT, not the town square — and on true desert sand, never the beaches
+    // (the gate hex is material-6 desert by construction; a dryness ring keeps
+    // it off any waterside sand). Find the desert cell nearest the home town;
+    // if it lies in THIS window, sink the entrance into the dry sand.
+    dnq = -1;
+    dnr = -1;
+    t0x9 = 7500.0;
+    t0y9 = 5800.0;
+    t9 = ovw.ov_towns[0];
+    if t9 != null { t0x9 = t9.ot_x; t0y9 = t9.ot_y; }
+    bdd9 = 1.0e18;
+    bdx9 = 0.0;
+    bdy9 = 0.0;
+    bok9 = 0;
+    for dgr9 in 0..7 {
+      for dgc9 in 0..9 {
+        if ov_cell_mat(ovw, dgc9, dgr9) == 6 {
+          (ccx9, ccy9) = ov_cell_center(dgc9, dgr9);
+          dd9 = (ccx9 - t0x9) * (ccx9 - t0x9) + (ccy9 - t0y9) * (ccy9 - t0y9);
+          if dd9 < bdd9 { bdd9 = dd9; bdx9 = ccx9; bdy9 = ccy9; bok9 = 1; }
+        }
+      }
+    }
+    if bok9 == 1 {
+      sst9 = OV_STEP / HEX_LEN;
+      eux9 = ((bdx9 - ax + cwx) / sst9) ?? 0.0;
+      euy9 = ((bdy9 - ay + cwy) / sst9) ?? 0.0;
+      (ehq9, ehr9) = px_to_hex(eux9, euy9);
+      if ehq9 >= 3 && ehq9 < w - 3 && ehr9 >= 3 && ehr9 < h - 3 {
+        bsd9 = 999;
+        for sr9 in 3..h - 3 {
+          for sq9 in 3..w - 3 {
+            dsn9 = hex_distance(sq9, sr9, ehq9, ehr9);
+            if dsn9 < bsd9 {
+              tis9 = sr9 * w + sq9;
+              sandy9 = false;
+              if tis9 < len(tk) { sandy9 = (tk[tis9] ?? 0) == K_SAND + 1 && (tiles[tis9] ?? 1) == 0; }
+              if sandy9 {
+                dry9 = true;
+                for dn9 in 0..6 {
+                  (nq9b, nr9b) = hex_neighbor(sq9, sr9, dn9);
+                  if nq9b >= 0 && nq9b < w && nr9b >= 0 && nr9b < h {
+                    tjn9 = nr9b * w + nq9b;
+                    tkn9 = 0;
+                    if tjn9 < len(tk) { tkn9 = tk[tjn9] ?? 0; }
+                    if tkn9 == K_RIVER + 1 || tkn9 == K_LAKE + 1 || tkn9 == K_SEA + 1 { dry9 = false; }
+                  }
+                }
+                if dry9 { bsd9 = dsn9; dnq = sq9; dnr = sr9; }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   ti_up = pr * w + pq;
   if depth != 0 && ti_up >= 0 && ti_up < len(tiles) { tiles[ti_up] = 3; }   // no up-stair on the surface
   ti_dn = dnr * w + dnq;
   dnv = 2;
   if style == 1 && depth > 0 { dnv = 6; }   // deeper into the cave, cave-style
-  if ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = dnv; }
+  if dnq >= 0 && ti_dn >= 0 && ti_dn < len(tiles) { tiles[ti_dn] = dnv; }
 
   // ── World-bundle PLACEMENT (the engine executor; the rules + content are bundle-side) ──────────
   // The active overlay (world_place_gen, generated from bundles/desert_surprise) decides; we stamp.
@@ -3763,7 +3846,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
-    depth: depth, wseed: seed, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
+    depth: depth, wseed: seed, win_x: wwx, win_y: wwy, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
@@ -3806,7 +3889,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   if nd < 1 { nd = 1; }
   style = 0;
   if dir > 0 && sim_stair_under(s) == 6 { style = 1; }   // a NATURAL CAVE way
-  ns = sim_new_gen_s(s.wseed, nd, s.boss_slain, style);  // carry quest progress so the way-out infestation fires
+  ns = sim_new_gen_s(s.wseed, nd, s.boss_slain, style, s.win_x, s.win_y);  // carry quest progress so the way-out infestation fires
   // Per-level persistence: carry the delta store, record the level we're leaving (its dead
   // spawns), then replay the destination depth's stored deaths onto its fresh spawns. A
   // never-visited depth has an empty block, so this is a no-op and generation is unchanged.
@@ -3874,7 +3957,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
 // keep the character (level/XP/gold/items/equipment), full-healed. The dive is lost (the
 // save-point level regenerates; the dungeon state explored since is discarded).
 pub fn sim_respawn(s: Sim) -> Sim {
-  rs = sim_new_gen_s(s.wseed, s.save_depth, s.boss_slain, 0);
+  rs = sim_new_gen_s(s.wseed, s.save_depth, s.boss_slain, 0, 0, 0);  // the checkpoint is home ground
   rs.clevel = s.clevel;
   rs.xp = s.xp;
   rs.race = s.race;             // race + class persist through death (identity)
@@ -3952,3 +4035,106 @@ pub fn sim_stair_under(s: Sim) -> integer {
 
 pub fn sim_down_hex(s: Sim) -> (integer, integer) { (s.dn_q, s.dn_r) }
 pub fn sim_up_hex(s: Sim) -> (integer, integer) { (s.up_q, s.up_r) }
+
+// ── MULTI-WINDOW TRAVEL: the wilderness continues past the window's edge ──────
+pub fn sim_window(s: Sim) -> (integer, integer) { (s.win_x, s.win_y) }
+
+// On the surface, standing in the outermost ring arms a window crossing:
+// 1 = east, 2 = west, 3 = south, 4 = north (0 = not at an edge).
+pub fn sim_edge_exit(s: Sim) -> integer {
+  if s.depth != 0 { return 0; }
+  (pq, pr) = px_to_hex(s.px, s.py);
+  if pq >= s.lw - 2 { return 1; }
+  if pq <= 1 { return 2; }
+  if pr >= s.lh - 2 { return 3; }
+  if pr <= 1 { return 4; }
+  0
+}
+
+// Walking off the window's edge crosses into the NEIGHBOURING stretch of the
+// same wilderness (the next 1.5 km window, deterministic from (wseed, window)).
+// The hero carries over exactly like a stair change; the arrival is the nearest
+// open dry ground just inside the opposite edge. Window state is not stored —
+// a revisited window regenerates fresh (its wilds respawn; the town window's
+// life regenerates identically by construction).
+pub fn sim_travel(s: Sim) -> Sim {
+  ed = sim_edge_exit(s);
+  nwx = s.win_x;
+  nwy = s.win_y;
+  if ed == 1 { nwx += 1; }
+  if ed == 2 { nwx -= 1; }
+  if ed == 3 { nwy += 1; }
+  if ed == 4 { nwy -= 1; }
+  ns = sim_new_gen_s(s.wseed, 0, s.boss_slain, 0, nwx, nwy);
+  // the hero crosses over — the same carry list as sim_descend (kept inline on
+  // BOTH sides: a shared helper would pass the big Sim by value per call, the
+  // exact store-pressure shape the kernel bans)
+  ns.php = s.php;
+  ns.phpmax = s.phpmax;
+  ns.over = s.over;
+  ns.clevel = s.clevel;   // carry the hero across levels
+  ns.xp = s.xp;
+  ns.gold = s.gold;
+  ns.race = s.race;       // the chosen race + class travel with the character
+  ns.pclass = s.pclass;
+  ns.sp = s.sp;           // the mana pool persists across levels (like HP)
+  ns.spmax = s.spmax;
+  ns.rc_flags = s.rc_flags;     // the baked race+class cache travels too (apply_creation's output)
+  ns.rc_melee = s.rc_melee;
+  ns.rc_bow = s.rc_bow;
+  ns.rc_stealth = s.rc_stealth;
+  ns.rc_save = s.rc_save;
+  ns.rc_hd = s.rc_hd;
+  ns.rc_xpf = s.rc_xpf;
+  ns.rc_realm = s.rc_realm;
+  ns.rc_spi = s.rc_spi;
+  ns.stat_max = s.stat_max;     // carry the stat block: innate + current + active temp mods
+  ns.stat_cur = s.stat_cur;
+  ns.stat_tmp = s.stat_tmp;
+  ns.stat_tmp_t = s.stat_tmp_t;
+  ns.stat_pts = s.stat_pts;             // carry banked stat points + their cooldowns across levels
+  ns.stat_grown_at = s.stat_grown_at;
+  ns.detect_t = s.detect_t;     // detection keeps ticking down across a level change
+  ns.inv = s.inv;         // carry the inventory; floor items stay on their level
+  ns.ninv = s.ninv;
+  ns.eq = s.eq;           // carry equipment + its cached effects across levels
+  ns.qs = s.qs;           // carry the quick-slot bindings across levels (like inventory)
+  ns.wdam = s.wdam;
+  ns.pac = s.pac;
+  ns.rs1 = s.rs1;         // the combat-roll stream continues across the stairs
+  ns.rs2 = s.rs2;
+  ns.heading = s.heading;
+  ns.save_depth = s.save_depth;                                          // carry the checkpoint
+  ns.grave_depth = s.grave_depth;   // carry the death-stake grave across levels
+  ns.grave_q = s.grave_q;
+  ns.grave_r = s.grave_r;
+  ns.grave_gold = s.grave_gold;
+  ns.boss_slain = s.boss_slain;     // carry quest progress (gates the infestation on the way out)
+  ns.msg_q = s.msg_q;               // the message log is continuous across levels
+  ns.msg_n = s.msg_n;
+  ns.known = s.known;               // identifications + the per-game flavour map carry across levels
+  ns.flavour_idx = s.flavour_idx;
+  (pq, pr) = px_to_hex(s.px, s.py);
+  aq = pq;
+  ar = pr;
+  if ed == 1 { aq = 3; }
+  if ed == 2 { aq = ns.lw - 4; }
+  if ed == 3 { ar = 3; }
+  if ed == 4 { ar = ns.lh - 4; }
+  bopen = 9999;
+  fq = aq;
+  fr = ar;
+  for rr in 1..ns.lh - 1 {
+    for qq in 1..ns.lw - 1 {
+      if tile_at(ns, qq, rr) == 0 && !water_blocked(ns, qq, rr) {
+        dd = hex_distance(qq, rr, aq, ar);
+        if dd < bopen { bopen = dd; fq = qq; fr = rr; }
+      }
+    }
+  }
+  (npx, npy) = hex_to_px(fq, fr);
+  ns.px = npx;
+  ns.py = npy;
+  if ed != 0 { sim_log(ns, "You cross into the next stretch of wilderness."); }
+  ns
+}

@@ -278,6 +278,9 @@ test:
 	@echo "  [cave] natural caves: mouths on the surface, narrow winding levels ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/cavetest.loft | tee /tmp/story_cave.log
 	@grep -q "CAVE OK" /tmp/story_cave.log || { echo "    FAIL: cave"; exit 1; }
+	@echo "  [travel] window crossing + the desert gate ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/traveltest.loft | tee /tmp/story_travel.log
+	@grep -q "TRAVEL OK" /tmp/story_travel.log || { echo "    FAIL: travel"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

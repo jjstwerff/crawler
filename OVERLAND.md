@@ -695,6 +695,27 @@ northern mountains, the dead one deep in the southern forest. ASCII map:
 `W` lit, `w` abandoned. overlandtest asserts existence, the privacy
 distance, and that at least one is dead.
 
+### 13j. MULTI-WINDOW TRAVEL + THE DESERT GATE (user direction, implemented)
+The wilderness no longer ends at the window: walking off the surface's edge
+crosses into the NEIGHBOURING 1.5 km window (`sim_travel` — deterministic
+from (wseed, window), the hero carries over exactly like a stair change,
+arrival just inside the opposite edge on open dry ground). Window (0,0) is
+the home town — its daily loop, harbor, industry and crystal live ONLY
+there; every other window is the land itself, with the world-placed
+features (ruins, forts, wizard towers, cave mouths, road stops, wilds)
+appearing in whichever window holds them. Window state regenerates fresh on
+re-entry (wilds respawn; the town regenerates identically by construction).
+
+THE DESERT GATE: the entrance to the deep dungeon (the 3-floor descent to
+the naga throne) moved OUT of the town square — it now stands in the
+rain-shadow desert two windows north, sunk into TRUE desert sand (material
+6; a dryness ring keeps it off any waterside sand — never the beaches).
+The journey there IS the early game: out the gates, north through the
+plains windows, into the sand. traveltest walks it headlessly: two
+crossings, hero intact, gate on dry K_SAND, descend lands at depth 1.
+
 NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
-coastal towns, multi-window travel, nicer buildings, true round rendering
-(tile 4) + light fences (tile 5), the lib-ward extraction into hex_terrain.
+coastal towns, window-edge travel POLISH (a horizon cue at the edge, other
+towns' windows getting their own life), nicer buildings, true round
+rendering (tile 4) + light fences (tile 5), the lib-ward extraction into
+hex_terrain.
