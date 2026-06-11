@@ -74,8 +74,8 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently 33 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
-  msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/…).
+  (currently 35 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
+  msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/…).
   Keep it **warning-clean**.
 - **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
   Xvfb is positionally off — LOFT_ISSUES C17). Verify *logic* headlessly; the
@@ -219,6 +219,10 @@ All siblings under `/home/jurjen/workspace/`:
 
 ## Where things are
 
+- `overland.loft` — the contract WILDERNESS (OVERLAND.md §12-13): the example world's
+  vertex/side/corner/edge contracts + zonation -> terrain kinds; the depth-0 surface is a
+  101×101 window of it (15 natural m per walked hex); `ovmap.loft` prints it as a ZAngband
+  character map.
 - `sim.loft` — world/player/enemies, combat (+`sim_bolt`), monster AI (awareness +
   flow-field pathing), XP/level (race+class-scaled `xp_need`), HP/SP pools + natural
   regen, statuses (paralysis/poison/ward), race+class apply (`apply_creation`, the

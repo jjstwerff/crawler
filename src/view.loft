@@ -11,6 +11,7 @@
 use graphics;
 use hex_grid;
 use sim;
+use overland;   // terrain-kind constants for the wilderness tints
 use wallgeo;
 use items;
 
@@ -499,6 +500,22 @@ pub fn build_world_vbo(s: Sim) -> integer {
   graphics::gl_upload_vertices(build_world_mesh(s), 10)
 }
 
+// The terrain-kind wash colors (the contract wilderness; light-floor doctrine).
+fn kind_tint(k: integer) -> (float, float, float, float) {
+  if k == K_FOREST { return (0.13, 0.35, 0.16, 0.55); }
+  if k == K_SAND { return (0.86, 0.78, 0.55, 0.50); }
+  if k == K_SCREE { return (0.45, 0.42, 0.36, 0.50); }
+  if k == K_MEADOW { return (0.52, 0.72, 0.35, 0.50); }
+  if k == K_SNOW { return (0.93, 0.95, 0.97, 0.60); }
+  if k == K_ICE { return (0.75, 0.84, 0.94, 0.60); }
+  if k == K_RIVER { return (0.22, 0.45, 0.72, 0.65); }
+  if k == K_LAKE { return (0.15, 0.35, 0.60, 0.70); }
+  if k == K_SEA { return (0.08, 0.22, 0.42, 0.75); }
+  if k == K_FIELD { return (0.76, 0.66, 0.30, 0.50); }
+  if k == K_ROAD { return (0.58, 0.50, 0.38, 0.55); }
+  (0.52, 0.64, 0.33, 0.55)
+}
+
 // Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
 fn build_vis_texture(s: Sim) -> integer {
   pix: vector<integer> = [];
@@ -646,6 +663,29 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   graphics::gl_draw(wvao, 18 * s.lw * s.lh);
   graphics::gl_delete_texture(vistex);
 
+  // Terrain-kind tints (the contract wilderness): a translucent wash per hex
+  // over the floor mesh — water blue, forest dark green, snow white, fields
+  // gold, roads earth. The dungeon (kind -1) draws nothing.
+  for kr in 0..s.lh {
+    for kq in 0..s.lw {
+      tq = s.qmin + kq;
+      tr = s.rmin + kr;
+      k3 = sim_tile_kind(s, tq, tr);
+      st3 = sim_hex_state(s, tq, tr);
+      if k3 >= 0 && k3 != K_FACE && st3 != 0 && tile_at(s, tq, tr) != 1 {
+        (kwx, kwy) = hex_to_px(tq, tr);
+        (khx, khy) = world_to_screen(s, kwx, kwy);
+        if khx > -cell && khx < VIEW_W + cell && khy > -cell && khy < VIEW_H + cell {
+          (tcr, tcg, tcb, tca) = kind_tint(k3);
+          al = tca;
+          if st3 == 1 { al = tca * 0.5; }
+          graphics::draw_rect_at(painter, khx - cell * 0.52, khy - cell * 0.52,
+                                 cell * 1.04, cell * 1.04, tcr, tcg, tcb, al);
+        }
+      }
+    }
+  }
+
   // Stair glyphs (the floor/wall tiles are the GPU mesh now; only glyphs stay immediate).
   for vr in 0..s.lh {
     for vq in 0..s.lw {
@@ -661,12 +701,14 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
             if hud.stair_dn != 0 {
               graphics::draw_texture_at(painter, hud.stair_dn, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
             } else if hud.font >= 0 && hud.sdown != 0 {
+              if sim_tile_kind(s, q, r) >= 0 { draw_disc(painter, hud.disc, hsx, hsy, ssz * 0.9); }
               draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
             }
           } else if t == 3 {
             if hud.stair_up != 0 {
               graphics::draw_texture_at(painter, hud.stair_up, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
             } else if hud.font >= 0 && hud.sup != 0 {
+              if sim_tile_kind(s, q, r) >= 0 { draw_disc(painter, hud.disc, hsx, hsy, ssz * 0.9); }
               draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
             }
           }
@@ -706,6 +748,8 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
             if hud.goldspr != 0 {
               graphics::draw_texture_at(painter, hud.goldspr, flsx - isz / 2.0, flsy - isz / 2.0, isz, isz);
             } else {
+              (gq2, gr2) = px_to_hex(fwx, fwy);
+              if sim_tile_kind(s, gq2, gr2) >= 0 { draw_disc(painter, hud.disc, flsx, flsy, DISC_E * 0.8); }
               draw_glyph_centered(painter, hud.font, hud.gtex, "$", ITEM_SIZE, flsx, flsy);
             }
           } else {
@@ -717,6 +761,8 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
             } else {
               ctex = if cat >= 0 && cat < len(fcat) { fcat[cat] ?? 0 } else { 0 };
               if ctex != 0 {
+                (cq2, cr2) = px_to_hex(fwx, fwy);
+                if sim_tile_kind(s, cq2, cr2) >= 0 { draw_disc(painter, hud.disc, flsx, flsy, DISC_E * 0.8); }
                 draw_glyph_centered(painter, hud.font, ctex, cat_glyph(cat), ITEM_SIZE, flsx, flsy);
               }
             }

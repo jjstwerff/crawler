@@ -1,19 +1,21 @@
-// surfacetest — SLICE steps 1+2: the depth-0 desert surface and its dungeon entrance.
-// The surface is an open, unended expanse (all floor), empty of dungeon spawns, with the player
-// at its centre (not standing on a stair) and a down-stair ENTRANCE a few steps east. Descending
-// from it lands in the classic beginner dungeon (walled + populated) — the existing descend path.
+// surfacetest — the depth-0 CONTRACT WILDERNESS (OVERLAND.md 12) and its dungeon entrance.
+// The surface is a 101x101 window of the example world anchored at the biggest town: terrain
+// kinds drive walkability (faces are walls, lake/sea block, rivers ford), the start ring is
+// cleared ground, the spawning crystal + knot stand west, the down-stair ENTRANCE a few steps
+// east. Descending lands in the classic beginner dungeon — the existing descend path.
 use sim;
 
 fn main() {
   println("=== story surface test (depth-0 desert + entrance) ===");
   surf = sim_new_gen(777, 0);
   d0 = sim_depth(surf);
-  openc = !is_wall(surf, 20, 20) && !is_wall(surf, 25, 15) && !is_wall(surf, 15, 25);  // all floor
+  openc = !is_wall(surf, 50, 50) && !is_wall(surf, 47, 52) && !is_wall(surf, 52, 47);  // cleared start ring
+  kinds_live = sim_tile_kind(surf, 50, 50) >= 0;   // the surface carries terrain kinds
   nc = sim_enemy_count(surf);
   knot = nc >= 1 && nc < 10;                     // the spawning crystal + its small knot (not a dungeon)
   nostair = sim_stair_under(surf) == 0;          // standing on open ground, not a stair
 
-  sim_teleport(surf, 23, 20);                    // the entrance sits at centre+3 east (w=41 -> 23,20)
+  sim_teleport(surf, 53, 50);                    // the entrance sits at centre+3 east (w=101 -> 53,50)
   entrance = sim_stair_under(surf) == 2;         // a down-stair
 
   dung = sim_descend(surf, 1);                   // walk in -> the classic beginner dungeon
@@ -23,6 +25,6 @@ fn main() {
 
   println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} entrance={entrance}");
   println("descend: depth={d1} walled={walled} populated={populated}");
-  ok = d0 == 0 && openc && knot && nostair && entrance && d1 == 1 && walled && populated;
+  ok = d0 == 0 && openc && kinds_live && knot && nostair && entrance && d1 == 1 && walled && populated;
   if ok { println("=== SURFACE OK ==="); } else { println("=== FAIL ==="); }
 }

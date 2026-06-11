@@ -314,6 +314,24 @@ required — but that pass must be **SUBTLE**. Its charter:
   byte-identical throughout. The lib (hex_terrain) follows once the bench look is
   user-approved.
 
+### 7m. SETTLEMENTS (user rules — IMPLEMENTED in the loft port)
+- **Towns stand where the land supports them**: scored on flat fertile ground
+  (plains/forest), water access (river accumulation through the cell, lake/sea
+  harbor bonus), with spacing; the better the spot, the BIGGER the town (size
+  1–3). A town sits at its cell's vertex point — on the river, at the
+  confluence, exactly where settlements really form.
+- **The farmers' rule**: fields ring the town on flat ground; the forest NEAR
+  town is CUT (cleared to grass) for those fields; the farther forest stands —
+  that's where the wood is gathered.
+- **Roadside farms**: roads make outlying land reachable — scattered fields
+  along them, sparser than the town belt.
+- **Roads take the easiest walk**: Dijkstra over the cell graph (slope +
+  terrain costs, water heavy, never through open water), each town connecting
+  to its nearest neighbor; the path renders as a displaced course that fords
+  rivers where it must.
+- **Buildings are dungeon-style rooms for now** (rect walls + a door), stamped
+  by the surface generator at the town center — nice versions later.
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
@@ -478,3 +496,34 @@ Also fixed by construction in the same pass: beach requires water adjacency +
 gentle slope (no sand patches up coastal mountains; steep shores are cliffs),
 peak/ridge composition via SMOOTH p-norm max (no crease seams), water surfaces
 excluded from the color dither (smooth lakes/sea/rivers).
+
+## 13. IN THE GAME (status 2026-06-11): the walkable contract wilderness
+
+The loft port is LIVE in crawler:
+- **`src/overland.loft`** (kernel): the example world authored as data; the
+  contracts resolved once (32 sides w/ monotone beds + aggradation fill, 99
+  corner peaks, 13 saddled ridges, 4 towns, 3 roads); pure sampling
+  (`ov_sample` -> height + terrain KIND) with the zonation pass (forest belts,
+  eroded faces + scree, alpine meadows, snow cut by rock, glaciers melting
+  into streams, beaches, fields, roads). Uses hex_grid (lattice) + hex_terrain
+  (noise) from loft-libs-world.
+- **The walked scale**: `OV_STEP = 15` natural meters per fine hex — 100 steps
+  cross a dual-triangle side (the user spec). The surface (depth 0) is a
+  101×101 wilderness WINDOW anchored at the biggest town: kinds drive
+  walkability (faces = walls, lake/sea block, rivers ford), buildings stamped
+  as dungeon rooms, the crystal knot + dungeon entrance preserved on cleared
+  ground (all pre-existing tests hold).
+- **The view** tints each hex by kind (translucent wash over the light floor;
+  water/snow/forest/fields/roads all read) and gives glyphs a round disc
+  back-plane on the wilderness so letters stand out on tinted ground.
+- **The gate**: `overlandtest` runs the three contract invariants (I1 no
+  inland sea, I2 lakes exactly level, I3 monotone flow — the aggradation rule
+  came from I3 catching a coastal-dip rise), determinism, the walked scale,
+  walkability mapping, and the settlement assertions (35 tests total).
+- **`src/ovmap.loft`**: the ZAngband CHARACTER MAP of the world (2 s) —
+  ' ' sea, '~' river, '=' lake, ',' sand, '.' grass, '+' field, '-' road,
+  'T' forest, '"' meadow, ':' scree, '^' rock face, '*' snow, '%' glacier,
+  digits = towns by size.
+NEXT: multi-window travel (blocks/triangles beyond one window), town NPCs +
+shops (bundle content), nicer buildings, the lib-ward extraction of the
+contract layer into hex_terrain once it survives a second consumer.

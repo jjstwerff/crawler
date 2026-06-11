@@ -13,6 +13,7 @@ use races;            // RaceDef + RF_* ability flags + race_find/race_has_flag 
 use classes;          // ClassDef + class_find (the chosen class applies: stats/HP/SP/skills/realm)
 use random;           // RandStream (loft-libs-core): owned deterministic streams — combat rolls,
                       //   monster placement, flavour shuffles (EXTRACTION.md item 4 adoption)
+use overland;         // the contract wilderness: the surface samples ov_sample (OVERLAND.md 12)
 use worldtypes;       // Stencil / Placement — the world-bundle vocabulary
 use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
@@ -105,6 +106,7 @@ pub struct Enemy {
 }
 
 pub struct Sim {
+  tkind: vector<integer> not null,   // surface terrain kind + 1 (0 = dungeon/none)
   lw:      integer not null,
   lh:      integer not null,
   qmin:    integer not null,
@@ -255,8 +257,27 @@ fn pos_blocked(s: Sim, fromx: float, fromy: float, tox: float, toy: float) -> bo
   (aq, ar) = px_to_hex(fromx, fromy);
   (bq, br) = px_to_hex(tox, toy);
   if enemy_blocks(s, bq, br) { return true; }
+  if water_blocked(s, bq, br) { return true; }
   if aq == bq && ar == br { return is_wall(s, bq, br); }
   is_blocked_move(s, aq, ar, bq, br)
+}
+
+// Open water (lake/sea) blocks walking on the surface; rivers stay fordable.
+fn water_blocked(s: Sim, q: integer, r: integer) -> boolean {
+  if q < 0 || r < 0 || q >= s.lw || r >= s.lh { return false; }
+  ti = r * s.lw + q;
+  tk = 0;
+  if ti < len(s.tkind) { tk = s.tkind[ti] ?? 0; }
+  tk == K_LAKE + 1 || tk == K_SEA + 1
+}
+
+// The surface terrain kind at (q,r) — -1 in the dungeon (the view tints by it).
+pub fn sim_tile_kind(s: Sim, q: integer, r: integer) -> integer {
+  if q < 0 || r < 0 || q >= s.lw || r >= s.lh { return -1; }
+  ti = r * s.lw + q;
+  tk = 0;
+  if ti < len(s.tkind) { tk = s.tkind[ti] ?? 0; }
+  tk - 1
 }
 
 fn enemy_blocks(s: Sim, q: integer, r: integer) -> boolean {
@@ -2238,6 +2259,7 @@ pub fn sim_new() -> Sim {
   enemies: vector<Enemy> = [e0];
 
   s = Sim {
+    tkind: zeros(w * h),
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
@@ -2357,12 +2379,70 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
 pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
   w = 41;
   h = 41;
+  if depth == 0 { w = 101; h = 101; }   // the surface: a wilderness WINDOW (1.5 km across)
   // Per-level gen seed = mix(world seed, depth) so each depth has its own layout.
   gseed = (seed ^ world_key_seed(1, 1, depth)) & 2147483647;
   lvl = gen_dungeon(gseed, w, h, 24);   // more tries: overlap-rejection thins them to distinct rooms
   tiles = lvl.g_tiles;
-  if depth == 0 {                          // the desert surface: an open, unended expanse
-    for ti0 in 0..len(tiles) { tiles[ti0] = 0; }
+  tk = zeros(w * h);
+  if depth == 0 {
+    // The CONTRACT WILDERNESS (OVERLAND.md 12): the window anchors at the
+    // biggest town of the example world; each walked hex samples the pure
+    // terrain function at OV_STEP natural meters per step.
+    ovw = overland_new();
+    ax = 7500.0;
+    ay = 5800.0;
+    t0 = ovw.ov_towns[0];
+    if t0 != null { ax = t0.ot_x; ay = t0.ot_y; }
+    (cwx, cwy) = ov_hex_world(w / 2, h / 2);
+    for sr3 in 0..h {
+      for sq3 in 0..w {
+        (hx3, hy3) = ov_hex_world(sq3, sr3);
+        (_, okind) = ov_sample(ovw, ax + hx3 - cwx, ay + hy3 - cwy);
+        ti3 = sr3 * w + sq3;
+        if ti3 < len(tk) { tk[ti3] = okind + 1; }
+        sv = 0;
+        if okind == K_FACE { sv = 1; }
+        if ti3 < len(tiles) { tiles[ti3] = sv; }
+      }
+    }
+    // BUILDINGS (dungeon-style rooms for now): a small cluster offset from the
+    // town center, rectangular walls with a door facing the center.
+    bq0: vector<integer> = [9, -10, 4];
+    br0: vector<integer> = [4, 6, -11];
+    for bi2 in 0..3 {
+      ox2 = w / 2 + (bq0[bi2] ?? 0);
+      oy2 = h / 2 + (br0[bi2] ?? 0);
+      for rr2 in 0..5 {
+        for qq2 in 0..7 {
+          tq2 = ox2 + qq2;
+          tr2 = oy2 + rr2;
+          if tq2 >= 1 && tq2 < w - 1 && tr2 >= 1 && tr2 < h - 1 {
+            ti4 = tr2 * w + tq2;
+            edge2 = qq2 == 0 || rr2 == 0 || qq2 == 6 || rr2 == 4;
+            v2 = 0;
+            if edge2 { v2 = 1; }
+            if edge2 && rr2 == 4 && qq2 == 3 { v2 = 0; }    // the door
+            if ti4 < len(tiles) { tiles[ti4] = v2; }
+            if ti4 < len(tk) { tk[ti4] = K_GRASS + 1; }
+          }
+        }
+      }
+    }
+    // the spawn knot's ground: keep the start / crystal / entrance walkable
+    for cr3 in 0..h {
+      for cq3 in 0..w {
+        if hex_distance(cq3, cr3, w / 2, h / 2) <= 7 {
+          ti5 = cr3 * w + cq3;
+          tk5 = 0;
+          if ti5 < len(tk) { tk5 = (tk[ti5] ?? 1) - 1; }
+          if tk5 == K_FACE || tk5 == K_LAKE || tk5 == K_SEA {
+            if ti5 < len(tk) { tk[ti5] = K_GRASS + 1; }
+            if ti5 < len(tiles) { tiles[ti5] = 0; }
+          }
+        }
+      }
+    }
   }
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
   rqs = lvl.g_rq;
@@ -2552,6 +2632,7 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
   }
 
   s = Sim {
+    tkind: tk,
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
