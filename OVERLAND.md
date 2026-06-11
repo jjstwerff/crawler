@@ -198,6 +198,20 @@ with a peak per zero-crossing where the land should throw up ONE combined peak).
 The **orthogonal side view** (`profile` panel: back-to-front strips at true heights) is
 the judge instrument for this rule — top-down shading hides verticality.
 
+### 7f. The GEOLOGY of the lattice (user model — recorded, NOT yet coded)
+At overland scale a hex could fit a whole hill or mountain — but that is NOT our
+model. Because rivers flow through the tile CENTERS (the control points), the
+lattice is a drainage skeleton: **each cell is a catchment** — its center the
+valley line the water runs, its rim the watershed, and the tile POINTS (the
+triple corners where three cells meet) the hills and mountain summits. In
+mountain cells the center is the gorge/crevice inside the massif, not the peak.
+The existing machinery already implies this (carve lowers the centers, relief
+rises between the drainage lines); expressing it fully is a TUNING question —
+where the rise lands within the tile — deliberately left to the tuning passes,
+not new code. (If tuning alone can't reach it, the candidate knob is anchoring
+the rise to a center→rim coordinate derived from the blend weights — seamless
+by construction — but that is parked until the numbers say it's needed.)
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
