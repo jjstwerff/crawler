@@ -138,8 +138,13 @@ that fits on this map.
   the town square per the siting hint), stamps a small `stamp_house` with a
   **BED** (a new furniture tile), door facing the town. The player starts ON
   the bed; the daily loop already gives NPCs homes — now the hero has one too.
-- **The bed is the surface anchor:** death with `save_depth = 0` respawns in
-  your own bed (the crystal stays the shrine/re-spec, not the spawn point).
+- **The bed is a SPAWN ANCHOR** — the generic mechanism is ALREADY LANDED
+  (2026-06-11, ahead of this phase): any feature claims the respawn via
+  `sim_anchor_here(kind)`; the last claim wins; death regenerates the
+  anchor's depth+window and wakes the player on the anchor hex
+  (`anc_*` on the Sim, carried through descend/travel/death). The save
+  stairs claim it (kind 1), the crystal claims it on touch (kind 2), the bed
+  claims kind 3 at game start / on sleeping — Phase H only adds that call.
   Sleeping in it to pass the night is a natural follow-on (optional, noted).
 - **KINFOLK — a place in the world for every race (user direction):** the hero
   does not live alone; each race bundle present in the build gets ONE small

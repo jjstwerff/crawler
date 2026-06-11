@@ -68,8 +68,21 @@ fn main() {
     d1ok = ond && sim_depth(d1) == 1 && is_wall(d1, 0, 0) && sim_enemy_count(d1) > 0;
   }
 
+  // SPAWN ANCHORS are window-aware: claim the gate hex as the anchor (the
+  // crystal/bed mechanism, kind 2), then die — the player wakes ON the gate,
+  // in THIS window, not back at the town default
+  anchored = false;
+  if gate {
+    sim_anchor_here(s0, 2);
+    rs = sim_respawn(s0);
+    (rwx, rwy) = sim_window(rs);
+    (rq, rr) = sim_player_hex(rs);
+    anchored = sim_anchor_kind(rs) == 2 && rwx == 0 && rwy == -2
+            && rq == entq && rr == entr && sim_depth(rs) == 0;
+  }
+
   println("home={home} no-town-entrance={noent} north2={north2}(crossed={crossed} win={w1x},{w1y}) carried={carried}");
-  println("gate={gate}@({entq},{entr}) desert-sand={sandy} dry={dry} descend={d1ok}");
-  ok = home && noent && north2 && carried && gate && sandy && dry && d1ok;
+  println("gate={gate}@({entq},{entr}) desert-sand={sandy} dry={dry} descend={d1ok} anchored-respawn={anchored}");
+  ok = home && noent && north2 && carried && gate && sandy && dry && d1ok && anchored;
   if ok { println("=== TRAVEL OK ==="); } else { println("=== FAIL ==="); }
 }

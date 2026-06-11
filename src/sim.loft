@@ -171,6 +171,12 @@ pub struct Sim {
   detect_t:   integer not null,   // monster-detection (see-through-walls) turns remaining
   depth:   integer not null,   // dungeon level (1 = shallowest)
   save_depth: integer not null,   // checkpoint: deepest save-point level reached (respawn target)
+  anc_kind:  integer not null,    // the ACTIVE SPAWN ANCHOR: 0 none (legacy save-stair fallback),
+  anc_depth: integer not null,    //   1 = a save stair, 2 = the crystal, 3 = a bed (PLAN-BUNDLES H), ...
+  anc_wx:    integer not null,    //   any feature can claim the player's respawn — the LAST claim
+  anc_wy:    integer not null,    //   wins; death wakes the player there, whole again
+  anc_q:     integer not null,
+  anc_r:     integer not null,
   grave_depth: integer not null,  // death-stake grave: depth / hex / gold (0 gold = no grave).
   grave_q:     integer not null,  //   SP keeps one grave (re-death forfeits it); MP would hold a
   grave_r:     integer not null,  //   list (owner-less, persistent) — a later, non-rewrite variant.
@@ -902,6 +908,29 @@ pub fn sim_player_class(s: Sim) -> text { s.pclass }
 // idempotent) and makes them WHOLE — full heal, full mind ("the crystal reshapes you").
 // Inventory/equipment unchanged; the class KIT is a new-game grant only (no re-spec farming).
 pub fn sim_shrine_pending(s: Sim) -> integer { s.shrine_ev }
+
+// ── SPAWN ANCHORS: any feature can claim the player's respawn ────────────────
+// The save stairs claim it, the crystal claims it, the bed will (PLAN-BUNDLES
+// Phase H), and any later spawner just calls sim_anchor_here. The LAST claim
+// wins; sim_respawn regenerates the anchor's level/window and wakes the player
+// on the anchor hex, whole again.
+fn anchor_wake(kind: integer) -> text {
+  if kind == 2 { return "You wake beside the crystal, your wounds knit."; }
+  if kind == 3 { return "You wake in your own bed, whole again."; }
+  "You wake at the last save point, your wounds knit."
+}
+
+pub fn sim_anchor_here(s: &Sim, kind: integer) {
+  (aq, ar) = px_to_hex(s.px, s.py);
+  s.anc_kind = kind;
+  s.anc_depth = s.depth;
+  s.anc_wx = s.win_x;
+  s.anc_wy = s.win_y;
+  s.anc_q = aq;
+  s.anc_r = ar;
+}
+
+pub fn sim_anchor_kind(s: Sim) -> integer { s.anc_kind }
 pub fn sim_shrine_clear(s: &Sim) { s.shrine_ev = 0; }
 pub fn sim_shrine_apply(s: &Sim, kind: text, key: text) {
   if kind == "race" { sim_set_race(s, key); }
@@ -2191,7 +2220,11 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
         e = ev[fe];
         // a SHRINE (the spawning crystal): bumping it INTERACTS — never melee. (Ranged
         // fire can still destroy it; that loss is the player's own choice.)
-        if (e.flags & MF_SHRINE) != 0 { s.shrine_ev = 1; }
+        if (e.flags & MF_SHRINE) != 0 {
+          s.shrine_ev = 1;
+          if s.anc_kind != 2 { sim_log(s, "The crystal hums - this place will hold you."); }
+          sim_anchor_here(s, 2);
+        }
         else { player_attack(s, fe); }
       }
       sim_tick(s);
@@ -2589,7 +2622,9 @@ pub fn sim_new() -> Sim {
     rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
-    depth: 1, wseed: 0, win_x: 0, win_y: 0, save_depth: 1, up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
+    depth: 1, wseed: 0, win_x: 0, win_y: 0, save_depth: 1,
+    anc_kind: 0, anc_depth: 1, anc_wx: 0, anc_wy: 0, anc_q: 0, anc_r: 0,
+    up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
@@ -3795,7 +3830,9 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
-    depth: depth, wseed: seed, win_x: wwx, win_y: wwy, save_depth: depth, up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
+    depth: depth, wseed: seed, win_x: wwx, win_y: wwy, save_depth: depth,
+    anc_kind: 0, anc_depth: depth, anc_wx: wwx, anc_wy: wwy, anc_q: pq, anc_r: pr,
+    up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
@@ -3882,7 +3919,21 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.rs2 = s.rs2;
   ns.heading = s.heading;
   ns.save_depth = s.save_depth;                                          // carry the checkpoint
-  if is_save_depth(nd) != 0 && nd > ns.save_depth { ns.save_depth = nd; }  // advance at save points
+  ns.anc_kind = s.anc_kind;       // the spawn anchor rides along
+  ns.anc_depth = s.anc_depth;
+  ns.anc_wx = s.anc_wx;
+  ns.anc_wy = s.anc_wy;
+  ns.anc_q = s.anc_q;
+  ns.anc_r = s.anc_r;
+  if is_save_depth(nd) != 0 && nd > ns.save_depth {
+    ns.save_depth = nd;                  // advance at save points: the stair claims the spawn
+    ns.anc_kind = 1;
+    ns.anc_depth = nd;
+    ns.anc_wx = ns.win_x;
+    ns.anc_wy = ns.win_y;
+    ns.anc_q = ns.up_q;
+    ns.anc_r = ns.up_r;
+  }
   ns.grave_depth = s.grave_depth;   // carry the death-stake grave across levels
   ns.grave_q = s.grave_q;
   ns.grave_r = s.grave_r;
@@ -3906,7 +3957,11 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
 // keep the character (level/XP/gold/items/equipment), full-healed. The dive is lost (the
 // save-point level regenerates; the dungeon state explored since is discarded).
 pub fn sim_respawn(s: Sim) -> Sim {
-  rs = sim_new_gen_s(s.wseed, s.save_depth, s.boss_slain, 0, 0, 0);  // the checkpoint is home ground
+  rd = s.save_depth;            // legacy fallback: the save-point level's own start
+  rwx = 0;
+  rwy = 0;
+  if s.anc_kind != 0 { rd = s.anc_depth; rwx = s.anc_wx; rwy = s.anc_wy; }
+  rs = sim_new_gen_s(s.wseed, rd, s.boss_slain, 0, rwx, rwy);
   rs.clevel = s.clevel;
   rs.xp = s.xp;
   rs.race = s.race;             // race + class persist through death (identity)
@@ -3942,7 +3997,7 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.msg_n = s.msg_n;
   rs.known = s.known;             // what you've identified survives death (the mapping is per-game)
   rs.flavour_idx = s.flavour_idx;
-  sim_log(rs, "You wake at the last shrine, your wounds knit.");
+  sim_log(rs, anchor_wake(s.anc_kind));
   rs.wdam = s.wdam;
   rs.pac = s.pac;
   rs.phpmax = s.phpmax;
@@ -3950,6 +4005,17 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.spmax = s.spmax;
   rs.sp = s.spmax;            // and a full mind
   rs.save_depth = s.save_depth;
+  rs.anc_kind = s.anc_kind;       // the anchor itself survives death
+  rs.anc_depth = s.anc_depth;
+  rs.anc_wx = s.anc_wx;
+  rs.anc_wy = s.anc_wy;
+  rs.anc_q = s.anc_q;
+  rs.anc_r = s.anc_r;
+  if s.anc_kind != 0 {
+    (apx, apy) = hex_to_px(s.anc_q, s.anc_r);
+    rs.px = apx;                  // wake ON the anchor, not at the level default
+    rs.py = apy;
+  }
   rs.over = false;
   rs
 }
@@ -4078,6 +4144,12 @@ pub fn sim_travel(s: Sim) -> Sim {
   ns.rs2 = s.rs2;
   ns.heading = s.heading;
   ns.save_depth = s.save_depth;                                          // carry the checkpoint
+  ns.anc_kind = s.anc_kind;       // the spawn anchor rides along
+  ns.anc_depth = s.anc_depth;
+  ns.anc_wx = s.anc_wx;
+  ns.anc_wy = s.anc_wy;
+  ns.anc_q = s.anc_q;
+  ns.anc_r = s.anc_r;
   ns.grave_depth = s.grave_depth;   // carry the death-stake grave across levels
   ns.grave_q = s.grave_q;
   ns.grave_r = s.grave_r;
