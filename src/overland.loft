@@ -152,6 +152,11 @@ pub struct OvSwamp {
   ow_r: float not null,
 }
 
+pub struct OvStop {
+  op2_x: float not null,    // a roadside waystation: carts park here at night
+  op2_y: float not null,
+}
+
 pub struct OvFort {
   of_x:  float not null,    // the keep's spot: ABOVE its town, watching the ways
   of_y:  float not null,
@@ -170,6 +175,7 @@ pub struct Overland {
   ov_roads:  vector<OvRoad> not null,
   ov_forts:  vector<OvFort> not null,
   ov_swamps: vector<OvSwamp> not null,
+  ov_stops:  vector<OvStop> not null,
 }
 
 const OV_RC = 866.0254037844386;     // OV_TILE / sqrt(3): circumradius
@@ -726,13 +732,48 @@ pub fn overland_new() -> Overland {
                          rd_x1: x1 + 40.0, rd_y1: y1 + 40.0 }];
     }
   }
+  // ROAD STOPS: a cart goes SLOW — where a road leg outruns one day's travel,
+  // waystations sit at day-interval points so the merchants can park the night
+  stops: vector<OvStop> = [];
+  dayrange = 2800.0;                      // a cart's day of travel, natural meters
+  for rdi in 0..len(roads) {
+    rd0 = roads[rdi];
+    if rd0 != null {
+      arc = 0.0;
+      for k in 0..len(rd0.rd_x) - 1 {
+        dxr = (rd0.rd_x[k + 1] ?? 0.0) - (rd0.rd_x[k] ?? 0.0);
+        dyr = (rd0.rd_y[k + 1] ?? 0.0) - (rd0.rd_y[k] ?? 0.0);
+        arc = arc + sqrt(dxr * dxr + dyr * dyr);
+      }
+      nst = floor((arc / dayrange) ?? 0.0) as integer;
+      for sti in 0..nst {
+        want = dayrange * ((sti as float) + 1.0);
+        run3 = 0.0;
+        for k in 0..len(rd0.rd_x) - 1 {
+          ax3 = rd0.rd_x[k] ?? 0.0;
+          ay3 = rd0.rd_y[k] ?? 0.0;
+          bx3 = rd0.rd_x[k + 1] ?? 0.0;
+          by3 = rd0.rd_y[k + 1] ?? 0.0;
+          seg3 = sqrt((bx3 - ax3) * (bx3 - ax3) + (by3 - ay3) * (by3 - ay3));
+          if run3 + seg3 >= want && run3 < want {
+            t3 = ((want - run3) / seg3) ?? 0.0;
+            stops += [OvStop { op2_x: ax3 + (bx3 - ax3) * t3,
+                               op2_y: ay3 + (by3 - ay3) * t3 }];
+          }
+          run3 = run3 + seg3;
+        }
+      }
+    }
+  }
   ov0 = Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
                    ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
-                   ov_towns: towns, ov_roads: roads, ov_forts: [], ov_swamps: swamps };
+                   ov_towns: towns, ov_roads: roads, ov_forts: [], ov_swamps: swamps,
+                   ov_stops: stops };
   forts = ov_fort_sites(ov0);
   Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
              ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
-             ov_towns: towns, ov_roads: roads, ov_forts: forts, ov_swamps: swamps }
+             ov_towns: towns, ov_roads: roads, ov_forts: forts, ov_swamps: swamps,
+             ov_stops: stops }
 }
 
 // distance to the nearest road centerline

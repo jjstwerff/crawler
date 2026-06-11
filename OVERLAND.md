@@ -572,7 +572,23 @@ ROLE — never aggressive, never punched; the player's bump slides past):
   water (K_ROAD on water hexes = walkable dock) with a harbor hut, stamped at
   the nearest shore; mooring there is the nightly repair;
 - determinism throughout: schedules derive from (ticks, role, hashed salts).
-NEXT: shops with real interiors + trade, NPC dialogue, crop items at the
-stalls, ship routes between coastal towns, multi-window travel, nicer
-buildings, true round rendering (tile 4) + light fences (tile 5), the
-lib-ward extraction of the contract layer into hex_terrain.
+### 13c. TRADE + the ECONOMY (user direction, implemented)
+- **The merchant cart** (role 7): a SLOW cart on a multi-day route along the
+  road (far end <-> the home market, leg per day); it prefers road hexes when
+  stepping (carts stay on roads) and avoids swamp/water; at night it PARKS at
+  the nearest ROAD STOP.
+- **ROAD STOPS** (a contract object): where a road's arc outruns a cart's day
+  of travel (2.8 km natural), waystations sit at day-interval points; visible
+  ones get their hut stamped.
+- **Ships, divided**: the working sea boat is a FISHER with nets; the
+  **merchant ship** (role 8) brings goods in from BEYOND the map — sailing
+  between open water at the window's edge and the harbor anchorage on the
+  multi-day schedule. The chain reads: ship lands goods -> the harbor -> the
+  carts move them along the roads.
+- **The ECONOMY v1**: each morning the makers bring the night's work to the
+  stalls — TOWNS craft the simple goods (rations, torches), CITIES the
+  complex armour and weapons (blades, leathers) — daily floor-item production
+  at the market, capped.
+NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
+coastal towns, multi-window travel, nicer buildings, true round rendering
+(tile 4) + light fences (tile 5), the lib-ward extraction into hex_terrain.

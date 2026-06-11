@@ -1733,6 +1733,12 @@ fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
     if leg == 0 { return (e.wq2, e.wr2); }
     return (e.aq2, e.ar2);
   }
+  if e.role == 7 || e.role == 8 {        // the MERCHANTS' multi-day trade routes
+    if night { return (e.aq2, e.ar2); }  // park the night at the road stop
+    leg = (((s.ticks / DAY_LEN) ?? 0) + salt) % 2 ?? 0;
+    if leg == 0 { return (e.wq2, e.wr2); }
+    return (e.hq, e.hr);                 // the other end: home market
+  }
   if night { return (e.hq, e.hr); }      // everyone else sleeps at home/anchor
   if e.role == 2 {                       // farmers cycle field -> food stall
     leg = (((s.ticks / 90) ?? 0) + salt) % 2 ?? 0;
@@ -1765,11 +1771,18 @@ fn npc_step(s: Sim, e: &Enemy) {
   }
   best = -1;
   bd = d0;
+  broad = false;
   for dd in 0..6 {
     (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, dd);
     if npc_passable(s, e.role, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
       nd = hex_distance(nq, nr, tq, tr);
-      if nd < bd { bd = nd; best = dd; }
+      onroad = false;
+      if e.role == 7 {
+        tin = nr * s.lw + nq;
+        if tin < len(s.tkind) { onroad = (s.tkind[tin] ?? 0) == K_ROAD + 1; }
+      }
+      better = nd < bd || (nd == bd && onroad && !broad);
+      if better && (nd < bd || e.role == 7) { bd = nd; best = dd; broad = onroad; }
     }
   }
   if best >= 0 {
@@ -1784,6 +1797,33 @@ fn npc_step(s: Sim, e: &Enemy) {
 
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
+  // THE ECONOMY: each morning the makers bring the night's work to the stalls
+  // — towns craft the simple goods, CITIES the complex armour and weapons.
+  // (The merchant ship lands the raw goods; the carts move them on.)
+  if s.depth == 0 && ((s.ticks % DAY_LEN) ?? 0) == 5 && s.fi_n < FLOOR_MAX - 4 {
+    guards2 = 0;
+    for ge in 0..len(s.enemies) {
+      e2 = s.enemies[ge];
+      if e2.alive && e2.role == 3 { guards2 = guards2 + 1; }
+    }
+    tsize2 = guards2 - 1;
+    stq3 = s.lw / 2 + 2;
+    str3 = s.lh / 2 - 2;
+    day3 = (s.ticks / DAY_LEN) ?? 0;
+    if tsize2 >= 3 {
+      if (day3 % 2 ?? 0) == 0 {
+        sim_drop_item(s, stq3, str3, "short_sword");
+      } else {
+        sim_drop_item(s, stq3, str3, "leather_boots");
+      }
+    } else {
+      if (day3 % 2 ?? 0) == 0 {
+        sim_drop_item(s, stq3, str3, "ration_of_food");
+      } else {
+        sim_drop_item(s, stq3, str3, "wooden_torch");
+      }
+    }
+  }
   // Venom bleeds the player each tick (silent — the HP bar shows it; death is logged). The antivenin
   // ward suppresses it.
   if s.poison_until > s.ticks && s.poison_dmg > 0 && s.venom_until <= s.ticks {
@@ -2908,8 +2948,67 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
         saq = seq;
         sar = ser;
         if pier_aq >= 0 && pier_sea { saq = pier_aq; sar = pier_ar; }
-        enemies += [mk_npc(6, "ship", "trading ship", "S", 190, 170, 120,
+        // the working sea boat is a FISHER with nets
+        enemies += [mk_npc(6, "fishing_ship", "fishing ship", "S", 150, 190, 210,
                            seq, ser, saq, sar, seq, ser, seq, ser)];
+        // the MERCHANT SHIP brings the goods in from BEYOND the map: it sails
+        // between open water at the window's edge and the harbor anchorage
+        edgeq = seq;
+        edger = ser;
+        bedge = -1;
+        for er9 in 1..h - 1 {
+          for eq9 in 1..w - 1 {
+            tie = er9 * w + eq9;
+            if tie < len(tk) && (tk[tie] ?? 0) == K_SEA + 1 {
+              de9 = hex_distance(eq9, er9, w / 2, h / 2);
+              if de9 > bedge { bedge = de9; edgeq = eq9; edger = er9; }
+            }
+          }
+        }
+        msq = saq;
+        msr = sar;
+        if pier_aq >= 0 && pier_sea { msq = pier_aq; msr = pier_ar; }
+        enemies += [mk_npc(8, "merchant_ship", "merchant ship", "S", 190, 150, 90,
+                           edgeq, edger, msq, msr, edgeq, edger, msq, msr)];
+      }
+
+      // ROAD STOPS within the window get a waystation hut; the MERCHANT CART
+      // runs the multi-day route (far road end <-> the home market) and parks
+      // the night at the nearest stop (or on the square if none is visible)
+      sstep2 = OV_STEP / HEX_LEN;
+      stq = -1;
+      str2 = -1;
+      for sp2 in 0..len(ovw.ov_stops) {
+        st2 = ovw.ov_stops[sp2];
+        if st2 != null {
+          sux = ((st2.op2_x - ax + cwx) / sstep2) ?? 0.0;
+          suy = ((st2.op2_y - ay + cwy) / sstep2) ?? 0.0;
+          (sq5, sr5) = px_to_hex(sux, suy);
+          if sq5 >= 5 && sq5 < w - 5 && sr5 >= 4 && sr5 < h - 4 {
+            stamp_house(tiles, tk, w, h, sq5 + 1, sr5 - 1, 4, 3, 3);
+            if stq < 0 { stq = sq5; str2 = sr5; }
+          }
+        }
+      }
+      farq = w / 2;
+      farr = h / 2;
+      bfar = -1;
+      for rr7 in 1..h - 1 {
+        for rq7 in 1..w - 1 {
+          ti10 = rr7 * w + rq7;
+          if ti10 < len(tk) && (tk[ti10] ?? 0) == K_ROAD + 1 {
+            dr10 = hex_distance(rq7, rr7, w / 2, h / 2);
+            if dr10 > bfar { bfar = dr10; farq = rq7; farr = rr7; }
+          }
+        }
+      }
+      if bfar > 12 {
+        parkq = stq;
+        parkr = str2;
+        if parkq < 0 { parkq = w / 2 + 1; parkr = h / 2 - 1; }
+        enemies += [mk_npc(7, "merchant", "merchant cart", "M", 190, 150, 90,
+                           w / 2 + 2, h / 2 + 2, w / 2 + 2, h / 2 + 2,
+                           farq, farr, parkq, parkr)];
       }
   }
 
