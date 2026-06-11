@@ -6,10 +6,10 @@
 > **loft-libs-world/CONVERGENCE.md**.
 
 The standing goal (everything here is built toward a coherent reusable library for many
-games) gets its concrete plan. Verified ground (2026-06-10): the cross-module `&Struct`
-bug (C4) is **fixed** — the one structural blocker for shared libraries is gone; the two
-live loft bugs (#319 struct-literal comprehensions, #320 capture-append-reassign) are
-*shape* bugs with clean style rules, and the Tier-1 candidates don't even contain structs.
+games) gets its concrete plan. Verified ground (2026-06-11): the structural blockers for
+shared libraries are gone; the one live shape bug (#320 capture-append-reassign — fixed
+upstream, still in the installed 0.8.5) has a clean style rule, and the Tier-1 candidates
+don't even contain structs.
 
 ## Mechanics (what "extract" means here)
 
@@ -63,11 +63,10 @@ The loop, end to end:
 2. crawler consumes it (dev: the `--lib` dir; released: the registry version) and the
    duplicated `src/` module is **deleted**.
 3. `make test` green (33/33) + `make check` clean against the dep.
-4. The API follows the **globally-unique pub-name** discipline (the C23 lesson — the
-   native tier flattens module fns to global symbols).
-5. Style rules honoured (the two live bugs): no struct-literal comprehensions (#319 —
-   explicit loop+append); no capture-append-reassign on struct fields (#320 — direct
-   append or index-writes).
+4. Globally-unique pub names preferred (style — the native dup-symbol bug that
+   required this is fixed).
+5. Style rule honoured (the one live bug): no capture-append-reassign on struct
+   fields (#320 — direct append or index-writes).
 6. Docs: the package README states its convention/contract; crawler's CLAUDE.md "Where
    things are" updated.
 

@@ -119,8 +119,6 @@ a 3D renderer (`moros_render`) later.
 - **[DESIGN.md](DESIGN.md)** — the full design: architecture (kernel/view split),
   world model, monster AI / placement / level structure, the HUD sidebar & items
   systems, and the ordered **TODO backlog** (§18a) that drives development.
-- **[LOFT_ISSUES.md](LOFT_ISSUES.md)** — loft language/interpreter bugs found while
-  building this game, each with a minimal repro, workaround, and a status tracker.
 
 ## License
 

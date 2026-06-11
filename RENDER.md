@@ -55,10 +55,8 @@ This retained `Vertex`/`Triangle` model *is* `moros_render`'s (`emit_hex_surface
 step toward the 3D/WebGL build (the stated goal). Not throwaway.
 
 The **3D pipeline uses the `glb` lib** — unused while we're 2D, but **load-bearing the
-moment 3D is enabled**. `glb` is an auto-native lib in a versioned registry dir, so it
-hit the auto-cdylib crate-name bug (loft#294); the fix (`c494e0a`) means it now builds
-cleanly — forward-insurance so the moros 3D bridge won't hit a silent native-build
-failure when we turn it on.
+moment 3D is enabled**. It builds cleanly — forward-insurance so the moros 3D bridge
+won't hit a silent native-build failure when we turn it on.
 
 ## Staged plan (a focused task **after** the kernel FOV)
 
@@ -75,8 +73,7 @@ failure when we turn it on.
 - **R2 — Sprite atlas.** ✅ **Pipeline proven** (`src/gpuatlas.loft`): `canvas` +
   `draw_text` per cell → `create_sprite_sheet(canvas, cols, rows, painter_vao(painter))` →
   `draw_sprite_at(sheet, …, index)`. All 16 token glyphs render from **one** atlas
-  texture, captured to PNG (and `draw_text`-into-canvas survives the cross-module call — no
-  C18/C4). **Live wiring remaining** (mechanical): build the atlas per level from
+  texture, captured to PNG (and `draw_text`-into-canvas survives the cross-module call). **Live wiring remaining** (mechanical): build the atlas per level from
   `hud.font` + `painter_vao`, route `view_draw`'s floor items + mob glyphs through
   `draw_sprite_at` by index (gold/cat → cell) — best done with the sprite-art track, where
   multiple sprites justify the swap. (Few tokens on screen, so no perf pressure yet.)

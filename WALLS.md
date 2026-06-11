@@ -97,8 +97,8 @@ straddle rule (step 3) was the fix for the earlier "top wall misses half its tri
 
 ## Open (pin at the loft port)
 
-- loft-safe representation — flat per-triangle flag arrays + index-writes (no nested
-  vectors / no struct-field hash; cf. loft#290).
+- representation is free again — the loft bugs that forced flat per-triangle flag
+  arrays (nested-vector and store-desync panics) are fixed; pick whatever reads best.
 - How the wall lines / building polygon (+ interior walls, doors) are specified — the
   12/24-direction snap, from a stencil.
 - Exact subdivision layout + count vs the hex grid (the 3-per-edge triangulation;

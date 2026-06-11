@@ -171,19 +171,16 @@ Expected · Actual*) — lib-native bugs go to that lib's chunk repo instead. **
 exactly one `sev:high|medium|low`, one `wa:clean|partial|none` (VERIFY the workaround
 claim), one+ `area:*`, plus `hit-by:crawler`.** Then work around it (a loft-safe shape
 below) and keep moving — never block crawler on a loft fix. The historical C-id map
-lived in LOFT_ISSUES.md (removed 2026-06-12; all survivors are now filed upstream).
+lived in LOFT_ISSUES.md (removed 2026-06-10; all survivors are now filed upstream).
 
-## loft survival guide (updated 2026-06-12 after the store fixes — repros live in the filed issues)
+## loft survival guide (updated 2026-06-11 — repros live in the filed issues)
 
-Much of the old minefield is FIXED and re-verified (C1 `?? structfn` SIGSEGV, C3 text-drop,
-C4 cross-module `&` mutation, C7 chained casts, C10 `false ??`, C13 `&`-copy, C22/C24 store
-pressure). What still bites:
-- **STILL LIVE — a comprehension of STRUCT literals panics codegen** (loft#319): build with
-  an explicit loop + append instead. Integer comprehensions are fine.
-- **STILL LIVE — capture-append-reassign on a struct's vector field EMPTIES it**
-  (loft#320: `w = s.v; w += [x]; s.v = w` → len 0). Direct `s.v += [x]` works now; the
-  pre-allocated array + count + **index-write** idiom (`enemies`/floor-items) stays the
-  default for hot collections.
+The old C-series minefield is FIXED and re-verified (struct returns, text handling,
+cross-module `&`, casts, store pressure, struct-literal comprehensions). What still bites:
+- **STILL LIVE in the installed 0.8.5 — capture-append-reassign on a struct's vector field
+  EMPTIES it** (loft#320: `w = s.v; w += [x]; s.v = w` → len 0; closed upstream, re-verify
+  after the next toolchain refresh). Direct `s.v += [x]` works; the pre-allocated array +
+  count + **index-write** idiom (`enemies`/floor-items) stays the default for hot collections.
 - **STILL LIVE — a thin arity-reducing pub wrapper around a big-struct-returning pub fn
   panics codegen** (loft#339: "Too few parameters on n_<fn>"): don't wrap; pass the
   defaulted arg at the call sites.
@@ -208,9 +205,8 @@ pressure). What still bites:
 
 Routines that serve other games get PUSHED to the library layer — plan + tiers + per-package
 Definition of Done: **EXTRACTION.md** (hexgrid = the canonical moros-convention hex geometry,
-text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `random` package
-now that C4 is fixed; wallgeo/gen after one decoupling each; roguelike-kit + the bundle
-system deliberately gated).
+text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `random` package;
+wallgeo/gen after one decoupling each; roguelike-kit + the bundle system deliberately gated).
 
 ## Where moros, the toolchain & the libraries live (this machine, as of 2026-06-09)
 
@@ -231,9 +227,7 @@ All siblings under `/home/jurjen/workspace/`:
 **Installed loft** (what `make` targets use by default after `make install`):
 - binary `/usr/local/bin/loft` (0.8.5); stdlib `/usr/local/share/loft/` (`default/`, `deps/`,
   `libloft.rlib`, `wasm32-*`). Refresh = `make install` in a loft repo (sudo); check with
-  `make loft-doctor`. (Re-installed 2026-06-10 from loft2 `bug123` — the loft#306 fix;
-  gate 32/32 on the DEFAULT toolchain, doctor all green. Bare `make play` should work
-  again — visual confirm pending.)
+  `make loft-doctor`.
 
 **User library store `~/.loft/`:**
 - `registry/` — *built/published* libs **auto-loaded on `use`**: `graphics-0.1.0`,

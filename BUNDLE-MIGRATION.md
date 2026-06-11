@@ -101,15 +101,14 @@ say, a 2-race game by dropping in just those two folders.
   verification is **not enough** — check the compile path, since modders will. (The world
   bundles' fixed `monster_defs()`/`item_defs()` have the same latent clash once a 2nd world
   bundle adds that section — fix when it lands.)
-- Keep `&Sim`-mutating helpers in `sim.loft` (C4) — but a pub `&Sim` mutator called from a test
-  module *does* persist (e.g. `sim_set_race`, `sim_make_gaze`); C4 bites narrower cases. Never
-  hold many large `Sim`s live (C22).
+- Keep `&Sim`-mutating helpers in `sim.loft` (the kernel invariant). Never hold many large
+  `Sim`s live (old store-pressure habit, kept as defense-in-depth).
 - Base table → merged catalog is a prefix; defids stay valid. A drained engine table must still
   return a **typed** empty (`t: vector<T> = []; t`), not a bare `[]` (infers as void).
 - **Never merge a catalog in a hot path.** `race_catalog()`/`class_catalog()` build fresh
   vectors per call — calling them from per-tick/per-roll code (skills, save, xp, regen) is both
-  the wrong idiom (the engine caches derived combat numbers: wdam/pac) and real store pressure
-  (C24/loft#306 territory). Bake derivations onto the Sim at apply time (`rc_*` fields); catalog
+  the wrong idiom (the engine caches derived combat numbers: wdam/pac) and needless store
+  pressure. Bake derivations onto the Sim at apply time (`rc_*` fields); catalog
   lookups happen ONLY in `apply_creation`.
 
 ## Landed so far (2026-06-10) — races
@@ -130,7 +129,7 @@ say, a 2-race game by dropping in just those two folders.
 - **Remaining:** the gated hazard systems above; **SP** (rides the spell system, class side);
   then **classes** (Phase D) once the spell system + routine-by-id dispatch land.
 
-## Class track status (2026-06-10) — LANDED (loft#306 fixed on `bug123`)
+## Class track status (2026-06-10) — LANDED
 
 Phase C + the first two Phase-D classes are **implemented and headlessly proven**
 (`classtest` 11/11: merge, apply, SP pool, xp factor, re-spec, kernel bolt, quick-cast,
@@ -139,10 +138,6 @@ warrior + mage in their own bundles (`*_class.loft`, mage's spells + fx routines
 `mage_spells.loft`); `class_catalog()`; SP on the Sim; `sim_bolt`; `castfx`; the E-key
 quick-cast; the story quick-start (human warrior + kit). Race/class derivations are CACHED
 on the Sim (`rc_*`, the wdam/pac idiom — catalog merges only at apply, never per call).
-
-**Unblocked:** loft#306 fixed (loft2 `bug123` @ `913b625b`); the full gate is **32/32**
-(quickslottest + classtest in). The gate runs against `../loft2` on that branch until the
-fix merges to `main` / is installed.
 
 **Minimal creation UI — BUILT (2026-06-10, gate 33/33):** quick-start = the story boots a
 **human warrior + kit**, zero menus. The **spawning crystal** is the re-spec point:
@@ -161,7 +156,7 @@ look = the user's visual verify (make play). The caster SP sidebar row is in (li
       `src/class_defs_gen.loft` exposing `bundle_classes()` (+ the `"spells"` scan →
       `spell_defs_gen.loft` defs + routine-by-id dispatch).
 - [x] `gen_bundles.py`: add a `kind:"race"` scanner → emit `src/race_defs_gen.loft`
-      exposing `bundle_races()` (def fns globally unique — C23/loft#305).
+      exposing `bundle_races()` (def fns globally unique by style).
 - [x] `catalog.loft`: `race_catalog()` + `class_catalog()` (merged; `*_none()` fallbacks).
 - [x] `make check` clean; gate green (deftest reads `race_catalog()`, asserts engine base empty).
 
@@ -181,8 +176,7 @@ look = the user's visual verify (make play). The caster SP sidebar row is in (li
 
 ## Phase C — Spell system (engine MECHANISM only; spells are bundle content)
 
-> **STATUS: DONE — verified at gate 32/32 on loft2 `bug123` @ `913b625b` (the loft#306
-> fix: returned views must not let callers free stores they don't own). 2026-06-10.**
+> **STATUS: DONE — verified at the full gate, 2026-06-10.**
 
 The engine owns the *mechanism*; **the spells themselves are a section of the owning
 class/race bundle** (Phase D/E), merged generically — never an engine table.

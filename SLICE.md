@@ -29,7 +29,7 @@ the bestiary, loot, level up, descend deeper → die → **respawn at the checkp
   small knot of weak monsters around it at gen** (reads as "the crystal's spawn"; reuses placement;
   **zero runtime growth**). *Test:* the crystal's monsters are present on the surface.
   - *v1.1 (later):* a live ticking spawner needs the enemy array to become a fixed-cap + count
-    store (a C18-safe refactor) before it can grow at runtime.
+    store (the index-write idiom) before it can grow at runtime.
 - [x] **4. Open on the surface.** `story.loft` / `sim_new` starts the player at **depth 0** with
   the crystal + entrance (instead of dungeon depth 1); the chosen character bundle still applies
   its kit. *Verify:* `make play` opens on the surface.
@@ -44,7 +44,7 @@ the bestiary, loot, level up, descend deeper → die → **respawn at the checkp
 
 ## Risk notes
 - Steps 1, 2, 4 are additive + low-risk (reuse stairs/descend/tiles/FOV).
-- Step 3's *live* spawner is the only thing that hits loft's C18 (enemy-array growth) — hence the
+- Step 3's *live* spawner is the only thing that grows the enemy array at runtime — hence the
   pre-placed-knot v1; the runtime spawner is v1.1.
 - All steps keep the determinism-preserving pattern, so the existing gate stays green.
 
@@ -109,7 +109,7 @@ also drop and currently do NOTHING when used:
 There is **no message system at all** — no "you hit", "you found …", "you reached level N", and
 crucially no **"nothing happens"** when an inert item is used. Smallest system, biggest clarity win;
 it is the prerequisite that makes §2's deferred items honest instead of silently dead.
-- [ ] A rolling message line/area (shared view) + a `sim_msg`-style kernel queue (fixed-cap, C18-safe).
+- [ ] A rolling message line/area (shared view) + a `sim_msg`-style kernel queue (fixed-cap + count).
 - [ ] Wire the obvious events: hit/kill, pickup, level-up, item-used / nothing-happens, fire / no-target.
 
 ### 4. Monster mechanics that SPAWN at depth 0-3 (reachable: these appear)

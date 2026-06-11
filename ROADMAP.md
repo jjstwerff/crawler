@@ -31,7 +31,7 @@ spine; open-world zones, authored content, 3D, and multiplayer all build on it.
 Build in order; each is small + headless-tested where it's kernel logic.
 
 1. **G1 — nice walls** *(graphics cleanup, do first)* — land the parked Douglas–Peucker
-   straightener via the corner-graph flat-array refactor (loft#250 workaround). Palette
+   straightener directly (the loft bugs it was parked on are fixed). Palette
    is already warm-stone floor / dark walls.
 2. **G2 — gentle curve** — flatten the level curve + cap the player↔monster ratio both
    ways (§3a #2). `curvetest`.

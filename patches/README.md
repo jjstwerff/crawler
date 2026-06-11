@@ -8,10 +8,12 @@ the full version.
 
 The Douglas–Peucker wall-straightening rewrite of `src/wallgeo.loft` (collapse
 the per-hex wobble into straight runs, keep sharp corners — the "no rounding"
-direction). It **compiles but panics at runtime** in the current loft
-interpreter (a store / `keys.rs` index-out-of-bounds via the corner graph's
-nested vector field), pending loft master fixes. The active `wallgeo.loft` was
-reverted to the earlier averaged (slightly rounded) version so the game runs.
+direction). It compiled but panicked at runtime in the loft of that day (a
+store / `keys.rs` index-out-of-bounds via the corner graph's nested vector
+field) — **those loft bugs are now fixed** (probe-verified on the installed
+toolchain 2026-06-11), so the diff should replay directly. The active
+`wallgeo.loft` was reverted to the earlier averaged (slightly rounded)
+version so the game runs.
 
 - **base (apply onto):** `60d523cae96e4d3d582d1f2201007c5276099286` — the
   averaged/rounded `wallgeo.loft` currently in the tree.

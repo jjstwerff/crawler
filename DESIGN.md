@@ -667,10 +667,10 @@ migrates it prematurely:
   **zero call-site impact** — there is no "rewrite everything later" penalty for waiting. (This
   relies on the architecture invariant: the view reads player state *only* via `sim_` accessors,
   never raw `s.php`.)
-- **The right container is gated by loft's worst bug class.** `vector<PlayerState>` (a struct in
-  a vector, with *nested* vector fields for stats/inv/eq) or struct-of-arrays
-  (`stat_cur: vector<vector<integer>>`) are exactly where loft bites — C1 (`v[i] ?? structfn()`
-  SIGSEGVs) and C18 (can't grow struct-vector fields). That makes the container a **verify-first
+- **The right container is gated by a live loft bug.** `vector<PlayerState>` (a struct in
+  a vector, with *nested* vector fields for stats/inv/eq) is where loft still bites —
+  growing a struct's vector field via capture-append-reassign empties it (loft#320, fixed
+  upstream, not yet in the installed toolchain). That makes the container a **verify-first
   prototype** question (DESIGN-PROTOCOL / exact-invariant), not a migrate-on-a-guess.
 - **`PlayerState`'s shape needs §11a.** Extracting it forces the per-player vs per-*locality* vs
   per-world split (position is per-player; the map is world; the clock is per-locality) — and the
@@ -1037,9 +1037,10 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
 *Walls first, then the fastest path to a working game with real (mostly lateral)
 progression. Order matters; each is small + headless-tested where it's kernel logic.*
 - [ ] **G1 walls** — nicer wall rendering: land the parked Douglas–Peucker
-  straightener (crisp straight runs + sharp corners) by refactoring the corner
-  graph's nested-vector field → flat scalar edge slots (the loft#250 workaround noted
-  in `patches/README`), then place corners at adjoining-line intersections. *Rounded
+  straightener (crisp straight runs + sharp corners) — the loft bugs it was parked on
+  (nested-vector type-id panic, keys.rs store desync) are fixed and probe-verified on
+  the installed toolchain, so the diff in `patches/` should replay directly —
+  then place corners at adjoining-line intersections. *Rounded
   vs sharp is your visual call.* (Graphics-only; `wallgeo`/`view`.) First set the
   **wall aesthetic target** with the `draw` skill — compose + cold-critique a
   reference egocentric view so "nice" is concrete (a checkable look) before coding.

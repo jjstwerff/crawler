@@ -181,8 +181,8 @@ quest_check(routine_id, &sim, quest)      // RESCUE / RETRIEVE / SLAY — done y
 motif_reveal(routine_id, &sim, link)      // discover a hidden link; unlock the rest
 ```
 
-**Why ids, not stored functions:** loft can't safely store function pointers in data
-(LOFT_ISSUES C-series; integer flags are the proven-safe shape — C6/C10). So:
+**Why ids, not stored functions:** loft doesn't store function pointers in data;
+integer ids + a dispatcher are the proven shape. So:
 - **Referencing** an existing routine from a def is **free data** — the open part.
 - **Adding a new** routine is a small **kernel** change (one dispatch arm) — the one
   seam where a bundle isn't pure data.
@@ -407,21 +407,21 @@ legend (S1's link pass already resolves it), plus maybe one new terrain code (sc
 **discipline + complexity, not feasibility** — no tier needs a loft feature that is
 broken. The two things we'd *like* but deliberately avoid both have an established
 workaround already in use:
-- **stored function pointers** → integer routine ids + a `match` dispatcher (C6/C10);
+- **stored function pointers** → integer routine ids + a `match` dispatcher;
 - **growable struct vector fields** → pre-sized fixed array + int count + index-write
-  (C18 — the `enemies` / loot pattern).
+  (loft#320, still live in the installed 0.8.5 — the `enemies` / loot pattern).
 
 | Element | Safe shape | Watch |
 |---|---|---|
 | Keyed catalogs | build-time local append (`item_table`) | — |
-| Read a def | **guarded direct index, no `??`** on a struct | `v[i] ?? structfn()` can SIGSEGV (C1) |
+| Read a def | guarded direct index | — (the old `?? structfn` SIGSEGV is fixed) |
 | Link pass (key→index) | resolve into a **separate int table**; don't rewrite struct fields | intern text keys to ints once → hot path is int-only |
-| Layered grid | **flat** `vector<integer>`, `(L·h+y)·w+x` | never nested vectors (the wallgeo panic) |
+| Layered grid | **flat** `vector<integer>`, `(L·h+y)·w+x` | flat stays the perf idiom (the nested-vector panics are fixed) |
 | Stamp into level | index-write into the tile vector | — |
-| Accumulators (spawns, placed nodes, graph edges, secret links) | **fixed array + count + index-write** on the struct | struct-field `+= [x]` desyncs (C18) |
+| Accumulators (spawns, placed nodes, graph edges, secret links) | **fixed array + count + index-write** on the struct | capture-append-reassign empties the field (loft#320) |
 | Algorithm scratch (BFS, filter, topo-sort) | **local** vectors — runtime append is fine (`gentest`) | only *struct-field* append is broken, not local |
 | Graphs (place deps, motif links) | **parallel flat int arrays** (`from[] to[] kind[] secret[]`) | — |
-| Routine dispatch | `match` / if-chain on int id, one per domain | `&Sim`-mutating arms live **in `sim.loft`** (C4) |
+| Routine dispatch | `match` / if-chain on int id, one per domain | `&Sim`-mutating arms live **in `sim.loft`** (the kernel invariant) |
 | Determinism | all RNG on gen `Rng` / sim LCG | no external RNG |
 | **File-loaded** bundles | the own-format serialize/parse round-trip | **gated** on loft serialization maturing → stays in the **LATER** bucket |
 
