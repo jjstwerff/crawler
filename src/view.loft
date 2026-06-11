@@ -50,6 +50,8 @@ pub struct Hud {
   catspr: vector<integer> not null,   // floor-item sprite per IT_* category (0 = glyph fallback)
   goldspr: integer not null,          // the gold-pile sprite
   sdown:  integer not null,           // '>' down-stair glyph
+  board:  integer not null,           // '!' notice-board glyph (tile 8)
+  pooltx: integer not null,           // '~' magical-pool glyph (tile 9)
   sup:    integer not null,           // '<' up-stair glyph
   dlbl:   integer not null,           // "DEPTH" label
   clbl:   integer not null,           // "CL" (character level) label
@@ -226,6 +228,8 @@ pub fn build_hud(s: Sim) -> Hud {
   ptex = 0;
   died = 0;
   sdown = 0;
+  board = 0;
+  pooltx = 0;
   sup = 0;
   dlbl = 0;
   clbl = 0;
@@ -249,6 +253,8 @@ pub fn build_hud(s: Sim) -> Hud {
     ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
     died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
     sdown = graphics::create_text_texture(font, ">", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
+    board = graphics::create_text_texture(font, "!", STAIR_SIZE, graphics::rgba(210, 170, 90, 255));
+    pooltx = graphics::create_text_texture(font, "~", STAIR_SIZE, graphics::rgba(90, 180, 230, 255));
     sup = graphics::create_text_texture(font, "<", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
     dlbl = graphics::create_text_texture(font, "DEPTH", DIGIT_SIZE, graphics::rgba(180, 190, 210, 255));
     clbl = graphics::create_text_texture(font, "CL", DIGIT_SIZE, graphics::rgba(190, 210, 180, 255));
@@ -305,7 +311,7 @@ pub fn build_hud(s: Sim) -> Hud {
   }
   Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
     estex: estex, esact: esact, pspr: pspr, catspr: catspr, goldspr: goldspr,
-    sdown: sdown, sup: sup, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
+    sdown: sdown, sup: sup, board: board, pooltx: pooltx, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
     stair_up: stair_up, stair_dn: stair_dn, panel: panel, itex: itex, statlbl: statlbl,
     hplbl: hplbl, splbl: splbl, castlbl: castlbl, qlbl: qlbl, elbl: elbl, dash: dash, hints: hints,
     stat_para: stat_para, stat_pois: stat_pois, stat_ward: stat_ward }
@@ -693,7 +699,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
       q = s.qmin + vq;
       r = s.rmin + vr;
       t = tile_at(s, q, r);
-      if (t == 2 || t == 3) && sim_hex_state(s, q, r) == 2 {
+      if (t == 2 || t == 3 || t == 8 || t == 9) && sim_hex_state(s, q, r) == 2 {
         (wx, wy) = hex_to_px(q, r);
         (hsx, hsy) = world_to_screen(s, wx, wy);
         if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
@@ -712,6 +718,10 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
               if sim_tile_kind(s, q, r) >= 0 { draw_disc(painter, hud.disc, hsx, hsy, ssz * 0.9); }
               draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
             }
+          } else if t == 8 && hud.font >= 0 && hud.board != 0 {
+            draw_glyph_centered(painter, hud.font, hud.board, "!", STAIR_SIZE, hsx, hsy);
+          } else if t == 9 && hud.font >= 0 && hud.pooltx != 0 {
+            draw_glyph_centered(painter, hud.font, hud.pooltx, "~", STAIR_SIZE, hsx, hsy);
           }
         }
       }

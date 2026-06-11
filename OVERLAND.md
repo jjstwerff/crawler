@@ -714,7 +714,31 @@ The journey there IS the early game: out the gates, north through the
 plains windows, into the sand. traveltest walks it headlessly: two
 crossings, hero intact, gate on dry K_SAND, descend lands at depth 1.
 
-NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
+### 13k. THE FIRST QUEST LINES (user direction, implemented)
+The town now ASKS things of the player, through two lines (questtest walks
+both end-to-end):
+- **The watch's WANTED poster.** Notice boards (tile 8, walk-on to read) hang
+  on the square: a bounty on the marauder chief that haunts the old ruins —
+  the ruin-nest BOSS, trait-tagged (TAG_RUIN_BOSS), never named, living
+  windows away to the north-west. Kill it, walk back, the board pays 150.
+- **The Circle's line (the longer one begins).** Bumping a civilian TALKS now
+  (never strikes). The merchant cart points you at the Circle; two robed
+  mages on the square ask for a death in the northern sands — and will not
+  say why. With the naga fallen, a mage pays 250 and the WHY comes out: the
+  WRIT reveals the serpent nested on a MAGICAL POOL, and the pool is what
+  the Circle wanted all along — its water is the seat of their mana brews.
+  The throne stencil now carries that pool (Stencil.pool — shallow walkable
+  water, tile 9, ringing the stair); an empty Circle phial fills on walk-in,
+  and every brimming phial delivered pays 60 and comes back empty: a
+  CONSTANT RESOURCE loop feeding the mana-potion economy, and the hook the
+  longer quest line grows from.
+- Enabled on the way: the surface is a real stair destination again
+  (depth 1 -> 0 — rewards are claimable; the up-stair lands you back at the
+  desert gate of whichever window you entered from), and Enemy now carries
+  its def's trait tags (quest hooks fire key-blind, the bundle seam holds).
+
+NEXT: shops with real interiors + trade, NPC dialogue (beyond the quest
+lines' bump-talk), ship routes between
 coastal towns, window-edge travel POLISH (a horizon cue at the edge, other
 towns' windows getting their own life), nicer buildings, true round
 rendering (tile 4) + light fences (tile 5), the lib-ward extraction into

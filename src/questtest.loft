@@ -6,6 +6,11 @@
 //   3) BOSS->FLAG   — killing the unique sets boss_slain (tested through the ranged kill path).
 //   4) INFESTATION  — with boss_slain carried, the way OUT crawls with the brood (depth 1 thick,
 //                     depth 2 some); without it, the shallow levels are snake-free.
+//   5-10) THE TOWN'S QUEST LINES — the watch's WANTED poster (notice board tile 8: read ->
+//                     hunt the ruin-nest boss (trait-tagged, windows away) -> claim the bounty);
+//                     the Circle's line (merchant points -> mage asks -> reward + the WRIT
+//                     reveals the POOL -> fill the phial at the naga pool (tile 9) -> deliver,
+//                     repeatable). Plus: the way OUT of the dungeon exists (depth 1 -> surface).
 use sim;
 use catalog;
 use monsters;
@@ -72,9 +77,103 @@ fn main() {
   inf2 = count_glyph(up2, "J");
   inf1 = count_glyph(up1, "J");
 
+  // 5) the WANTED poster: a notice board stands on the square; walking onto it takes the bounty
+  t5 = sim_new_gen(777, 0);
+  bq = -1;
+  br = -1;
+  for r5 in 0..101 {
+    for q5 in 0..101 {
+      if bq < 0 && tile_at(t5, q5, r5) == 8 { bq = q5; br = r5; }
+    }
+  }
+  board = bq >= 0;
+  if board {
+    sim_teleport(t5, bq, br);
+    sim_step(t5, 0, 0, 0.016);
+  }
+  took = sim_quest_poster(t5) == 1;
+
+  // 6) the hunt: the ruin nest lives windows away; its boss is TRAIT-tagged, never named
+  rw = sim_new_gen_s(777, 0, 0, 0, -1, -4);
+  bossi = -1;
+  for bi in 0..sim_enemy_count(rw) {
+    if bossi < 0 && (sim_enemy_tags(rw, bi) & TAG_RUIN_BOSS) != 0 && sim_enemy_alive(rw, bi) { bossi = bi; }
+  }
+  rw.q_poster = 1;                                     // the poster was read back in town
+  hunted = false;
+  if bossi >= 0 {
+    (bx5, by5) = sim_enemy_pos(rw, bossi);
+    (bq5, br5) = px_to_hex(bx5, by5);
+    (hx5, hy5) = hex_to_px(bq5 - 1, br5);
+    rw.px = hx5;
+    rw.py = hy5;
+    rw.heading = atan2(by5 - hy5, bx5 - hx5);
+    sim_equip_by_key(rw, "short_bow");
+    for _ in 0..90 { sim_give_item(rw, "arrow"); }
+    sim_compute_fov(rw);
+    for _ in 0..80 { sim_fire(rw); }                   // chew through the nest to the chief
+    hunted = sim_quest_poster(rw) == 2;
+  }
+
+  // 7) the claim: back at the board, the watch pays out
+  t5.q_poster = 2;                                     // (the carry across windows is the travel lists')
+  gold0 = sim_gold(t5);
+  sim_teleport(t5, bq, br);
+  sim_step(t5, 0, 0, 0.016);
+  paid = sim_quest_poster(t5) == 3 && sim_gold(t5) == gold0 + 150;
+
+  // 8) the Circle's line: the merchant points, a mage asks, the kill pays + REVEALS the pool
+  mi = -1;
+  gi5 = -1;
+  for ei in 0..sim_enemy_count(t5) {
+    if mi < 0 && sim_enemy_glyph(t5, ei) == "M" { mi = ei; }
+    if gi5 < 0 && sim_enemy_key(t5, ei) == "mage" { gi5 = ei; }
+  }
+  sim_talk_to(t5, mi);
+  pointed = sim_quest_mage(t5) == 1;
+  sim_talk_to(t5, gi5);
+  asked = sim_quest_mage(t5) == 2;
+  t5.boss_slain = 1;                                   // the desert dweller has fallen (section 3 is the kill)
+  goldb = sim_gold(t5);
+  sim_talk_to(t5, gi5);
+  rewarded = sim_quest_mage(t5) == 3 && sim_gold(t5) == goldb + 250
+          && sim_find_item(t5, "circle_writ") >= 0 && sim_find_item(t5, "circle_phial") >= 0;
+
+  // 9) the POOL: the throne ring is shallow magical water; standing in it fills the phial
+  d3p = sim_new_gen(777, 3);
+  poolq = -1;
+  poolr = -1;
+  for pr5 in 0..41 {
+    for pq5 in 0..41 {
+      if poolq < 0 && tile_at(d3p, pq5, pr5) == 9 { poolq = pq5; poolr = pr5; }
+    }
+  }
+  pool = poolq >= 0 && hex_distance(poolq, poolr, d3p.dn_q, d3p.dn_r) <= 2;
+  sim_give_item(d3p, "circle_phial");
+  filled = false;
+  if pool {
+    sim_teleport(d3p, poolq, poolr);
+    sim_step(d3p, 0, 0, 0.016);
+    filled = sim_find_item(d3p, "phial_brimming") >= 0 && sim_find_item(d3p, "circle_phial") < 0;
+  }
+
+  // 10) the DELIVERY: a brimming phial pays 60 and comes back empty — the constant resource
+  sim_give_item(t5, "phial_brimming");
+  goldc = sim_gold(t5);
+  sim_talk_to(t5, gi5);
+  delivered = sim_gold(t5) == goldc + 60 && sim_find_item(t5, "phial_brimming") < 0;
+
+  // 11) the way OUT: the surface is a real stair destination again (rewards get claimed)
+  d1c = sim_new_gen(777, 1);
+  upc = sim_descend(d1c, -1);
+  wayout = sim_depth(upc) == 0;
+
   println("granted={granted}  setpiece={setpiece} (naga={naga_i} guards={guards} near={near})  boss_flag={kill_flag}");
+  println("poster: board={board} took={took} hunted={hunted} paid={paid}");
+  println("circle: pointed={pointed} asked={asked} rewarded={rewarded} pool={pool} filled={filled} delivered={delivered} wayout={wayout}");
   println("infestation: clean-d1={clean1}  d2={inf2}  d1={inf1}");
   ok = granted && setpiece && kill_flag == 1
-    && clean1 == 0 && inf1 >= 8 && inf2 >= 2 && inf1 > inf2;
+    && clean1 == 0 && inf1 >= 8 && inf2 >= 2 && inf1 > inf2 && board && took && hunted && paid && pointed && asked && rewarded
+    && pool && filled && delivered && wayout;
   if ok { println("=== QUEST OK ==="); } else { println("=== FAIL ==="); }
 }

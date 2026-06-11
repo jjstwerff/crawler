@@ -91,6 +91,7 @@ pub struct Enemy {
   mlvl:   integer not null,   // native level (m_depth) — scales the kill XP
   vision: integer not null,   // aggro / detection range in hexes (from the DB)
   flags:  integer not null,   // MF_* bitmask (from the DB)
+  tags:   integer not null,   // the def's placement-role tags (TAG_*) — quest hooks read these
   awake:  boolean not null,   // false = asleep: won't act until it perceives you
   speed:  integer not null,   // energy banked per clock tick = ENERGY_STEP + m_speed
   energy: integer not null,   // action-credit saved toward the next step (the 0..9 leftover between ticks)
@@ -177,6 +178,8 @@ pub struct Sim {
   anc_wy:    integer not null,    //   wins; death wakes the player there, whole again
   anc_q:     integer not null,
   anc_r:     integer not null,
+  q_poster:  integer not null,    // the WANTED poster bounty: 0 unread, 1 taken, 2 boss down, 3 paid
+  q_mage:    integer not null,    // the Circle's line: 0 nothing, 1 merchant pointed, 2 asked, 3 the writ
   grave_depth: integer not null,  // death-stake grave: depth / hex / gold (0 gold = no grave).
   grave_q:     integer not null,  //   SP keeps one grave (re-death forfeits it); MP would hold a
   grave_r:     integer not null,  //   list (owner-less, persistent) — a later, non-rewrite variant.
@@ -931,6 +934,14 @@ pub fn sim_anchor_here(s: &Sim, kind: integer) {
 }
 
 pub fn sim_anchor_kind(s: Sim) -> integer { s.anc_kind }
+
+pub fn sim_quest_poster(s: Sim) -> integer { s.q_poster }
+pub fn sim_quest_mage(s: Sim) -> integer { s.q_mage }
+pub fn sim_enemy_tags(s: Sim, i: integer) -> integer {
+  ev = s.enemies;
+  if i >= 0 && i < len(ev) { e = ev[i]; return e.tags; }
+  0
+}
 pub fn sim_shrine_clear(s: &Sim) { s.shrine_ev = 0; }
 pub fn sim_shrine_apply(s: &Sim, kind: text, key: text) {
   if kind == "race" { sim_set_race(s, key); }
@@ -1382,6 +1393,10 @@ fn player_attack(s: &Sim, idx: integer) {
         drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
         sim_log(s, "You have slain the {e.name}.");
         if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
+        if (e.tags & TAG_RUIN_BOSS) != 0 && s.q_poster == 1 {
+          s.q_poster = 2;
+          sim_log(s, "That was the brute from the poster - the watch owes you gold.");
+        }
       }
       enemies[idx] = e;
       if gain > 0 { sim_award_xp(s, gain); }
@@ -1444,6 +1459,10 @@ pub fn sim_bolt(s: &Sim, dam: integer) -> integer {
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
     sim_log(s, "Your bolt slays the {e.name}.");
     if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
+        if (e.tags & TAG_RUIN_BOSS) != 0 && s.q_poster == 1 {
+          s.q_poster = 2;
+          sim_log(s, "That was the brute from the poster - the watch owes you gold.");
+        }
     ret = 4;
   } else {
     sim_log(s, "Your bolt strikes the {e.name}.");
@@ -1484,6 +1503,10 @@ pub fn sim_fire(s: &Sim) -> integer {
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
     sim_log(s, "Your shot slays the {e.name}.");
     if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
+        if (e.tags & TAG_RUIN_BOSS) != 0 && s.q_poster == 1 {
+          s.q_poster = 2;
+          sim_log(s, "That was the brute from the poster - the watch owes you gold.");
+        }
     ret = 4;
   } else {
     sim_log(s, "Your shot strikes the {e.name}.");
@@ -2225,13 +2248,100 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
           if s.anc_kind != 2 { sim_log(s, "The crystal hums - this place will hold you."); }
           sim_anchor_here(s, 2);
         }
+        else if e.role != 0 { sim_talk_to(s, fe); }   // walking into a civilian TALKS, never strikes
         else { player_attack(s, fe); }
       }
       sim_tick(s);
     }
   }
+  sim_quest_walkons(s);      // notice boards + magical pools read/act on walk-on
   sim_autocollect_gold(s);   // walking over a gold pile picks it up
   sim_reclaim_grave(s);      // standing on your grave reclaims its staked gold
+}
+
+// TALK: bumping a civilian speaks. The town carries its quest lines here —
+// merchants point at the Circle, the Circle's mages ask their favour (and pay
+// for it), the rest of the town nods. Bump-triggered, so it never spams.
+pub fn sim_talk_to(s: &Sim, idx: integer) {
+  ev = s.enemies;
+  if idx < 0 || idx >= len(ev) { return; }
+  e = ev[idx];
+  if e.role == 7 {
+    if s.q_mage == 0 {
+      s.q_mage = 1;
+      sim_log(s, "The merchant leans down: 'The Circle's mages are paying for a");
+      sim_log(s, "sword-arm. Something north in the sands has them spooked.'");
+    } else {
+      sim_log(s, "'Fine wares, fair prices,' calls the merchant.");
+    }
+    return;
+  }
+  if e.key == "mage" {
+    if s.boss_slain == 1 && s.q_mage < 3 {
+      s.q_mage = 3;
+      sim_grant_gold(s, 250);
+      sim_give_item(s, "circle_writ");
+      sim_give_item(s, "circle_phial");
+      sim_log(s, "'It is done? Then the Circle is in your debt - 250 gold, as promised.'");
+      sim_log(s, "'And now it can be told. Read the writ; take the phial. The POOL");
+      sim_log(s, "the serpent nested on is what we wanted all along.'");
+    } else if s.q_mage >= 3 {
+      bslot = sim_find_item(s, "phial_brimming");
+      if bslot >= 0 {
+        itbl2 = game_items();
+        eidx = item_index(itbl2, "circle_phial");
+        iv2 = s.inv;
+        if eidx >= 0 && bslot < len(iv2) {
+          iv2[bslot] = eidx;
+          sim_grant_gold(s, 60);
+          sim_log(s, "The mage decants your phial with shaking care: 60 gold,");
+          sim_log(s, "and the empty glass back in your hand. 'Again, when you can.'");
+        }
+      } else {
+        sim_log(s, "'The stills run low. Pool-water, by the phial - the Circle pays.'");
+      }
+    } else if s.q_mage < 2 {
+      s.q_mage = 2;
+      sim_log(s, "The mage grips your arm: 'Kill the dweller in the sands north of");
+      sim_log(s, "here - below the desert gate, on the third deep. Do not ask why.");
+      sim_log(s, "The Circle pays well.'");
+    } else {
+      sim_log(s, "'The sands, sword-arm. North. The Circle waits.'");
+    }
+    return;
+  }
+  if e.role != 0 { sim_log(s, "The {e.name} nods at you."); }
+}
+
+// Walk-on quest features: a NOTICE BOARD (tile 8) reads its poster / pays its
+// bounty; a MAGICAL POOL (tile 9) fills a carried Circle phial. State-change
+// gated, so standing still never spams the log.
+fn sim_quest_walkons(s: &Sim) {
+  (pq, pr) = px_to_hex(s.px, s.py);
+  t = tile_at(s, pq, pr);
+  if t == 8 {
+    if s.q_poster == 0 {
+      s.q_poster = 1;
+      sim_log(s, "WANTED: the marauder chief that haunts the old ruins.");
+      sim_log(s, "The town watch pays 150 gold for its head.");
+    } else if s.q_poster == 2 {
+      s.q_poster = 3;
+      sim_grant_gold(s, 150);
+      sim_log(s, "The watch counts out your bounty: 150 gold.");
+    }
+  }
+  if t == 9 {
+    slot = sim_find_item(s, "circle_phial");
+    if slot >= 0 {
+      itbl = game_items();
+      bidx = item_index(itbl, "phial_brimming");
+      iv = s.inv;
+      if bidx >= 0 && slot < len(iv) {
+        iv[slot] = bidx;
+        sim_log(s, "You stoop and fill the phial; the water hums against the glass.");
+      }
+    }
+  }
 }
 
 // ── Read-only accessors for the view / tests ────────────────────────
@@ -2605,7 +2715,7 @@ pub fn sim_new() -> Sim {
 
   (spx, spy) = hex_to_px(10, 10);
   e0 = Enemy { cur_q: 10, cur_r: 16, tgt_q: 10, tgt_r: 16, hp: 8, maxhp: 8, dam: 3,
-    xp: 2, mlvl: 1, vision: 8, flags: 0, awake: true, speed: ENERGY_STEP, energy: 0,
+    xp: 2, mlvl: 1, vision: 8, flags: 0, tags: 0, awake: true, speed: ENERGY_STEP, energy: 0,
     slow_until: 0, stun_until: 0,
     cr: 200, cg: 60, cb: 50, glyph: "r", key: "giant_rat", name: "training rat", alive: true };
   enemies: vector<Enemy> = [e0];
@@ -2624,6 +2734,7 @@ pub fn sim_new() -> Sim {
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: 1, wseed: 0, win_x: 0, win_y: 0, save_depth: 1,
     anc_kind: 0, anc_depth: 1, anc_wx: 0, anc_wy: 0, anc_q: 0, anc_r: 0,
+    q_poster: 0, q_mage: 0,
     up_q: 10, up_r: 10, dn_q: 10, dn_r: 16,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
@@ -2665,7 +2776,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
   Enemy { cur_q: q, cur_r: r, tgt_q: q, tgt_r: r,
     hp: md.m_hp, maxhp: md.m_hp, dam: md.m_dam,
     xp: md.m_xp, mlvl: md.m_depth,
-    vision: md.m_vision, flags: md.m_flags, awake: false,
+    vision: md.m_vision, flags: md.m_flags, tags: md.m_tags ?? 0, awake: false,
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true,
@@ -2679,7 +2790,7 @@ fn mk_npc(role: integer, key: text, name: text, glyph: text,
           q: integer, r: integer, hq: integer, hr: integer,
           wq: integer, wr: integer, aq: integer, ar: integer) -> Enemy {
   Enemy { cur_q: q, cur_r: r, tgt_q: q, tgt_r: r,
-    hp: 6, maxhp: 6, dam: 0, xp: 0, mlvl: 0, vision: 0, flags: 0, awake: true,
+    hp: 6, maxhp: 6, dam: 0, xp: 0, mlvl: 0, vision: 0, flags: 0, tags: 0, awake: true,
     speed: ENERGY_STEP - 2, energy: 0, slow_until: 0, stun_until: 0,
     cr: cr, cg: cg, cb: cb, glyph: glyph, key: key, name: name, alive: true,
     role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1 }
@@ -2993,6 +3104,10 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         }
       }
     }
+    // NOTICE BOARDS on the square (tile 8): the watch hangs its WANTED posters
+    // here — walking up reads them; the bounty pays out at the same board
+    st_set(tiles, tk, w, h, w / 2 + 3, h / 2, 8, K_GRASS);
+    st_set(tiles, tk, w, h, w / 2 - 2, h / 2 + 3, 8, K_GRASS);
     }
   }
   walls: vector<integer> = [for _ in 0..(w * h * 3) { 0 }];
@@ -3157,6 +3272,16 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                              hx5, hy5, hx5, hy5, w / 2, h / 2, w / 2, h / 2)];
         }
       }
+      // THE CIRCLE'S MAGES: two robed figures keeping to the square — they pay
+      // in gold for a certain death in the northern sands, and later for
+      // pool-water by the phial (the talk verb carries the line)
+      enemies += [mk_npc(1, "mage", "Circle mage", "h", 160, 130, 230,
+                         w / 2 + 2, h / 2 + 1, w / 2 + 2, h / 2 + 1,
+                         w / 2 + 1, h / 2 - 1, w / 2 + 1, h / 2 - 1)];
+      enemies += [mk_npc(1, "mage", "Circle mage", "h", 140, 110, 210,
+                         w / 2 - 3, h / 2 - 2, w / 2 - 3, h / 2 - 2,
+                         w / 2 - 1, h / 2 + 1, w / 2 - 1, h / 2 + 1)];
+
       // GUARDS: the walls and the land — legs between lookout points
       ngd = 1 + tsize;
       for gd2 in 0..ngd {
@@ -3753,12 +3878,13 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     // SET-PIECE: stamp the configured stencil around the stair-down at its depth (the boss gates it).
     if depth == pl.setpiece_depth {
       stl = world_stencils();
-      rad = 0; bkey = ""; gkey = ""; gnum = 0;
+      rad = 0; bkey = ""; gkey = ""; gnum = 0; spool = 0;
       for si in 0..len(stl) {
         if si < len(stl) {
           st = stl[si];
           if st.sk == pl.setpiece_stencil && st.shape == "round" {
             rad = st.radius; bkey = st.boss; gkey = st.guard; gnum = st.guards;
+            spool = st.pool ?? 0;
           }
         }
       }
@@ -3772,6 +3898,21 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               if hex_distance(tq2, tr2, dnq, dnr) <= rad {
                 ti2 = tr2 * w + tq2;
                 if ti2 >= 0 && ti2 < len(tiles) { tiles[ti2] = 0; }
+              }
+            }
+          }
+        }
+        // the stencil's MAGICAL POOL: shallow walkable water (tile 9) ringing
+        // the centre — a phial can be filled from it (the quest verb)
+        if spool > 0 {
+          for py2 in 0..(spool * 2 + 1) {
+            for px2 in 0..(spool * 2 + 1) {
+              plq = dnq + px2 - spool;
+              plr = dnr + py2 - spool;
+              if plq >= 1 && plr >= 1 && plq < w - 1 && plr < h - 1
+                 && hex_distance(plq, plr, dnq, dnr) <= spool {
+                tip = plr * w + plq;
+                if tip >= 0 && tip < len(tiles) { tiles[tip] = 9; }
               }
             }
           }
@@ -3832,6 +3973,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     stat_pts: 0, stat_grown_at: zeros(NUM_STATS), detect_t: 0,
     depth: depth, wseed: seed, win_x: wwx, win_y: wwy, save_depth: depth,
     anc_kind: 0, anc_depth: depth, anc_wx: wwx, anc_wy: wwy, anc_q: pq, anc_r: pr,
+    q_poster: 0, q_mage: 0,
     up_q: pq, up_r: pr, dn_q: dnq, dn_r: dnr,
     grave_depth: 0, grave_q: 0, grave_r: 0, grave_gold: 0, boss_slain: 0,
     msg_q: [for _ in 0..MSG_MAX { "" }], msg_n: 0,
@@ -3872,7 +4014,7 @@ fn is_save_depth(d: integer) -> integer {
 
 pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   nd = s.depth + dir;
-  if nd < 1 { nd = 1; }
+  if nd < 0 { nd = 0; }   // depth 0 = the surface: climbing OUT is how rewards get claimed
   style = 0;
   if dir > 0 && sim_stair_under(s) == 6 { style = 1; }   // a NATURAL CAVE way
   ns = sim_new_gen_s(s.wseed, nd, s.boss_slain, style, s.win_x, s.win_y);  // carry quest progress so the way-out infestation fires
@@ -3925,6 +4067,8 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.anc_wy = s.anc_wy;
   ns.anc_q = s.anc_q;
   ns.anc_r = s.anc_r;
+  ns.q_poster = s.q_poster;      // quest progress rides along
+  ns.q_mage = s.q_mage;
   if is_save_depth(nd) != 0 && nd > ns.save_depth {
     ns.save_depth = nd;                  // advance at save points: the stair claims the spawn
     ns.anc_kind = 1;
@@ -3945,7 +4089,7 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.flavour_idx = s.flavour_idx;
   if dir > 0 { sim_log(ns, "You descend to depth {nd}."); }
   if dir < 0 { sim_log(ns, "You climb to depth {nd}."); }
-  if dir < 0 {
+  if dir < 0 && ns.dn_q >= 0 {   // surface windows without a gate keep the default start
     (ax, ay) = hex_to_px(ns.dn_q, ns.dn_r);
     ns.px = ax;
     ns.py = ay;
@@ -4011,6 +4155,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.anc_wy = s.anc_wy;
   rs.anc_q = s.anc_q;
   rs.anc_r = s.anc_r;
+  rs.q_poster = s.q_poster;       // quests survive death
+  rs.q_mage = s.q_mage;
   if s.anc_kind != 0 {
     (apx, apy) = hex_to_px(s.anc_q, s.anc_r);
     rs.px = apx;                  // wake ON the anchor, not at the level default
@@ -4150,6 +4296,8 @@ pub fn sim_travel(s: Sim) -> Sim {
   ns.anc_wy = s.anc_wy;
   ns.anc_q = s.anc_q;
   ns.anc_r = s.anc_r;
+  ns.q_poster = s.q_poster;      // quest progress rides along
+  ns.q_mage = s.q_mage;
   ns.grave_depth = s.grave_depth;   // carry the death-stake grave across levels
   ns.grave_q = s.grave_q;
   ns.grave_r = s.grave_r;

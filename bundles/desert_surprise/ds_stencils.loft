@@ -6,9 +6,10 @@ use worldtypes;
 
 pub fn room_stencils() -> vector<Stencil> {
   t: vector<Stencil> = [];
-  // naga_throne — a round throne-cave (a hex disc of floor), Ssirath coiled at the centre, a ring of
+  // naga_throne — a round throne-cave (a hex disc of floor), Ssirath coiled at the centre around HER
+// POOL (pool: 1 — the water she nested on; it hums with whatever made her what she was), a ring of
   // sand adders guarding. The placement rule stamps it around the depth-3 stair-down so the crown
   // gates the descent.
-  t += [Stencil { sk: "naga_throne", shape: "round", radius: 4, boss: "ssirath", guard: "sand_adder", guards: 6 }];
+  t += [Stencil { sk: "naga_throne", shape: "round", radius: 4, boss: "ssirath", guard: "sand_adder", guards: 6, pool: 1 }];
   t
 }

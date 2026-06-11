@@ -61,6 +61,12 @@ fn item_none() -> ItemDef {
 
 pub fn item_table() -> vector<ItemDef> {
   t: vector<ItemDef> = [];
+  // ── The Circle's quest line (engine town quests; all IF_QUEST: inspect-only
+  // keepsakes, never consumed by the use path — the quest verbs (talk / pool
+  // walk-on) move them around) ──
+  t += [ItemDef { i_key: "circle_writ", i_name: "The Circle's Writ", i_glyph: "?", i_cr: 170, i_cg: 140, i_cb: 230, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 1, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "Now it can be told: the serpent nested on a POOL, and the pool is the prize. Its water is the seat of our mana brews -- without it the Circle's stills run dry. Bring it by the phial; we pay by the phial. -- the Circle" }];
+  t += [ItemDef { i_key: "circle_phial", i_name: "Circle Phial (empty)", i_glyph: "!", i_cr: 150, i_cg: 170, i_cb: 200, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 2, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "A stoppered glass phial, etched with the Circle's mark. It wants filling: stand in the throne pool and stoop." }];
+  t += [ItemDef { i_key: "phial_brimming", i_name: "Circle Phial (brimming)", i_glyph: "!", i_cr: 110, i_cg: 200, i_cb: 230, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 4, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "The phial brims with pool-water; it hums faintly against the cork. The Circle pays for this on delivery." }];
   // ── melee weapons ──
   t += [ItemDef { i_key: "dagger", i_name: "Dagger", i_glyph: "|", i_cr: 200, i_cg: 200, i_cb: 210, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 1, i_rarity: 1, i_weight: 12, i_cost: 10, i_dd: 1, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A light, fast blade." }];
   t += [ItemDef { i_key: "short_sword", i_name: "Short Sword", i_glyph: "|", i_cr: 200, i_cg: 200, i_cb: 210, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 2, i_rarity: 1, i_weight: 75, i_cost: 90, i_dd: 1, i_ds: 7, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A reliable one-handed sword." }];
