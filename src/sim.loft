@@ -1747,8 +1747,10 @@ fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
     if leg == 0 { return (e.wq2, e.wr2); }
     return (e.aq2, e.ar2);
   }
+  if e.role == 12 { return (e.wq2, e.wr2); }   // wild things keep their own hours
   if night { return (e.hq, e.hr); }      // everyone else sleeps at home/anchor
-  if e.role == 2 {                       // farmers cycle field -> food stall
+  if e.role == 2 || e.role == 10 {       // farmers cycle field -> stall;
+                                         // MINERS cycle the ore face -> furnace
     leg = (((s.ticks / 90) ?? 0) + salt) % 2 ?? 0;
     if leg == 0 { return (e.wq2, e.wr2); }
     return (e.aq2, e.ar2);
@@ -1764,7 +1766,7 @@ fn npc_step(s: Sim, e: &Enemy) {
   if d0 == 0 {
     // arrived: boats drift their grounds; folk shuffle about the spot
     wob = ((s.ticks * 2654435761) ^ ((e.hq * 40503 + e.wq2) * 69427)) & 7;
-    if (e.role == 5 || e.role == 6 || e.role == 1) && wob < 2 {
+    if (e.role == 5 || e.role == 6 || e.role == 1 || e.role == 11 || e.role == 12) && wob < 2 {
       dpick = ((s.ticks * 1103515245) ^ (e.hq * 12345)) % 6 ?? 0;
       (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, dpick);
       if npc_passable(s, e.role, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
@@ -1801,6 +1803,67 @@ fn npc_step(s: Sim, e: &Enemy) {
     e.tgt_q = e.cur_q;
     e.tgt_r = e.cur_r;
   }
+}
+
+// Production repertoires as branch selectors — vector<text> literals HANG or
+// PANIC the interpreter in deep contexts (LOFT_ISSUES C27); never build them.
+fn forge_weapon_key(i: integer) -> text {
+  if i == 0 { return "dagger"; }
+  if i == 1 { return "short_sword"; }
+  if i == 2 { return "mace"; }
+  if i == 3 { return "spear"; }
+  if i == 4 { return "quarterstaff"; }
+  if i == 5 { return "long_sword"; }
+  if i == 6 { return "war_hammer"; }
+  if i == 7 { return "broad_sword"; }
+  if i == 8 { return "battle_axe"; }
+  "halberd"
+}
+fn forge_armor_key(i: integer) -> text {
+  if i == 0 { return "leather_boots"; }
+  if i == 1 { return "chain_mail"; }
+  if i == 2 { return "small_shield"; }
+  if i == 3 { return "iron_helm"; }
+  if i == 4 { return "gauntlets"; }
+  if i == 5 { return "iron_shod_boots"; }
+  if i == 6 { return "plate_mail"; }
+  if i == 7 { return "large_shield"; }
+  "brass_lantern"
+}
+fn scribe_key(i: integer) -> text {
+  if i == 0 { return "scroll_identify"; }
+  if i == 1 { return "scroll_phase_door"; }
+  if i == 2 { return "scroll_magic_mapping"; }
+  if i == 3 { return "scroll_teleport"; }
+  "scroll_recall"
+}
+fn book_key(i: integer) -> text {
+  if i == 0 { return "book_arcane_primer"; }
+  if i == 1 { return "book_holy_litany"; }
+  "book_nature_lore"
+}
+fn town_craft_key(i: integer) -> text {
+  if i == 0 { return "ration_of_food"; }
+  if i == 1 { return "wooden_torch"; }
+  if i == 2 { return "cloak"; }
+  if i == 3 { return "soft_leather_armor"; }
+  if i == 4 { return "arrow"; }
+  if i == 5 { return "short_bow"; }
+  if i == 6 { return "leather_gloves"; }
+  if i == 7 { return "hard_leather_cap"; }
+  if i == 8 { return "sling"; }
+  "iron_shot"
+}
+fn import_key(i: integer) -> text {
+  if i == 0 { return "wand_magic_bolt"; }
+  if i == 1 { return "staff_light"; }
+  if i == 2 { return "ring_protection"; }
+  if i == 3 { return "amulet_slow_digestion"; }
+  if i == 4 { return "wand_frost_bolt"; }
+  if i == 5 { return "staff_detection"; }
+  if i == 6 { return "ring_strength"; }
+  if i == 7 { return "amulet_resist_fire"; }
+  "staff_teleport"
 }
 
 // The cart's TRADE: at the home market it loads what the makers offer — but
@@ -1854,6 +1917,28 @@ fn npc_trade(s: &Sim, e: &Enemy) {
   }
 }
 
+// The SHIP'S MANIFEST: when the merchant ship lies at anchor by night, it
+// lands the goods no local craft can make — the magic imports from beyond
+// the map — onto the pier planks beside it.
+fn npc_land_cargo(s: &Sim, e: Enemy) {
+  if hex_distance(e.cur_q, e.cur_r, e.aq2, e.ar2) > 1 { return; }
+  if ((s.ticks % DAY_LEN) ?? 0) != 300 { return; }
+  if s.fi_n >= FLOOR_MAX - 4 { return; }
+  day4 = (s.ticks / DAY_LEN) ?? 0;
+  mkey4 = import_key(day4 % 9 ?? 0);
+  // set it on the pier plank beside the anchorage
+  for d4 in 0..6 {
+    (nq4, nr4) = hex_neighbor(e.cur_q, e.cur_r, d4);
+    if nq4 >= 0 && nq4 < s.lw && nr4 >= 0 && nr4 < s.lh {
+      ti4 = nr4 * s.lw + nq4;
+      if ti4 < len(s.tkind) && (s.tkind[ti4] ?? 0) == K_ROAD + 1 {
+        sim_drop_item(s, nq4, nr4, mkey4);
+        return;
+      }
+    }
+  }
+}
+
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   // THE ECONOMY: each morning the makers bring the night's work to the stalls
@@ -1870,29 +1955,45 @@ pub fn sim_tick(s: &Sim) {
     str3 = s.lh / 2 - 2;
     day3 = (s.ticks / DAY_LEN) ?? 0;
     if tsize2 >= 3 {
+      // THE FORGE rotates its whole repertoire: weapons on even days, armour
+      // on odd — the heavy pieces never leave town (the cart's weight cap)
       if (day3 % 2 ?? 0) == 0 {
-        sim_drop_item(s, stq3, str3, "short_sword");
+        wkey3 = forge_weapon_key(((day3 / 2) ?? 0) % 10 ?? 0);
+        sim_drop_item(s, stq3, str3, wkey3);
       } else {
-        sim_drop_item(s, stq3, str3, "leather_boots");
+        akey3 = forge_armor_key(((day3 / 2) ?? 0) % 9 ?? 0);
+        sim_drop_item(s, stq3, str3, akey3);
       }
+      // the MILL's bread reaches the stalls every morning
+      sim_drop_item(s, stq3 - 1, str3 - 1, "ration_of_food");
       // THE ALCHEMIST-FACTORY: drowned in requests, it only actually BREWS on
-      // some days of the week — and each brewing day is ONE type of potion
+      // some days of the week — and each brewing day is ONE type of potion;
+      // rare weeks see the premium brews
       dow = day3 % 7 ?? 0;
+      week3 = (day3 / 7) ?? 0;
       if dow == 1 || dow == 3 || dow == 5 {
-        week3 = (day3 / 7) ?? 0;
-        pidx = (week3 * 3 + (dow / 2 ?? 0)) % 4 ?? 0;
+        pidx = (week3 * 3 + (dow / 2 ?? 0)) % 6 ?? 0;
         pk = "potion_cure_light";
         if pidx == 1 { pk = "potion_detect_monsters"; }
         if pidx == 2 { pk = "potion_cure_serious"; }
         if pidx == 3 { pk = "potion_restore"; }
+        if pidx == 4 { pk = "potion_healing"; }
+        if pidx == 5 { pk = "potion_speed"; }
         for _ in 0..5 { sim_drop_item(s, stq3 + 1, str3 + 1, pk); }
       }
-    } else {
-      if (day3 % 2 ?? 0) == 0 {
-        sim_drop_item(s, stq3, str3, "ration_of_food");
-      } else {
-        sim_drop_item(s, stq3, str3, "wooden_torch");
+      // THE SCRIPTORIUM: scrolls on the quiet days, a realm book each week's end
+      if dow == 0 || dow == 2 || dow == 4 {
+        skey3 = scribe_key((week3 * 3 + (dow / 2 ?? 0)) % 5 ?? 0);
+        sim_drop_item(s, stq3 - 1, str3 + 1, skey3);
       }
+      if dow == 6 {
+        bkey3 = book_key(week3 % 3 ?? 0);
+        sim_drop_item(s, stq3 - 1, str3 + 1, bkey3);
+      }
+    } else {
+      // TOWNS: the simple goods + leatherwork + the FLETCHER's wood-craft
+      tkey3 = town_craft_key(day3 % 10 ?? 0);
+      sim_drop_item(s, stq3, str3, tkey3);
     }
   }
   // Venom bleeds the player each tick (silent — the HP bar shows it; death is logged). The antivenin
@@ -1949,6 +2050,16 @@ pub fn sim_tick(s: &Sim) {
         if e.role != 0 {
           npc_step(s, e);
           if e.role == 7 { npc_trade(s, e); }
+          if e.role == 8 { npc_land_cargo(s, e); }
+          if e.role == 9 {
+            for wl9 in 0..len(enemies) {
+              w9 = enemies[wl9];
+              if w9.alive && w9.role == 12
+                 && hex_distance(w9.cur_q, w9.cur_r, e.cur_q, e.cur_r) <= 1 {
+                w9.alive = false;          // trapped: ingredients for the factory
+              }
+            }
+          }
         } else if e.awake {
           if d <= 1 {
             hit = false;
@@ -3082,6 +3193,201 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
                            w / 2 + 2, h / 2 + 2, w / 2 + 2, h / 2 + 2,
                            farq, farr, parkq, parkr)];
       }
+      // LIVESTOCK: cows and horses — the hides come from somewhere. A fenced
+      // PEN beside the first farmhouse; they graze the nearby grass by day.
+      if true {
+      ph1 = w / 2 + 9;
+      pr1 = h / 2 + 5;
+      for pf in 0..12 {
+        pang = (pf as float) * 0.5235988;
+        pq9 = ph1 + round(2.2 * cos(pang)) as integer;
+        pr9 = pr1 + round(2.2 * sin(pang) * 0.866) as integer;
+        if pf != 0 {                                   // the gap is the gate
+          st_set(tiles, tk, w, h, pq9, pr9, 5, -1);    // fence posts
+        }
+      }
+      enemies += [mk_npc(11, "cow", "cow", "q", 205, 195, 175,
+                         ph1, pr1, ph1, pr1, ph1 + 4, pr1 + 1, ph1, pr1)];
+      enemies += [mk_npc(11, "cow", "cow", "q", 195, 185, 160,
+                         ph1 - 1, pr1, ph1 - 1, pr1, ph1 + 3, pr1 + 2, ph1, pr1)];
+      enemies += [mk_npc(11, "horse", "horse", "q", 150, 110, 70,
+                         ph1 + 1, pr1, ph1 + 1, pr1, ph1 + 5, pr1 - 1, ph1, pr1)];
+      enemies += [mk_npc(11, "horse", "horse", "q", 140, 100, 65,
+                         ph1, pr1 + 1, ph1, pr1 + 1, ph1 + 4, pr1 - 2, ph1, pr1)];
+      // WILDLIFE for the trapper's rounds: a beaver by the water, a fox in
+      // the woods, a goat on the rough ground — where the window provides
+      for wk9 in 0..3 {
+        wkq = -1;
+        wkr = -1;
+        bwk = 999;
+        for ar9 in 2..h - 2 {
+          for aq9 in 2..w - 2 {
+            daw = hex_distance(aq9, ar9, w / 2, h / 2);
+            if daw >= 15 && daw < bwk {
+              tia = ar9 * w + aq9;
+              tka = 0;
+              if tia < len(tk) { tka = tk[tia] ?? 0; }
+              suit = false;
+              if wk9 == 0 {                       // the beaver wants the bank
+                if (tiles[tia] ?? 1) == 0 && tka != K_LAKE + 1 && tka != K_SEA + 1 {
+                  for d10 in 0..6 {
+                    (nq10, nr10) = hex_neighbor(aq9, ar9, d10);
+                    if nq10 >= 0 && nq10 < w && nr10 >= 0 && nr10 < h {
+                      tja = nr10 * w + nq10;
+                      tkj = 0;
+                      if tja < len(tk) { tkj = tk[tja] ?? 0; }
+                      if tkj == K_RIVER + 1 || tkj == K_LAKE + 1 { suit = true; }
+                    }
+                  }
+                }
+              }
+              if wk9 == 1 { suit = tka == K_FOREST + 1; }
+              if wk9 == 2 { suit = tka == K_SCREE + 1 || tka == K_MEADOW + 1; }
+              if suit { bwk = daw; wkq = aq9; wkr = ar9; }
+            }
+          }
+        }
+        if wkq >= 0 {
+          wglyph = "r";
+          wcr = 120; wcg = 90; wcb = 60;
+          if wk9 == 1 { wglyph = "f"; wcr = 200; wcg = 120; wcb = 60; }
+          if wk9 == 2 { wglyph = "q"; wcr = 190; wcg = 180; wcb = 160; }
+          wkey = "beaver";
+          if wk9 == 1 { wkey = "fox"; }
+          if wk9 == 2 { wkey = "goat"; }
+          enemies += [mk_npc(12, wkey, wkey,
+                             wglyph, wcr, wcg, wcb,
+                             wkq, wkr, wkq, wkr, wkq, wkr, wkq, wkr)];
+        }
+      }
+
+      }
+      // THE MINE + the big SLAG-FURNACE outside the walls (dirty industry
+      // stays out of town): miners cycle ore from the mountain face to the
+      // furnace, day in day out
+      if tsize >= 2 {
+        mnq = -1;
+        mnr = -1;
+        bmn = 999;
+        for mr8 in 2..h - 2 {
+          for mq8 in 2..w - 2 {
+            dmn = hex_distance(mq8, mr8, w / 2, h / 2);
+            if dmn >= 16 && dmn < bmn {
+              tim = mr8 * w + mq8;
+              if tim < len(tiles) && (tiles[tim] ?? 1) == 0 {
+                facenb = false;
+                for d6 in 0..6 {
+                  (nq6, nr6) = hex_neighbor(mq8, mr8, d6);
+                  if nq6 >= 0 && nq6 < w && nr6 >= 0 && nr6 < h {
+                    tj6 = nr6 * w + nq6;
+                    if tj6 < len(tk) && (tk[tj6] ?? 0) == K_FACE + 1 { facenb = true; }
+                  }
+                }
+                if facenb { bmn = dmn; mnq = mq8; mnr = mr8; }
+              }
+            }
+          }
+        }
+        if mnq < 0 {
+          // no rock in this window: the mine lies BEYOND it — its mouth sits
+          // at the window edge toward the nearest mountain/hill cell
+          bdc = 1.0e18;
+          mdx = 1.0;
+          mdy = 0.0;
+          for mc9 in 0..9 {
+            for mr9 in 0..7 {
+              mt9 = ov_cell_mat(ovw, mc9, mr9);
+              if mt9 == 4 || mt9 == 5 {
+                (mcx, mcy) = ov_cell_center(mc9, mr9);
+                dcx = mcx - ax;
+                dcy = mcy - ay;
+                dc9 = dcx * dcx + dcy * dcy;
+                if dc9 < bdc { bdc = dc9; mdx = dcx; mdy = dcy; }
+              }
+            }
+          }
+          mdl = sqrt(mdx * mdx + mdy * mdy);
+          if mdl > 0.001 {
+            exq = w / 2 + round(((mdx / mdl) ?? 0.0) * ((w / 2 - 5) as float)) as integer;
+            exr = h / 2 + round(((mdy / mdl) ?? 0.0) * ((h / 2 - 5) as float)) as integer;
+            // settle on the nearest walkable hex around that edge spot
+            for sr9 in 0..7 {
+              for sq9 in 0..7 {
+                cq9 = exq + sq9 - 3;
+                cr9 = exr + sr9 - 3;
+                if mnq < 0 && cq9 >= 2 && cq9 < w - 2 && cr9 >= 2 && cr9 < h - 2 {
+                  tic = cr9 * w + cq9;
+                  tkc = 0;
+                  if tic < len(tk) { tkc = tk[tic] ?? 0; }
+                  if (tiles[tic] ?? 1) == 0 && tkc != K_LAKE + 1 && tkc != K_SEA + 1 {
+                    mnq = cq9;
+                    mnr = cr9;
+                  }
+                }
+              }
+            }
+          }
+        }
+        if mnq >= 0 {
+          // the furnace sits OUTSIDE the wall, toward the mine
+          fdx = (mnq - w / 2) as float;
+          fdy = (mnr - h / 2) as float;
+          fdl = sqrt(fdx * fdx + fdy * fdy);
+          fux2 = ((fdx / fdl) ?? 0.0) * 20.0;
+          fuy2 = ((fdy / fdl) ?? 0.0) * 20.0;
+          fnq = w / 2 + round(fux2) as integer;
+          fnr = h / 2 + round(fuy2) as integer;
+          stamp_round_tower(tiles, tk, w, h, fnq, fnr, 3);   // the BIG furnace
+          for d7 in 0..6 {                                   // its slag ground
+            (sq7, sr7) = hex_neighbor(fnq, fnr, d7);
+            ti7b = sr7 * w + sq7;
+            if ti7b >= 0 && ti7b < len(tk) && (tk[ti7b] ?? 0) != 0
+               && hex_distance(sq7, sr7, fnq, fnr) > 3 {
+              tk[ti7b] = K_SCREE + 1;
+            }
+          }
+          enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
+                             w / 2 - 3, h / 2 + 3, w / 2 - 3, h / 2 + 3,
+                             mnq, mnr, fnq, fnr + 4)];
+          enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
+                             w / 2 - 4, h / 2 + 2, w / 2 - 4, h / 2 + 2,
+                             mnq, mnr, fnq, fnr + 4)];
+        }
+      }
+
+      // THE MILL grinds the bread grain: WATER-powered at the riverbank if
+      // the window has running water, WIND-powered on open ground otherwise
+      mlq = -1;
+      mlr = -1;
+      bml = 999;
+      for vr8 in 2..h - 2 {
+        for vq8 in 2..w - 2 {
+          dml = hex_distance(vq8, vr8, w / 2, h / 2);
+          if dml >= 8 && dml < bml {
+            tiv = vr8 * w + vq8;
+            tkv = 0;
+            if tiv < len(tk) { tkv = tk[tiv] ?? 0; }
+            if (tiles[tiv] ?? 1) == 0 && tkv != K_LAKE + 1 && tkv != K_SEA + 1 {
+              wetv = false;
+              for d11 in 0..6 {
+                (nq11, nr11) = hex_neighbor(vq8, vr8, d11);
+                if nq11 >= 0 && nq11 < w && nr11 >= 0 && nr11 < h {
+                  tjv = nr11 * w + nq11;
+                  if tjv < len(tk) && (tk[tjv] ?? 0) == K_RIVER + 1 { wetv = true; }
+                }
+              }
+              if wetv { bml = dml; mlq = vq8; mlr = vr8; }
+            }
+          }
+        }
+      }
+      if mlq < 0 {
+        // no running water: the WINDMILL stands on open ground instead
+        mlq = w / 2 + 14;
+        mlr = h / 2 - 10;
+      }
+      stamp_round_tower(tiles, tk, w, h, mlq, mlr, 2);
+
       // THE ALCHEMIST'S GATHERER: a rugged traveler fetching the special
       // ingredients — met on the roads or the hillsides, shunning the deeper
       // mountains. There are not many of them: ONE walks this window.
@@ -3375,7 +3681,7 @@ pub fn sim_npc_count(s: Sim) -> integer {
   n = 0;
   for ni in 0..len(s.enemies) {
     e = s.enemies[ni];
-    if e.alive && e.role != 0 { n = n + 1; }
+    if e.alive && e.role != 0 && e.role != 12 { n = n + 1; }
   }
   n
 }

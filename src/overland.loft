@@ -1123,6 +1123,14 @@ pub fn ov_watery(o: Overland, x: float, y: float) -> float {
   watery
 }
 
+// cell info for consumers (the surface generator reads the wider world)
+pub fn ov_cell_mat(o: Overland, c: integer, r: integer) -> integer {
+  ov_mat(o.ov_mat, c, r)
+}
+pub fn ov_cell_center(c: integer, r: integer) -> (float, float) {
+  ov_center(c, r)
+}
+
 // the walked lattice: fine hex (q, r) -> natural meters (OV_STEP per step)
 pub fn ov_hex_world(q: integer, r: integer) -> (float, float) {
   (hx, hy) = hex_to_px(q, r);

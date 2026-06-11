@@ -603,6 +603,30 @@ ROLE — never aggressive, never punched; the player's bump slides past):
   makers offer — weapons/armour only, only the LIGHT ones (weight-capped: no
   broadswords on a cart's springs), and only TWO slots (not much choice);
   at the route's far end it sets the goods out. Distribution made visible.
+### 13d. The FULL economy (user direction, implemented)
+- **Repertoires**: the forge rotates ALL its arms (weapons even days, armour
+  odd — the heavy pieces stay home via the cart's weight cap); the brewery
+  rotation now includes the premium brews; the SCRIPTORIUM writes scrolls on
+  the quiet days and a realm book at week's end; towns craft leatherwork and
+  the FLETCHER's bows/arrows beside their staples.
+- **The ship's MANIFEST**: at night anchor the merchant ship LANDS the goods
+  no local craft can make — wands, staves, rings, amulets — onto the pier.
+- **MINERS + the SLAG-FURNACE**: miners cycle ore from the mountain face to a
+  big round furnace stamped OUTSIDE the walls (dirty industry stays out);
+  when the window holds no rock, the mine mouth sits at the window edge
+  toward the nearest mountain cell — the workings continue beyond the map.
+- **LIVESTOCK + WILDLIFE**: cows and horses in a fenced pen by the farms (the
+  hides come from somewhere), grazing by day; beaver/fox/goat live wild by
+  water/woods/rough ground — and the gatherer TRAPS what it passes (wildlife
+  is not counted as civilians; it comes and goes).
+- **THE MILLS**: bread needs grinding — a WATER-powered mill at the riverbank
+  when the window has running water, a WIND-powered one on open ground when
+  it doesn't (round structures, tile 4); the mill's bread reaches the city
+  stalls every morning.
+- LESSON (LOFT_ISSUES C27): vector<text> literals HANG the interpreter in
+  deep contexts and PANIC when indexed in call args — production repertoires
+  are branch-selector functions instead.
+
 NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
 coastal towns, multi-window travel, nicer buildings, true round rendering
 (tile 4) + light fences (tile 5), the lib-ward extraction into hex_terrain.

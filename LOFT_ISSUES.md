@@ -352,3 +352,15 @@ The biggest wins for loft would be **C1/C2/C3** (the struct-vector index +
 `??`/copy family) and **C4** (cross-module `&` mutation) — together they made an
 otherwise-correct selection routine silently return the wrong thing or crash, and
 were only resolvable by rewriting around the interpreter.
+
+## C27 — vector<text> literals hang the interpreter / panic the allocator (OPEN, 2026-06-11)
+
+A `vector<text>` literal built in a deep call context (inside the surface
+generator's nested loops) HANGS the interpreter indefinitely; indexing one
+inside a call argument (`f(v[i] ?? "x")`) panics
+`database/allocation.rs:624` (`index out of bounds: the len is 127 but the
+index is N`). Both reproduced in crawler's sim.loft surface generation.
+WORKAROUND (applied everywhere): branch-selector functions returning text
+(`fn key(i) -> text { if i == 0 { return "a"; } ... }`); never build or
+index vector<text> literals in kernel paths. Minimal repro + upstream filing
+pending (the crawler-is-a-consumer rule: FILE, don't fix).
