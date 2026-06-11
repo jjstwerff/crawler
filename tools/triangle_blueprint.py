@@ -421,6 +421,10 @@ def render(px_m=6.0):
                 * (0.7 + 0.3 * rnoise[jy0:jy1, jx0:jx1])
             vertp[jy0:jy1, jx0:jx1] += m ** PN
     vert = vertp ** (1.0 / PN)
+    # CUT DOWN the verticality before the snow/grass pass (user rule): a soft
+    # ceiling flattens the tops into shoulders — summit slopes calm down, the
+    # zonation then claims them with snow and meadows NATURALLY
+    vert = 520.0 * np.tanh(vert / 520.0)
     # the WATER GAP rule at fine scale: peaks and ridges YIELD inside a
     # course's corridor (no slot canyons needed to keep the bed monotone)
     gapR = np.maximum(130.0 + 3.0 * wf, icef * 1.7)
@@ -489,8 +493,8 @@ def render(px_m=6.0):
     meadow2 = np.array([110.0, 146.0, 84.0])
     col = np.where(alp[..., None], meadow, col)
     col = np.where((alp & (band <= 0.34))[..., None], meadow2, col)
-    col = np.where((alp & (slope >= 0.34) & (slope < 0.52))[..., None], scree, col)
-    col = np.where((alp & (slope >= 0.52))[..., None], face, col)
+    col = np.where((alp & (slope >= 0.44) & (slope < 0.60))[..., None], scree, col)
+    col = np.where((alp & (slope >= 0.60))[..., None], face, col)
     # snow holds only on gentle ground: steep faces and windswept bands CUT
     # through the cap as bare rock formations
     sn = height >= SNOWL
