@@ -407,7 +407,13 @@ mutually adjacent hex CENTERS (2 triangles per hex of area). Then:
 - the INTERIOR is one coherent landform rising to the hex CORNER (triple
   point) at the centroid — the summit (7f). No water inside an interior, ever.
 Triangle id = (hex, index) is the natural key for gen seed, persistence deltas,
-MP shards, travel. Triangles subdivide 4-fold forever (hexes can't subdivide);
+MP shards, travel. **Triangles feed the ZAngband GENERATION loop only — never
+the world render**: rendering is a pure per-pixel evaluation of fields +
+contracts at any zoom; a triangle is the unit that gathers its contracts and
+realizes a walked map (at 1.5 km / C=4 ≈ 27k walked cells ≈ two Angband levels;
+one 4-fold subdivision ≈ screen-scale — a pacing knob, contracts recurse free).
+The 60 m sim blocks keep streaming within it. (3D bonus: the subdivision
+triangles ARE the future moros mesh — the gridmesh seam, second customer.) Triangles subdivide 4-fold forever (hexes can't subdivide);
 midpoint displacement on triangles is the ORIGINAL fractal terrain, and with
 endpoint-hashed offsets every level is window-independent and edge-consistent.
 Self-similar drainage: sub-gullies follow sub-triangle sides, sub-interiors
