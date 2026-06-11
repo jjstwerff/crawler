@@ -1,0 +1,114 @@
+// overlandtest — the contract wilderness (OVERLAND.md §12): the example world
+// resolves deterministically; the three CONTRACT INVARIANTS hold (I1 no inland
+// sea, I2 lakes exactly level, I3 water never flows uphill); the walked scale
+// is 100 steps across a dual-triangle side; terrain kinds map to walkability.
+use overland;
+use hex_grid;
+
+fn main() {
+  println("=== story overland test (contracts / invariants / walked scale) ===");
+  o = overland_new();
+
+  // 0) the resolved contract counts are stable for the authored example world
+  built = len(o.ov_sides) > 20 && len(o.ov_peaks) > 50 && len(o.ov_ridges) > 6;
+
+  // 1) DETERMINISM: a rebuilt world samples identically
+  o2 = overland_new();
+  same = true;
+  for k in 0..6 {
+    px = 2000.0 + (k as float) * 1700.0;
+    py = 1500.0 + (k as float) * 1100.0;
+    (ha, ka) = ov_sample(o, px, py);
+    (hb2, kb) = ov_sample(o2, px, py);
+    if ha != hb2 || ka != kb { same = false; }
+  }
+
+  // 2) I1 — no inland sea: any sea-level sample sits in the coastal blend band
+  //    (solid land is floored above sea level by construction)
+  i1 = true;
+  for gr in 0..24 {
+    for gq in 0..32 {
+      gx = 200.0 + (gq as float) * 410.0;
+      gy = 200.0 + (gr as float) * 370.0;
+      (gh, _) = ov_sample(o, gx, gy);
+      if gh <= 0.0 && ov_watery(o, gx, gy) < 0.10 { i1 = false; }
+    }
+  }
+
+  // 3) I2 — the lake is EXACTLY level at its owned elevation
+  i2 = true;
+  lk = 0;
+  for k in 0..5 {
+    lx = 7250.0 + (k as float) * 130.0;
+    ly = 5050.0 + (k as float) * 70.0;
+    (lh, lkind) = ov_sample(o, lx, ly);
+    if lkind == K_LAKE {
+      lk = lk + 1;
+      if lh != 170.0 { i2 = false; }
+    }
+  }
+  i2 = i2 && lk >= 2;
+
+  // 4) I3 — water never flows uphill: every side's interior course samples a
+  //    non-increasing WATER SURFACE (the sea reads as its flat level 0)
+  i3 = true;
+  for si in 0..len(o.ov_sides) {
+    sd = o.ov_sides[si];
+    if sd != null {
+      prev = 1.0e18;
+      n = len(sd.os_x);
+      for k in 1..n - 1 {
+        h = ov_height(o, sd.os_x[k] ?? 0.0, sd.os_y[k] ?? 0.0);
+        if h < 0.0 { h = 0.0; }
+        if h > prev + 0.35 {
+          i3 = false;
+          println("  rise: side={si} acc={sd.os_acc} k={k}/{n} h={h} prev={prev} bed0={sd.os_bed[0] ?? 0.0} bedN={sd.os_bed[n - 1] ?? 0.0}");
+        }
+        prev = min(prev, h);
+      }
+    }
+  }
+
+  // 5) the WALKED SCALE: 100 fine-hex steps span one dual-triangle side (1.5 km)
+  (wx, _) = ov_hex_world(100, 0);
+  scale = abs(wx - 1500.0) < 0.001;
+
+  // 6) KINDS map to play: the plains walk, a lake does not, a face is a wall
+  (_, pk) = ov_sample(o, 3700.0, 6700.0);     // southern plains
+  kinds = ov_walkable(pk) && !ov_walkable(K_LAKE) && !ov_walkable(K_FACE)
+       && !ov_walkable(K_SEA) && ov_walkable(K_RIVER) && ov_walkable(K_ICE);
+
+  // 7) SETTLEMENTS: towns sit on supportable land (their ground is cleared and
+  //    walkable), fields ring them, the near forest is CUT, roads connect them
+  towns_ok = len(o.ov_towns) >= 2 && len(o.ov_towns) <= 4 && len(o.ov_roads) >= 1;
+  fields = 0;
+  cleared = true;
+  for ti in 0..len(o.ov_towns) {
+    tw = o.ov_towns[ti];
+    if tw != null {
+      (_, tk) = ov_sample(o, tw.ot_x, tw.ot_y);
+      if !ov_walkable(tk) { towns_ok = false; }
+      for d8 in 0..8 {
+        ang = (d8 as float) * 0.785398;
+        rr2 = tw.ot_fld - 30.0;
+        (_, fk) = ov_sample(o, tw.ot_x + rr2 * cos(ang), tw.ot_y + rr2 * sin(ang));
+        if fk == K_FIELD { fields = fields + 1; }
+        if fk == K_FOREST { cleared = false; }   // the farmers cut this belt
+      }
+    }
+  }
+  settle = towns_ok && fields >= 2 && cleared;
+  road_ok = false;
+  if len(o.ov_roads) > 0 {
+    rd = o.ov_roads[0];
+    if rd != null {
+      mid = (len(rd.rd_x) / 2) ?? 0;
+      (_, rk2) = ov_sample(o, rd.rd_x[mid] ?? 0.0, rd.rd_y[mid] ?? 0.0);
+      road_ok = rk2 == K_ROAD && ov_walkable(K_ROAD) && ov_walkable(K_FIELD);
+    }
+  }
+
+  println("built={built} same={same} i1={i1} i2={i2}(lake px={lk}) i3={i3} scale={scale} kinds={kinds} settle={settle}(fields={fields}) road={road_ok}");
+  ok = built && same && i1 && i2 && i3 && scale && kinds && settle && road_ok;
+  if ok { println("=== OVERLAND OK ==="); } else { println("=== FAIL ==="); }
+}

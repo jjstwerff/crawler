@@ -272,6 +272,9 @@ test:
 	@echo "  [crystal] the shrine re-spec: bump = interact / apply race+class / roster ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/crystaltest.loft | tee /tmp/story_crystal.log
 	@grep -q "CRYSTAL OK" /tmp/story_crystal.log || { echo "    FAIL: crystal"; exit 1; }
+	@echo "  [overland] the contract wilderness: invariants / walked scale / towns+roads ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/overlandtest.loft | tee /tmp/story_overland.log
+	@grep -q "OVERLAND OK" /tmp/story_overland.log || { echo "    FAIL: overland"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
