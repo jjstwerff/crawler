@@ -283,6 +283,25 @@ courses from ALL source cells; scale width and water rendering by acc; keep
 carve depth substantially acc-independent (age does the cutting, size does the
 widening). Status: recorded, NOT yet coded.
 
+### 7l. The NATURALIZATION pass (user direction — the next blueprint phase)
+The current generated form is very UNNATURAL; an algorithmic pass over it is
+required — but that pass must be **SUBTLE**. Its charter:
+- **The terrain around a river decides its local character, not its size
+  alone.** Not every river is wide: the SAME course has its hilly parts
+  (narrow, gorge-like, fast) and its valley parts (wide, floodplain, slow),
+  alternating along its run as the surrounding relief changes. Width, valley
+  breadth, carve shape, and the 7g alluvial claim all become per-segment
+  functions of the LOCAL terrain context (the cells around the vertex), with
+  accumulation only setting the overall budget.
+- Folds in the standing recorded rules where they touch courses: 7k (every
+  flow counts — small streams get courses + deep narrow cuts), 7j (cascade
+  sites where small × steep), graded river mitigation of peak rows (the
+  evaluation's finding: suppression width ∝ size, not binary).
+- SUBTLE means: no re-randomizing, no global smoothing, no form change a
+  player would notice as a "pass" — only local, terrain-justified adjustments
+  of what already exists. Status: charter recorded; the pass is the next
+  bench phase, then the lib follows.
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
