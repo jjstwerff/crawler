@@ -181,7 +181,7 @@ for r in range(NY):
             continue
         nc, nr = neighbors(c, r)[bi]
         slope = abs(hgt(c, r) - hgt(nc, nr)) / TILE
-        open_ = max(0.18, 1.0 - slope / 0.12)
+        open_ = max(0.38, 1.0 - slope / 0.12)
         pts = displace([vertex_pt(c, r), edge_bit(c, r, nc, nr), vertex_pt(nc, nr)], open_)
         a = ACC[r, c]
         # INVARIANT I3 (water never flows uphill): the bed is a monotone ramp
@@ -279,9 +279,9 @@ for r in range(NY):
                 continue
             qx, qy = -(B["y"] - A["y"]) / d2, (B["x"] - A["x"]) / d2
             woff = (chash(pa + pb, 21) - 0.5) * 0.3 * TILE
-            RIDGES.append(dict(ax=A["x"], ay=A["y"], bx=B["x"], by=B["y"],
-                               mx=mx + qx * woff, my=my + qy * woff,
-                               aamp=A["amp"], bamp=B["amp"],
+            rpts = displace([(A["x"], A["y"]), (mx + qx * woff, my + qy * woff),
+                             (B["x"], B["y"])], 0.55)
+            RIDGES.append(dict(pts=rpts, aamp=A["amp"], bamp=B["amp"],
                                sadl=0.42 + 0.18 * chash(pa + pb, 22)))
 
 print(f"contracts: {len(SIDES)} sides, {len(PEAKS)} peaks, {len(RIDGES)} ridges")
@@ -334,55 +334,6 @@ def render(px_m=6.0):
     lakew = lakew / np.maximum(wsum, 1e-12)
 
     # 2) CORNER peaks + EDGE ridges: vertical structure as MAX of owned forms
-    vertp = np.zeros((H, W))           # p-norm accumulator: smooth-max, no creases
-    PN = 5.0
-    rwx = fbm(xs, ys, 1400.0, 2, 87)
-    rwy = fbm(xs, ys, 1400.0, 2, 88)
-    rnoise = 1 - np.abs(fbm(xs + 420.0 * rwx, ys + 420.0 * rwy, 700.0, 3, 86))
-    for P in PEAKS.values():
-        R = P["rad"]
-        jx0 = max(0, int((P["x"] - R) / px_m))
-        jx1 = min(W, int((P["x"] + R) / px_m) + 1)
-        jy0 = max(0, int((P["y"] - R) / px_m))
-        jy1 = min(H, int((P["y"] + R) / px_m) + 1)
-        if jx0 >= jx1 or jy0 >= jy1:
-            continue
-        d = np.hypot(xs[jy0:jy1, jx0:jx1] - P["x"], ys[jy0:jy1, jx0:jx1] - P["y"])
-        m = P["amp"] * np.clip(1 - d / R, 0, 1) ** 1.5 \
-            * (0.62 + 0.38 * rnoise[jy0:jy1, jx0:jx1] * min(1.0, P["steep"] / 60))
-        vertp[jy0:jy1, jx0:jx1] += m ** PN
-    for G in RIDGES:
-        pts = [(G["ax"], G["ay"]), (G["mx"], G["my"]), (G["bx"], G["by"])]
-        for s in range(2):
-            ax, ay = pts[s]
-            bx, by = pts[s + 1]
-            R = 460.0
-            jx0 = max(0, int((min(ax, bx) - R) / px_m))
-            jx1 = min(W, int((max(ax, bx) + R) / px_m) + 1)
-            jy0 = max(0, int((min(ay, by) - R) / px_m))
-            jy1 = min(H, int((max(ay, by) + R) / px_m) + 1)
-            if jx0 >= jx1 or jy0 >= jy1:
-                continue
-            pxs = xs[jy0:jy1, jx0:jx1]
-            pys = ys[jy0:jy1, jx0:jx1]
-            ex, ey = bx - ax, by - ay
-            ee = max(ex * ex + ey * ey, 1e-9)
-            t = np.clip(((pxs - ax) * ex + (pys - ay) * ey) / ee, 0, 1)
-            tg = (t + s) / 2.0
-            d = np.hypot(pxs - (ax + t * ex), pys - (ay + t * ey))
-            prof = (G["aamp"] * (1 - tg) + G["bamp"] * tg) \
-                 * (1 - G["sadl"] * 4 * tg * (1 - tg))      # the SADDLE dip
-            m = prof * np.clip(1 - d / R, 0, 1) ** 1.6 \
-                * (0.7 + 0.3 * rnoise[jy0:jy1, jx0:jx1])
-            vertp[jy0:jy1, jx0:jx1] += m ** PN
-    vert = vertp ** (1.0 / PN)
-    height = blend + vert * np.clip(1.0 - watery * 1.6, 0.0, 1.0) \
-           + 6.0 * fbm(xs, ys, 300.0, 5, 3)
-    # INVARIANT I1 (no inland sea): solid land never dips below sea level —
-    # only the bounded coastal band (real sea nearby) may
-    height = np.where(watery < 0.10, np.maximum(height, 0.5), height)
-
-    # 3) SIDE courses: carve + water (max carve; bigger-first stability)
     dist = np.full((H, W), 1e9)
     wf = np.zeros((H, W))
     bedf = np.zeros((H, W))
@@ -423,6 +374,64 @@ def render(px_m=6.0):
         icef[jy0:jy1, jx0:jx1] = np.where(gu, S["icew"], icef[jy0:jy1, jx0:jx1])
         svw = (150.0 + 2.0 * S["width"]) * (2.3 if S["glac"] else 1.0)
         vwf[jy0:jy1, jx0:jx1] = np.where(gu, svw, vwf[jy0:jy1, jx0:jx1])
+    vertp = np.zeros((H, W))           # p-norm accumulator: smooth-max, no creases
+    PN = 5.0
+    rwx = fbm(xs, ys, 1400.0, 2, 87)
+    rwy = fbm(xs, ys, 1400.0, 2, 88)
+    rnoise = 1 - np.abs(fbm(xs + 420.0 * rwx, ys + 420.0 * rwy, 700.0, 3, 86))
+    for P in PEAKS.values():
+        R = P["rad"]
+        jx0 = max(0, int((P["x"] - R) / px_m))
+        jx1 = min(W, int((P["x"] + R) / px_m) + 1)
+        jy0 = max(0, int((P["y"] - R) / px_m))
+        jy1 = min(H, int((P["y"] + R) / px_m) + 1)
+        if jx0 >= jx1 or jy0 >= jy1:
+            continue
+        d = np.hypot(xs[jy0:jy1, jx0:jx1] - P["x"], ys[jy0:jy1, jx0:jx1] - P["y"])
+        m = P["amp"] * np.clip(1 - d / R, 0, 1) ** 2.1 \
+            * (0.62 + 0.38 * rnoise[jy0:jy1, jx0:jx1] * min(1.0, P["steep"] / 60))
+        vertp[jy0:jy1, jx0:jx1] += m ** PN
+    for G in RIDGES:
+        pts = G["pts"]
+        arc = [0.0]
+        for q in range(len(pts) - 1):
+            arc.append(arc[-1] + math.hypot(pts[q + 1][0] - pts[q][0],
+                                            pts[q + 1][1] - pts[q][1]))
+        tot = max(arc[-1], 1e-9)
+        for q in range(len(pts) - 1):
+            ax, ay = pts[q]
+            bx, by = pts[q + 1]
+            R = 460.0
+            jx0 = max(0, int((min(ax, bx) - R) / px_m))
+            jx1 = min(W, int((max(ax, bx) + R) / px_m) + 1)
+            jy0 = max(0, int((min(ay, by) - R) / px_m))
+            jy1 = min(H, int((max(ay, by) + R) / px_m) + 1)
+            if jx0 >= jx1 or jy0 >= jy1:
+                continue
+            pxs = xs[jy0:jy1, jx0:jx1]
+            pys = ys[jy0:jy1, jx0:jx1]
+            ex, ey = bx - ax, by - ay
+            ee = max(ex * ex + ey * ey, 1e-9)
+            t = np.clip(((pxs - ax) * ex + (pys - ay) * ey) / ee, 0, 1)
+            tg = (arc[q] + t * (arc[q + 1] - arc[q])) / tot
+            d = np.hypot(pxs - (ax + t * ex), pys - (ay + t * ey))
+            prof = (G["aamp"] * (1 - tg) + G["bamp"] * tg) \
+                 * (1 - G["sadl"] * 4 * tg * (1 - tg))      # the SADDLE dip
+            m = prof * np.clip(1 - d / R, 0, 1) ** 1.6 \
+                * (0.7 + 0.3 * rnoise[jy0:jy1, jx0:jx1])
+            vertp[jy0:jy1, jx0:jx1] += m ** PN
+    vert = vertp ** (1.0 / PN)
+    # the WATER GAP rule at fine scale: peaks and ridges YIELD inside a
+    # course's corridor (no slot canyons needed to keep the bed monotone)
+    gapR = np.maximum(130.0 + 3.0 * wf, icef * 1.7)
+    vert = vert * np.clip(dist / np.maximum(gapR, 1.0), 0.22, 1.0)
+    height = blend + vert * np.clip(1.0 - watery * 1.6, 0.0, 1.0) \
+           + 6.0 * fbm(xs, ys, 300.0, 5, 3)
+    # INVARIANT I1 (no inland sea): solid land never dips below sea level —
+    # only the bounded coastal band (real sea nearby) may
+    height = np.where(watery < 0.10, np.maximum(height, 0.5), height)
+
+    # 3) SIDE courses: carve + water (max carve; bigger-first stability)
     h_pre = height.copy()
     # INVARIANT I3 by construction: the carve is exactly what reaches the
     # monotone BED at the centerline, decaying off-channel; land only
@@ -475,12 +484,13 @@ def render(px_m=6.0):
     col = np.where((bare & (slope <= 0.34))[..., None], scree, col)         # rubble
     col = np.where(((bare & (slope > 0.34)) | (mslope & (slope > 0.60)))[..., None],
                    face, col)                                               # stone face
-    # the alpine zone: meadow shelves along the stone faces
+    # the alpine zone: meadows claim ALL gentle ground; rock only where steep
     alp = mslope & (height >= TREEL) & (height < SNOWL)
-    col = np.where(alp[..., None], rock, col)
-    col = np.where((alp & (slope < 0.42) & (band <= 0.32))[..., None], scree, col)
-    col = np.where((alp & (slope < 0.26) & (band > 0.32))[..., None], meadow, col)
-    col = np.where((alp & (slope > 0.5))[..., None], face, col)
+    meadow2 = np.array([110.0, 146.0, 84.0])
+    col = np.where(alp[..., None], meadow, col)
+    col = np.where((alp & (band <= 0.34))[..., None], meadow2, col)
+    col = np.where((alp & (slope >= 0.34) & (slope < 0.52))[..., None], scree, col)
+    col = np.where((alp & (slope >= 0.52))[..., None], face, col)
     # snow holds only on gentle ground: steep faces and windswept bands CUT
     # through the cap as bare rock formations
     sn = height >= SNOWL
@@ -535,8 +545,7 @@ def panel_contracts(fname):
             colr = tuple(int(v * 0.45) for v in TYPES[mat(c, r)]["col"])
             dr.polygon([(x * s, y * s) for x, y in pts], fill=colr, outline=(40, 42, 48))
     for G in RIDGES:                          # ridges: brown, saddle-thinned
-        dr.line([(G["ax"] * s, G["ay"] * s), (G["mx"] * s, G["my"] * s),
-                 (G["bx"] * s, G["by"] * s)], fill=(168, 120, 70), width=3)
+        dr.line([(x * s, y * s) for x, y in G["pts"]], fill=(168, 120, 70), width=3)
     for S in SIDES:                           # curved river sides, width by size
         w = max(1, int(math.sqrt(S["acc"]) * 1.2))
         dr.line([(x * s, y * s) for x, y in S["pts"]], fill=(70, 140, 210), width=w)
