@@ -1852,7 +1852,10 @@ fn town_craft_key(i: integer) -> text {
   if i == 6 { return "leather_gloves"; }
   if i == 7 { return "hard_leather_cap"; }
   if i == 8 { return "sling"; }
-  "iron_shot"
+  if i == 9 { return "iron_shot"; }
+  if i == 10 { return "long_bow"; }       // the fletcher's masterwork
+  if i == 11 { return "bolt"; }
+  "hard_leather_armor"
 }
 fn import_key(i: integer) -> text {
   if i == 0 { return "wand_magic_bolt"; }
@@ -1992,7 +1995,7 @@ pub fn sim_tick(s: &Sim) {
       }
     } else {
       // TOWNS: the simple goods + leatherwork + the FLETCHER's wood-craft
-      tkey3 = town_craft_key(day3 % 10 ?? 0);
+      tkey3 = town_craft_key(day3 % 13 ?? 0);
       sim_drop_item(s, stq3, str3, tkey3);
     }
   }
