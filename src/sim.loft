@@ -1741,6 +1741,12 @@ fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
     if leg == 0 { return (e.wq2, e.wr2); }
     return (e.hq, e.hr);                 // the other end: home market
   }
+  if e.role == 9 {                       // rugged travelers camp where dusk finds them
+    if night { return (e.cur_q, e.cur_r); }
+    leg = (((s.ticks / DAY_LEN) ?? 0) + salt) % 2 ?? 0;
+    if leg == 0 { return (e.wq2, e.wr2); }
+    return (e.aq2, e.ar2);
+  }
   if night { return (e.hq, e.hr); }      // everyone else sleeps at home/anchor
   if e.role == 2 {                       // farmers cycle field -> food stall
     leg = (((s.ticks / 90) ?? 0) + salt) % 2 ?? 0;
@@ -1809,20 +1815,27 @@ fn npc_trade(s: &Sim, e: &Enemy) {
     fd = s.fi_def;
     fc = s.fi_cat;
     fg = s.fi_gold;
-    for li in 0..s.fi_n {
-      if (fl[li] ?? 0) == 1 && (fg[li] ?? 0) == 0 {
-        dgg = hex_distance(fq[li] ?? 0, fr[li] ?? 0, e.cur_q, e.cur_r);
-        ct = fc[li] ?? -1;
-        di2 = fd[li] ?? -1;
-        if dgg <= 2 && di2 >= 0 && (ct == IT_WEAPON || ct == IT_ARMOR) {
-          dfn = itbl[di2];
-          if dfn != null && dfn.i_weight <= 75 {
-            if e.c1g < 0 {
-              e.c1g = di2;
-              if li < len(fl) { fl[li] = 0; }
-            } else if e.c2g < 0 {
-              e.c2g = di2;
-              if li < len(fl) { fl[li] = 0; }
+    // POTIONS first — the prices outside the city skyrocket, the traders
+    // want them badly; arms fill whatever room remains
+    for pass2 in 0..2 {
+      for li in 0..s.fi_n {
+        if (fl[li] ?? 0) == 1 && (fg[li] ?? 0) == 0 {
+          dgg = hex_distance(fq[li] ?? 0, fr[li] ?? 0, e.cur_q, e.cur_r);
+          ct = fc[li] ?? -1;
+          di2 = fd[li] ?? -1;
+          want = false;
+          if pass2 == 0 { want = ct == IT_POTION; }
+          if pass2 == 1 { want = ct == IT_WEAPON || ct == IT_ARMOR; }
+          if dgg <= 2 && di2 >= 0 && want {
+            dfn = itbl[di2];
+            if dfn != null && dfn.i_weight <= 75 {
+              if e.c1g < 0 {
+                e.c1g = di2;
+                if li < len(fl) { fl[li] = 0; }
+              } else if e.c2g < 0 {
+                e.c2g = di2;
+                if li < len(fl) { fl[li] = 0; }
+              }
             }
           }
         }
@@ -1872,8 +1885,7 @@ pub fn sim_tick(s: &Sim) {
         if pidx == 1 { pk = "potion_detect_monsters"; }
         if pidx == 2 { pk = "potion_cure_serious"; }
         if pidx == 3 { pk = "potion_restore"; }
-        sim_drop_item(s, stq3 + 1, str3 + 1, pk);
-        sim_drop_item(s, stq3 + 1, str3 + 1, pk);
+        for _ in 0..5 { sim_drop_item(s, stq3 + 1, str3 + 1, pk); }
       }
     } else {
       if (day3 % 2 ?? 0) == 0 {
@@ -3069,6 +3081,30 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
         enemies += [mk_npc(7, "merchant", "merchant cart", "M", 190, 150, 90,
                            w / 2 + 2, h / 2 + 2, w / 2 + 2, h / 2 + 2,
                            farq, farr, parkq, parkr)];
+      }
+      // THE ALCHEMIST'S GATHERER: a rugged traveler fetching the special
+      // ingredients — met on the roads or the hillsides, shunning the deeper
+      // mountains. There are not many of them: ONE walks this window.
+      if tsize >= 3 {
+        hsq = -1;
+        hsr = -1;
+        bhs = 999;
+        for gr8 in 1..h - 1 {
+          for gq8 in 1..w - 1 {
+            tih = gr8 * w + gq8;
+            tkh = 0;
+            if tih < len(tk) { tkh = tk[tih] ?? 0; }
+            if tkh == K_SCREE + 1 || tkh == K_MEADOW + 1 {
+              dh8 = hex_distance(gq8, gr8, w / 2, h / 2);
+              if dh8 >= 14 && dh8 < bhs { bhs = dh8; hsq = gq8; hsr = gr8; }
+            }
+          }
+        }
+        if hsq >= 0 && bfar > 12 {
+          enemies += [mk_npc(9, "gatherer", "rugged traveler", "t", 160, 150, 120,
+                             w / 2 + 3, h / 2 + 3, w / 2 + 3, h / 2 + 3,
+                             hsq, hsr, farq, farr)];
+        }
       }
   }
 

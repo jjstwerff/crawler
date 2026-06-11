@@ -592,7 +592,13 @@ ROLE — never aggressive, never punched; the player's bump slides past):
 - **The ALCHEMIST-FACTORY** (user rule): the main cities host one, drowned
   in requests — it only actually BREWS on some days of the week (3 of 7), and
   each brewing day yields ONE type of potion (the type rotates by week and
-  day), set out beside the stalls in a small batch.
+  day), a real BATCH (5 bottles) beside the stalls. Prices outside the city
+  SKYROCKET, so the cart traders load potions FIRST (arms fill what's left).
+- **The GATHERERS** (user rule): the alchemists need a constant supply of
+  special ingredients — rugged travelers fetch them, met on the roads and the
+  hillsides (scree/meadow picking grounds), CAMPING where dusk finds them and
+  SHUNNING the deeper mountains (no snow, no ice). There are not many: one
+  walks the window.
 - **The cart TRADES** (user rule): at the home market it loads what the
   makers offer — weapons/armour only, only the LIGHT ones (weight-capped: no
   broadswords on a cart's springs), and only TWO slots (not much choice);
