@@ -174,6 +174,10 @@ pressure). What still bites:
   default for hot collections.
 - `!x` on a **non-boolean is a NULL test, not logical-not** — BY DESIGN (loft C69; an
   always-false warning covers `not null` operands). Compare `== 0`.
+- **NEVER swap struct elements of a vector in place via a temp link** (`tmp = v[j];
+  v[j] = v[k]; v[k] = tmp` DUPLICATES v[k] — slot assignment copies into the slot's
+  storage, so the held link reads the overwrite). Sort by SELECTION into a fresh
+  vector instead (the overland sides corruption, 2026-06-11).
 - Doubled braces `{{`/`}}` in string literals (C14, by design).
 - Soak-period habits kept as defense-in-depth (their bugs are fixed, the idioms are still
   good): same-module `&`-mutating helpers; don't hold many large `Sim`s live / consume

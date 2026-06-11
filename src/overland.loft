@@ -37,6 +37,7 @@ pub const K_LAKE   = 9;   // still water — impassable
 pub const K_SEA    = 10;  // open sea — impassable
 pub const K_FIELD  = 11;  // farmers' fields around a town (walkable)
 pub const K_ROAD   = 12;  // road/path between towns (walkable)
+pub const K_SWAMP  = 13;  // marsh: water against flat land, worst at confluences
 
 pub fn ov_walkable(kind: integer) -> boolean {
   kind != K_FACE && kind != K_LAKE && kind != K_SEA
@@ -62,7 +63,7 @@ fn ov_mat_rows() -> vector<integer> {
   m += [0, 5, 4, 3, 3, 3, 3, 4, 0];
   m += [0, 4, 2, 3, 5, 5, 4, 2, 0];
   m += [0, 2, 4, 4, 4, 5, 4, 2, 0];
-  m += [0, 2, 2, 4, 4, 1, 4, 2, 0];
+  m += [0, 2, 2, 4, 4, 1, 2, 2, 0];   // a FLAT eastern lakeshore: marsh ground
   m += [0, 2, 2, 2, 4, 2, 2, 2, 0];
   m += [0, 0, 0, 0, 0, 0, 0, 0, 0];
   m
@@ -72,8 +73,8 @@ fn ov_mat_rows() -> vector<integer> {
 fn ov_hgt_of(m: integer) -> float {
   if m == 0 { return -60.0; }
   if m == 1 { return OV_LAKE_LVL; }
-  if m == 2 { return 55.0; }
-  if m == 3 { return 95.0; }
+  if m == 2 { return 25.0; }    // plains lie LOW and FLAT (the floodplain)
+  if m == 3 { return 45.0; }
   if m == 4 { return 270.0; }
   950.0
 }
@@ -97,8 +98,9 @@ pub struct OvSide {
   os_x:    vector<float> not null,   // the curved course (natural meters)
   os_y:    vector<float> not null,
   os_bed:  vector<float> not null,   // monotone bed along the course
+  os_ws:   vector<float> not null,   // water width per point (estuary funnel)
   os_acc:  float not null,
-  os_w:    float not null,           // water width
+  os_w:    float not null,           // water width (nominal; ws carries the taper)
   os_ice:  float not null,           // glacier half-width (0 = none)
   os_vw:   float not null,           // carve falloff width
   os_x0:   float not null,           // bbox incl. influence apron
@@ -144,6 +146,12 @@ pub struct OvRoad {
   rd_y1: float not null,
 }
 
+pub struct OvSwamp {
+  ow_x: float not null,    // a confluence pool: two rivers meeting on the flat
+  ow_y: float not null,
+  ow_r: float not null,
+}
+
 pub struct OvFort {
   of_x:  float not null,    // the keep's spot: ABOVE its town, watching the ways
   of_y:  float not null,
@@ -161,6 +169,7 @@ pub struct Overland {
   ov_towns:  vector<OvTown> not null,
   ov_roads:  vector<OvRoad> not null,
   ov_forts:  vector<OvFort> not null,
+  ov_swamps: vector<OvSwamp> not null,
 }
 
 const OV_RC = 866.0254037844386;     // OV_TILE / sqrt(3): circumradius
@@ -327,6 +336,38 @@ pub fn overland_new() -> Overland {
       }
     }
   }
+  // SWAMPS: water against FLAT terrain — especially where two rivers flow
+  // into one another (confluence pools on plains/forest cells)
+  swamps: vector<OvSwamp> = [];
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      m9 = ov_mat(mats, c, r);
+      if m9 == 2 || m9 == 3 || m9 == 4 {
+        indeg = 0;
+        intot = 0.0;
+        for d in 0..6 {
+          (nc, nr) = hex_neighbor(c, r, d);
+          if nc >= 0 && nc < OV_NX && nr >= 0 && nr < OV_NY {
+            j9 = nr * OV_NX + nc;
+            bj9 = flow[j9] ?? -1;
+            if bj9 >= 0 {
+              (qc9, qr9) = hex_neighbor(nc, nr, bj9);
+              if qc9 == c && qr9 == r {
+                indeg = indeg + 1;
+                intot = intot + (acc[j9] ?? 1.0);
+              }
+            }
+          }
+        }
+        if indeg >= 2 && intot >= 2.5 {
+          (swx, swy) = ov_vertex(c, r);
+          swamps += [OvSwamp { ow_x: swx, ow_y: swy,
+                               ow_r: min(420.0, 110.0 * sqrt(intot)) }];
+        }
+      }
+    }
+  }
+
   // SIDES: one per flowing cell — curved course + monotone bed + glacier flag
   sides: vector<OvSide> = [];
   for r in 0..OV_NY {
@@ -372,10 +413,28 @@ pub fn overland_new() -> Overland {
         beds += [bedA + (bedB - bedA) * ((run / tot) ?? 0.0)];
       }
       a = acc[i] ?? 1.0;
+      wnom = (2.0 + 2.2 * sqrt(a)) * (0.35 + 0.65 * open_);
+      // THE ESTUARY (user rule): a sea mouth is never straight-walled — the
+      // daily tide pushes in and broadens it, UNLESS the river drops steeply
+      wend = wnom;
+      if hB <= OV_SEA {
+        wend = wnom * (1.0 + 3.0 * max(0.0, open_ - 0.45));
+      }
+      ws: vector<float> = [];
+      run2 = 0.0;
+      for k in 0..len(pxs) {
+        if k > 0 {
+          dx3 = (pxs[k] ?? 0.0) - (pxs[k - 1] ?? 0.0);
+          dy3 = (pys[k] ?? 0.0) - (pys[k - 1] ?? 0.0);
+          run2 = run2 + sqrt(dx3 * dx3 + dy3 * dy3);
+        }
+        tt2 = (run2 / tot) ?? 0.0;
+        ws += [wnom + (wend - wnom) * tt2 * tt2];   // the funnel opens AT the mouth
+      }
       glac = hA >= 800.0;
       icew = 0.0;
       if glac { icew = 75.0 + 45.0 * sqrt(a); }
-      vw = (150.0 + 2.0 * ((2.0 + 2.2 * sqrt(a)) * (0.35 + 0.65 * open_)));
+      vw = 150.0 + 2.0 * wnom;
       if glac { vw = vw * 2.3; }
       x0 = pxs[0] ?? 0.0; y0 = pys[0] ?? 0.0; x1 = x0; y1 = y0;
       for k in 0..len(pxs) {
@@ -383,38 +442,34 @@ pub fn overland_new() -> Overland {
         y0 = min(y0, pys[k] ?? 0.0); y1 = max(y1, pys[k] ?? 0.0);
       }
       ap = 4.0 * vw + icew + 60.0;
-      sides += [OvSide { os_x: pxs, os_y: pys, os_bed: beds, os_acc: a,
-                         os_w: (2.0 + 2.2 * sqrt(a)) * (0.35 + 0.65 * open_),
+      sides += [OvSide { os_x: pxs, os_y: pys, os_bed: beds, os_ws: ws, os_acc: a,
+                         os_w: wnom,
                          os_ice: icew, os_vw: vw,
                          os_x0: x0 - ap, os_y0: y0 - ap, os_x1: x1 + ap, os_y1: y1 + ap }];
     }
   }
-  // STABILITY: bigger water first (insertion sort by acc desc — 32 items)
-  for sii in 1..len(sides) {
-    j = sii;
-    while j > 0 {
-      a2 = sides[j] ?? sides[0];
-      b2 = sides[j - 1] ?? sides[0];
-      swap = false;
-      if a2 != null && b2 != null {
-        if a2.os_acc > b2.os_acc { swap = true; }
-      }
-      if swap {
-        k2 = j - 1;
-        if j < len(sides) && k2 < len(sides) {
-          tmp = sides[j];
-          prv = sides[k2];
-          if tmp != null && prv != null {
-            sides[j] = prv;
-            sides[k2] = tmp;
-          }
-        }
-        j = j - 1;
-      } else {
-        j = 0;
+  // STABILITY: bigger water first. SELECTION into a fresh vector — never swap
+  // struct elements in place (slot assignment COPIES into the slot's storage,
+  // so a held link reads the overwrite: the classic store-copy trap).
+  sorted2: vector<OvSide> = [];
+  used9: vector<boolean> = [];
+  for _ in 0..len(sides) { used9 += [false]; }
+  for _ in 0..len(sides) {
+    bi9 = -1;
+    ba9 = -1.0;
+    for i9 in 0..len(sides) {
+      sdx = sides[i9];
+      if !(used9[i9] ?? true) && sdx != null {
+        if sdx.os_acc > ba9 { ba9 = sdx.os_acc; bi9 = i9; }
       }
     }
+    if bi9 >= 0 {
+      if bi9 < len(used9) { used9[bi9] = true; }
+      sdy = sides[bi9];
+      if sdy != null { sorted2 += [sdy]; }
+    }
   }
+  sides = sorted2;
   // PEAKS: corner-owned, jittered off the exact triple point, deduped
   peaks: vector<OvPeak> = [];
   pkx: vector<integer> = [];
@@ -673,11 +728,11 @@ pub fn overland_new() -> Overland {
   }
   ov0 = Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
                    ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
-                   ov_towns: towns, ov_roads: roads, ov_forts: [] };
+                   ov_towns: towns, ov_roads: roads, ov_forts: [], ov_swamps: swamps };
   forts = ov_fort_sites(ov0);
   Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
              ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
-             ov_towns: towns, ov_roads: roads, ov_forts: forts }
+             ov_towns: towns, ov_roads: roads, ov_forts: forts, ov_swamps: swamps }
 }
 
 // distance to the nearest road centerline
@@ -788,7 +843,7 @@ fn ov_course(o: Overland, x: float, y: float) -> (float, float, float, float, fl
           if d < gd {
             gd = d;
             gbed = (sd.os_bed[k] ?? 0.0) * (1.0 - t) + (sd.os_bed[k + 1] ?? 0.0) * t;
-            gw = sd.os_w;
+            gw = (sd.os_ws[k] ?? sd.os_w) * (1.0 - t) + (sd.os_ws[k + 1] ?? sd.os_w) * t;
             gice = sd.os_ice;
             gvw = sd.os_vw;
           }
@@ -949,6 +1004,40 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
       hy3 = ov_height(o, x, y + e3);
       sl3 = (sqrt((hx3 - h) * (hx3 - h) + (hy3 - h) * (hy3 - h)) / e3) ?? 0.0;
       if sl3 < 0.12 { return (h, K_FIELD); }
+    }
+  }
+  // SWAMP: water against FLAT TERRAIN — flatness is judged on the COARSE land
+  // (the floodplain), not the carved channel banks: riverside marsh beside
+  // sizable water, lake-shore marsh, and the CONFLUENCE pools where two
+  // rivers meet (towns/roads above have already drained their ground)
+  if h > 0.5 && h < 260.0 {
+    nearw = dist < wf * 5.0 + 60.0 || (lakew > 0.16 && lakew < 0.42);
+    swsite = -1;
+    for sw9 in 0..len(o.ov_swamps) {
+      sp9 = o.ov_swamps[sw9];
+      if sp9 != null {
+        sd9 = sqrt((x - sp9.ow_x) * (x - sp9.ow_x) + (y - sp9.ow_y) * (y - sp9.ow_y));
+        if sd9 < sp9.ow_r { swsite = sw9; }
+      }
+    }
+    if nearw || swsite >= 0 {
+      ec = 60.0;
+      (cbe, w1, l1, m1) = ov_blend(o, x + ec, y);
+      (cbw, w2, l2, m2) = ov_blend(o, x - ec, y);
+      (cbs, w3, l3, m3) = ov_blend(o, x, y + ec);
+      (cbn, w4, l4, m4) = ov_blend(o, x, y - ec);
+      slc = (sqrt((cbe - cbw) * (cbe - cbw) + (cbs - cbn) * (cbs - cbn)) / (2.0 * ec)) ?? 0.0;
+      flatf = max(0.0, 1.0 - slc / 0.060);
+      swf = flatf * max(0.0, 1.0 - ((dist / (wf * 5.0 + 60.0)) ?? 1.0)) * min(1.0, wf / 4.0);
+      if lakew > 0.16 && lakew < 0.42 { swf = max(swf, flatf * 0.55); }
+      if swsite >= 0 {
+        sp0 = o.ov_swamps[swsite];
+        if sp0 != null {
+          sd0 = sqrt((x - sp0.ow_x) * (x - sp0.ow_x) + (y - sp0.ow_y) * (y - sp0.ow_y));
+          swf = max(swf, flatf * (1.0 - ((sd0 / sp0.ow_r) ?? 1.0)) * 1.6);
+        }
+      }
+      if swf > 0.22 { return (h, K_SWAMP); }
     }
   }
   // the table band (domain-warped: no axis stripes)

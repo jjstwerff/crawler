@@ -2,7 +2,7 @@
 // Legend (adapted from the ZAngband wilderness vocabulary):
 //   ' ' sea   '~' river   '=' lake   ',' sand   '.' grass   '+' field
 //   '-' road  'T' forest  '"' meadow ':' scree  '^' rock face (wall)
-//   '*' snow  '%' glacier 1/2/3 town (by size)
+//   '*' snow  '%' glacier 's' swamp  1/2/3 town (by size)
 use overland;
 
 fn kind_ch(k: integer) -> text {
@@ -18,6 +18,7 @@ fn kind_ch(k: integer) -> text {
   if k == K_FACE { return "^"; }
   if k == K_SNOW { return "*"; }
   if k == K_ICE { return "%"; }
+  if k == K_SWAMP { return "s"; }
   "."
 }
 

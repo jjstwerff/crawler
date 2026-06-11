@@ -332,6 +332,17 @@ required — but that pass must be **SUBTLE**. Its charter:
 - **Buildings are dungeon-style rooms for now** (rect walls + a door), stamped
   by the surface generator at the town center — nice versions later.
 
+### 7n. Swamps and estuaries (user rules, implemented in the loft port)
+- **SWAMP = water against FLAT TERRAIN**: flatness judged on the COARSE land
+  (the floodplain), never the carved channel banks; riverside marsh beside
+  sizable water, lake-shore marsh on flat banks, and CONFLUENCE pools where
+  two rivers flow into one another (the flow tree's in-degree); towns/roads
+  drain their ground (their claims come first). Plains were flattened (25 m)
+  to give floodplains room — small worlds are stingy with flat-water ground.
+- **ESTUARY**: river mouths are never straight — the daily tide pushes in and
+  BROADENS the mouth into a funnel (water width flares quadratically toward
+  the sea end), but NOT when the river drops steeply (openness-gated).
+
 ## 8. Fast travel (scale consequence, designed earlier — recorded here)
 
 - **Overland travel mode**: the overland is itself a walkable level (same cell schema, same
