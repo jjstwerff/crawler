@@ -1031,7 +1031,7 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
   chance of an **item** (rarity-weighted by depth); items render as category
   glyphs (`$ ! ? | [ …`) and are grabbed with `g`; gold + inventory carry across
   levels; HUD gold readout. (Floor/inv use fixed arrays + counts — runtime append
-  to a struct field is unreliable in loft, see LOFT_ISSUES C18.)
+  to a struct field is unreliable in loft — loft#320; the index-write idiom stays.)
 
 ### Now — graphics cleanup, then a playable game with progression (§3a)
 *Walls first, then the fastest path to a working game with real (mostly lateral)
@@ -1139,7 +1139,7 @@ UVs.) Now: one PNG per sprite via `gl_load_texture`.*
   (stair `StairKind`/newel, cliff face, hatch) ride M4. *(walk-onto stairs: shipped, 2D;
   the stepped+shadowed stair sprite — §8a "Look" — is a near-term draw task.)*
 - [ ] **M4** 3D browser — `moros_render::camera_follow` over the unchanged kernel;
-  single-HTML WebGL. *Blocked by `E0514` — see `LOFT_ISSUES.md` C15.*
+  single-HTML WebGL. *(The old E0514 rustc-mismatch blocker is resolved.)*
 - [ ] **Testing tiers** — `placestats` (main-stats-style distribution harness),
   Borg-style headless auto-player.
 - [ ] Pick a final **game title + world name** (replace the placeholders).

@@ -14,7 +14,7 @@ make play     # native window (W/S glide, A/D turn, walk onto stairs, . wait, g 
 make test     # headless deterministic gate — RUN THIS before committing
 make check    # quiet compile-only gate (parse + bytecode), no display
 make shot     # one Xvfb frame -> story.png  (positionally unreliable, see below)
-make game     # single-file story.html (WebGL) — unblocked (E0514 resolved, LOFT_ISSUES C15)
+make game     # single-file story.html (WebGL) — unblocked (the E0514 rustc-mismatch is resolved)
 ```
 
 Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
@@ -78,7 +78,7 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/…).
   Keep it **warning-clean**.
 - **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
-  Xvfb is positionally off — LOFT_ISSUES C17). Verify *logic* headlessly; the
+  Xvfb is positionally off — a known test-env quirk). Verify *logic* headlessly; the
   **user is the visual verifier**. A `src/shot.loft` aid exists but trust the user.
 - **2D sprites → the `draw` skill** (method: loft `.claude/skills/draw`; **tool:
   crawler's own `tools/draw.py`** — copied from the skill's `sketch/draw.py` and
@@ -161,7 +161,19 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Push only
   when asked.
 
-## loft survival guide (updated 2026-06-10 after the store fixes — repros: LOFT_ISSUES.md)
+## Filing loft bugs (crawler is a CONSUMER — we never fix loft here)
+
+When a loft bug bites: **minimal repro first** (verify on BOTH backends — `--interpret`
+and `--check`/`--native`; record expected vs observed; if it won't shrink standalone,
+file with the in-crawler recipe, as loft#303/#336 were). **Open a GitHub Issue** with
+`gh issue create -R loft-lang/loft` (the bug_report shape: *Minimal reproducer ·
+Expected · Actual*) — lib-native bugs go to that lib's chunk repo instead. **Labels:
+exactly one `sev:high|medium|low`, one `wa:clean|partial|none` (VERIFY the workaround
+claim), one+ `area:*`, plus `hit-by:crawler`.** Then work around it (a loft-safe shape
+below) and keep moving — never block crawler on a loft fix. The historical C-id map
+lived in LOFT_ISSUES.md (removed 2026-06-12; all survivors are now filed upstream).
+
+## loft survival guide (updated 2026-06-12 after the store fixes — repros live in the filed issues)
 
 Much of the old minefield is FIXED and re-verified (C1 `?? structfn` SIGSEGV, C3 text-drop,
 C4 cross-module `&` mutation, C7 chained casts, C10 `false ??`, C13 `&`-copy, C22/C24 store
@@ -177,7 +189,12 @@ pressure). What still bites:
 - **NEVER swap struct elements of a vector in place via a temp link** (`tmp = v[j];
   v[j] = v[k]; v[k] = tmp` DUPLICATES v[k] — slot assignment copies into the slot's
   storage, so the held link reads the overwrite). Sort by SELECTION into a fresh
-  vector instead (the overland sides corruption, 2026-06-11).
+  vector instead (the overland sides corruption; filed as loft#338).
+- **NEVER build `vector<text>` literals in large functions** — they can HANG the
+  interpreter; indexing one in a call argument can PANIC the allocator (loft#336).
+  Use branch-selector functions returning text (`fn key(i) -> text { if ... }`).
+- Manifest `{ path = ... }` deps are NOT compile-time resolved (loft#337) — consume
+  local packages via `--lib` dirs or sibling layout (the EXTRACTION.md dev route).
 - Doubled braces `{{`/`}}` in string literals (C14, by design).
 - Soak-period habits kept as defense-in-depth (their bugs are fixed, the idioms are still
   good): same-module `&`-mutating helpers; don't hold many large `Sim`s live / consume

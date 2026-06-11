@@ -623,7 +623,7 @@ ROLE — never aggressive, never punched; the player's bump slides past):
   when the window has running water, a WIND-powered one on open ground when
   it doesn't (round structures, tile 4); the mill's bread reaches the city
   stalls every morning.
-- LESSON (LOFT_ISSUES C27): vector<text> literals HANG the interpreter in
+- LESSON (filed as loft#336): vector<text> literals HANG the interpreter in
   deep contexts and PANIC when indexed in call args — production repertoires
   are branch-selector functions instead.
 
