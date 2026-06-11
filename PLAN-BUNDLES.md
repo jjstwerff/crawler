@@ -110,6 +110,35 @@ in BUNDLE.md.)
 - Test: knob 0.5 on a theme halves a sampled mob's hp/dam in the merged catalog;
   knob absent = identity; tuning.json overrides bundle default.
 
+## Phase H — every hero starts HOME (a house, a bed, the right spot)
+
+Every starting character gets a HOUSE where they live — the game opens there,
+in their bed — sited where someone like them would actually live. The seam
+holds the usual way: the bundle declares WHO they are, the engine finds WHERE
+that fits on this map.
+
+- **Bundle side (data):** race bundles gain a `home` section — a terrain
+  affinity (the Phase-A habitat bitmask, reused) + a siting hint
+  (`in_town` / `town_edge` / `forest_edge` / `by_water` / `foothills` /
+  `by_the_fields` / `near_ruins`) + a flavour name. The class bundle may
+  refine it (a mage prefers `tower_adjacent`, a necromancer `near_ruins`).
+  Proposed defaults: human/halfling in town or by the fields; elf/half-elf at
+  the forest edge; dwarf/gnome in the foothills by the mine; half-orc/
+  half-troll outside the walls; highborn beside the square; necromancer near
+  the dead places, ranger at the wood's edge, druid by the water.
+- **Engine side (mechanism):** a home-site picker in the home window — scores
+  open ground against the declared affinity (terrain match, distance band from
+  the town square per the siting hint), stamps a small `stamp_house` with a
+  **BED** (a new furniture tile), door facing the town. The player starts ON
+  the bed; the daily loop already gives NPCs homes — now the hero has one too.
+- **The bed is the surface anchor:** death with `save_depth = 0` respawns in
+  your own bed (the crystal stays the shrine/re-spec, not the spawn point).
+  Sleeping in it to pass the night is a natural follow-on (optional, noted).
+- Tests: every shipped race/class combo resolves a home (fixed seed → house
+  exists, bed inside, start-on-bed, location matches the affinity — the dwarf
+  wakes in the foothills, the elf under the trees); a race bundle with no
+  `home` section falls back to the town square start (removability holds).
+
 ## Phase F — the removal MATRIX (the "own game" guarantee)
 
 A new gate target `make bundles-matrix` (not in the default gate — it's a
@@ -134,7 +163,9 @@ so themed structures inherit doors/jambs/round forms.
 
 ## Order & risks
 
-- A → B → C → (D ∥ E) → F; G last (stencil + geometry dependency).
+- A → B → C → (D ∥ E ∥ H) → F; G last (stencil + geometry dependency). H needs
+  only Phase A's habitat vocabulary; it can land early — it is the most
+  player-visible win of the whole plan.
 - All new def columns are integers (loft#336: no text tables); merged catalogs
   build at apply-time only (the rc_*/store-pressure habit); generated merge code
   keeps the globally-unique-fn-name style.
