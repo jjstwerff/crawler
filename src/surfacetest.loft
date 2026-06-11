@@ -12,7 +12,7 @@ fn main() {
   openc = !is_wall(surf, 50, 50) && !is_wall(surf, 47, 52) && !is_wall(surf, 52, 47);  // cleared start ring
   kinds_live = sim_tile_kind(surf, 50, 50) >= 0;   // the surface carries terrain kinds
   nc = sim_enemy_count(surf) - sim_npc_count(surf);   // hostiles only (the town is populated too)
-  knot = nc >= 1 && nc < 10;                     // the spawning crystal + its small knot (not a dungeon)
+  knot = nc >= 1 && nc < 30;                     // crystal knot + the wilds + ruin nests
   nostair = sim_stair_under(surf) == 0;          // standing on open ground, not a stair
 
   // THE DAILY LOOP: the town is POPULATED (villagers/farmers/guards/fisher,

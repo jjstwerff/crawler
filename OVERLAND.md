@@ -643,6 +643,23 @@ The STRAIN this places on the economy is structural: fewer living settlements
 than the land once fed, dangerous ruins beside the trade ways, and the spotted
 paths as the player's invitation toward history.
 
+### 13f. WHERE THE WILD THINGS LIVE (user direction, implemented)
+The bestiary audited for natural HABITATS (not just the dungeon) and the
+wilderness spawns by them, distance = danger (tier 2 beyond ~40 hexes):
+- FOREST: centipedes, giant spiders, rats; far woods hold dark elves + ogres.
+- MEADOW: mice + white snakes; the high shelves nest HARPIES.
+- SCREE/rock: kobolds, bats, cave spiders; the far rough holds basilisks +
+  TROLLS.  SNOW/ICE: wyverns, stone giants, harpies — the high cold.
+- SWAMP: giant frogs + grey molds; the deep mires hide ghouls.
+- SAND: giant ants + snakes (the desert bundle's own serpents place through
+  its rules — engine lists keep engine keys only, the bundle seam holds).
+- Open GRASS: jackals + ants near, gnoll packs + ogres far.
+- RUINS: goblin bands + the leader; the DEAD CITY keeps its dead (skeleton +
+  zombie join the tier-3 nests).
+- Dungeon-only by design: the floating eye, the wraith/lich tier, the uniques.
+All wild spawns sleep until disturbed; none within 25 hexes of the town —
+the daily loop stays safe, the far wilds carry the strain.
+
 NEXT: shops with real interiors + trade, NPC dialogue, ship routes between
 coastal towns, multi-window travel, nicer buildings, true round rendering
 (tile 4) + light fences (tile 5), the lib-ward extraction into hex_terrain.
