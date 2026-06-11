@@ -11,9 +11,19 @@ fn main() {
   d0 = sim_depth(surf);
   openc = !is_wall(surf, 50, 50) && !is_wall(surf, 47, 52) && !is_wall(surf, 52, 47);  // cleared start ring
   kinds_live = sim_tile_kind(surf, 50, 50) >= 0;   // the surface carries terrain kinds
-  nc = sim_enemy_count(surf);
+  nc = sim_enemy_count(surf) - sim_npc_count(surf);   // hostiles only (the town is populated too)
   knot = nc >= 1 && nc < 10;                     // the spawning crystal + its small knot (not a dungeon)
   nostair = sim_stair_under(surf) == 0;          // standing on open ground, not a stair
+
+  // THE DAILY LOOP: the town is POPULATED (villagers/farmers/guards/fisher,
+  // boats where there is water); it is day at dawn; sixty ticks of life run
+  // without harm (civilians never aggro, never get punched)
+  npcs0 = sim_npc_count(surf);
+  populated_town = npcs0 >= 7;
+  at_day = sim_phase(surf) == 0;
+  sim_teleport(surf, 75, 75);                    // watch from afar (the knot bites)
+  for _ in 0..60 { sim_wait(surf); }
+  alive_still = sim_npc_count(surf) == npcs0 && !sim_over(surf);
 
   sim_teleport(surf, 53, 50);                    // the entrance sits at centre+3 east (w=101 -> 53,50)
   entrance = sim_stair_under(surf) == 2;         // a down-stair
@@ -24,7 +34,9 @@ fn main() {
   populated = sim_enemy_count(dung) > 0;
 
   println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} entrance={entrance}");
+  println("town: npcs={npcs0} day={at_day} alive-after-60-ticks={alive_still}");
   println("descend: depth={d1} walled={walled} populated={populated}");
-  ok = d0 == 0 && openc && kinds_live && knot && nostair && entrance && d1 == 1 && walled && populated;
+  ok = d0 == 0 && openc && kinds_live && knot && nostair && entrance && d1 == 1 && walled && populated
+    && populated_town && at_day && alive_still;
   if ok { println("=== SURFACE OK ==="); } else { println("=== FAIL ==="); }
 }

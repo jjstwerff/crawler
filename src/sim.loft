@@ -103,6 +103,14 @@ pub struct Enemy {
   key:   text,                // monster-def key ("giant_rat") — the view resolves <key>.png sprites
   name:  text,                // display name (for the message log: "You have slain the giant rat.")
   alive: boolean not null,
+  // CIVILIANS (the town's daily loop): 0 = a monster; roles live by schedule
+  role:  integer not null,    // 0 none, 1 villager, 2 farmer, 3 guard, 4 fisher, 5 boat, 6 ship
+  hq:    integer not null,    // home / night anchor
+  hr:    integer not null,
+  wq2:   integer not null,    // work: the field / fishing spot / patrol leg A
+  wr2:   integer not null,
+  aq2:   integer not null,    // alt: the food stall / patrol leg B
+  ar2:   integer not null,
 }
 
 pub struct Sim {
@@ -357,6 +365,7 @@ fn flow_step(s: Sim, flow: vector<integer>, eq: integer, er: integer, pq: intege
 // Nearest live enemy that is close (adjacent-ish) and ahead of the heading —
 // the melee target when pressing forward into it. Returns its index, or -1.
 fn front_enemy(s: Sim) -> integer {
+  // (civilians are skipped below — bumping them is not an attack)
   fx = cos(s.heading);
   fy = sin(s.heading);
   reach = HEX_LEN * 1.3;
@@ -365,7 +374,7 @@ fn front_enemy(s: Sim) -> integer {
   enemies = s.enemies;
   for fe in 0..len(enemies) {
     e = enemies[fe];
-    if e.alive {
+    if e.alive && e.role == 0 {
       (ecx, ecy) = hex_to_px(e.cur_q, e.cur_r);
       rx = ecx - s.px;
       ry = ecy - s.py;
@@ -1698,6 +1707,81 @@ pub fn sim_make_gaze(s: &Sim, i: integer) {
   enemies[i] = e;
 }
 
+// The DAILY LOOP: a day lasts DAY_LEN ticks; phase 0 = day, 1 = night.
+pub const DAY_LEN = 400;
+pub fn sim_phase(s: Sim) -> integer {
+  if ((s.ticks % DAY_LEN) ?? 0) < 280 { 0 } else { 1 }
+}
+
+// Can this civilian stand on (q,r)? Boats live ON the water; walkers off it.
+fn npc_passable(s: Sim, role: integer, q: integer, r: integer) -> boolean {
+  if q < 1 || r < 1 || q >= s.lw - 1 || r >= s.lh - 1 { return false; }
+  ti = r * s.lw + q;
+  tk = 0;
+  if ti < len(s.tkind) { tk = s.tkind[ti] ?? 0; }
+  if role == 5 { return tk == K_LAKE + 1 || tk == K_RIVER + 1; }
+  if role == 6 { return tk == K_SEA + 1; }
+  !is_wall(s, q, r) && tk != K_LAKE + 1 && tk != K_SEA + 1
+}
+
+// The schedule: where does this civilian want to BE right now?
+fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
+  night = sim_phase(s) == 1;
+  salt = e.hq * 31 + e.hr * 17;
+  if e.role == 3 {                       // guards patrol day AND night
+    leg = (((s.ticks / 80) ?? 0) + salt) % 2 ?? 0;
+    if leg == 0 { return (e.wq2, e.wr2); }
+    return (e.aq2, e.ar2);
+  }
+  if night { return (e.hq, e.hr); }      // everyone else sleeps at home/anchor
+  if e.role == 2 {                       // farmers cycle field -> food stall
+    leg = (((s.ticks / 90) ?? 0) + salt) % 2 ?? 0;
+    if leg == 0 { return (e.wq2, e.wr2); }
+    return (e.aq2, e.ar2);
+  }
+  (e.wq2, e.wr2)                         // villagers: the square; fishers: the
+                                         // water's edge; boats: their grounds
+}
+
+// One scheduled step: greedy toward the target; idle wander when arrived.
+fn npc_step(s: Sim, e: &Enemy) {
+  (tq, tr) = npc_target(s, e);
+  d0 = hex_distance(e.cur_q, e.cur_r, tq, tr);
+  if d0 == 0 {
+    // arrived: boats drift their grounds; folk shuffle about the spot
+    wob = ((s.ticks * 2654435761) ^ ((e.hq * 40503 + e.wq2) * 69427)) & 7;
+    if (e.role == 5 || e.role == 6 || e.role == 1) && wob < 2 {
+      dpick = ((s.ticks * 1103515245) ^ (e.hq * 12345)) % 6 ?? 0;
+      (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, dpick);
+      if npc_passable(s, e.role, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
+        e.tgt_q = nq;
+        e.tgt_r = nr;
+        return;
+      }
+    }
+    e.tgt_q = e.cur_q;
+    e.tgt_r = e.cur_r;
+    return;
+  }
+  best = -1;
+  bd = d0;
+  for dd in 0..6 {
+    (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, dd);
+    if npc_passable(s, e.role, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
+      nd = hex_distance(nq, nr, tq, tr);
+      if nd < bd { bd = nd; best = dd; }
+    }
+  }
+  if best >= 0 {
+    (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, best);
+    e.tgt_q = nq;
+    e.tgt_r = nr;
+  } else {
+    e.tgt_q = e.cur_q;
+    e.tgt_r = e.cur_r;
+  }
+}
+
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   // Venom bleeds the player each tick (silent — the HP bar shows it; death is logged). The antivenin
@@ -1751,7 +1835,9 @@ pub fn sim_tick(s: &Sim) {
         if !e.awake && d <= evis && hex_los(s, e.cur_q, e.cur_r, pq, pr) {
           e.awake = true;
         }
-        if e.awake {
+        if e.role != 0 {
+          npc_step(s, e);
+        } else if e.awake {
           if d <= 1 {
             hit = false;
             if e.dam > 0 {     // 0-melee monsters (the floating eye — its threat is the GAZE) truly
@@ -2315,7 +2401,21 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     vision: md.m_vision, flags: md.m_flags, awake: false,
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
-    cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true }
+    cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true,
+    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r }
+}
+
+// A CIVILIAN: harmless, scheduled, never aggressive (and never punched: the
+// player's bump slides past them — interaction comes later).
+fn mk_npc(role: integer, key: text, name: text, glyph: text,
+          cr: integer, cg: integer, cb: integer,
+          q: integer, r: integer, hq: integer, hr: integer,
+          wq: integer, wr: integer, aq: integer, ar: integer) -> Enemy {
+  Enemy { cur_q: q, cur_r: r, tgt_q: q, tgt_r: r,
+    hp: 6, maxhp: 6, dam: 0, xp: 0, mlvl: 0, vision: 0, flags: 0, awake: true,
+    speed: ENERGY_STEP - 2, energy: 0, slow_until: 0, stun_until: 0,
+    cr: cr, cg: cg, cb: cb, glyph: glyph, key: key, name: name, alive: true,
+    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar }
 }
 
 // Is any already-placed enemy on this hex?
@@ -2541,6 +2641,59 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
         }
       }
     }
+    // THE HARBOR: the nearest shore within reach gets a PIER (planks over the
+    // water — K_ROAD on water is walkable) and an anchorage at its head where
+    // the boats moor and are repaired at night.
+    pier_aq = -1;
+    pier_ar = -1;
+    pier_sea = false;
+    bestsh = 999;
+    shq = -1;
+    shr = -1;
+    shd = -1;
+    for hr2 in 2..h - 2 {
+      for hq2 in 2..w - 2 {
+        dd2 = hex_distance(hq2, hr2, w / 2, h / 2);
+        if dd2 < bestsh && dd2 < 42 {
+          ti8 = hr2 * w + hq2;
+          tk8 = 0;
+          if ti8 < len(tk) { tk8 = tk[ti8] ?? 0; }
+          land8 = tk8 != 0 && tk8 != K_LAKE + 1 && tk8 != K_SEA + 1 && (tiles[ti8] ?? 1) == 0;
+          if land8 {
+            for d8 in 0..6 {
+              (nq8, nr8) = hex_neighbor(hq2, hr2, d8);
+              if nq8 >= 1 && nq8 < w - 1 && nr8 >= 1 && nr8 < h - 1 {
+                tj8 = nr8 * w + nq8;
+                tw8 = 0;
+                if tj8 < len(tk) { tw8 = tk[tj8] ?? 0; }
+                if tw8 == K_LAKE + 1 || tw8 == K_SEA + 1 {
+                  bestsh = dd2;
+                  shq = hq2;
+                  shr = hr2;
+                  shd = d8;
+                  pier_sea = tw8 == K_SEA + 1;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if shq >= 0 {
+      pq8 = shq;
+      pr8 = shr;
+      for pl9 in 0..5 {
+        (pq8, pr8) = hex_neighbor(pq8, pr8, shd);
+        ti9 = pr8 * w + pq8;
+        if ti9 >= 0 && ti9 < len(tk) {
+          tk[ti9] = K_ROAD + 1;            // the pier planks
+          if ti9 < len(tiles) { tiles[ti9] = 0; }
+        }
+      }
+      (pier_aq, pier_ar) = hex_neighbor(pq8, pr8, shd);   // the anchorage
+      stamp_house(tiles, tk, w, h, shq - 4, shr - 1, 4, 3, 1);   // the harbor hut
+    }
+
     // the village SQUARE: keep the start / crystal / entrance area open
     for cr3 in 0..h {
       for cq3 in 0..w {
@@ -2646,6 +2799,118 @@ pub fn sim_new_gen_p(seed: integer, depth: integer, infest: integer) -> Sim {
         }
       }
     }
+  }
+
+  if depth == 0 {
+    // THE PEOPLE: the daily loop — villagers, farmers (field -> food stall),
+      // guards (walls + the fortress), fishers, a lake boat, a sea ship.
+      sqq = w / 2 + 2;
+      sqr = h / 2 - 2;                      // the food stalls on the square
+      for hb in 0..nhouse {
+        hang = ((hb as float) + 0.35) * 6.2831853 / (nhouse as float);
+        hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
+        hx5 = w / 2 + round(hrad * cos(hang)) as integer;
+        hy5 = h / 2 + round(hrad * sin(hang) * 0.866) as integer;
+        if hb < 2 {
+          // FARMERS: home -> the nearest field -> the stall, round and round
+          fldq = -1;
+          fldr = -1;
+          bfd = 999;
+          for fr8 in 1..h - 1 {
+            for fq8 in 1..w - 1 {
+              tif = fr8 * w + fq8;
+              if tif < len(tk) && (tk[tif] ?? 0) == K_FIELD + 1 {
+                df8 = hex_distance(fq8, fr8, hx5, hy5);
+                if df8 < bfd { bfd = df8; fldq = fq8; fldr = fr8; }
+              }
+            }
+          }
+          if fldq >= 0 {
+            enemies += [mk_npc(2, "farmer", "farmer", "p", 205, 185, 95,
+                               hx5, hy5, hx5, hy5, fldq, fldr, sqq, sqr)];
+          }
+        } else if hb == 2 {
+          // THE FISHER: home -> the water's edge
+          fsq = -1;
+          fsr = -1;
+          bfs = 999;
+          for fr9 in 1..h - 1 {
+            for fq9 in 1..w - 1 {
+              tig = fr9 * w + fq9;
+              tk9 = 0;
+              if tig < len(tk) { tk9 = tk[tig] ?? 0; }
+              land9 = tk9 != 0 && tk9 != K_LAKE + 1 && tk9 != K_SEA + 1 && (tiles[tig] ?? 1) == 0;
+              if land9 {
+                wet9 = false;
+                for d9 in 0..6 {
+                  (nq9, nr9) = hex_neighbor(fq9, fr9, d9);
+                  if nq9 >= 0 && nq9 < w && nr9 >= 0 && nr9 < h {
+                    tj9 = nr9 * w + nq9;
+                    tw9 = 0;
+                    if tj9 < len(tk) { tw9 = tk[tj9] ?? 0; }
+                    if tw9 == K_LAKE + 1 || tw9 == K_RIVER + 1 || tw9 == K_SEA + 1 { wet9 = true; }
+                  }
+                }
+                if wet9 {
+                  df9 = hex_distance(fq9, fr9, hx5, hy5);
+                  if df9 < bfs { bfs = df9; fsq = fq9; fsr = fr9; }
+                }
+              }
+            }
+          }
+          if fsq >= 0 {
+            enemies += [mk_npc(4, "fisher", "fisher", "f", 150, 190, 210,
+                               hx5, hy5, hx5, hy5, fsq, fsr, fsq, fsr)];
+          }
+        } else {
+          // VILLAGERS: sleep home, take the square by day
+          enemies += [mk_npc(1, "villager", "villager", "p", 228, 205, 160,
+                             hx5, hy5, hx5, hy5, w / 2, h / 2, w / 2, h / 2)];
+        }
+      }
+      // GUARDS: the walls and the land — legs between lookout points
+      ngd = 1 + tsize;
+      for gd2 in 0..ngd {
+        ga1 = (gd2 as float) * 2.0943951;
+        ga2 = ga1 + 3.1415927;
+        grad = 15.0;
+        if tsize < 3 { grad = 10.0; }
+        g1q = w / 2 + round(grad * cos(ga1)) as integer;
+        g1r = h / 2 + round(grad * sin(ga1) * 0.866) as integer;
+        g2q = w / 2 + round(grad * cos(ga2)) as integer;
+        g2r = h / 2 + round(grad * sin(ga2) * 0.866) as integer;
+        enemies += [mk_npc(3, "guard", "town guard", "g", 175, 180, 210,
+                           w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
+      }
+      // BOATS: a small one on the lake, a bigger one at sea; both anchor at the
+      // pier (or hold their water) for the night's repairs
+      lkq = -1;
+      lkr = -1;
+      seq = -1;
+      ser = -1;
+      for br9 in 1..h - 1 {
+        for bq9 in 1..w - 1 {
+          tib = br9 * w + bq9;
+          tkb = 0;
+          if tib < len(tk) { tkb = tk[tib] ?? 0; }
+          if tkb == K_LAKE + 1 && lkq < 0 { lkq = bq9; lkr = br9; }
+          if tkb == K_SEA + 1 && seq < 0 { seq = bq9; ser = br9; }
+        }
+      }
+      if lkq >= 0 {
+        baq = lkq;
+        bar = lkr;
+        if pier_aq >= 0 && !pier_sea { baq = pier_aq; bar = pier_ar; }
+        enemies += [mk_npc(5, "boat", "fishing boat", "b", 170, 130, 80,
+                           lkq, lkr, baq, bar, lkq, lkr, lkq, lkr)];
+      }
+      if seq >= 0 {
+        saq = seq;
+        sar = ser;
+        if pier_aq >= 0 && pier_sea { saq = pier_aq; sar = pier_ar; }
+        enemies += [mk_npc(6, "ship", "trading ship", "S", 190, 170, 120,
+                           seq, ser, saq, sar, seq, ser, seq, ser)];
+      }
   }
 
   // Stairs: up at the player start, down at the farthest reachable floor hex.
@@ -2911,6 +3176,18 @@ pub fn sim_respawn(s: Sim) -> Sim {
 }
 
 pub fn sim_depth(s: Sim) -> integer { s.depth }
+pub fn sim_npc_count(s: Sim) -> integer {
+  n = 0;
+  for ni in 0..len(s.enemies) {
+    e = s.enemies[ni];
+    if e.alive && e.role != 0 { n = n + 1; }
+  }
+  n
+}
+pub fn sim_npc_role(s: Sim, i: integer) -> integer {
+  e = s.enemies[i] ?? s.enemies[0];
+  if e != null { e.role } else { 0 }
+}
 pub fn sim_save_depth(s: Sim) -> integer { s.save_depth }   // checkpoint depth (respawn target)
 pub fn sim_grave_gold(s: Sim) -> integer { s.grave_gold }   // gold staked on the grave (0 = none)
 pub fn sim_grave_depth(s: Sim) -> integer { s.grave_depth } // depth the grave is on

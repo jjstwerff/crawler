@@ -557,7 +557,22 @@ The loft port is LIVE in crawler:
   lattice for now; the 24-direction vocabulary + straightening (the parked DP
   straightener, CONVERGENCE) make them clean later.
 
-NEXT: multi-window travel (blocks/triangles beyond one window), town NPCs +
-shops (bundle content), nicer building interiors, true round rendering for
-tile-4 rings + light fences for tile-5, the lib-ward extraction of the
-contract layer into hex_terrain once it survives a second consumer.
+### 13b. The DAILY LOOP (user direction, implemented)
+The town LIVES: civilians are scheduled entities (the Enemy machinery with a
+ROLE — never aggressive, never punched; the player's bump slides past):
+- a day lasts DAY_LEN ticks (280 day / 120 night, `sim_phase`);
+- VILLAGERS sleep at home, take the village square by day;
+- FARMERS cycle home -> their nearest FIELD -> the food stalls on the square,
+  carrying the crops round and round;
+- GUARDS patrol day AND night between lookout legs (the wall ring's towers in
+  the big town) — safety on the walls and the land;
+- the FISHER walks to the water's edge and fishes the day away;
+- a small BOAT works the lake, a bigger SHIP the sea — water-only movement —
+  and both anchor for the night at THE HARBOR: a pier of planks over the
+  water (K_ROAD on water hexes = walkable dock) with a harbor hut, stamped at
+  the nearest shore; mooring there is the nightly repair;
+- determinism throughout: schedules derive from (ticks, role, hashed salts).
+NEXT: shops with real interiors + trade, NPC dialogue, crop items at the
+stalls, ship routes between coastal towns, multi-window travel, nicer
+buildings, true round rendering (tile 4) + light fences (tile 5), the
+lib-ward extraction of the contract layer into hex_terrain.
