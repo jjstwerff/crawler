@@ -720,16 +720,22 @@ both end-to-end):
 - **The watch's WANTED poster.** Notice boards (tile 8, walk-on to read) hang
   on the square: a bounty on the marauder chief that haunts the old ruins —
   the ruin-nest BOSS, trait-tagged (TAG_RUIN_BOSS), never named, living
-  windows away to the north-west. Kill it, walk back, the board pays 150.
+  windows away to the north-west. The board only POSTS the work: the bounty
+  is claimed in person from the GUARD MASTER (the senior of the existing
+  guards — quests speak through people already on the map, never spawned
+  givers).
 - **The Circle's line (the longer one begins).** Bumping a civilian TALKS now
-  (never strikes). The merchant cart points you at the Circle; two robed
-  mages on the square ask for a death in the northern sands — and will not
-  say why. With the naga fallen, a mage pays 250 and the WHY comes out: the
+  (never strikes). The merchant cart points you at the EXISTING tower wizard
+  — the lit round tower in the north-western crags (no spawned quest-giver;
+  the world's own people carry the lines). The wizard asks for a death in
+  the eastern sands — and will not say why. With the naga fallen, he pays
+  250 and the WHY comes out: the
   WRIT reveals the serpent nested on a MAGICAL POOL, and the pool is what
   the Circle wanted all along — its water is the seat of their mana brews.
   The throne stencil now carries that pool (Stencil.pool — shallow walkable
   water, tile 9, ringing the stair); an empty Circle phial fills on walk-in,
-  and every brimming phial delivered pays 60 and comes back empty: a
+  and every brimming phial delivered (at the tower) pays 60 and comes back
+  empty: a
   CONSTANT RESOURCE loop feeding the mana-potion economy, and the hook the
   longer quest line grows from.
 - Enabled on the way: the surface is a real stair destination again

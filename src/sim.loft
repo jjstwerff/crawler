@@ -2269,22 +2269,39 @@ pub fn sim_talk_to(s: &Sim, idx: integer) {
   if e.role == 7 {
     if s.q_mage == 0 {
       s.q_mage = 1;
-      sim_log(s, "The merchant leans down: 'The Circle's mages are paying for a");
-      sim_log(s, "sword-arm. Something north in the sands has them spooked.'");
+      sim_log(s, "The merchant leans down: 'The old one of the Circle - the round");
+      sim_log(s, "tower north-west, up in the crags - pays for a sword-arm.");
+      sim_log(s, "Something in the sands has him spooked.'");
     } else {
       sim_log(s, "'Fine wares, fair prices,' calls the merchant.");
     }
     return;
   }
-  if e.key == "mage" {
+  if e.key == "guard_master" {
+    if s.q_poster == 2 {
+      s.q_poster = 3;
+      sim_grant_gold(s, 150);
+      sim_log(s, "The guard master grips your wrist and counts the bounty into");
+      sim_log(s, "your palm: 150 gold. 'The roads breathe easier.'");
+    } else if s.q_poster == 1 {
+      sim_log(s, "'Bring me that brute's head and the gold is yours,' says the");
+      sim_log(s, "guard master.");
+    } else if s.q_poster == 3 {
+      sim_log(s, "'The roads thank you,' the guard master nods.");
+    } else {
+      sim_log(s, "'Work? Read the watch's board,' says the guard master.");
+    }
+    return;
+  }
+  if e.key == "wizard" {
     if s.boss_slain == 1 && s.q_mage < 3 {
       s.q_mage = 3;
       sim_grant_gold(s, 250);
       sim_give_item(s, "circle_writ");
       sim_give_item(s, "circle_phial");
-      sim_log(s, "'It is done? Then the Circle is in your debt - 250 gold, as promised.'");
-      sim_log(s, "'And now it can be told. Read the writ; take the phial. The POOL");
-      sim_log(s, "the serpent nested on is what we wanted all along.'");
+      sim_log(s, "The wizard's eyes glitter. 'Done? Then the Circle is in your");
+      sim_log(s, "debt - 250 gold, as promised. And now it can be told: read the");
+      sim_log(s, "writ. The POOL she nested on is what we wanted all along.'");
     } else if s.q_mage >= 3 {
       bslot = sim_find_item(s, "phial_brimming");
       if bslot >= 0 {
@@ -2294,19 +2311,20 @@ pub fn sim_talk_to(s: &Sim, idx: integer) {
         if eidx >= 0 && bslot < len(iv2) {
           iv2[bslot] = eidx;
           sim_grant_gold(s, 60);
-          sim_log(s, "The mage decants your phial with shaking care: 60 gold,");
+          sim_log(s, "The wizard decants your phial with shaking care: 60 gold,");
           sim_log(s, "and the empty glass back in your hand. 'Again, when you can.'");
         }
       } else {
-        sim_log(s, "'The stills run low. Pool-water, by the phial - the Circle pays.'");
+        sim_log(s, "'The stills run low,' the wizard mutters. 'Pool-water, by");
+        sim_log(s, "the phial - the Circle pays.'");
       }
     } else if s.q_mage < 2 {
       s.q_mage = 2;
-      sim_log(s, "The mage grips your arm: 'Kill the dweller in the sands north of");
-      sim_log(s, "here - below the desert gate, on the third deep. Do not ask why.");
-      sim_log(s, "The Circle pays well.'");
+      sim_log(s, "The wizard grips your arm: 'Kill the dweller in the sands far");
+      sim_log(s, "to the east - below the desert gate, on the third deep.");
+      sim_log(s, "Do not ask why. The Circle pays well.'");
     } else {
-      sim_log(s, "'The sands, sword-arm. North. The Circle waits.'");
+      sim_log(s, "'The sands, sword-arm. The Circle waits.'");
     }
     return;
   }
@@ -2322,12 +2340,9 @@ fn sim_quest_walkons(s: &Sim) {
   if t == 8 {
     if s.q_poster == 0 {
       s.q_poster = 1;
-      sim_log(s, "WANTED: the marauder chief that haunts the old ruins.");
-      sim_log(s, "The town watch pays 150 gold for its head.");
-    } else if s.q_poster == 2 {
-      s.q_poster = 3;
-      sim_grant_gold(s, 150);
-      sim_log(s, "The watch counts out your bounty: 150 gold.");
+      sim_log(s, "WANTED: the marauder chief that haunts the old ruins, north-west");
+      sim_log(s, "beyond the fields. 150 gold for its head - claim with the");
+      sim_log(s, "guard master.");
     }
   }
   if t == 9 {
@@ -3272,16 +3287,6 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                              hx5, hy5, hx5, hy5, w / 2, h / 2, w / 2, h / 2)];
         }
       }
-      // THE CIRCLE'S MAGES: two robed figures keeping to the square — they pay
-      // in gold for a certain death in the northern sands, and later for
-      // pool-water by the phial (the talk verb carries the line)
-      enemies += [mk_npc(1, "mage", "Circle mage", "h", 160, 130, 230,
-                         w / 2 + 2, h / 2 + 1, w / 2 + 2, h / 2 + 1,
-                         w / 2 + 1, h / 2 - 1, w / 2 + 1, h / 2 - 1)];
-      enemies += [mk_npc(1, "mage", "Circle mage", "h", 140, 110, 210,
-                         w / 2 - 3, h / 2 - 2, w / 2 - 3, h / 2 - 2,
-                         w / 2 - 1, h / 2 + 1, w / 2 - 1, h / 2 + 1)];
-
       // GUARDS: the walls and the land — legs between lookout points
       ngd = 1 + tsize;
       for gd2 in 0..ngd {
@@ -3293,8 +3298,15 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         g1r = h / 2 + round(grad * sin(ga1) * 0.866) as integer;
         g2q = w / 2 + round(grad * cos(ga2)) as integer;
         g2r = h / 2 + round(grad * sin(ga2) * 0.866) as integer;
-        enemies += [mk_npc(3, "guard", "town guard", "g", 175, 180, 210,
-                           w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
+        if gd2 == 0 {
+          // the SENIOR guard is the GUARD MASTER — the watch's bounties are
+          // claimed from him in person, not off the board
+          enemies += [mk_npc(3, "guard_master", "guard master", "g", 210, 190, 150,
+                             w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
+        } else {
+          enemies += [mk_npc(3, "guard", "town guard", "g", 175, 180, 210,
+                             w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
+        }
       }
       // BOATS: a small one on the lake, a bigger one at sea; both anchor at the
       // pier (or hold their water) for the night's repairs

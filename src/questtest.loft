@@ -115,29 +115,38 @@ fn main() {
     hunted = sim_quest_poster(rw) == 2;
   }
 
-  // 7) the claim: back at the board, the watch pays out
+  // 7) the claim: the bounty is paid IN PERSON by the guard master (an
+  //    existing town figure — the board only posts the work)
   t5.q_poster = 2;                                     // (the carry across windows is the travel lists')
+  gmi = -1;
+  for ei0 in 0..sim_enemy_count(t5) {
+    if gmi < 0 && sim_enemy_key(t5, ei0) == "guard_master" { gmi = ei0; }
+  }
   gold0 = sim_gold(t5);
-  sim_teleport(t5, bq, br);
-  sim_step(t5, 0, 0, 0.016);
-  paid = sim_quest_poster(t5) == 3 && sim_gold(t5) == gold0 + 150;
+  sim_talk_to(t5, gmi);
+  paid = gmi >= 0 && sim_quest_poster(t5) == 3 && sim_gold(t5) == gold0 + 150;
 
-  // 8) the Circle's line: the merchant points, a mage asks, the kill pays + REVEALS the pool
+  // 8) the Circle's line: the merchant points at the EXISTING tower wizard
+  //    (window -3,-2 — the lit tower, no spawned quest-giver); he asks, the
+  //    kill pays + REVEALS the pool
   mi = -1;
-  gi5 = -1;
   for ei in 0..sim_enemy_count(t5) {
     if mi < 0 && sim_enemy_glyph(t5, ei) == "M" { mi = ei; }
-    if gi5 < 0 && sim_enemy_key(t5, ei) == "mage" { gi5 = ei; }
   }
   sim_talk_to(t5, mi);
   pointed = sim_quest_mage(t5) == 1;
-  sim_talk_to(t5, gi5);
-  asked = sim_quest_mage(t5) == 2;
-  t5.boss_slain = 1;                                   // the desert dweller has fallen (section 3 is the kill)
-  goldb = sim_gold(t5);
-  sim_talk_to(t5, gi5);
-  rewarded = sim_quest_mage(t5) == 3 && sim_gold(t5) == goldb + 250
-          && sim_find_item(t5, "circle_writ") >= 0 && sim_find_item(t5, "circle_phial") >= 0;
+  ww = sim_new_gen_s(777, 0, 0, 0, -3, -2);
+  gi5 = -1;
+  for ei2 in 0..sim_enemy_count(ww) {
+    if gi5 < 0 && sim_enemy_key(ww, ei2) == "wizard" { gi5 = ei2; }
+  }
+  sim_talk_to(ww, gi5);
+  asked = gi5 >= 0 && sim_quest_mage(ww) == 2;
+  ww.boss_slain = 1;                                   // the desert dweller has fallen (section 3 is the kill)
+  goldb = sim_gold(ww);
+  sim_talk_to(ww, gi5);
+  rewarded = sim_quest_mage(ww) == 3 && sim_gold(ww) == goldb + 250
+          && sim_find_item(ww, "circle_writ") >= 0 && sim_find_item(ww, "circle_phial") >= 0;
 
   // 9) the POOL: the throne ring is shallow magical water; standing in it fills the phial
   d3p = sim_new_gen(777, 3);
@@ -157,11 +166,12 @@ fn main() {
     filled = sim_find_item(d3p, "phial_brimming") >= 0 && sim_find_item(d3p, "circle_phial") < 0;
   }
 
-  // 10) the DELIVERY: a brimming phial pays 60 and comes back empty — the constant resource
-  sim_give_item(t5, "phial_brimming");
-  goldc = sim_gold(t5);
-  sim_talk_to(t5, gi5);
-  delivered = sim_gold(t5) == goldc + 60 && sim_find_item(t5, "phial_brimming") < 0;
+  // 10) the DELIVERY: a brimming phial pays 60 at the tower and comes back
+  //     empty — the constant resource
+  sim_give_item(ww, "phial_brimming");
+  goldc = sim_gold(ww);
+  sim_talk_to(ww, gi5);
+  delivered = sim_gold(ww) == goldc + 60 && sim_find_item(ww, "phial_brimming") < 0;
 
   // 11) the way OUT: the surface is a real stair destination again (rewards get claimed)
   d1c = sim_new_gen(777, 1);
