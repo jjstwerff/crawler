@@ -6,6 +6,7 @@
 // not the bake formula re-run. Headless, deterministic.
 use sim;
 use worldmesh;
+use wallgeo;
 use hex_grid;
 use overland;
 
@@ -71,7 +72,28 @@ fn main() {
   }
   println("sand-exact={sand_ok} impassable-wall-tone={face_dark}");
 
-  if count_ok && floor_ok && wall_ok && sand_ok && face_dark {
+  // ── R5 wall-stroke quads (P3): exact corners + capsule locals + the midpoint
+  //    hex's vis texel. One synthetic segment through the player hex center —
+  //    expected values hand-computed (e = halfw+aa = 0.09 + 1/26 = 0.1284615…).
+  (pq, pr) = sim_player_hex(d);
+  (cx, cy) = hex_to_px(pq, pr);
+  wsegs: vector<WallSeg> = [WallSeg { ax: cx - 1.0, ay: cy, bx: cx + 1.0, by: cy }];
+  wbuf = build_wall_mesh(d, wsegs);
+  e = 0.1284615384615;
+  six_verts = len(wbuf) == 60;
+  c0 = near((wbuf[0] ?? 0.0) as float, cx - 1.0 - e) && near((wbuf[1] ?? 0.0) as float, cy - e);
+  c2 = near((wbuf[20] ?? 0.0) as float, cx + 1.0 + e) && near((wbuf[21] ?? 0.0) as float, cy + e);
+  locals_ok = near((wbuf[3] ?? 0.0) as float, 0.0 - e)     // u0 = -e
+           && near((wbuf[4] ?? 0.0) as float, 0.0 - e)     // v  = -e
+           && near((wbuf[5] ?? 0.0) as float, 2.0)         // len
+           && near((wbuf[8] ?? 0.0) as float, 0.09)        // halfw
+           && near((wbuf[9] ?? 0.0) as float, 0.0384615);  // aa
+  evu = ((pq - d.qmin) as float + 0.5) / (d.lw as float) ?? 0.0;
+  vis_ok = near((wbuf[6] ?? 0.0) as float, evu);
+  wallmesh_ok = six_verts && c0 && c2 && locals_ok && vis_ok;
+  println("wallmesh: verts={six_verts} corners={c0}/{c2} locals={locals_ok} visuv={vis_ok}");
+
+  if count_ok && floor_ok && wall_ok && sand_ok && face_dark && wallmesh_ok {
     println("=== MESH OK ===");
   } else {
     println("=== MESH FAILED ===");

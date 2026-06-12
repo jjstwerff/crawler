@@ -75,6 +75,9 @@ fn main() {
   last_known = sim_known_count(s);    // watch identifications to re-bake the quick-slot names (flavour → real)
   wprog = make_world_shader();   // GPU terrain shader (global, built once)
   wvao = build_world_vbo(s);     // GPU terrain VBO (rebuilt on each level change)
+  wallprog = make_wall_shader(); // R5 wall-stroke shader (global, built once)
+  wallvao = build_walls_vbo(s, walls);   // wall-stroke VBO (rebuilt with the level)
+  walln = len(walls) * 6;
   last = ticks();
   w_was = false;            // edge-trigger for the wait key
   g_was = false;            // edge-trigger for the grab key
@@ -245,6 +248,9 @@ fn main() {
         hud = build_hud(s);
         graphics::gl_delete_vao(wvao);
         wvao = build_world_vbo(s);
+        graphics::gl_delete_vao(wallvao);
+        wallvao = build_walls_vbo(s, walls);
+        walln = len(walls) * 6;
         (sq, sr) = sim_player_hex(s);   // re-arm on the respawn stair
       } else {
         // Walk onto a stair to change level. Edge-trigger: fire only when ENTERING
@@ -259,6 +265,9 @@ fn main() {
             hud = build_hud(s);
             graphics::gl_delete_vao(wvao);
             wvao = build_world_vbo(s);
+            graphics::gl_delete_vao(wallvao);
+            wallvao = build_walls_vbo(s, walls);
+            walln = len(walls) * 6;
             (sq, sr) = sim_player_hex(s);     // arm on the arrival stair
           } else if stt == 3 && sim_depth(s) > 1 {   // '<' up (no overworld above depth 1 yet)
             s = sim_descend(s, -1);
@@ -266,6 +275,9 @@ fn main() {
             hud = build_hud(s);
             graphics::gl_delete_vao(wvao);
             wvao = build_world_vbo(s);
+            graphics::gl_delete_vao(wallvao);
+            wallvao = build_walls_vbo(s, walls);
+            walln = len(walls) * 6;
             (sq, sr) = sim_player_hex(s);
           } else if sim_depth(s) == 0 && sim_edge_exit(s) != 0 {
             // the wilderness continues: walking off the window edge crosses over
@@ -274,6 +286,9 @@ fn main() {
             hud = build_hud(s);
             graphics::gl_delete_vao(wvao);
             wvao = build_world_vbo(s);
+            graphics::gl_delete_vao(wallvao);
+            wallvao = build_walls_vbo(s, walls);
+            walln = len(walls) * 6;
             (sq, sr) = sim_player_hex(s);
           } else {
             sq = cq;
@@ -319,7 +334,7 @@ fn main() {
           hud.itex = hud_rebuild_items(hud, s);
           last_known = kn;
         }
-        view_draw(painter, s, walls, hud, wprog, wvao);
+        view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln);
         draw_msglog(painter, s, hud, ml);
         if page_open { draw_charpage(painter, s, hud, pg); }
         else if inv_open { draw_invpage(painter, s, hud, pg_inv, inv_cursor); }

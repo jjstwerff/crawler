@@ -18,6 +18,65 @@
 use sim;
 use hex_grid;
 use overland;
+use wallgeo;
+
+// R5 wall strokes — capsule-SDF quads (PLAN-RENDER P3; blueprint:
+// tools/blueprints/wall_sdf.py — interior pure, ~1px AA ramp, joins continuous
+// with zero gap pixels; the fringe over-blend at joins is a conscious, bounded
+// one-sided artifact, see the blueprint's 3b note).
+WALL_HALFW = 0.09;             // stroke half-width, world units (~4.7px at SCALE 26)
+WALL_AA    = 0.0384615384615;  // AA ramp = 1 screen px at SCALE 26, in world units
+
+// One expanded quad (6 verts) per wall segment, stride 10, self-describing:
+//   loc0 = (x, y, 0)                 world position
+//   loc1 = (u, v, len)               capsule-local coords + segment length
+//   loc2 = (visU, visV, halfw, aa)   FOV texel of the MIDPOINT hex + SDF params
+// The fragment shader computes d = |(clamp(u,0,len)-u, v)| and the linear
+// coverage ramp — exactly the blueprint's formula.
+pub fn build_wall_mesh(s: Sim, walls: vector<WallSeg>) -> vector<single> {
+  buf: vector<single> = [];
+  zz = 0.0 as single;
+  lwf = s.lw as float;
+  lhf = s.lh as float;
+  e = WALL_HALFW + WALL_AA;     // expand past the AA ramp so the quad never clips it
+  for i in 0..len(walls) {
+    sg = walls[i];
+    if sg != null {
+      dx = sg.bx - sg.ax;
+      dy = sg.by - sg.ay;
+      ln = sqrt(dx * dx + dy * dy);
+      if ln > 0.000001 {
+        ux = dx / ln ?? 0.0;
+        uy = dy / ln ?? 0.0;
+        nx = 0.0 - uy;
+        ny = ux;
+        // the FOV texel of the segment's midpoint hex (the old stipple's rule)
+        (mq, mr) = px_to_hex((sg.ax + sg.bx) / 2.0, (sg.ay + sg.by) / 2.0);
+        vu = (((mq - s.qmin) as float + 0.5) / lwf) as single;
+        vv = (((mr - s.rmin) as float + 0.5) / lhf) as single;
+        hw = WALL_HALFW as single;
+        aa = WALL_AA as single;
+        lns = ln as single;
+        u0 = (0.0 - e) as single;
+        u1 = (ln + e) as single;
+        vneg = (0.0 - e) as single;
+        vpos = e as single;
+        // the four expanded corners in world space
+        x00 = (sg.ax - ux * e - nx * e) as single; y00 = (sg.ay - uy * e - ny * e) as single;
+        x01 = (sg.ax - ux * e + nx * e) as single; y01 = (sg.ay - uy * e + ny * e) as single;
+        x10 = (sg.bx + ux * e - nx * e) as single; y10 = (sg.by + uy * e - ny * e) as single;
+        x11 = (sg.bx + ux * e + nx * e) as single; y11 = (sg.by + uy * e + ny * e) as single;
+        buf += [x00, y00, zz, u0, vneg, lns, vu, vv, hw, aa];
+        buf += [x10, y10, zz, u1, vneg, lns, vu, vv, hw, aa];
+        buf += [x11, y11, zz, u1, vpos, lns, vu, vv, hw, aa];
+        buf += [x00, y00, zz, u0, vneg, lns, vu, vv, hw, aa];
+        buf += [x11, y11, zz, u1, vpos, lns, vu, vv, hw, aa];
+        buf += [x01, y01, zz, u0, vpos, lns, vu, vv, hw, aa];
+      }
+    }
+  }
+  buf
+}
 
 // The terrain-kind wash colors (the contract wilderness; light-floor doctrine).
 fn kind_tint(k: integer) -> (float, float, float, float) {

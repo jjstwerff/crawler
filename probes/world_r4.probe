@@ -13,5 +13,5 @@ image /tmp/probe_world.png
 
 probe vis_grass 400 420 165 175 114 tol 4
 probe rem_grass 106 360 74 79 51 tol 4
-probe road 107 590 173 156 121 tol 4
+probe road 20 592 173 156 121 tol 4
 probe wall_untinted 246 20 38 36 33 tol 4

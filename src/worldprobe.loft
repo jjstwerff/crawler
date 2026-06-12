@@ -7,6 +7,7 @@
 use graphics;
 use sim;
 use view;
+use wallgeo;
 use hex_grid;
 
 fn main() {
@@ -15,23 +16,43 @@ fn main() {
     return;
   }
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  graphics::gl_enable(graphics::GL_BLEND);   // the R5 strokes carry coverage alpha
+  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
 
   s = sim_new_gen(1337, 0);   // the surface: grass + road + stone faces
   sim_compute_fov(s);
+  walls = build_walls(s);
   // The surface is daylight-visible, so REMEMBERED never occurs naturally here.
-  // Manufacture it deterministically: a 3x3 block six hexes west of the player
-  // keeps seen but loses vis -> the shader's dim path (0.451) gets asserted.
+  // Manufacture it deterministically (seen kept, vis cleared) in TWO 3x3 blocks:
+  // one six hexes west of the player (remembered GRASS) and one centred on the
+  // nearest wall segment's midpoint hex (a remembered STROKE) — both legs of the
+  // shader's x0.451 dim path get asserted.
   (pq, pr) = sim_player_hex(s);
+  best = 0;
+  bestd = 999999.0;
+  for wi in 0..len(walls) {
+    sg = walls[wi];
+    if sg != null {
+      mx = (sg.ax + sg.bx) / 2.0;
+      my = (sg.ay + sg.by) / 2.0;
+      dd = (mx - s.px) * (mx - s.px) + (my - s.py) * (my - s.py);
+      if dd < bestd { bestd = dd; best = wi; }
+    }
+  }
+  bsg = walls[best];
+  (wq, wr) = px_to_hex((bsg.ax + bsg.bx) / 2.0, (bsg.ay + bsg.by) / 2.0);
   for dq in 0..3 {
     for dr in 0..3 {
-      mq = pq - 7 + dq;
-      mr = pr - 1 + dr;
-      mi = (mr - s.rmin) * s.lw + (mq - s.qmin);
-      if mi >= 0 && mi < len(s.vis) {
-        vv = s.vis;
-        vv[mi] = 0;
-        sv = s.seen;
-        sv[mi] = 1;
+      for blk in 0..2 {
+        mq = if blk == 0 { pq - 7 + dq } else { wq - 1 + dq };
+        mr = if blk == 0 { pr - 1 + dr } else { wr - 1 + dr };
+        mi = (mr - s.rmin) * s.lw + (mq - s.qmin);
+        if mi >= 0 && mi < len(s.vis) {
+          vv = s.vis;
+          vv[mi] = 0;
+          sv = s.seen;
+          sv[mi] = 1;
+        }
       }
     }
   }
@@ -48,6 +69,15 @@ fn main() {
   graphics::gl_bind_texture(vistex, 0);
   graphics::gl_set_uniform_int(wprog, "uVis", 0);
   graphics::gl_draw(wvao, 18 * s.lw * s.lh);
+  // R5 wall strokes over the terrain (same camera + vis texture).
+  wallprog = make_wall_shader();
+  wallvao = build_walls_vbo(s, walls);
+  graphics::gl_use_shader(wallprog);
+  graphics::gl_set_uniform_mat4(wallprog, "uMVP", mat);
+  graphics::gl_bind_texture(vistex, 0);
+  graphics::gl_set_uniform_int(wallprog, "uVis", 0);
+  graphics::gl_set_uniform_vec3(wallprog, "uColor", 0.92, 0.82, 0.45);
+  graphics::gl_draw(wallvao, len(walls) * 6);
   ok = graphics::gl_screenshot(800, 600, "/tmp/probe_world.png");
   println("worldprobe: shot={ok} heading={s.heading} player=({s.px},{s.py})");
   graphics::gl_destroy_window();

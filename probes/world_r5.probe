@@ -1,0 +1,14 @@
+# world_r5.probe — P3/R5 (PLAN-RENDER): capsule-SDF wall strokes through the real
+# pipeline (worldmesh::build_wall_mesh → view's wall shader), same scene as
+# world_r4 (src/worldprobe.loft, seed 1337 surface). Expected values are the
+# BLUEPRINT's numbers (tools/blueprints/wall_sdf.py) confirmed live 2026-06-12:
+#   stroke interior = uColor (0.92,0.82,0.45) -> (235,209,115) at vis 1.0
+#   remembered stroke = x0.451 (the manufactured block on the nearest wall) -> (106,94,52)
+#   cross-stroke ramp: solid interior -> ~1px AA -> background, monotonic
+# Deterministic scene: pinned pixels are stable for THIS worldprobe code.
+
+image /tmp/probe_world.png
+
+probe stroke_interior 271 15 235 209 115 tol 4
+probe rem_stroke 396 597 106 94 52 tol 4
+ramp stroke_edge 271 16 271 22 dec samples 7 tol 2

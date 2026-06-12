@@ -99,15 +99,20 @@ P1 idle skip → R4→R6 → lib flow-back → R7/R8 → frame-stats → R9).
   floor and tint (probed at exactly ×0.451). Verified: meshtest (headless exact
   colors vs hardcoded oracles) + worldprobe/world_r4.probe (grass/remembered/road/
   untinted-wall, all dmax=0 through the real pipeline).
-- **R5 — SDF wall strokes.** Replace `draw_segment`'s 13-squares stipple: each
-  `wallgeo` segment becomes one slightly-oversized world-space quad; the fragment
-  shader computes distance-to-segment (a **capsule SDF**) for solid strokes with round
-  joins/caps and **analytic anti-aliasing at any zoom — no MSAA needed**. Bake each
-  segment's visUV into the normal slot exactly like the floor (FOV dimming moves to the
-  GPU, replacing the per-segment `sim_hex_state_at` CPU check); upload once per level
-  beside the floor VBO; the camera mat4 rotates it for free. This is also the moros
-  bridge made concrete: a 2D wall quad now is `emit_wall_quad` with z=0. The same SDF
-  shader covers discs and rings (light-radius indicator) later.
+- **R5 — SDF wall strokes. ✅ SHIPPED (P3, 2026-06-12).** Blueprint-first
+  (`tools/blueprints/wall_sdf.py` — the shader's exact coverage formula plotted in
+  Python: interior pure, ~1px AA ramps, joins continuous with ZERO gap pixels; the
+  per-segment fringe over-blend at joins was measured at 14/255 and consciously
+  re-pinned as a one-sided invariant — never below ideal coverage, overshoot ≤21
+  toward the wall color, the benign direction every NanoVG-class stroke renderer
+  shares). `worldmesh::build_wall_mesh` emits self-describing expanded quads
+  (loc1 = capsule-local u/v/len, loc2 = visUV/halfw/aa — no per-wall uniforms);
+  the view's capsule shader draws ALL segments in one call with the floor's camera
+  + vis texture (remembered strokes dim at exactly ×0.451, probed). The
+  13-squares-per-segment stipple and `draw_segment` are DELETED, and the
+  per-segment `sim_hex_state_at` CPU check moved to the GPU. Verified: meshtest
+  (exact corners/locals/visUV) + world_r5.probe (interior dmax=0, remembered
+  stroke, monotonic edge ramp).
 - **R6 — Post-fx chain.** Framebuffer + `gl_draw_fullscreen_quad`: the **directed
   light-cone falloff** (soft forward-biased gradient replacing the hard per-hex fog
   edge — see "Directed light" above) + vignette. The kernel FOV set stays authoritative;

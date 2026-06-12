@@ -369,21 +369,6 @@ fn draw_number(painter: graphics::Painter2D, hud: Hud, value: integer, x: float,
   }
 }
 
-// Draw a line segment as a stipple of small squares (the painter only does
-// axis-aligned quads). Each dot is placed at its own rotated screen position,
-// so the segment rotates correctly with the world.
-fn draw_segment(painter: graphics::Painter2D, x1: float, y1: float, x2: float, y2: float,
-                cr: float, cg: float, cb: float) {
-  segn = 12;
-  for sg in 0..=segn {
-    sgt = sg as float / segn as float ?? 0.0;
-    sgx = x1 + (x2 - x1) * sgt;
-    sgy = y1 + (y2 - y1) * sgt;
-    sgs = 5.0;
-    graphics::draw_rect_at(painter, sgx - sgs / 2.0, sgy - sgs / 2.0, sgs, sgs, cr, cg, cb, 1.0);
-  }
-}
-
 // Draw `tex` centred at (cx,cy), size (w,h), rotated by `theta` (screen radians,
 // y-down). Like graphics::draw_texture_at but with a rotated + scaled MVP built from
 // the painter's projection — the moros placement primitive (12/24-dir rotation +
@@ -446,6 +431,52 @@ void main() {{
 // Compile the world-terrain shader once (global; pass the program to view_draw).
 pub fn make_world_shader() -> integer {
   graphics::gl_create_shader(WVERT, WFRAG)
+}
+
+// ── R5 wall strokes: capsule-SDF quads (geometry: worldmesh::build_wall_mesh;
+//    construction pinned by tools/blueprints/wall_sdf.py) ──
+
+WALLVERT = `
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aLocal;   // (u, v, len) capsule-local
+layout (location = 2) in vec4 aMeta;    // (visU, visV, halfw, aa)
+uniform mat4 uMVP;
+out vec3 vLocal;
+out vec4 vMeta;
+void main() {{
+  vLocal = aLocal;
+  vMeta = aMeta;
+  gl_Position = uMVP * vec4(aPos.xy, 0.0, 1.0);
+}}
+`;
+
+WALLFRAG = `
+#version 330 core
+in vec3 vLocal;
+in vec4 vMeta;
+out vec4 FragColor;
+uniform sampler2D uVis;
+uniform vec3 uColor;
+void main() {{
+  float vis = texture(uVis, vMeta.xy).r;
+  if (vis < 0.02) discard;
+  float u = vLocal.x;
+  float d = length(vec2(clamp(u, 0.0, vLocal.z) - u, vLocal.y));
+  float cov = clamp((vMeta.z - d) / vMeta.w + 0.5, 0.0, 1.0);
+  if (cov <= 0.0) discard;
+  FragColor = vec4(uColor * vis, cov);
+}}
+`;
+
+pub fn make_wall_shader() -> integer {
+  graphics::gl_create_shader(WALLVERT, WALLFRAG)
+}
+
+// Upload the per-level wall-stroke VBO (rebuild with the level, beside the floor
+// VBO). Vertex count is deterministic: 6 per segment.
+pub fn build_walls_vbo(s: Sim, walls: vector<WallSeg>) -> integer {
+  graphics::gl_upload_vertices(build_wall_mesh(s, walls), 10)
 }
 
 // World→clip mat4 (column-major), folding world_to_screen + the px→NDC map.
@@ -608,7 +639,8 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   }
 }
 
-pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, hud: Hud, wprog: integer, wvao: integer) {
+pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer, wvao: integer,
+                 wallprog: integer, wallvao: integer, walln: integer) {
   graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
   cell = SCALE * 1.35;
 
@@ -621,6 +653,19 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   graphics::gl_bind_texture(vistex, 0);
   graphics::gl_set_uniform_int(wprog, "uVis", 0);
   graphics::gl_draw(wvao, 18 * s.lw * s.lh);
+
+  // R5 wall strokes: ONE draw of the per-level capsule-SDF quads — solid lines
+  // with round joins and analytic AA (was: 13 stipple squares per segment per
+  // frame). Same camera, same vis texture (remembered walls dim at x0.451,
+  // unseen discard).
+  if walln > 0 {
+    graphics::gl_use_shader(wallprog);
+    graphics::gl_set_uniform_mat4(wallprog, "uMVP", mat);
+    graphics::gl_bind_texture(vistex, 0);
+    graphics::gl_set_uniform_int(wallprog, "uVis", 0);
+    graphics::gl_set_uniform_vec3(wallprog, "uColor", 0.92, 0.82, 0.45);
+    graphics::gl_draw(wallvao, walln);
+  }
   graphics::gl_delete_texture(vistex);
 
   // Terrain-kind tints are BAKED into the floor VBO's vertex colors (worldmesh,
@@ -662,20 +707,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
     }
   }
 
-  // Smoothed wall outline (silhouette of solid regions + edge walls, built
-  // once in main by wallgeo::build_walls and straightened from the wobble).
-  for wsi in 0..len(walls) {
-    if wsi < len(walls) {
-      seg = walls[wsi];
-      wst = sim_hex_state_at(s, (seg.ax + seg.bx) / 2.0, (seg.ay + seg.by) / 2.0);
-      if wst != 0 {
-        wd = if wst == 2 { 1.0 } else { 0.45 };   // remembered walls dimmed; unseen skipped
-        (s1x, s1y) = world_to_screen(s, seg.ax, seg.ay);
-        (s2x, s2y) = world_to_screen(s, seg.bx, seg.by);
-        draw_segment(painter, s1x, s1y, s2x, s2y, 0.92 * wd, 0.82 * wd, 0.45 * wd);
-      }
-    }
-  }
+  // (The wall outline draws as the R5 SDF stroke VBO above, with the terrain.)
 
   // Floor loot — gold piles ('$') and dropped items (category glyph), under the
   // tokens. Drawn only with a font (no square fallback — loot is glyph-only).
