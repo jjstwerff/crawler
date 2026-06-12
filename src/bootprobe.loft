@@ -1,10 +1,22 @@
+// bootprobe — time the boot phases on either tier (PLAN-KERNEL § Start-time
+// budget). Interpreted today: parse 522ms / genesis ~4.8s / meshes ~0.8s.
+// THE standing measurement for when loft#354 clears the native tier:
+//   loft --interpret <libs> src/bootprobe.loft     (the interpreted floor)
+//   loft <libs> src/bootprobe.loft                 (native — the real ratio)
+// (Compiling AT ALL on the native tier is also the loft#354 verification.)
 use sim;
 use gameflow;
 use wallgeo;
 use worldmesh;
+
 fn main() {
+  t0 = ticks();
   s = flow_genesis(1337, 0);
+  t1 = ticks();
   walls = build_walls(s);
+  t2 = ticks();
   m = build_world_mesh(s);
-  println("ok {len(m)}");
+  wm = build_wall_mesh(s, walls);
+  t3 = ticks();
+  println("bootprobe: genesis={(t1-t0)/1000}ms walls={(t2-t1)/1000}ms meshes={(t3-t2)/1000}ms floats={len(m)+len(wm)}");
 }
