@@ -100,6 +100,22 @@ struct GameWorld {
   frames_drawn: integer not null,
 }
 
+// Boot pump (PLAN-KERNEL § Boot responsiveness, fix 2): the interpreted boot
+// takes seconds AFTER the window exists — without event pumping the compositor
+// flags a frozen window and polled input has nowhere to land. Between boot
+// phases: feed the WM, draw a font-free progress bar (the font itself loads in
+// phase 3), swap. Boot LATENCY stays (inherent); UNRESPONSIVENESS goes.
+fn boot_pump(painter: graphics::Painter2D, step: integer, total: integer) {
+  _alive = graphics::gl_poll_events();
+  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
+  frac = (step as float) / (total as float) ?? 0.0;
+  graphics::draw_rect_at(painter, 250.0, 290.0, 300.0, 20.0, 0.10, 0.10, 0.22, 1.0);
+  if frac > 0.0 {
+    graphics::draw_rect_at(painter, 250.0, 290.0, 300.0 * frac, 20.0, 0.45, 0.45, 0.85, 1.0);
+  }
+  graphics::gl_swap_buffers();
+}
+
 // K2: apply-and-broadcast — every Sim mutation is an INTENT, logged (for late
 // joiners) and broadcast (for live observers); the host's world and every
 // replica stay scene_key-identical (replaytest pins the invariant).
@@ -351,12 +367,16 @@ fn main() {
     _del = delete(nf);
   }
   println("story: world seed={seed}");
+  boot_pump(painter, 0, 4);
   // QUICK-START genesis (shared with observers + replaytest via gameflow): a
   // ready-made HUMAN WARRIOR with its class kit — no creation screen in the way.
   // The crystal re-specs race/class later; the kit is a new-game grant only.
   s = flow_genesis(seed, GEN_DEPTH);
+  boot_pump(painter, 1, 4);
   walls = build_walls(s);   // smoothed wall outline, built once (static per level)
+  boot_pump(painter, 2, 4);
   hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
+  boot_pump(painter, 3, 4);
   ml = build_msglog(s, hud.font);     // baked message-log lines (rebaked only when a message arrives)
   last_total = sim_msg_total(s);      // watch this to know when to rebake
   last_known = sim_known_count(s);    // watch identifications to re-bake the quick-slot names (flavour → real)
@@ -365,6 +385,7 @@ fn main() {
   wallprog = make_wall_shader(); // R5 wall-stroke shader (global, built once)
   postprog = make_post_shader(); // R6 light-cone + vignette pass (built once)
   (postfbo, posttex) = make_post_target();
+  boot_pump(painter, 4, 4);
   wallvao = build_walls_vbo(s, walls);   // wall-stroke VBO (rebuilt with the level)
   walln = len(walls) * 6;
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
