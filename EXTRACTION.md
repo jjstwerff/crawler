@@ -331,6 +331,21 @@ testability, publication):
       literals in big fns); E0514 note in the README (interpreter fallback until the
       toolchain refresh).
 
+### 7. The game-starter template — executable "how to build a game" docs
+
+Decision (2026-06-12): the setup guide for OTHERS lives org-side as a runnable
+template repo (**loft-lang/game-starter**), not as prose in crawler or the loft
+internals. A minimal clone-and-run game — window on the kernel loop
+(`run_local`), one character bundle + the scanner, one sprite, one world routine,
+the test-gate + probe-harness patterns in miniature — with the guide as its
+README. It is ALSO the §6 ladder's required second consumer (L4/L7): one
+artifact, two jobs. Rules: the starter references only PUBLISHED packages
+(never crawler source — crawler is the linked advanced example once public);
+per-library contracts stay in package READMEs (the DoD), the guide links them;
+each extraction rung adds its starter section, so the guide grows exactly at
+the rate the platform supports outsiders. Gated on the first publications
+(graphics 0.2.0 / engine_host / canvas 0.1.0).
+
 ## Tier 2 — one decoupling each, then they join `hexgrid`
 
 - [ ] **`wallgeo`** (hex-region → smoothed wall outlines): replace its `use sim` with
