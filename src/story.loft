@@ -16,7 +16,8 @@ use view;
 use itemfx;
 use bundles;   // bundle_activate — the quick-start class kit (generated registry)
 use framekey;    // scene_key — the idle skip (redraw only when the frame would differ)
-use engine_host; // run_local — the games kernel owns the loop (PLAN-KERNEL K1)
+use engine_host; // run — the games kernel owns the loop; crawler is the HOST (K1/K2)
+use gameflow;    // the deterministic intent seam: apply + broadcast (K2)
 
 WIN_W   = 800;
 WIN_H   = 600;
@@ -35,6 +36,8 @@ KEY_Q   = 113;      // 'q' — quick-slot active Q (fire the launcher)
 KEY_E   = 101;      // 'e' — quick-slot active E (spell — later)
 KEY_ENTER = 13;     // Enter — equip the selected item in the inventory hub
 
+STORY_PORT = 18099;  // K2: the game LISTENS — observers connect with src/observe.loft
+
 TICK_US  = 16666;     // the kernel's drift-free tick grid (~60 Hz; one tick = one frame).
                       // Changing the rate is ONE constant: FIXED_DT derives from it, so the
                       // sim's per-tick quantum always equals the grid period (determinism +
@@ -44,16 +47,6 @@ FIXED_DT = (TICK_US as float) / 1000000.0;  // sim time per tick — fixed quant
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
 GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
                     // walk onto the entrance to descend into the dungeon (depth 1: rats/bats/…)
-
-// Stat name for the character page's 1-6 keys (index 0..5 -> STR..CHR).
-fn stat_name(i: integer) -> text {
-  if i == 0 { return "str"; }
-  if i == 1 { return "int"; }
-  if i == 2 { return "wis"; }
-  if i == 3 { return "dex"; }
-  if i == 4 { return "con"; }
-  "chr"
-}
 
 // K1 (PLAN-KERNEL): the world the kernel's closures capture — ONE struct link
 // (the loft#314 struct-held-world pattern; closures stay arguments per #313).
@@ -97,9 +90,30 @@ struct GameWorld {
   crys_cur: integer not null,
   sq:      integer not null,           // stair-hex walk-onto tracker
   sr:      integer not null,
+  ilog:    vector<text> not null,      // K2: every intent emitted ("S/T/A" wire lines)
+                                       //   — late-joining observers replay the log
   last_key: integer not null,          // idle skip (P1)
   ticks_n: integer not null,
   frames_drawn: integer not null,
+}
+
+// K2: apply-and-broadcast — every Sim mutation is an INTENT, logged (for late
+// joiners) and broadcast (for live observers); the host's world and every
+// replica stay scene_key-identical (replaytest pins the invariant).
+fn emit(w: GameWorld, line: text) {
+  w.ilog += [line];
+  _n = engine_host::broadcast(line);
+}
+
+// K2: a connecting observer (kind 0) receives the full intent log — genesis,
+// then every action/movement since — and replays it onto a fresh replica; the
+// live broadcasts continue seamlessly after (one TCP stream keeps the order).
+fn host_event(w: GameWorld, ev: engine_host::Event) {
+  if ev.kind == 0 {
+    for i in 0..len(w.ilog) {
+      _ok = engine_host::send(ev.cid, w.ilog[i] ?? "");
+    }
+  }
 }
 
 // One kernel tick = one frame: poll the window, apply input, advance the sim by
@@ -108,7 +122,7 @@ struct GameWorld {
 fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
              wallprog: integer, postprog: integer, postfbo: integer, posttex: integer) {
   if !graphics::gl_poll_events() || graphics::gl_key_pressed(KEY_ESC) {
-    engine_host::client_stop();
+    engine_host::stop();
     return;
   }
 
@@ -149,8 +163,8 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     w.cdd_was = cdd;
     cent = graphics::gl_key_pressed(KEY_ENTER);
     if cent && !w.cent_was {
-      if w.crys_col == 0 { sim_shrine_apply(w.s, "race", sim_race_key(w.crys_cur)); }
-      else { sim_shrine_apply(w.s, "class", sim_class_key(w.crys_cur)); }
+      emit(w, "A 7 {w.crys_col} {w.crys_cur}");
+      _r7 = flow_action(w.s, 7, w.crys_col, w.crys_cur);
       w.crys_open = false;
     }
     w.cent_was = cent;
@@ -167,9 +181,11 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     sdn = sd >= 0;
     if sdn && !w.spend_was {
       if w.page_open && sd < 6 {
-        if sim_raise_stat(w.s, stat_name(sd)) { w.pg = build_charpage(w.s, w.hud.font); }
+        emit(w, "A 4 {sd} 0");
+        if flow_action(w.s, 4, sd, 0) == 1 { w.pg = build_charpage(w.s, w.hud.font); }
       } else if w.inv_open {
-        sim_inv_bind(w.s, w.inv_cursor, sd);
+        emit(w, "A 5 {w.inv_cursor} {sd}");
+        _r5 = flow_action(w.s, 5, w.inv_cursor, sd);
         w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
       }
     }
@@ -185,15 +201,16 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
       w.id_was = dn_d;
       // Q / E bind the selected item to an active slot
       q_d = graphics::gl_key_pressed(KEY_Q);
-      if q_d && !w.iq_was { sim_inv_bind(w.s, w.inv_cursor, QS_Q); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      if q_d && !w.iq_was { emit(w, "A 5 {w.inv_cursor} {QS_Q}"); _rq = flow_action(w.s, 5, w.inv_cursor, QS_Q); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
       w.iq_was = q_d;
       e_d = graphics::gl_key_pressed(KEY_E);
-      if e_d && !w.ie_was { sim_inv_bind(w.s, w.inv_cursor, QS_E); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      if e_d && !w.ie_was { emit(w, "A 5 {w.inv_cursor} {QS_E}"); _re = flow_action(w.s, 5, w.inv_cursor, QS_E); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
       w.ie_was = e_d;
       // Enter equips the selected item to its worn location
       ent_d = graphics::gl_key_pressed(KEY_ENTER);
       if ent_d && !w.ient_was {
-        sim_equip(w.s, w.inv_cursor);
+        emit(w, "A 6 {w.inv_cursor} 0");
+        _r6 = flow_action(w.s, 6, w.inv_cursor, 0);
         if w.inv_cursor >= sim_inv_count(w.s) && w.inv_cursor > 0 { w.inv_cursor = sim_inv_count(w.s) - 1; }
         w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
       }
@@ -211,7 +228,7 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
   if graphics::gl_key_pressed(KEY_Q) { qslot = QS_Q; }
   if graphics::gl_key_pressed(KEY_E) { qslot = QS_E; }
   qdn = qslot >= 0;
-  if qdn && !w.qs_was { use_slot(w.s, qslot); }
+  if qdn && !w.qs_was { emit(w, "A 3 {qslot} 0"); _r3 = flow_action(w.s, 3, qslot, 0); }
   w.qs_was = qdn;
 
   fwd = 0;
@@ -223,67 +240,31 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
 
   // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
   w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
-  if w_down && !w.w_was { sim_wait(w.s); }
+  if w_down && !w.w_was { emit(w, "A 1 0 0"); _r1 = flow_action(w.s, 1, 0, 0); }
   w.w_was = w_down;
 
   // Grab: 'g' picks up items under the player (gold auto-collects on walk-over).
   g_down = graphics::gl_key_pressed(KEY_G);
-  if g_down && !w.g_was { sim_pickup(w.s); }
+  if g_down && !w.g_was { emit(w, "A 2 0 0"); _r2 = flow_action(w.s, 2, 0, 0); }
   w.g_was = g_down;
 
-  sim_step(w.s, fwd, turn, FIXED_DT);
-  if sim_over(w.s) {              // death is not permadeath: respawn at the last save point
-    w.s = sim_respawn(w.s);
-    w.walls = build_walls(w.s);
-    w.hud = build_hud(w.s);
-    graphics::gl_delete_vao(w.wvao);
-    w.wvao = build_world_vbo(w.s);
-    graphics::gl_delete_vao(w.wallvao);
-    w.wallvao = build_walls_vbo(w.s, w.walls);
-    w.walln = len(w.walls) * 6;
-    (w.sq, w.sr) = sim_player_hex(w.s);   // re-arm on the respawn stair
-  } else {
-    // Walk onto a stair to change level. Edge-trigger: fire only when ENTERING
-    // a new hex that is a stair, so arriving ON the destination stair doesn't
-    // bounce you straight back (you step off, then re-entering fires again).
-    (cq, cr) = sim_player_hex(w.s);
-    if cq != w.sq || cr != w.sr {
-      stt = sim_stair_under(w.s);
-      if stt == 2 || stt == 6 {           // '>' down (6 = a natural cave mouth)
-        w.s = sim_descend(w.s, 1);
-        w.walls = build_walls(w.s);
-        w.hud = build_hud(w.s);
-        graphics::gl_delete_vao(w.wvao);
-        w.wvao = build_world_vbo(w.s);
-        graphics::gl_delete_vao(w.wallvao);
-        w.wallvao = build_walls_vbo(w.s, w.walls);
-        w.walln = len(w.walls) * 6;
-        (w.sq, w.sr) = sim_player_hex(w.s);     // arm on the arrival stair
-      } else if stt == 3 && sim_depth(w.s) > 1 {   // '<' up (no overworld above depth 1 yet)
-        w.s = sim_descend(w.s, -1);
-        w.walls = build_walls(w.s);
-        w.hud = build_hud(w.s);
-        graphics::gl_delete_vao(w.wvao);
-        w.wvao = build_world_vbo(w.s);
-        graphics::gl_delete_vao(w.wallvao);
-        w.wallvao = build_walls_vbo(w.s, w.walls);
-        w.walln = len(w.walls) * 6;
-        (w.sq, w.sr) = sim_player_hex(w.s);
-      } else if sim_depth(w.s) == 0 && sim_edge_exit(w.s) != 0 {
-        // the wilderness continues: walking off the window edge crosses over
-        w.s = sim_travel(w.s);
-        w.walls = build_walls(w.s);
-        w.hud = build_hud(w.s);
-        graphics::gl_delete_vao(w.wvao);
-        w.wvao = build_world_vbo(w.s);
-        graphics::gl_delete_vao(w.wallvao);
-        w.wallvao = build_walls_vbo(w.s, w.walls);
-        w.walln = len(w.walls) * 6;
-        (w.sq, w.sr) = sim_player_hex(w.s);
-      } else {
-        w.sq = cq;
-        w.sr = cr;
-      }
+  if fwd != 0 || turn != 0 {
+    // the distance-driven clock: an idle tick mutates nothing, so only REAL
+    // movement intents hit the wire (an idle host = zero traffic)
+    emit(w, "T {fwd} {turn}");
+    (s2, nsq, nsr, chg) = flow_move(w.s, fwd, turn, FIXED_DT, w.sq, w.sr);
+    w.s = s2;
+    w.sq = nsq;
+    w.sr = nsr;
+    if chg == 1 {
+      // the level changed (respawn / stairs / travel): rebuild the visuals
+      w.walls = build_walls(w.s);
+      w.hud = build_hud(w.s);
+      graphics::gl_delete_vao(w.wvao);
+      w.wvao = build_world_vbo(w.s);
+      graphics::gl_delete_vao(w.wallvao);
+      w.wallvao = build_walls_vbo(w.s, w.walls);
+      w.walln = len(w.walls) * 6;
     }
   }
   }
@@ -345,12 +326,10 @@ fn main() {
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
   graphics::gl_enable(graphics::GL_BLEND);
   graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
-  s = sim_new_gen(GEN_SEED, GEN_DEPTH);   // procedural dungeon + DB monsters
-  // QUICK-START: every new game boots a ready-made HUMAN WARRIOR (race default + the classic first
-  // class) with its class kit — no creation screen in the way. Walking into the spawning crystal
-  // re-specs race/class (the crystal page); the kit is a new-game grant only.
-  sim_set_class(s, "warrior");
-  bundle_activate(s, "warrior");
+  // QUICK-START genesis (shared with observers + replaytest via gameflow): a
+  // ready-made HUMAN WARRIOR with its class kit — no creation screen in the way.
+  // The crystal re-specs race/class later; the kit is a new-game grant only.
+  s = flow_genesis(GEN_SEED, GEN_DEPTH);
   walls = build_walls(s);   // smoothed wall outline, built once (static per level)
   hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
   ml = build_msglog(s, hud.font);     // baked message-log lines (rebaked only when a message arrives)
@@ -373,17 +352,21 @@ fn main() {
     ient_was: false, cu_was: false, cd_was: false, ca_was: false, cdd_was: false,
     cent_was: false, ckq_was: false,
     page_open: false, inv_open: false, crys_open: false,
-    pg: [], pg_inv: [], pg_crys: [],
+    pg: [], pg_inv: [], pg_crys: [], ilog: [],
     inv_cursor: 0, crys_col: 0, crys_cur: 0, sq: sq, sr: sr,
     last_key: 0, ticks_n: 0, frames_drawn: 0,
   };
-  // K1: the games kernel owns the loop — drift-free ticks, idle backoff between
-  // them, the debug control endpoint, the swap machinery. game_tick is the frame;
-  // Esc / window close call client_stop() to leave. Switching this program to a
-  // networked client later changes ONE line (run_local -> run_client).
-  engine_host::run_local(TICK_US, fn(_ev: engine_host::Event) {}, fn() {
+  w.ilog += ["S {GEN_SEED} {GEN_DEPTH}"];   // genesis — an observer's first line
+  // K1/K2: the games kernel owns the loop — drift-free ticks, idle backoff,
+  // the debug endpoint, the swap machinery — and crawler is the HOST: run()
+  // listens on STORY_PORT; an observer (src/observe.loft) connecting gets the
+  // full intent log (host_event), then rides the live broadcasts. game_tick is
+  // the frame; Esc / window close call stop() to leave.
+  engine_host::run(STORY_PORT, TICK_US, fn(ev: engine_host::Event) {
+    host_event(w, ev);
+  }, fn() {
     game_tick(w, painter, wprog, wallprog, postprog, postfbo, posttex);
   });
-  println("idle-skip: drew {w.frames_drawn} frames over {w.ticks_n} ticks");
+  println("idle-skip: drew {w.frames_drawn} frames over {w.ticks_n} ticks; key={w.last_key} ilog={len(w.ilog)} clients={engine_host::clients()}");
   graphics::gl_destroy_window();
 }

@@ -1,0 +1,120 @@
+// gameflow — the deterministic intent seam (PLAN-KERNEL K2).
+//
+// One tick of world mutation, expressed as INTENTS that serialize: the host
+// applies an intent AND broadcasts its wire line; an observer parses the line
+// and applies the SAME intent to its replica Sim — bit-identical worlds (the
+// K1 fixed-quanta clock makes replay exact; replaytest pins it). Kernel-side:
+// no graphics — visual rebuilds ride the `changed` flag back to the caller.
+//
+// The wire format is one text line per intent, space-separated signed ints:
+//   "S <seed> <depth>"        world genesis (sent first, once)
+//   "T <fwd> <turn>"          one movement tick (emitted ONLY when fwd/turn
+//                             nonzero — the distance-driven clock means an
+//                             idle host generates zero traffic)
+//   "A <kind> <a1> <a2>"      an action: 1 wait · 2 grab · 3 use-slot(a1) ·
+//                             4 raise-stat(a1) · 5 inv-bind(a1,a2) ·
+//                             6 equip(a1) · 7 shrine-apply(col a1, idx a2)
+
+use sim;
+use itemfx;
+use bundles;   // bundle_activate — genesis grants the class kit
+
+// Genesis — the ONE world-boot used by the host, every observer replica, and
+// the replay test: gen + class + the class KIT. Shared so a replica can never
+// drift from the host by missing a boot step (the kit was exactly such a bug).
+pub fn flow_genesis(seed: integer, depth: integer) -> Sim {
+  s = sim_new_gen(seed, depth);
+  sim_set_class(s, "warrior");
+  bundle_activate(s, "warrior");
+  s
+}
+
+// Stat name for raise-stat intents (index 0..5 -> STR..CHR).
+pub fn stat_name(i: integer) -> text {
+  if i == 0 { return "str"; }
+  if i == 1 { return "int"; }
+  if i == 2 { return "wis"; }
+  if i == 3 { return "dex"; }
+  if i == 4 { return "con"; }
+  "chr"
+}
+
+// Apply an action intent. Returns 1 when a raise-stat actually landed (the
+// host's character page rebakes on it); 0 otherwise.
+pub fn flow_action(s: Sim, kind: integer, a1: integer, a2: integer) -> integer {
+  if kind == 1 { sim_wait(s); }
+  if kind == 2 { sim_pickup(s); }
+  if kind == 3 { use_slot(s, a1); }
+  if kind == 4 {
+    if sim_raise_stat(s, stat_name(a1)) { return 1; }
+  }
+  if kind == 5 { sim_inv_bind(s, a1, a2); }
+  if kind == 6 { sim_equip(s, a1); }
+  if kind == 7 {
+    if a1 == 0 { sim_shrine_apply(s, "race", sim_race_key(a2)); }
+    else { sim_shrine_apply(s, "class", sim_class_key(a2)); }
+  }
+  0
+}
+
+// Apply one movement tick + the world-transition rules (death respawn, stairs,
+// the wilderness window crossing). (sq, sr) is the walk-onto stair tracker.
+// Returns (s', sq', sr', changed) — changed = 1 when the LEVEL was rebuilt
+// (respawn/descend/travel): the caller rebuilds walls/HUD/VBOs.
+pub fn flow_move(s: Sim, fwd: integer, turn: integer, dt: float,
+                 sq: integer, sr: integer) -> (Sim, integer, integer, integer) {
+  sim_step(s, fwd, turn, dt);
+  if sim_over(s) {                // death is not permadeath: respawn at the anchor
+    s2 = sim_respawn(s);
+    (nq, nr) = sim_player_hex(s2);
+    return (s2, nq, nr, 1);
+  }
+  (cq, cr) = sim_player_hex(s);
+  if cq != sq || cr != sr {
+    stt = sim_stair_under(s);
+    if stt == 2 || stt == 6 {           // '>' down (6 = a natural cave mouth)
+      s2 = sim_descend(s, 1);
+      (nq, nr) = sim_player_hex(s2);
+      return (s2, nq, nr, 1);
+    }
+    if stt == 3 && sim_depth(s) > 1 {   // '<' up (no overworld above depth 1 yet)
+      s2 = sim_descend(s, -1);
+      (nq, nr) = sim_player_hex(s2);
+      return (s2, nq, nr, 1);
+    }
+    if sim_depth(s) == 0 && sim_edge_exit(s) != 0 {
+      s2 = sim_travel(s);               // the wilderness continues across the window
+      (nq, nr) = sim_player_hex(s2);
+      return (s2, nq, nr, 1);
+    }
+    return (s, cq, cr, 0);
+  }
+  (s, sq, sr, 0)
+}
+
+// Parse the (up to) three signed ints after a wire line's 1-char tag.
+pub fn wire3(t: text) -> (integer, integer, integer) {
+  vals = [0, 0, 0];
+  idx = 0;
+  cur = 0;
+  sign = 1;
+  innum = false;
+  for i in 1..len(t) {
+    b = t.byte_at(i);
+    if b == 45 {                          // '-'
+      sign = -1;
+      innum = true;
+    } else if b >= 48 && b <= 57 {        // digit
+      cur = cur * 10 + (b - 48);
+      innum = true;
+    } else if innum {
+      if idx < 3 { vals[idx] = cur * sign; }
+      idx += 1;
+      cur = 0;
+      sign = 1;
+      innum = false;
+    }
+  }
+  if innum && idx < 3 { vals[idx] = cur * sign; }
+  (vals[0] ?? 0, vals[1] ?? 0, vals[2] ?? 0)
+}

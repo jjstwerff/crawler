@@ -1,0 +1,131 @@
+// observe — the K2 observer (PLAN-KERNEL): a read-only live view of a running
+// story host. Connects to ws://host:18099, receives the intent log (genesis +
+// history), replays it onto a fresh replica Sim, then applies the live
+// broadcasts — the replica stays scene_key-identical to the host's world
+// (replaytest pins the invariant), and the FULL renderer draws it: same view,
+// same FOV, same light cone the player sees.
+//
+//   make play          # the host (terminal 1)
+//   loft --interpret <libs> src/observe.loft   # the spectator (terminal 2)
+//
+// Esc / window close leaves. The window title shows the replica's tick count.
+use graphics;
+use sim;
+use view;
+use wallgeo;
+use engine_host;
+use gameflow;
+use framekey;
+use hex_grid;
+
+OBS_PORT = 18099;     // = story's STORY_PORT
+TICK_US  = 16666;
+FIXED_DT = (TICK_US as float) / 1000000.0;
+
+struct ObsWorld {
+  s:       Sim not null,
+  live:    boolean not null,           // genesis received — the replica exists
+  walls:   vector<WallSeg> not null,
+  hud:     Hud not null,
+  ml:      vector<integer> not null,
+  last_total: integer not null,
+  wvao:    integer not null,
+  wallvao: integer not null,
+  walln:   integer not null,
+  sq:      integer not null,
+  sr:      integer not null,
+  last_key: integer not null,
+  tsteps:  integer not null,           // movement intents applied
+  frames_drawn: integer not null,
+}
+
+// (Re)build everything visual from the replica — genesis and every level change.
+fn obs_rebuild(w: ObsWorld) {
+  w.walls = build_walls(w.s);
+  w.hud = build_hud(w.s);
+  if w.wvao != 0 { graphics::gl_delete_vao(w.wvao); }
+  w.wvao = build_world_vbo(w.s);
+  if w.wallvao != 0 { graphics::gl_delete_vao(w.wallvao); }
+  w.wallvao = build_walls_vbo(w.s, w.walls);
+  w.walln = len(w.walls) * 6;
+  (w.sq, w.sr) = sim_player_hex(w.s);
+}
+
+// One wire line from the host: genesis / movement tick / action.
+fn obs_event(w: ObsWorld, ev: engine_host::Event) {
+  if ev.kind != 1 { return; }
+  tag = ev.payload.byte_at(0);
+  (a, b, c) = wire3(ev.payload);
+  if tag == 83 {                         // 'S' — genesis: build the replica
+    w.s = flow_genesis(a, b);
+    obs_rebuild(w);
+    w.live = true;
+  } else if tag == 84 && w.live {        // 'T' — one movement tick
+    (s2, nsq, nsr, chg) = flow_move(w.s, a, b, FIXED_DT, w.sq, w.sr);
+    w.s = s2;
+    w.sq = nsq;
+    w.sr = nsr;
+    w.tsteps += 1;
+    if chg == 1 { obs_rebuild(w); }
+  } else if tag == 65 && w.live {        // 'A' — an action
+    _r = flow_action(w.s, a, b, c);
+  }
+}
+
+// One kernel tick = one frame: render-only — the replica advances ONLY on wire
+// lines, never on local time (the host's clock is the one clock).
+fn obs_tick(w: ObsWorld, painter: graphics::Painter2D, wprog: integer,
+            wallprog: integer, postprog: integer, postfbo: integer, posttex: integer) {
+  if !graphics::gl_poll_events() || graphics::gl_key_pressed(27) {
+    engine_host::client_stop();
+    return;
+  }
+  if !w.live { return; }
+  key = scene_key(w.s, 0, 0, 0, 0, 0, 0);
+  if key != w.last_key {
+    w.last_key = key;
+    w.frames_drawn += 1;
+    sim_compute_fov(w.s);
+    tot = sim_msg_total(w.s);
+    if tot != w.last_total {
+      free_msglog(w.ml);
+      w.ml = build_msglog(w.s, w.hud.font);
+      w.last_total = tot;
+    }
+    view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln,
+              postprog, postfbo, posttex);
+    draw_msglog(painter, w.s, w.hud, w.ml);
+    graphics::gl_swap_buffers();
+  }
+}
+
+fn main() {
+  if !graphics::gl_create_window(800, 600, "story — observer") {
+    println("observe: failed to create window");
+    return;
+  }
+  painter = graphics::create_painter_2d(800.0, 600.0);
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  graphics::gl_enable(graphics::GL_BLEND);
+  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  wprog = make_world_shader();
+  wallprog = make_wall_shader();
+  postprog = make_post_shader();
+  (postfbo, posttex) = make_post_target();
+
+  // a placeholder replica until genesis arrives (kept tiny; replaced on 'S')
+  s0 = sim_new_gen(1, 1);   // placeholder only — genesis replaces it
+  w = ObsWorld {
+    s: s0, live: false, walls: [], hud: build_hud(s0), ml: [], last_total: 0,
+    wvao: 0, wallvao: 0, walln: 0, sq: 0, sr: 0,
+    last_key: 0, tsteps: 0, frames_drawn: 0,
+  };
+  println("observe: connecting to ws://127.0.0.1:{OBS_PORT} ...");
+  engine_host::run_client("127.0.0.1", OBS_PORT, TICK_US, fn(ev: engine_host::Event) {
+    obs_event(w, ev);
+  }, fn() {
+    obs_tick(w, painter, wprog, wallprog, postprog, postfbo, posttex);
+  });
+  println("observe: drew {w.frames_drawn} frames over {w.tsteps} T-steps; key={w.last_key}");
+  graphics::gl_destroy_window();
+}

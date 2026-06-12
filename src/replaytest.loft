@@ -1,0 +1,85 @@
+// replaytest — the K2 replica invariant (PLAN-KERNEL): a Sim driven by intents
+// and a second Sim driven by the SAME intents round-tripped through the wire
+// codec stay scene_key-identical at every step. This is the foundation under
+// the observer slice (and K4 lockstep): the wire-side replica IS the host's
+// world. Headless, deterministic.
+use sim;
+use gameflow;
+use framekey;
+use hex_grid;
+
+DT = 0.016666;   // the K1 fixed quantum
+
+// Apply one wire line to a sim (the observer's dispatch, minus the visuals).
+// Returns the new (s, sq, sr).
+fn apply_line(s: Sim, line: text, sq: integer, sr: integer) -> (Sim, integer, integer) {
+  tag = line.byte_at(0);
+  (a, b, c) = wire3(line);
+  if tag == 84 {        // 'T'
+    (s2, nq, nr, _chg) = flow_move(s, a, b, DT, sq, sr);
+    return (s2, nq, nr);
+  }
+  if tag == 65 {        // 'A'
+    _r = flow_action(s, a, b, c);
+  }
+  (s, sq, sr)
+}
+
+fn key_of(s: Sim) -> integer {
+  scene_key(s, 0, 0, 0, 0, 0, 0)
+}
+
+fn main() {
+  println("=== story replay test (K2: intents + wire codec -> identical worlds) ===");
+
+  // 1) the codec round-trips signed ints
+  (ca, cb, cc) = wire3("T 1 -1");
+  (cd, ce, cf) = wire3("A 5 12 -3");
+  codec = ca == 1 && cb == -1 && cc == 0 && cd == 5 && ce == 12 && cf == -3;
+  println("codec={codec}");
+
+  // 2) HOST world (intents applied directly) vs OBSERVER world (the same
+  //    intents as wire lines) — keys equal after every single step.
+  a = flow_genesis(1337, 0);
+  b = flow_genesis(1337, 0);
+  (asq, asr) = sim_player_hex(a);
+  (bsq, bsr) = sim_player_hex(b);
+
+  script: vector<text> = [];
+  for _i in 0..40 { script += ["T 1 0"]; }     // glide: crosses several clock ticks
+  script += ["A 1 0 0"];                        // wait
+  for _i in 0..8 { script += ["T 0 1"]; }      // turn in place (free)
+  script += ["A 2 0 0"];                        // grab (no-op or pickup — same both sides)
+  for _i in 0..40 { script += ["T 1 0"]; }     // glide again
+  script += ["A 3 0 0"];                        // use quick-slot 0
+  script += ["A 4 0 0"];                        // raise STR (no banked point = no-op)
+
+  same = true;
+  diverged_at = -1;
+  for i in 0..len(script) {
+    line = script[i] ?? "";
+    tag = line.byte_at(0);
+    (xa, xb, xc) = wire3(line);
+    if tag == 84 {
+      (a2, naq, nar, _c1) = flow_move(a, xa, xb, DT, asq, asr);
+      a = a2; asq = naq; asr = nar;
+    } else {
+      _r1 = flow_action(a, xa, xb, xc);
+    }
+    (b2, nbq, nbr) = apply_line(b, line, bsq, bsr);
+    b = b2; bsq = nbq; bsr = nbr;
+    if same && key_of(a) != key_of(b) {
+      same = false;
+      diverged_at = i;
+    }
+  }
+  println("replica-identical={same} (diverged_at={diverged_at} of {len(script)})");
+  moved = a.ticks > 0;
+  println("clock-advanced={moved} (ticks={a.ticks})");
+
+  if codec && same && moved {
+    println("=== REPLAY OK ===");
+  } else {
+    println("=== REPLAY FAILED ===");
+  }
+}
