@@ -129,6 +129,18 @@ unavoidable; UNRESPONSIVENESS is not):
 The smokes' repeated-press workaround treats symptom 1 for automation and stays
 valid regardless (synthetic taps are sub-16 ms even against a healthy loop).
 
+**Start-time budget (measured 2026-06-12, interpreted on the dev VM):** parse
+522 ms · genesis (depth-0 wilderness) 4766 ms · walls+meshes 794 ms · HUD/GL
+~1 s. End-user tiers drop the dominant costs: a NATIVE binary cold-starts est.
+0.3–0.7 s (parse gone, genesis ÷30–100); a WASM page is download-dominated,
+est. 1.5–4 s to playable, <1 s cached (re-verify `make game` — the 2026-06-11
+codegen breakage may be fixed by #341). Levers when needed: a SEED-KEYED world
+cache (genesis is deterministic; @PLN11 serialization = the same machinery G4
+saves want → ~100 ms warm starts every tier), lazy genesis (hex_terrain's
+window-independence invariant exists for this), and the shipped boot pump for
+whatever remains. Multipliers estimated, not yet measured on this workload
+(blocked on the E0514 env for the native tier).
+
 ## Order + status
 
 | Step | Effort | Status |
