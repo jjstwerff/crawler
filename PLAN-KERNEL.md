@@ -162,7 +162,11 @@ already runs Windows CI. The distance = one bug + release engineering:
    save-dir conventions wait for G4.
 
 Estimate: #354 + 2–4 focused weeks to a presentable Linux build; Windows/macOS
-each ~a week behind, parallelizable.
+each ~a week behind, parallelizable. **Separate per-platform builds are the
+accepted model** (user, 2026-06-12) — and deliberately so: one codebase + one
+kernel producing four artifacts (three natives + the wasm page) IS the
+cross-platform statement; a release CI matrix is the registry flow's
+reproducible-build pattern one level up.
 
 ## Order + status
 
