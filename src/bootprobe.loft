@@ -1,0 +1,10 @@
+use sim;
+use gameflow;
+use wallgeo;
+use worldmesh;
+fn main() {
+  s = flow_genesis(1337, 0);
+  walls = build_walls(s);
+  m = build_world_mesh(s);
+  println("ok {len(m)}");
+}
