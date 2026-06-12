@@ -1,0 +1,32 @@
+// kerneltest — crawler consumes the @PLN18 engine-host games kernel (PLAN-KERNEL
+// step K0): the lib resolves, the in-binary natives answer, and the wire-schema
+// table accepts registrations — all headless, no socket opened. The deeper
+// adoption (the frame loop on the kernel, then MP) is PLAN-KERNEL.md.
+use engine_host;
+
+fn main() {
+  println("=== story kernel test (engine_host consumable: natives + schema table) ===");
+
+  // 1) The natives are in the running binary (not just the lib parsed).
+  host = default_host();
+  native_ok = host == "127.0.0.1";
+  println("native-host={native_ok} ({host})");
+
+  // 2) The wire-schema table accepts lane declarations pre-listen (the
+  //    declarative classes — sync/fast/slow are data, not transport calls).
+  sync_class(2);
+  fast_lane(3);
+  slow_lane(4);
+  println("schema-table=true");
+
+  // 3) Client-state accessors answer sanely with no connection.
+  nc = clients();
+  no_clients = nc == 0;
+  println("no-clients={no_clients} ({nc})");
+
+  if native_ok && no_clients {
+    println("=== KERNEL OK ===");
+  } else {
+    println("=== KERNEL FAILED ===");
+  }
+}

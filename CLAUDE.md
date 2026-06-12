@@ -74,10 +74,11 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently 36 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
+  (currently 37 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
   msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
-  idle-skip/…). Keep it **warning-clean**. Pixel-level render checks live in
+  idle-skip/kernel/…). Keep it **warning-clean**. Pixel-level render checks live in
   **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — PLAN-RENDER P0).
+  The games-kernel adoption track (@PLN18 engine_host): **PLAN-KERNEL.md**.
 - **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
   Xvfb is positionally off — a known test-env quirk). Verify *logic* headlessly; the
   **user is the visual verifier**. A `src/shot.loft` aid exists but trust the user.

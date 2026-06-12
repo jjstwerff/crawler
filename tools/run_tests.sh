@@ -97,4 +97,16 @@ src/traveltest.loft|TRAVEL OK|/tmp/story_travel.log|travel|[travel] window cross
 src/idletest.loft|IDLESKIP OK|/tmp/story_idle.log|idle-skip|[idle-skip] scene key: hold when idle, bump on events (PLAN-RENDER P1) ...
 EOF
 
+# The games kernel (@PLN18 engine_host) lives in the sibling loft checkout — its
+# natives ride the installed binary, the lib surface rides ../loft/lib. Skip (not
+# fail) where the sibling is absent: the kernel dep is opt-in until registry-published.
+if [ -d ../loft/lib/engine_host ]; then
+  echo "  [kernel] engine_host consumable: natives + schema table (PLAN-KERNEL K0) ..."
+  # shellcheck disable=SC2086
+  "$LOFT" --interpret $FLAGS --lib ../loft/lib/ src/kerneltest.loft | tee /tmp/story_kernel.log
+  grep -q "KERNEL OK" /tmp/story_kernel.log || { echo "    FAIL: kernel"; exit 1; }
+else
+  echo "  [kernel] SKIP — ../loft/lib not present (sibling-checkout dep, PLAN-KERNEL.md)"
+fi
+
 echo "  PASS"
