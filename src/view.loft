@@ -473,6 +473,60 @@ pub fn make_wall_shader() -> integer {
   graphics::gl_create_shader(WALLVERT, WALLFRAG)
 }
 
+// ── R6 post-fx: the directed light cone + vignette (PLAN-RENDER P4; constants
+//    mirrored EXACTLY in tools/blueprints/light_cone.py, which generates the
+//    probe expectations — retune there first, then here) ──
+//
+// The egocentric view keeps the facing UP on screen, so the cone is FIXED in
+// screen space (no heading uniform): full radius ahead, shorter behind — the
+// forward-pointed lamp of RENDER.md § Directed light. The kernel FOV stays
+// authoritative (the vis texture already discarded/dimmed); this pass only
+// softens presentation. World layers render into an offscreen target; this
+// fullscreen pass composites them to the backbuffer; the HUD draws after, unlit.
+
+POSTVERT = `
+#version 330 core
+layout (location = 0) in vec2 aPos;
+layout (location = 1) in vec2 aUV;
+out vec2 vUV;
+void main() {{
+  vUV = aUV;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}}
+`;
+
+POSTFRAG = `
+#version 330 core
+in vec2 vUV;
+out vec4 FragColor;
+uniform sampler2D uScene;
+void main() {{
+  vec2 px = vUV * vec2(800.0, 600.0);
+  vec2 d = px - vec2(400.0, 180.0);
+  float dist = length(d);
+  float fwd = dist > 0.0 ? d.y / dist : 0.0;
+  float rad = mix(240.0, 520.0, fwd * 0.5 + 0.5);
+  float t = dist / rad;
+  float light = max(0.35, 1.0 - t * t);
+  vec2 c = (vUV - 0.5) * 2.0;
+  float vig = 1.0 - 0.22 * pow(length(c) / 1.41421356, 3.0);
+  FragColor = vec4(texture(uScene, vUV).rgb * light * max(vig, 0.0), 1.0);
+}}
+`;
+
+pub fn make_post_shader() -> integer {
+  graphics::gl_create_shader(POSTVERT, POSTFRAG)
+}
+
+// The offscreen world target: a color texture + FBO (built once; the window is
+// fixed-size). Returns (fbo, texture).
+pub fn make_post_target() -> (integer, integer) {
+  tex = graphics::gl_create_color_texture(800, 600);
+  fbo = graphics::gl_create_framebuffer();
+  graphics::gl_framebuffer_texture(fbo, 0, tex);
+  (fbo, tex)
+}
+
 // Upload the per-level wall-stroke VBO (rebuild with the level, beside the floor
 // VBO). Vertex count is deterministic: 6 per segment.
 pub fn build_walls_vbo(s: Sim, walls: vector<WallSeg>) -> integer {
@@ -640,7 +694,11 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
 }
 
 pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer, wvao: integer,
-                 wallprog: integer, wallvao: integer, walln: integer) {
+                 wallprog: integer, wallvao: integer, walln: integer,
+                 postprog: integer, postfbo: integer, posttex: integer) {
+  // R6: the world layers render into the offscreen target; the light-cone pass
+  // composites them to the backbuffer; the HUD draws after, unlit.
+  graphics::gl_bind_framebuffer(postfbo);
   graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
   cell = SCALE * 1.35;
 
@@ -804,6 +862,14 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
   }
   nsz = SCALE * 0.42;
   graphics::draw_rect_at(painter, CX - nsz / 2.0, ANCHOR_Y - psz * 0.9 - nsz, nsz, nsz, 0.30, 0.92, 0.40, 1.0);
+
+  // R6: world layers end — composite the offscreen target through the
+  // light-cone + vignette pass, then draw the HUD unlit on the backbuffer.
+  graphics::gl_bind_framebuffer(0);
+  graphics::gl_use_shader(postprog);
+  graphics::gl_bind_texture(posttex, 0);
+  graphics::gl_set_uniform_int(postprog, "uScene", 0);
+  graphics::gl_draw_fullscreen_quad();
 
   // The left character bar: HP (room for SP), CL/gold/XP, the 6 base stats, the 11 quick-slots.
   draw_sidebar(painter, s, hud);

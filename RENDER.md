@@ -113,10 +113,16 @@ P1 idle skip → R4→R6 → lib flow-back → R7/R8 → frame-stats → R9).
   per-segment `sim_hex_state_at` CPU check moved to the GPU. Verified: meshtest
   (exact corners/locals/visUV) + world_r5.probe (interior dmax=0, remembered
   stroke, monotonic edge ramp).
-- **R6 — Post-fx chain.** Framebuffer + `gl_draw_fullscreen_quad`: the **directed
-  light-cone falloff** (soft forward-biased gradient replacing the hard per-hex fog
-  edge — see "Directed light" above) + vignette. The kernel FOV set stays authoritative;
-  the pass only softens presentation. Optional later: coloured/animated light.
+- **R6 — Post-fx chain. ✅ SHIPPED (P4, 2026-06-12).** The world layers render into
+  an offscreen FBO; one fullscreen pass composites them through the **directed
+  light cone** (fixed in screen space — the egocentric view keeps facing up, so no
+  heading uniform: radius 520px ahead, 240 behind, floor 0.35) + a gentle vignette;
+  the HUD draws after, unlit. The kernel FOV stays authoritative (vis texture
+  discards/dims first; the cone only softens). Constants live in the shader AND in
+  `tools/blueprints/light_cone.py`, which generates the probe expectations —
+  retune there first. Verified: post_r6.probe on a uniform gray scene (anchor 127,
+  ahead150 117 > behind150 73, corner 38, monotonic ahead ray — all dmax=0).
+  Optional later: coloured/animated light.
 
 After R4–R6, every world-layer pixel is GPU-computed; the painter draws only HUD.
 

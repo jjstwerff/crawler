@@ -24,25 +24,32 @@ fn main() {
   wprog = make_world_shader();
   wvao = build_world_vbo(s);
   wallprog = make_wall_shader();
+  postprog = make_post_shader();
+  (postfbo, posttex) = make_post_target();
   wallvao = build_walls_vbo(s, walls);
   walln = len(walls) * 6;
   sim_award_xp(s, 35);   // (shot only) show the XP bar partway + a higher CL
 
-  // Frame the down-stair: place the player ~2.5 units 'south' of it so the '>'
-  // glyph sits just above the '@' (heading is up = +y).
+  // Frame the down-stair: stand on a FLOOR neighbor of it (gen-proof — a fixed
+  // offset can land in rock or off the level as the generator evolves).
   (dq, dr) = sim_down_hex(s);
-  (dx, dy) = hex_to_px(dq, dr);
-  s.px = dx;
-  s.py = dy - 2.5;
+  for nb in 0..6 {
+    (nq, nr) = hex_neighbor(dq, dr, nb);
+    if tile_at(s, nq, nr) == 0 {
+      (nx, ny) = hex_to_px(nq, nr);
+      s.px = nx;
+      s.py = ny;
+    }
+  }
   sim_compute_fov(s);   // FOV gates the view now; without this everything renders hidden
 
   for _ in 0..2 {
     graphics::gl_poll_events();
-    view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln);
+    view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, postfbo, posttex);
     graphics::gl_swap_buffers();
   }
   graphics::gl_poll_events();
-  view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln);
+  view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, postfbo, posttex);
   ok = graphics::gl_screenshot(800, 600, "/tmp/story_frame.png");
   println("shot: screenshot ok={ok}");
   graphics::gl_destroy_window();

@@ -76,6 +76,8 @@ fn main() {
   wprog = make_world_shader();   // GPU terrain shader (global, built once)
   wvao = build_world_vbo(s);     // GPU terrain VBO (rebuilt on each level change)
   wallprog = make_wall_shader(); // R5 wall-stroke shader (global, built once)
+  postprog = make_post_shader(); // R6 light-cone + vignette pass (built once)
+  (postfbo, posttex) = make_post_target();
   wallvao = build_walls_vbo(s, walls);   // wall-stroke VBO (rebuilt with the level)
   walln = len(walls) * 6;
   last = ticks();
@@ -334,7 +336,7 @@ fn main() {
           hud.itex = hud_rebuild_items(hud, s);
           last_known = kn;
         }
-        view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln);
+        view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, postfbo, posttex);
         draw_msglog(painter, s, hud, ml);
         if page_open { draw_charpage(painter, s, hud, pg); }
         else if inv_open { draw_invpage(painter, s, hud, pg_inv, inv_cursor); }
