@@ -15,7 +15,12 @@ Outputs each render (reloads when the file is saved):
 
 Usage:
   python3 draw.py [scene-file]        # default: ./scene.draw next to this script
+  python3 draw.py --once [scene-file] # render once and exit (agent/CI use);
+                                      # exit 1 if any line is unparsed or a check fails
   SKETCH_OUT=/path python3 draw.py    # output dir (default: <tmp>/loft_sketch)
+
+A line that matches no command is REPORTED (top of stats.txt + stderr), never
+silently dropped — a typo'd mark must read as a syntax problem, not a geometry one.
 
 Requires Pillow.
 
@@ -37,7 +42,9 @@ import sys, time, re, os, math, tempfile
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "scene.draw")
+ONCE = "--once" in sys.argv[1:]
+_args = [a for a in sys.argv[1:] if a != "--once"]
+SRC = _args[0] if _args else os.path.join(HERE, "scene.draw")
 OUTDIR = os.environ.get("SKETCH_OUT") or os.path.join(tempfile.gettempdir(), "loft_sketch")
 os.makedirs(OUTDIR, exist_ok=True)
 OUT = os.path.join(OUTDIR, "canvas.png")
@@ -230,6 +237,7 @@ def parse(text):
     elems = {}        # name -> [minx, miny, maxx, maxy]
     landmarks = {}
     checks = []
+    unparsed = []     # (line-number, text) for every line no command accepted
     bg_transparent = False
     cur = [None]
 
@@ -247,7 +255,7 @@ def parse(text):
         for x, y in pts:
             acc(x, y)
 
-    for raw in text.splitlines():
+    for lineno, raw in enumerate(text.splitlines(), 1):
         s = raw.strip()
         if not s or s.startswith("#"):
             continue
@@ -258,6 +266,8 @@ def parse(text):
             m = LAND.match(s)
             if m:
                 landmarks[m[1]] = float(m[2])
+            else:
+                unparsed.append((lineno, s))
             continue
         if low.startswith("check"):
             checks.append(s[5:].strip()); continue
@@ -272,6 +282,8 @@ def parse(text):
                 m = BG.search(s)
                 if m:
                     ops.append(("grad", gray(float(m[1])), gray(float(m[2]))))
+                else:
+                    unparsed.append((lineno, s))
             continue
         m = SIZE.fullmatch(s)
         if m:
@@ -296,6 +308,8 @@ def parse(text):
             flags = [t == "~" for _, _, t, _ in raw]
             wraw = [w for _, _, _, w in raw]
             paint = _paint(s)
+            if len(pts) < (3 if paint is not None else 2):
+                unparsed.append((lineno, s)); continue
             if paint is not None:
                 pts = _smooth_pts(pts, flags, closed=True)
                 accpts(pts)
@@ -324,7 +338,9 @@ def parse(text):
                 ops.append(("stroke", p, [w1, w2], _stroke_color(s)))
             else:
                 ops.append(("stroke", p, base, _stroke_color(s)))
-    return W, H, ops, elems, landmarks, checks, bg_transparent
+            continue
+        unparsed.append((lineno, s))
+    return W, H, ops, elems, landmarks, checks, bg_transparent, unparsed
 
 
 def props(b):
@@ -488,11 +504,18 @@ def composition_lines(img):
     return out
 
 
-def write_stats(img, W, H, nops, elems, results):
+def write_stats(img, W, H, nops, elems, results, unparsed):
     g = img.convert("L")
     gw, gh = g.size
     cw, ch = gw / GRID_COLS, gh / GRID_ROWS
-    lines = [f"ops: {nops}", f"paper: {W}x{H}", ""]
+    lines = []
+    if unparsed:
+        lines.append(f"UNPARSED {len(unparsed)} line(s) — NOT drawn (fix the syntax "
+                     "before judging geometry):")
+        for ln, txt in unparsed:
+            lines.append(f"  line {ln}: {txt}")
+        lines.append("")
+    lines += [f"ops: {nops}", f"paper: {W}x{H}", ""]
     lines.append("density (darker = more ink):")
     for ry in range(GRID_ROWS):
         row = []
@@ -517,11 +540,15 @@ def write_stats(img, W, H, nops, elems, results):
 
 
 def render():
+    """Render SRC to the output files. Returns True when every line parsed and
+    every check passes — the --once exit status."""
     try:
         text = open(SRC).read()
     except FileNotFoundError:
         text = ""
-    W, H, ops, elems, landmarks, checks, bg_transparent = parse(text)
+    W, H, ops, elems, landmarks, checks, bg_transparent, unparsed = parse(text)
+    for ln, txt in unparsed:
+        print(f"UNPARSED line {ln}: {txt}", file=sys.stderr)
     S = 3  # supersample, then downscale => anti-aliased (no hard faceted edges)
     BW, BH = W * S, H * S
     # `Background transparent` renders on a transparent base, so the LANCZOS
@@ -575,11 +602,14 @@ def render():
             od.line([(0, yy), (W, yy)], fill=RED, width=2)
     over.save(CHECKIMG)
 
-    write_stats(flat, W, H, len(ops), elems, results)
+    write_stats(flat, W, H, len(ops), elems, results, unparsed)
+    return not unparsed and all(r["ok"] for r in results)
 
 
 def main():
     print(f"sketch: source={SRC}  out={OUTDIR}", file=sys.stderr)
+    if ONCE:
+        sys.exit(0 if render() else 1)
     last = None
     render()
     while True:

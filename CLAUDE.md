@@ -82,7 +82,8 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   **user is the visual verifier**. A `src/shot.loft` aid exists but trust the user.
 - **2D sprites → the `draw` skill** (method: loft `.claude/skills/draw`; **tool:
   crawler's own `tools/draw.py`** — copied from the skill's `sketch/draw.py` and
-  extended: `Background transparent` now, rotation/atlas next. Built to be extractable
+  extended: `Background transparent`, `--once` (render-and-exit; exit 1 on unparsed
+  lines / failed checks — agent/CI use) + unparsed-line reporting now, rotation/atlas next. Built to be extractable
   as a **reusable 2D sprite library** — 3D/moros is the goal, but the 2D stack stands
   on its own for 2D-preferring devs): used to author the game's **simple 2D sprites** — the mob/item
   presentations (and other 2D art), upgrading the text-glyph placeholders. **2D only —
