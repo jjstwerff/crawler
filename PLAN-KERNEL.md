@@ -113,9 +113,12 @@ unavoidable; UNRESPONSIVENESS is not):
 
 1. **Polled input has no memory** — `gl_key_pressed` reads current state; any
    press-and-release inside a gap vanishes (boot = the biggest gap; the 60 Hz
-   tick blind spot = the same flaw smaller). Fix = the input-as-events adoption
-   already on the board (`post()` + the events class): boot presses QUEUE and
-   drain at the first tick.
+   tick blind spot = the same flaw smaller). OWNERSHIP SPLIT (2026-06-12): the
+   transport (`post()`/events) is engine work, SHIPPED; the missing piece is the
+   window-side EVENT SOURCE — graphics exposes only polled state, no key-event
+   queue — filed as loft#353 (gl_key_events(), or the local role pumping +
+   posting natively). Crawler-side post()-from-polls would only dissolve the
+   edge flags, not the blind spots.
 2. **The window never pumps during boot** — `gl_create_window` then 4-5
    interpreted seconds with zero `gl_poll_events`: a frozen black window real
    compositors flag "not responding". Crawler-side sequencing bug. Fix (S):
