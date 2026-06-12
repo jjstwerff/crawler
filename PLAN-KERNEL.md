@@ -77,7 +77,7 @@ broadcast after on_tick, the renderer a pure function of Sim behind the scene ke
 | Step | Effort | Status |
 |---|---|---|
 | K0 consumable smoke | S | DONE 2026-06-12 (gate `[kernel]`) |
-| K1 frame loop on the kernel | M | blocked: upstream seam (idle/windowed host role) |
+| K1 frame loop on the kernel | M | **UNBLOCKED 2026-06-12** — loft `9fedef9e` ships `run_local` (the windowed host role; verified: drift-free ticks + clean `client_stop` on the repo build). Needs `make install` in ../loft (or LOFT_REPO=../loft) — the installed binary predates the natives. Prep: fold the loop's UI scalars into a `UiState` struct (the #314 struct-held-world pattern) so the closures capture two links |
 | K2 observer slice | M | — |
 | K3 live-reload dev mode | S | after K1 |
 | K4 MP lockstep | L | gated on K1 + a design pass |
