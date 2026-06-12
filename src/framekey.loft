@@ -1,0 +1,59 @@
+// framekey — the scene version behind the idle skip (PLAN-RENDER P1; RENDER.md →
+// Frame reuse, Tier 0).
+//
+// A pure digest of everything the 2D frame depends on: the Sim observables plus
+// the front-end's overlay state. The frame loop redraws ONLY when the key changes;
+// between inputs and clock ticks the key is stable, so idle frames render (and
+// swap) nothing. Kernel-side — imports no graphics — so the headless gate
+// (idletest) pins the contract: bump exactly on the bumping events, hold
+// otherwise. If a stale-frame bug ever appears, the missing observable is added
+// HERE (the one chokepoint), never patched at a call site.
+//
+// Collision note: a missed redraw needs two CONSECUTIVE states to collide, and a
+// collision only delays the redraw until the next change — cosmetic, never sticky.
+
+use sim;
+
+KMOD = 281474976710656;   // 2^48 keeps k*31 < 2^53 (loft integers trap on overflow)
+
+fn mix(k: integer, v: integer) -> integer {
+  (k * 31 + v) % KMOD
+}
+
+// The frame digest. Overlay scalars arrive as plain ints (0/1 flags + cursors) so
+// the hot loop builds no per-frame vector. Continuous player state is quantized at
+// 1/1024 world unit / radian — far below a visible pixel at SCALE 26.
+pub fn scene_key(s: Sim, page_i: integer, inv_i: integer, crys_i: integer,
+                 cursor: integer, col: integer, cur: integer) -> integer {
+  k = mix(17, s.depth);
+  k = mix(k, s.ticks);                          // the clock: enemies, regen, statuses
+  k = mix(k, (s.px * 1024.0) as integer);       // continuous glide / turn
+  k = mix(k, (s.py * 1024.0) as integer);
+  k = mix(k, (s.heading * 1024.0) as integer);
+  k = mix(k, s.php);                            // mid-tick melee can change hp
+  k = mix(k, s.sp);
+  k = mix(k, s.msg_n);                          // any logged event (kill, pickup, …)
+  k = mix(k, s.gold);
+  k = mix(k, s.clevel);
+  k = mix(k, s.xp);
+  k = mix(k, s.stat_pts);                       // char-page spends
+  k = mix(k, s.shrine_ev);
+  k = mix(k, if s.over { 1 } else { 0 });
+  k = mix(k, sim_known_count(s));               // identifications re-bake item names
+  k = mix(k, sim_inv_count(s));
+  for i in 0..len(s.enemies) {                  // positions + hp + wake state
+    e = s.enemies[i];
+    if e != null {
+      k = mix(k, e.cur_q * 61 + e.cur_r);
+      k = mix(k, e.hp);
+      k = mix(k, if e.awake { 1 } else { 0 });
+    }
+  }
+  k = mix(k, page_i);                           // overlay pages + their cursors
+  k = mix(k, inv_i);
+  k = mix(k, crys_i);
+  k = mix(k, cursor);
+  k = mix(k, col);
+  k = mix(k, cur);
+  k
+}

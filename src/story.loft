@@ -15,6 +15,7 @@ use wallgeo;
 use view;
 use itemfx;
 use bundles;   // bundle_activate — the quick-start class kit (generated registry)
+use framekey;  // scene_key — the idle skip (redraw only when the frame would differ)
 
 WIN_W   = 800;
 WIN_H   = 600;
@@ -103,6 +104,9 @@ fn main() {
   ckq_was = false;
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
+  last_key = 0;             // idle skip (P1): redraw only when the scene key moves
+  loop_iters = 0;           //   (0 never matches a real key, so the first frame draws)
+  frames_drawn = 0;
   running = true;
   while running {
     if !graphics::gl_poll_events() {
@@ -288,27 +292,42 @@ fn main() {
         crys_cur = 0;
         pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur);
       }
-      sim_compute_fov(s);          // directed-light FOV: recompute visibility for this frame
-      // Rebake the message log only when a new line arrived (combat, pickup, level, descend, …).
-      tot = sim_msg_total(s);
-      if tot != last_total {
-        free_msglog(ml);
-        ml = build_msglog(s, hud.font);
-        last_total = tot;
+      // IDLE SKIP (P1, RENDER.md Frame reuse Tier 0): digest everything the frame
+      // depends on; unchanged -> skip FOV recompute, rebakes, draw AND swap. The
+      // digest lives in framekey.loft (kernel-side, pinned by idletest) — a missed
+      // observable is added THERE, never patched here. Known gap: skipping the swap
+      // also skips the vsync block, so an idle loop spins polling keys (~1k Hz);
+      // the blocking-poll flow-back (gl_wait_events_timeout, EXTRACTION §6a)
+      // completes the win — GPU zero AND CPU zero.
+      loop_iters += 1;
+      key = scene_key(s, if page_open { 1 } else { 0 }, if inv_open { 1 } else { 0 },
+                      if crys_open { 1 } else { 0 }, inv_cursor, crys_col, crys_cur);
+      if key != last_key {
+        last_key = key;
+        frames_drawn += 1;
+        sim_compute_fov(s);        // directed-light FOV: recompute visibility for this frame
+        // Rebake the message log only when a new line arrived (combat, pickup, level, descend, …).
+        tot = sim_msg_total(s);
+        if tot != last_total {
+          free_msglog(ml);
+          ml = build_msglog(s, hud.font);
+          last_total = tot;
+        }
+        // Re-bake the quick-slot item names only when an identification changed what they show.
+        kn = sim_known_count(s);
+        if kn != last_known {
+          hud.itex = hud_rebuild_items(hud, s);
+          last_known = kn;
+        }
+        view_draw(painter, s, walls, hud, wprog, wvao);
+        draw_msglog(painter, s, hud, ml);
+        if page_open { draw_charpage(painter, s, hud, pg); }
+        else if inv_open { draw_invpage(painter, s, hud, pg_inv, inv_cursor); }
+        else if crys_open { draw_crystalpage(painter, s, hud, pg_crys, crys_col, crys_cur); }
+        graphics::gl_swap_buffers();
       }
-      // Re-bake the quick-slot item names only when an identification changed what they show.
-      kn = sim_known_count(s);
-      if kn != last_known {
-        hud.itex = hud_rebuild_items(hud, s);
-        last_known = kn;
-      }
-      view_draw(painter, s, walls, hud, wprog, wvao);
-      draw_msglog(painter, s, hud, ml);
-      if page_open { draw_charpage(painter, s, hud, pg); }
-      else if inv_open { draw_invpage(painter, s, hud, pg_inv, inv_cursor); }
-      else if crys_open { draw_crystalpage(painter, s, hud, pg_crys, crys_col, crys_cur); }
-      graphics::gl_swap_buffers();
     }
   }
+  println("idle-skip: drew {frames_drawn} of {loop_iters} iterations");
   graphics::gl_destroy_window();
 }

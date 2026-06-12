@@ -44,6 +44,7 @@ pressure that drives the lib's 2D API):
 | texture sampler control on upload (linear/nearest, mipmaps) | RGBA-quality sprite minification, atlas filtering |
 | texture sub-region upload (`glTexSubImage2D`-style) | incremental auto-atlas packing without full re-upload |
 | `gl_scissor(x, y, w, h)` | partial in-layer damage redraw (frame-reuse Tier 3) |
+| `gl_wait_events_timeout(ms)` (blocking event poll) | the idle skip's CPU half — without swap nothing vsync-blocks, idle spins ~1k Hz |
 
 (Premultiplied-alpha compositing needs no gap — `BLEND_ONE` +
 `BLEND_ONE_MINUS_SRC_ALPHA` already exist; premultiplication happens at atlas-bake
@@ -256,10 +257,13 @@ swap, core GL leaves the backbuffer undefined** — "keep drawing over last fram
 not a thing. Reuse means OWNING the pixels: render into FBO textures you keep, and
 composite them to the window each frame. Four tiers, by what gets reused:
 
-- **Tier 0 — idle skip (reuse: everything; the biggest win).** The game is
-  input-driven: between moves/animations frames are identical. Keep a scene version
-  (bumped by input, sim tick, animation); unchanged → skip render AND swap. Idle GPU
-  cost = zero. No lib gaps — can land before anything else.
+- **Tier 0 — idle skip (reuse: everything; the biggest win). ✅ SHIPPED (P1,
+  2026-06-12):** `framekey.loft` digests every frame-relevant observable (Sim +
+  overlay scalars — the ONE chokepoint for stale-frame bugs); the loop redraws only
+  on a key change. Measured under Xvfb: 6s idle = **1 frame drawn of 8287
+  iterations**. Idle GPU cost = zero. Known gap: no swap = no vsync block, so the
+  idle loop busy-spins polling keys — the complete win (CPU zero too) needs the
+  `gl_wait_events_timeout` substrate flow-back (EXTRACTION §6a).
 - **Tier 1 — retained encoding (reuse: all CPU-side work; this IS R1–R8).** Resident
   VBOs, recorded batches, cached tessellation: per frame the GPU re-executes a handful
   of draws, the CPU re-builds nothing. `gl_update_vertices` refines it — a

@@ -1,0 +1,60 @@
+// idletest — the idle-skip scene key (PLAN-RENDER P1): the digest is pure (same
+// state -> same key), HOLDS across idle frames (no input, no tick -> no redraw),
+// and BUMPS on exactly the bumping events: the clock, continuous movement,
+// turning, and each overlay scalar. Headless, deterministic.
+use sim;
+use framekey;
+use hex_grid;
+
+fn main() {
+  println("=== story idle-skip test (scene key: hold when idle, bump on events) ===");
+
+  s = sim_new_gen(1337, 1);
+  sim_set_class(s, "warrior");
+  sim_compute_fov(s);
+
+  // 1) PURE: the same state digests to the same key, repeatedly.
+  k0 = scene_key(s, 0, 0, 0, 0, 0, 0);
+  pure = k0 == scene_key(s, 0, 0, 0, 0, 0, 0) && k0 == scene_key(s, 0, 0, 0, 0, 0, 0);
+  println("pure={pure}");
+
+  // 2) IDLE HOLDS: frames with no input advance wall time but neither the clock
+  //    nor the player — ten idle steps, the key never moves (the Tier-0 claim).
+  held = true;
+  for _i in 0..10 {
+    sim_step(s, 0, 0, 0.016);
+    if scene_key(s, 0, 0, 0, 0, 0, 0) != k0 { held = false; }
+  }
+  println("idle-holds={held}");
+
+  // 3) BUMPS on the bumping events — each event changes the key, and the key is
+  //    stable again immediately after (no oscillation).
+  sim_wait(s);                                   // the clock: one forced tick
+  k1 = scene_key(s, 0, 0, 0, 0, 0, 0);
+  tick_bumps = k1 != k0 && k1 == scene_key(s, 0, 0, 0, 0, 0, 0);
+
+  sim_step(s, 1, 0, 0.05);                       // glide forward: px/py move
+  k2 = scene_key(s, 0, 0, 0, 0, 0, 0);
+  move_bumps = k2 != k1;
+
+  sim_step(s, 0, 1, 0.05);                       // turn in place: heading moves
+  k3 = scene_key(s, 0, 0, 0, 0, 0, 0);
+  turn_bumps = k3 != k2;
+  println("tick={tick_bumps} move={move_bumps} turn={turn_bumps}");
+
+  // 4) OVERLAY scalars: each position bumps independently against the same Sim.
+  base = scene_key(s, 0, 0, 0, 0, 0, 0);
+  ui_bumps = scene_key(s, 1, 0, 0, 0, 0, 0) != base
+          && scene_key(s, 0, 1, 0, 0, 0, 0) != base
+          && scene_key(s, 0, 0, 1, 0, 0, 0) != base
+          && scene_key(s, 0, 0, 0, 1, 0, 0) != base
+          && scene_key(s, 0, 0, 0, 0, 1, 0) != base
+          && scene_key(s, 0, 0, 0, 0, 0, 1) != base;
+  println("ui-bumps={ui_bumps}");
+
+  if pure && held && tick_bumps && move_bumps && turn_bumps && ui_bumps {
+    println("=== IDLESKIP OK ===");
+  } else {
+    println("=== IDLESKIP FAILED ===");
+  }
+}

@@ -289,6 +289,9 @@ test:
 	@echo "  [travel] window crossing + the desert gate ..."
 	@$(LOFT) --interpret $(LOFTFLAGS) src/traveltest.loft | tee /tmp/story_travel.log
 	@grep -q "TRAVEL OK" /tmp/story_travel.log || { echo "    FAIL: travel"; exit 1; }
+	@echo "  [idle-skip] scene key: hold when idle, bump on events (PLAN-RENDER P1) ..."
+	@$(LOFT) --interpret $(LOFTFLAGS) src/idletest.loft | tee /tmp/story_idle.log
+	@grep -q "IDLESKIP OK" /tmp/story_idle.log || { echo "    FAIL: idle-skip"; exit 1; }
 	@echo "  PASS"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────

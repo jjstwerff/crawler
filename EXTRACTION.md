@@ -206,6 +206,10 @@ that drives the `graphics` lib's 2D API to its modern-GPU form. Two layers, in o
       packing without re-uploading the whole page.
 - [ ] `gl_scissor(x, y, w, h)` — partial in-layer damage redraw (RENDER.md frame-reuse
       Tier 3).
+- [ ] `gl_wait_events_timeout(ms)` (glfwWaitEventsTimeout-style blocking poll) — the
+      idle skip (P1, SHIPPED) skips draw+swap, so nothing vsync-blocks the loop and
+      idle busy-spins ~1k Hz; a blocking poll completes the Tier-0 win (GPU zero AND
+      CPU zero). Measured: 6s idle = 1 frame drawn of 8287 iterations.
 
 **(b) Painter2D v2 — a Cairo-class canvas + sprite API, GPU behind the curtain**
 (the stated target, 2026-06-12: Cairo-like drawing primitives + 2D sprites with full
