@@ -43,8 +43,10 @@
 #
 #   (default)         Run the system-installed `loft` (on PATH): it self-locates
 #                     its stdlib (/usr/local/share/loft) and auto-loads registry
-#                     libraries (e.g. `graphics`, declared in loft.toml) on `use` —
-#                     so NO sibling loft repo is needed. Keep it current with
+#                     libraries (e.g. `graphics`, declared in loft.toml) on `use`.
+#                     The ../loft SIBLING checkout is required for the games kernel
+#                     (engine_host, PLAN-KERNEL) until it is registry-published.
+#                     Keep the installed binary current with
 #                     `make install` in the loft repo; verify with `make loft-doctor`.
 #   LOFT_REPO=<dir>   Instead run that repo's freshly-built binary with its explicit
 #                     --path/--lib — for testing an in-progress loft (e.g. ../loft2).
@@ -74,7 +76,10 @@ endif
 # `git -C ../loft-libs-core worktree add ../loft-libs-core-main origin/main`) so crawler
 # tracks the MERGED lib state regardless of which branch the working repo has checked out.
 # After a registry release these move to version deps and the worktree flag drops.
-LIB_DEPS    := --lib ../loft-libs-core-main/ --lib ../loft-libs-world/
+# ../loft/lib carries the @PLN18 games kernel (engine_host — story's loop since
+# PLAN-KERNEL K1); its natives ride the installed loft binary. Sibling checkout
+# required until engine_host is registry-published.
+LIB_DEPS    := --lib ../loft-libs-core-main/ --lib ../loft-libs-world/ --lib ../loft/lib/
 BUNDLE_LIBS := $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
 LOFTFLAGS := $(LOFTFLAGS) $(LIB_DEPS) $(BUNDLE_LIBS)
 

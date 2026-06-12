@@ -154,7 +154,7 @@ proof pieces (P3's stroke shader, P7's batcher/atlas) that flow back into it.
 | Step | Effort | Status |
 |---|---|---|
 | P0 probe harness | S | DONE 2026-06-12 — `make probe`: selftest + gpushot scene, 3/3 pixels dmax=0 |
-| P1 idle skip | S | DONE 2026-06-12 — `framekey.loft` + idletest (gate 36); 6s idle under Xvfb drew **1 of 8287** iterations. CAVEAT: no swap = no vsync block, the idle loop busy-spins (~1k Hz); the complete win needs the `gl_wait_events_timeout` substrate gap (EXTRACTION §6a) |
+| P1 idle skip | S | DONE 2026-06-12 — `framekey.loft` + idletest (gate 36); 6s idle drew **1 frame**. The busy-spin caveat is RESOLVED by K1 (PLAN-KERNEL): the kernel loop idles between drift-free ticks — idle = 60 Hz ticks at ~150 µs each + sleeps, GPU zero and CPU near-zero |
 | P2 tint bake (R4) | S | DONE 2026-06-12 — `worldmesh.loft` (mesh builder moved KERNEL-side, tint pre-composed) + meshtest (gate 38, exact colors) + worldprobe/world_r4.probe (4/4 dmax=0 incl. the 0.451 dim ratio); wash loop deleted |
 | P3 SDF walls (R5) | M | DONE 2026-06-12 — blueprint (tools/blueprints/wall_sdf.py: interior pure, 1px ramps, joins gap-free; fringe over-blend consciously re-pinned one-sided ≤21) → worldmesh::build_wall_mesh (self-describing quads) + wall shader; stipple + draw_segment DELETED; meshtest exact corners/locals/visUV; world_r5.probe 3/3 (interior dmax=0, rem ×0.451, mono ramp) |
 | P4 light cone (R6) | M | DONE 2026-06-12 — FBO world layer + fullscreen cone/vignette pass (HUD unlit); blueprint tools/blueprints/light_cone.py generates the spec; post_r6.probe 5/5 dmax=0 on uniform gray (ahead 117 > behind 73). En route: shot.loft's stale teleport (landed in rock off-level) fixed gen-proof |

@@ -15,7 +15,8 @@ use wallgeo;
 use view;
 use itemfx;
 use bundles;   // bundle_activate — the quick-start class kit (generated registry)
-use framekey;  // scene_key — the idle skip (redraw only when the frame would differ)
+use framekey;    // scene_key — the idle skip (redraw only when the frame would differ)
+use engine_host; // run_local — the games kernel owns the loop (PLAN-KERNEL K1)
 
 WIN_W   = 800;
 WIN_H   = 600;
@@ -34,6 +35,12 @@ KEY_Q   = 113;      // 'q' — quick-slot active Q (fire the launcher)
 KEY_E   = 101;      // 'e' — quick-slot active E (spell — later)
 KEY_ENTER = 13;     // Enter — equip the selected item in the inventory hub
 
+TICK_US  = 16666;     // the kernel's drift-free tick grid (~60 Hz; one tick = one frame).
+                      // Changing the rate is ONE constant: FIXED_DT derives from it, so the
+                      // sim's per-tick quantum always equals the grid period (determinism +
+                      // replay/lockstep need the rate RECORDED with the run, never re-derived).
+FIXED_DT = (TICK_US as float) / 1000000.0;  // sim time per tick — fixed quanta
+
 GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
 GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
                     // walk onto the entrance to descend into the dungeon (depth 1: rats/bats/…)
@@ -47,6 +54,282 @@ fn stat_name(i: integer) -> text {
   if i == 4 { return "con"; }
   "chr"
 }
+
+// K1 (PLAN-KERNEL): the world the kernel's closures capture — ONE struct link
+// (the loft#314 struct-held-world pattern; closures stay arguments per #313).
+// Every loop-mutated value lives here; immutables (painter, programs, the post
+// target) are captured directly.
+struct GameWorld {
+  s:       Sim not null,
+  walls:   vector<WallSeg> not null,
+  hud:     Hud not null,
+  ml:      vector<integer> not null,   // baked message-log textures
+  last_total: integer not null,        // msg counter watched for rebakes
+  last_known: integer not null,        // identify counter watched for rebakes
+  wvao:    integer not null,           // per-level GPU buffers
+  wallvao: integer not null,
+  walln:   integer not null,
+  w_was:   boolean not null,           // edge-triggers (wait/grab/pages/slots/hub/crystal)
+  g_was:   boolean not null,
+  c_was:   boolean not null,
+  spend_was: boolean not null,
+  qs_was:  boolean not null,
+  i_was:   boolean not null,
+  iu_was:  boolean not null,
+  id_was:  boolean not null,
+  iq_was:  boolean not null,
+  ie_was:  boolean not null,
+  ient_was: boolean not null,
+  cu_was:  boolean not null,
+  cd_was:  boolean not null,
+  ca_was:  boolean not null,
+  cdd_was: boolean not null,
+  cent_was: boolean not null,
+  ckq_was: boolean not null,
+  page_open: boolean not null,         // overlay pages + cursors
+  inv_open:  boolean not null,
+  crys_open: boolean not null,
+  pg:      vector<integer> not null,
+  pg_inv:  vector<integer> not null,
+  pg_crys: vector<integer> not null,
+  inv_cursor: integer not null,
+  crys_col: integer not null,
+  crys_cur: integer not null,
+  sq:      integer not null,           // stair-hex walk-onto tracker
+  sr:      integer not null,
+  last_key: integer not null,          // idle skip (P1)
+  ticks_n: integer not null,
+  frames_drawn: integer not null,
+}
+
+// One kernel tick = one frame: poll the window, apply input, advance the sim by
+// the FIXED quantum, and redraw only when the scene key moved. Runs at the
+// kernel's drift-free grid; between ticks the kernel idles (no busy-spin).
+fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
+             wallprog: integer, postprog: integer, postfbo: integer, posttex: integer) {
+  if !graphics::gl_poll_events() || graphics::gl_key_pressed(KEY_ESC) {
+    engine_host::client_stop();
+    return;
+  }
+
+  // Character page (C): toggle the overlay. While open the world is PAUSED and the number
+  // keys 1-6 spend banked stat points (the deferred, player-chosen level-up).
+  c_down = graphics::gl_key_pressed(KEY_C);
+  if c_down && !w.c_was {
+    w.page_open = !w.page_open;
+    if w.page_open { w.inv_open = false; w.pg = build_charpage(w.s, w.hud.font); }
+  }
+  w.c_was = c_down;
+
+  i_down = graphics::gl_key_pressed(KEY_I);
+  if i_down && !w.i_was {
+    w.inv_open = !w.inv_open;
+    if w.inv_open { w.page_open = false; w.inv_cursor = 0; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+  }
+  w.i_was = i_down;
+
+  if w.crys_open {
+    // THE CRYSTAL PAGE — W/S move, A/D switch column, Enter reshapes, Q steps away.
+    ccount = if w.crys_col == 0 { sim_race_count() } else { sim_class_count() };
+    cu = graphics::gl_key_pressed(KEY_W);
+    if cu && !w.cu_was && w.crys_cur > 0 { w.crys_cur -= 1; w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur); }
+    w.cu_was = cu;
+    cd = graphics::gl_key_pressed(KEY_S);
+    if cd && !w.cd_was && w.crys_cur < ccount - 1 { w.crys_cur += 1; w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur); }
+    w.cd_was = cd;
+    ca = graphics::gl_key_pressed(KEY_A);
+    cdd = graphics::gl_key_pressed(KEY_D);
+    if (ca && !w.ca_was) || (cdd && !w.cdd_was) {
+      w.crys_col = 1 - w.crys_col;
+      nmax = if w.crys_col == 0 { sim_race_count() } else { sim_class_count() };
+      if w.crys_cur >= nmax { w.crys_cur = nmax - 1; }
+      w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur);
+    }
+    w.ca_was = ca;
+    w.cdd_was = cdd;
+    cent = graphics::gl_key_pressed(KEY_ENTER);
+    if cent && !w.cent_was {
+      if w.crys_col == 0 { sim_shrine_apply(w.s, "race", sim_race_key(w.crys_cur)); }
+      else { sim_shrine_apply(w.s, "class", sim_class_key(w.crys_cur)); }
+      w.crys_open = false;
+    }
+    w.cent_was = cent;
+    ckq = graphics::gl_key_pressed(KEY_Q);
+    if ckq && !w.ckq_was { w.crys_open = false; }
+    w.ckq_was = ckq;
+  } else if w.page_open || w.inv_open {
+    // Number keys 1-9: char page SPENDS a stat (1-6); inventory hub BINDS the selected item to
+    // that quick-slot (the manual reslot).
+    sd = -1;
+    for ki in 0..9 {
+      if graphics::gl_key_pressed(KEY_1 + ki) { sd = ki; }
+    }
+    sdn = sd >= 0;
+    if sdn && !w.spend_was {
+      if w.page_open && sd < 6 {
+        if sim_raise_stat(w.s, stat_name(sd)) { w.pg = build_charpage(w.s, w.hud.font); }
+      } else if w.inv_open {
+        sim_inv_bind(w.s, w.inv_cursor, sd);
+        w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
+      }
+    }
+    w.spend_was = sdn;
+
+    if w.inv_open {
+      // WASD cursor over the carried list
+      up_d = graphics::gl_key_pressed(KEY_W);
+      if up_d && !w.iu_was && w.inv_cursor > 0 { w.inv_cursor = w.inv_cursor - 1; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.iu_was = up_d;
+      dn_d = graphics::gl_key_pressed(KEY_S);
+      if dn_d && !w.id_was && w.inv_cursor < sim_inv_count(w.s) - 1 { w.inv_cursor = w.inv_cursor + 1; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.id_was = dn_d;
+      // Q / E bind the selected item to an active slot
+      q_d = graphics::gl_key_pressed(KEY_Q);
+      if q_d && !w.iq_was { sim_inv_bind(w.s, w.inv_cursor, QS_Q); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.iq_was = q_d;
+      e_d = graphics::gl_key_pressed(KEY_E);
+      if e_d && !w.ie_was { sim_inv_bind(w.s, w.inv_cursor, QS_E); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.ie_was = e_d;
+      // Enter equips the selected item to its worn location
+      ent_d = graphics::gl_key_pressed(KEY_ENTER);
+      if ent_d && !w.ient_was {
+        sim_equip(w.s, w.inv_cursor);
+        if w.inv_cursor >= sim_inv_count(w.s) && w.inv_cursor > 0 { w.inv_cursor = sim_inv_count(w.s) - 1; }
+        w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
+      }
+      w.ient_was = ent_d;
+    }
+  } else {
+    w.spend_was = false;
+
+  // Quick-slots: 1-9 / Q / E use the bound item (consumable -> use_item, launcher -> sim_fire).
+  // Edge-triggered so a held key fires once. The bar reads live, so no rebake is needed.
+  qslot = -1;
+  for ki in 0..9 {
+    if graphics::gl_key_pressed(KEY_1 + ki) { qslot = ki; }
+  }
+  if graphics::gl_key_pressed(KEY_Q) { qslot = QS_Q; }
+  if graphics::gl_key_pressed(KEY_E) { qslot = QS_E; }
+  qdn = qslot >= 0;
+  if qdn && !w.qs_was { use_slot(w.s, qslot); }
+  w.qs_was = qdn;
+
+  fwd = 0;
+  turn = 0;
+  if graphics::gl_key_pressed(KEY_W) { fwd = 1; }
+  if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
+  if graphics::gl_key_pressed(KEY_A) { turn = 1; }   // left  = CCW (heading up)
+  if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
+
+  // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
+  w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
+  if w_down && !w.w_was { sim_wait(w.s); }
+  w.w_was = w_down;
+
+  // Grab: 'g' picks up items under the player (gold auto-collects on walk-over).
+  g_down = graphics::gl_key_pressed(KEY_G);
+  if g_down && !w.g_was { sim_pickup(w.s); }
+  w.g_was = g_down;
+
+  sim_step(w.s, fwd, turn, FIXED_DT);
+  if sim_over(w.s) {              // death is not permadeath: respawn at the last save point
+    w.s = sim_respawn(w.s);
+    w.walls = build_walls(w.s);
+    w.hud = build_hud(w.s);
+    graphics::gl_delete_vao(w.wvao);
+    w.wvao = build_world_vbo(w.s);
+    graphics::gl_delete_vao(w.wallvao);
+    w.wallvao = build_walls_vbo(w.s, w.walls);
+    w.walln = len(w.walls) * 6;
+    (w.sq, w.sr) = sim_player_hex(w.s);   // re-arm on the respawn stair
+  } else {
+    // Walk onto a stair to change level. Edge-trigger: fire only when ENTERING
+    // a new hex that is a stair, so arriving ON the destination stair doesn't
+    // bounce you straight back (you step off, then re-entering fires again).
+    (cq, cr) = sim_player_hex(w.s);
+    if cq != w.sq || cr != w.sr {
+      stt = sim_stair_under(w.s);
+      if stt == 2 || stt == 6 {           // '>' down (6 = a natural cave mouth)
+        w.s = sim_descend(w.s, 1);
+        w.walls = build_walls(w.s);
+        w.hud = build_hud(w.s);
+        graphics::gl_delete_vao(w.wvao);
+        w.wvao = build_world_vbo(w.s);
+        graphics::gl_delete_vao(w.wallvao);
+        w.wallvao = build_walls_vbo(w.s, w.walls);
+        w.walln = len(w.walls) * 6;
+        (w.sq, w.sr) = sim_player_hex(w.s);     // arm on the arrival stair
+      } else if stt == 3 && sim_depth(w.s) > 1 {   // '<' up (no overworld above depth 1 yet)
+        w.s = sim_descend(w.s, -1);
+        w.walls = build_walls(w.s);
+        w.hud = build_hud(w.s);
+        graphics::gl_delete_vao(w.wvao);
+        w.wvao = build_world_vbo(w.s);
+        graphics::gl_delete_vao(w.wallvao);
+        w.wallvao = build_walls_vbo(w.s, w.walls);
+        w.walln = len(w.walls) * 6;
+        (w.sq, w.sr) = sim_player_hex(w.s);
+      } else if sim_depth(w.s) == 0 && sim_edge_exit(w.s) != 0 {
+        // the wilderness continues: walking off the window edge crosses over
+        w.s = sim_travel(w.s);
+        w.walls = build_walls(w.s);
+        w.hud = build_hud(w.s);
+        graphics::gl_delete_vao(w.wvao);
+        w.wvao = build_world_vbo(w.s);
+        graphics::gl_delete_vao(w.wallvao);
+        w.wallvao = build_walls_vbo(w.s, w.walls);
+        w.walln = len(w.walls) * 6;
+        (w.sq, w.sr) = sim_player_hex(w.s);
+      } else {
+        w.sq = cq;
+        w.sr = cr;
+      }
+    }
+  }
+  }
+  // The shrine: bumping the spawning crystal raises the INTERACT event -> the crystal page.
+  if sim_shrine_pending(w.s) == 1 {
+    sim_shrine_clear(w.s);
+    w.crys_open = true;
+    w.page_open = false;
+    w.inv_open = false;
+    w.crys_col = 0;
+    w.crys_cur = 0;
+    w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur);
+  }
+  // IDLE SKIP (P1, RENDER.md Frame reuse Tier 0): digest everything the frame
+  // depends on; unchanged -> skip FOV recompute, rebakes, draw AND swap. The
+  // digest lives in framekey.loft (kernel-side, pinned by idletest) — a missed
+  // observable is added THERE, never patched here. The kernel loop idles
+  // between ticks (K1 closed the old busy-spin gap, loft#343).
+  w.ticks_n += 1;
+  key = scene_key(w.s, if w.page_open { 1 } else { 0 }, if w.inv_open { 1 } else { 0 },
+                  if w.crys_open { 1 } else { 0 }, w.inv_cursor, w.crys_col, w.crys_cur);
+  if key != w.last_key {
+    w.last_key = key;
+    w.frames_drawn += 1;
+    sim_compute_fov(w.s);        // directed-light FOV: recompute visibility for this frame
+    // Rebake the message log only when a new line arrived (combat, pickup, level, descend, …).
+    tot = sim_msg_total(w.s);
+    if tot != w.last_total {
+      free_msglog(w.ml);
+      w.ml = build_msglog(w.s, w.hud.font);
+      w.last_total = tot;
+    }
+    // Re-bake the quick-slot item names only when an identification changed what they show.
+    kn = sim_known_count(w.s);
+    if kn != w.last_known {
+      w.hud.itex = hud_rebuild_items(w.hud, w.s);
+      w.last_known = kn;
+    }
+    view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln, postprog, postfbo, posttex);
+    draw_msglog(painter, w.s, w.hud, w.ml);
+    if w.page_open { draw_charpage(painter, w.s, w.hud, w.pg); }
+    else if w.inv_open { draw_invpage(painter, w.s, w.hud, w.pg_inv, w.inv_cursor); }
+    else if w.crys_open { draw_crystalpage(painter, w.s, w.hud, w.pg_crys, w.crys_col, w.crys_cur); }
+    graphics::gl_swap_buffers();
+  }
+  }
 
 fn main() {
   if !graphics::gl_create_window(WIN_W, WIN_H, "story — M0") {
@@ -80,271 +363,27 @@ fn main() {
   (postfbo, posttex) = make_post_target();
   wallvao = build_walls_vbo(s, walls);   // wall-stroke VBO (rebuilt with the level)
   walln = len(walls) * 6;
-  last = ticks();
-  w_was = false;            // edge-trigger for the wait key
-  g_was = false;            // edge-trigger for the grab key
-  page_open = false;        // character page overlay (C): pauses the world while open
-  pg: vector<integer> = []; // baked character-page line textures (rebuilt on open + each spend)
-  c_was = false;            // edge-trigger for the page toggle
-  spend_was = false;        // edge-trigger for the 1-9 number keys (shared by both pages)
-  qs_was = false;           // edge-trigger for the quick-slot keys (1-9 / Q / E in normal play)
-  inv_open = false;         // inventory overlay (I): also pauses the world
-  pg_inv: vector<integer> = [];   // baked inventory-hub textures (rebuilt on cursor move / equip / bind)
-  i_was = false;            // edge-trigger for the inventory toggle
-  inv_cursor = 0;           // highlighted carried item in the hub
-  iu_was = false;           // edge-triggers for the hub: cursor up / down / Q-bind / E-bind / equip
-  id_was = false;
-  iq_was = false;
-  ie_was = false;
-  ient_was = false;
-  crys_open = false;        // the CRYSTAL page (bump the shrine): pauses the world too
-  pg_crys: vector<integer> = [];  // baked crystal-page textures (rebuilt on cursor/column/apply)
-  crys_col = 0;             // 0 = race column, 1 = class column
-  crys_cur = 0;             // highlighted entry in the active column
-  cu_was = false;           // crystal-page edge-triggers: W/S/A/D/Enter/Q
-  cd_was = false;
-  ca_was = false;
-  cdd_was = false;
-  cent_was = false;
-  ckq_was = false;
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
-  last_key = 0;             // idle skip (P1): redraw only when the scene key moves
-  loop_iters = 0;           //   (0 never matches a real key, so the first frame draws)
-  frames_drawn = 0;
-  running = true;
-  while running {
-    if !graphics::gl_poll_events() {
-      running = false;
-    } else if graphics::gl_key_pressed(KEY_ESC) {
-      running = false;
-    } else {
-      tnow = ticks();
-      dt = (tnow - last) as float / 1000000.0;
-      last = tnow;
-      if dt > 0.05 { dt = 0.05; }
-
-      // Character page (C): toggle the overlay. While open the world is PAUSED and the number
-      // keys 1-6 spend banked stat points (the deferred, player-chosen level-up).
-      c_down = graphics::gl_key_pressed(KEY_C);
-      if c_down && !c_was {
-        page_open = !page_open;
-        if page_open { inv_open = false; pg = build_charpage(s, hud.font); }
-      }
-      c_was = c_down;
-
-      i_down = graphics::gl_key_pressed(KEY_I);
-      if i_down && !i_was {
-        inv_open = !inv_open;
-        if inv_open { page_open = false; inv_cursor = 0; pg_inv = build_invpage(s, hud.font, inv_cursor); }
-      }
-      i_was = i_down;
-
-      if crys_open {
-        // THE CRYSTAL PAGE — W/S move, A/D switch column, Enter reshapes, Q steps away.
-        ccount = if crys_col == 0 { sim_race_count() } else { sim_class_count() };
-        cu = graphics::gl_key_pressed(KEY_W);
-        if cu && !cu_was && crys_cur > 0 { crys_cur -= 1; pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur); }
-        cu_was = cu;
-        cd = graphics::gl_key_pressed(KEY_S);
-        if cd && !cd_was && crys_cur < ccount - 1 { crys_cur += 1; pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur); }
-        cd_was = cd;
-        ca = graphics::gl_key_pressed(KEY_A);
-        cdd = graphics::gl_key_pressed(KEY_D);
-        if (ca && !ca_was) || (cdd && !cdd_was) {
-          crys_col = 1 - crys_col;
-          nmax = if crys_col == 0 { sim_race_count() } else { sim_class_count() };
-          if crys_cur >= nmax { crys_cur = nmax - 1; }
-          pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur);
-        }
-        ca_was = ca;
-        cdd_was = cdd;
-        cent = graphics::gl_key_pressed(KEY_ENTER);
-        if cent && !cent_was {
-          if crys_col == 0 { sim_shrine_apply(s, "race", sim_race_key(crys_cur)); }
-          else { sim_shrine_apply(s, "class", sim_class_key(crys_cur)); }
-          crys_open = false;
-        }
-        cent_was = cent;
-        ckq = graphics::gl_key_pressed(KEY_Q);
-        if ckq && !ckq_was { crys_open = false; }
-        ckq_was = ckq;
-      } else if page_open || inv_open {
-        // Number keys 1-9: char page SPENDS a stat (1-6); inventory hub BINDS the selected item to
-        // that quick-slot (the manual reslot).
-        sd = -1;
-        for ki in 0..9 {
-          if graphics::gl_key_pressed(KEY_1 + ki) { sd = ki; }
-        }
-        sdn = sd >= 0;
-        if sdn && !spend_was {
-          if page_open && sd < 6 {
-            if sim_raise_stat(s, stat_name(sd)) { pg = build_charpage(s, hud.font); }
-          } else if inv_open {
-            sim_inv_bind(s, inv_cursor, sd);
-            pg_inv = build_invpage(s, hud.font, inv_cursor);
-          }
-        }
-        spend_was = sdn;
-
-        if inv_open {
-          // WASD cursor over the carried list
-          up_d = graphics::gl_key_pressed(KEY_W);
-          if up_d && !iu_was && inv_cursor > 0 { inv_cursor = inv_cursor - 1; pg_inv = build_invpage(s, hud.font, inv_cursor); }
-          iu_was = up_d;
-          dn_d = graphics::gl_key_pressed(KEY_S);
-          if dn_d && !id_was && inv_cursor < sim_inv_count(s) - 1 { inv_cursor = inv_cursor + 1; pg_inv = build_invpage(s, hud.font, inv_cursor); }
-          id_was = dn_d;
-          // Q / E bind the selected item to an active slot
-          q_d = graphics::gl_key_pressed(KEY_Q);
-          if q_d && !iq_was { sim_inv_bind(s, inv_cursor, QS_Q); pg_inv = build_invpage(s, hud.font, inv_cursor); }
-          iq_was = q_d;
-          e_d = graphics::gl_key_pressed(KEY_E);
-          if e_d && !ie_was { sim_inv_bind(s, inv_cursor, QS_E); pg_inv = build_invpage(s, hud.font, inv_cursor); }
-          ie_was = e_d;
-          // Enter equips the selected item to its worn location
-          ent_d = graphics::gl_key_pressed(KEY_ENTER);
-          if ent_d && !ient_was {
-            sim_equip(s, inv_cursor);
-            if inv_cursor >= sim_inv_count(s) && inv_cursor > 0 { inv_cursor = sim_inv_count(s) - 1; }
-            pg_inv = build_invpage(s, hud.font, inv_cursor);
-          }
-          ient_was = ent_d;
-        }
-      } else {
-        spend_was = false;
-
-      // Quick-slots: 1-9 / Q / E use the bound item (consumable -> use_item, launcher -> sim_fire).
-      // Edge-triggered so a held key fires once. The bar reads live, so no rebake is needed.
-      qslot = -1;
-      for ki in 0..9 {
-        if graphics::gl_key_pressed(KEY_1 + ki) { qslot = ki; }
-      }
-      if graphics::gl_key_pressed(KEY_Q) { qslot = QS_Q; }
-      if graphics::gl_key_pressed(KEY_E) { qslot = QS_E; }
-      qdn = qslot >= 0;
-      if qdn && !qs_was { use_slot(s, qslot); }
-      qs_was = qdn;
-
-      fwd = 0;
-      turn = 0;
-      if graphics::gl_key_pressed(KEY_W) { fwd = 1; }
-      if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
-      if graphics::gl_key_pressed(KEY_A) { turn = 1; }   // left  = CCW (heading up)
-      if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
-
-      // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
-      w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
-      if w_down && !w_was { sim_wait(s); }
-      w_was = w_down;
-
-      // Grab: 'g' picks up items under the player (gold auto-collects on walk-over).
-      g_down = graphics::gl_key_pressed(KEY_G);
-      if g_down && !g_was { sim_pickup(s); }
-      g_was = g_down;
-
-      sim_step(s, fwd, turn, dt);
-      if sim_over(s) {              // death is not permadeath: respawn at the last save point
-        s = sim_respawn(s);
-        walls = build_walls(s);
-        hud = build_hud(s);
-        graphics::gl_delete_vao(wvao);
-        wvao = build_world_vbo(s);
-        graphics::gl_delete_vao(wallvao);
-        wallvao = build_walls_vbo(s, walls);
-        walln = len(walls) * 6;
-        (sq, sr) = sim_player_hex(s);   // re-arm on the respawn stair
-      } else {
-        // Walk onto a stair to change level. Edge-trigger: fire only when ENTERING
-        // a new hex that is a stair, so arriving ON the destination stair doesn't
-        // bounce you straight back (you step off, then re-entering fires again).
-        (cq, cr) = sim_player_hex(s);
-        if cq != sq || cr != sr {
-          stt = sim_stair_under(s);
-          if stt == 2 || stt == 6 {           // '>' down (6 = a natural cave mouth)
-            s = sim_descend(s, 1);
-            walls = build_walls(s);
-            hud = build_hud(s);
-            graphics::gl_delete_vao(wvao);
-            wvao = build_world_vbo(s);
-            graphics::gl_delete_vao(wallvao);
-            wallvao = build_walls_vbo(s, walls);
-            walln = len(walls) * 6;
-            (sq, sr) = sim_player_hex(s);     // arm on the arrival stair
-          } else if stt == 3 && sim_depth(s) > 1 {   // '<' up (no overworld above depth 1 yet)
-            s = sim_descend(s, -1);
-            walls = build_walls(s);
-            hud = build_hud(s);
-            graphics::gl_delete_vao(wvao);
-            wvao = build_world_vbo(s);
-            graphics::gl_delete_vao(wallvao);
-            wallvao = build_walls_vbo(s, walls);
-            walln = len(walls) * 6;
-            (sq, sr) = sim_player_hex(s);
-          } else if sim_depth(s) == 0 && sim_edge_exit(s) != 0 {
-            // the wilderness continues: walking off the window edge crosses over
-            s = sim_travel(s);
-            walls = build_walls(s);
-            hud = build_hud(s);
-            graphics::gl_delete_vao(wvao);
-            wvao = build_world_vbo(s);
-            graphics::gl_delete_vao(wallvao);
-            wallvao = build_walls_vbo(s, walls);
-            walln = len(walls) * 6;
-            (sq, sr) = sim_player_hex(s);
-          } else {
-            sq = cq;
-            sr = cr;
-          }
-        }
-      }
-      }
-      // The shrine: bumping the spawning crystal raises the INTERACT event -> the crystal page.
-      if sim_shrine_pending(s) == 1 {
-        sim_shrine_clear(s);
-        crys_open = true;
-        page_open = false;
-        inv_open = false;
-        crys_col = 0;
-        crys_cur = 0;
-        pg_crys = build_crystalpage(s, hud.font, crys_col, crys_cur);
-      }
-      // IDLE SKIP (P1, RENDER.md Frame reuse Tier 0): digest everything the frame
-      // depends on; unchanged -> skip FOV recompute, rebakes, draw AND swap. The
-      // digest lives in framekey.loft (kernel-side, pinned by idletest) — a missed
-      // observable is added THERE, never patched here. Known gap: skipping the swap
-      // also skips the vsync block, so an idle loop spins polling keys (~1k Hz);
-      // the blocking-poll flow-back (gl_wait_events_timeout, EXTRACTION §6a)
-      // completes the win — GPU zero AND CPU zero.
-      loop_iters += 1;
-      key = scene_key(s, if page_open { 1 } else { 0 }, if inv_open { 1 } else { 0 },
-                      if crys_open { 1 } else { 0 }, inv_cursor, crys_col, crys_cur);
-      if key != last_key {
-        last_key = key;
-        frames_drawn += 1;
-        sim_compute_fov(s);        // directed-light FOV: recompute visibility for this frame
-        // Rebake the message log only when a new line arrived (combat, pickup, level, descend, …).
-        tot = sim_msg_total(s);
-        if tot != last_total {
-          free_msglog(ml);
-          ml = build_msglog(s, hud.font);
-          last_total = tot;
-        }
-        // Re-bake the quick-slot item names only when an identification changed what they show.
-        kn = sim_known_count(s);
-        if kn != last_known {
-          hud.itex = hud_rebuild_items(hud, s);
-          last_known = kn;
-        }
-        view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, postfbo, posttex);
-        draw_msglog(painter, s, hud, ml);
-        if page_open { draw_charpage(painter, s, hud, pg); }
-        else if inv_open { draw_invpage(painter, s, hud, pg_inv, inv_cursor); }
-        else if crys_open { draw_crystalpage(painter, s, hud, pg_crys, crys_col, crys_cur); }
-        graphics::gl_swap_buffers();
-      }
-    }
-  }
-  println("idle-skip: drew {frames_drawn} of {loop_iters} iterations");
+  w = GameWorld {
+    s: s, walls: walls, hud: hud, ml: ml, last_total: last_total, last_known: last_known,
+    wvao: wvao, wallvao: wallvao, walln: walln,
+    w_was: false, g_was: false, c_was: false, spend_was: false, qs_was: false,
+    i_was: false, iu_was: false, id_was: false, iq_was: false, ie_was: false,
+    ient_was: false, cu_was: false, cd_was: false, ca_was: false, cdd_was: false,
+    cent_was: false, ckq_was: false,
+    page_open: false, inv_open: false, crys_open: false,
+    pg: [], pg_inv: [], pg_crys: [],
+    inv_cursor: 0, crys_col: 0, crys_cur: 0, sq: sq, sr: sr,
+    last_key: 0, ticks_n: 0, frames_drawn: 0,
+  };
+  // K1: the games kernel owns the loop — drift-free ticks, idle backoff between
+  // them, the debug control endpoint, the swap machinery. game_tick is the frame;
+  // Esc / window close call client_stop() to leave. Switching this program to a
+  // networked client later changes ONE line (run_local -> run_client).
+  engine_host::run_local(TICK_US, fn(_ev: engine_host::Event) {}, fn() {
+    game_tick(w, painter, wprog, wallprog, postprog, postfbo, posttex);
+  });
+  println("idle-skip: drew {w.frames_drawn} frames over {w.ticks_n} ticks");
   graphics::gl_destroy_window();
 }

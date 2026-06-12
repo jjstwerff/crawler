@@ -46,6 +46,35 @@ immediately), worst case = standard fixed-timestep catch-up. K2/K4 then add real
 sockets to the SAME pump — remote inputs as events applied at ticks, poses
 broadcast after on_tick, the renderer a pure function of Sim behind the scene key.
 
+## Frame rates (evaluated 2026-06-12)
+
+K1 separates the three rates that used to be one tangle: the sim quantum
+(`FIXED_DT`, DERIVED from `TICK_US` — one source of truth), the render cadence
+(the scene key — draw only on change), and display sync (vsync blocks only
+frames that draw). Against the modern options:
+
+- **60 Hz fixed (default)**: measured 59.97 Hz grid, ~150 µs tick body — huge
+  headroom even interpreted.
+- **120/144/240 fixed**: ONE constant (`TICK_US`); pacing identical (speeds are
+  per-second). The constraint is DETERMINISM, not perf: a 60 Hz recording does
+  not replay at 144 — the rate rides the replay header / MP server config,
+  never re-derived.
+- **VRR / adaptive (G-Sync, FreeSync, LTPO)**: render-on-demand + vsync-on-draw
+  is exactly the client VRR wants — irregular cadence, panel adapts. The idle
+  skip doubles as the modern-display answer.
+- **Render > sim (144 Hz panel, 60 Hz sim)**: the one unsupported option —
+  the kernel has ONE grid (one tick = one frame on a GL host). The seam if
+  wanted: lerp the CAMERA (px/py/heading) between the last two sim states
+  under a faster frame callback (`frame_due` beside `tick_due` — an
+  engine_host ask) + an alpha into `world_cam_mat4`. Parked: enemies are
+  hex-locked, only the camera moves continuously — genre says low priority.
+- **Browser**: the upstream browser kernel frames on rAF already;
+  the logical grid rides on top — same one-constant model.
+- **Input**: polled at tick rate (≤1 tick latency — fine; sub-16 ms synthetic
+  taps ARE missed, the smoke proved it with xdotool). The structural upgrade
+  is the kernel events class (input-as-events), already named in the
+  interleave table.
+
 ## Steps
 
 - **K0 — consumable smoke (S). ✅ DONE 2026-06-12**: `src/kerneltest.loft` —
@@ -77,7 +106,7 @@ broadcast after on_tick, the renderer a pure function of Sim behind the scene ke
 | Step | Effort | Status |
 |---|---|---|
 | K0 consumable smoke | S | DONE 2026-06-12 (gate `[kernel]`) |
-| K1 frame loop on the kernel | M | **UNBLOCKED 2026-06-12** — loft `9fedef9e` ships `run_local` (the windowed host role; verified: drift-free ticks + clean `client_stop` on the repo build). Needs `make install` in ../loft (or LOFT_REPO=../loft) — the installed binary predates the natives. Prep: fold the loop's UI scalars into a `UiState` struct (the #314 struct-held-world pattern) so the closures capture two links |
+| K1 frame loop on the kernel | M | **DONE 2026-06-12** — story.loft runs on `engine_host::run_local`: `GameWorld` struct (the #314 pattern, closures capture one link + the immutables), `game_tick` = poll → input → fixed-quanta `sim_step` (FIXED_DT derived from TICK_US — the lockstep fix) → scene-key-gated draw. Measured: 59.97 Hz grid, ~150 µs body, idle = 1 frame drawn + kernel idles between ticks (the P1 busy-spin is GONE). Lesson: sub-16 ms synthetic key taps fall between 60 Hz polls (smoke uses keydown/sleep/keyup); input-as-events is the future fix |
 | K2 observer slice | M | — |
 | K3 live-reload dev mode | S | after K1 |
 | K4 MP lockstep | L | gated on K1 + a design pass |

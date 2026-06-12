@@ -270,10 +270,12 @@ composite them to the window each frame. Four tiers, by what gets reused:
 - **Tier 0 — idle skip (reuse: everything; the biggest win). ✅ SHIPPED (P1,
   2026-06-12):** `framekey.loft` digests every frame-relevant observable (Sim +
   overlay scalars — the ONE chokepoint for stale-frame bugs); the loop redraws only
-  on a key change. Measured under Xvfb: 6s idle = **1 frame drawn of 8287
-  iterations**. Idle GPU cost = zero. Known gap: no swap = no vsync block, so the
-  idle loop busy-spins polling keys — the complete win (CPU zero too) needs the
-  `gl_wait_events_timeout` substrate flow-back (EXTRACTION §6a).
+  on a key change. Measured under Xvfb: 6s idle = **1 frame drawn**. Idle GPU
+  cost = zero — and since K1 (PLAN-KERNEL) the kernel loop idles between
+  drift-free ticks, so the old busy-spin gap is CLOSED: idle CPU = 60 Hz ticks
+  at ~150 µs each plus kernel sleeps. Render-on-demand + vsync-on-draw is also
+  exactly the cadence VRR/adaptive-sync displays want (PLAN-KERNEL § Frame
+  rates).
 - **Tier 1 — retained encoding (reuse: all CPU-side work; this IS R1–R8).** Resident
   VBOs, recorded batches, cached tessellation: per frame the GPU re-executes a handful
   of draws, the CPU re-builds nothing. `gl_update_vertices` refines it — a
