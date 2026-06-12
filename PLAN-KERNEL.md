@@ -24,6 +24,28 @@ consume what fits now, name the seam that doesn't:
   ask is therefore one seam**: expose the idle/wait primitive (or the windowed host
   role) so a local windowed game can run the kernel loop. Until then K1 stays open.
 
+## The interleave (the K1 loop shape, pinned 2026-06-12)
+
+The kernel loop and crawler's loop map one-to-one — K1 is a restructuring, not a
+rewrite:
+
+| Kernel slot | Crawler occupant |
+|---|---|
+| `pump()` | `gl_poll_events()` + key sampling (the window IS the socket; input = the events class, local transport) |
+| `on_event` | edge-triggered actions — grab/wait/page toggles/quick-slots (today's `*_was` flags dissolve into events) |
+| `on_tick` | `sim_step` at FIXED quanta (held keys sampled per tick — the float-dt lockstep fix), then the scene-key check → `view_draw` + swap only on change |
+| `idle(2ms)` | replaces P1's busy-spin — fires when no input, no tick due, nothing drawn |
+
+Two load-bearing observations: (1) **`tick_due` and the scene key are the same
+predicate on two axes** — time-driven sim work vs state-driven render work; the
+kernel's "did any work happen" counter treats a draw as work, so P1's mechanism
+slots in unchanged, and everything P0–P3 built (view_draw, VBOs, probes) stays a
+tick-side consumer. (2) **Two clocks coexist**: ticks on the drift-free grid,
+vsync only on frames that draw; the grid absorbs render jitter (late ticks fire
+immediately), worst case = standard fixed-timestep catch-up. K2/K4 then add real
+sockets to the SAME pump — remote inputs as events applied at ticks, poses
+broadcast after on_tick, the renderer a pure function of Sim behind the scene key.
+
 ## Steps
 
 - **K0 — consumable smoke (S). ✅ DONE 2026-06-12**: `src/kerneltest.loft` —
