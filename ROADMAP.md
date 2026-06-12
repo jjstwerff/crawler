@@ -54,12 +54,13 @@ Build in order; each is small + headless-tested where it's kernel logic.
   door, a capability item, a fleeing pack, a save point, a hazard) so the early game
   *teaches itself* instead of being filler — a novelty curve, not just a difficulty one.
 - **Persistence** — cleared-stays-cleared on revisit (distinct from G4 respawn).
-- **Full-GPU 2D renderer** (**RENDER.md**) — world VBO + sprite atlas + shader FOV
-  replace per-frame immediate emission; folds in the `tools/draw.py` atlas and is the
-  `moros_render` 3D-bridge groundwork. One focused task, *after* the kernel FOV (which is
-  renderer-agnostic and feeds both paths). All primitives confirmed present in
-  `graphics.loft` (`gl_upload_vertices`, `SpriteSheet`/`draw_sprite`, `gl_load_texture`,
-  shaders + `mat4` uniforms).
+- **Showcase 2D GPU renderer** (**RENDER.md**) — doctrine: crawler showcases the best
+  2D primitives possible on a modern GPU. World VBO + shader FOV are **live**; next the
+  no-lib-gap stages (tint bake R4, SDF wall strokes R5, light-cone post-fx R6), then the
+  instanced tier (floor R7, one-call sprite batch R8 — absorbs the sprite atlas) behind
+  the `graphics` flow-backs (EXTRACTION.md § GPU 2D primitives, which also carries the
+  simple-verbs-over-batched-backend painter API). `moros_render` 3D-bridge groundwork.
+  Step plan + verification channels: **PLAN-RENDER.md**.
 
 ## Phase 3 — the world → **M-World** (player-chosen difficulty, §3a #9)
 

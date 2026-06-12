@@ -187,6 +187,116 @@ divisions as `(a / b) ?? f`; struct-field index WRITES need the alias idiom
 recognized); compound guards with `||`/`??` subexpressions aren't recognized.
 crawler consumes when the wilderness lands (blocks sample `terrain_sample`).
 
+### 6. GPU 2D primitives → `graphics` (the showcase flow-back, RENDER.md R7/R8)
+
+crawler's showcase renderer (RENDER.md, doctrine 2026-06-12) is the consumer pressure
+that drives the `graphics` lib's 2D API to its modern-GPU form. Two layers, in order:
+
+**(a) The raw substrate** — small `gl_*` additions the instanced tier needs:
+
+- [ ] `gl_draw_instanced(vao, verts, instances)` + per-instance attributes (divisor)
+      on `gl_upload_vertices`-style instance buffers.
+- [ ] `gl_update_vertices(vao, data)` (buffer sub-data / orphaning) — per-frame dynamic
+      buffers without the create+delete churn.
+- [ ] `gl_set_uniform_vec2` / `gl_set_uniform_vec4` (only int/float/vec3/mat4 exist).
+- [ ] An EBO upload entry (`gl_draw_elements` exists with no way to upload indices).
+- [ ] Texture sampler control on upload (linear/nearest, mipmap generation) — RGBA-
+      quality sprite minification + atlas filtering.
+- [ ] Texture sub-region upload (`glTexSubImage2D`-style) — incremental auto-atlas
+      packing without re-uploading the whole page.
+- [ ] `gl_scissor(x, y, w, h)` — partial in-layer damage redraw (RENDER.md frame-reuse
+      Tier 3).
+
+**(b) Painter2D v2 — a Cairo-class canvas + sprite API, GPU behind the curtain**
+(the stated target, 2026-06-12: Cairo-like drawing primitives + 2D sprites with full
+RGBA-quality compositing, the GPU used as efficiently as possible behind them — the
+NanoVG-class architecture; full spec: RENDER.md → "The API layer"):
+
+- [ ] The canvas surface: stateful context (`save`/`restore` transform+state stack,
+      `translate`/`rotate`/`scale`, scissor), path verbs (`begin_path` ·
+      `move_to`/`line_to`/`bezier_to`/`arc`/`rect`/`rounded_rect`/`circle` ·
+      `close_path`) with `fill(paint)`/`stroke(paint, width)`, solid-RGBA + gradient
+      paints. Strokes: join styles (miter/bevel/round) + cap styles (butt/round/
+      square) — constructed 24-dir walls need sharp miters; per-point width (taper —
+      rivers scale with flow); arc-length UV baked into stroke geometry (dashes, road
+      texture, river flow animation). See RENDER.md → "Fit check — the 24-direction
+      world".
+- [ ] Batched backend: calls append to per-shader streams; **merge adjacent
+      state-compatible calls, never reorder** (2D alpha compositing is order-
+      dependent; the shared atlas + SDF ubershader make nearly all consecutive calls
+      compatible, so adjacency-merge alone yields a handful of draws). No per-call
+      CPU rasterization.
+- [ ] Frame-stats introspection (draw count, batch breaks + reasons, atlas occupancy,
+      tessellation-cache hit rate) — the automatic behaviors must be debuggable when
+      they degrade.
+- [ ] Two-tier shapes: common cases (line/circle/ring/rect/rounded-rect) are SDF fast
+      paths (one quad shader, per-instance params, analytic AA — what crawler's wall
+      stipple becomes); arbitrary paths flatten + tessellate CPU-side ONCE, cached by
+      (path identity, scale bucket), redrawn as cached triangles.
+- [ ] Sprite layer with RGBA quality: premultiplied-alpha compositing
+      (`BLEND_ONE`/`ONE_MINUS_SRC_ALPHA` — constants already exist), 1px atlas padding
+      against linear-filter bleed, mipmaps when minified (needs the sampler-control
+      gap in (a)), rotated/scaled/tinted draw verbs.
+- [ ] **Automatic atlasing — no programmer direction**: `load_image(path)` → handle;
+      the painter skyline-packs images into its own ~2048² pages at load time
+      (off-frame — first-draw packing only as the glyph fallback; premultiply + pad +
+      extrude at insert), instance records carry the UV rect —
+      one draw per page with no manual arrangement; glyphs share the pages. Heuristics,
+      not API: oversized images bypass to own textures, full pages chain, dynamic
+      entries evict LRU. Needs the sub-region upload gap in (a).
+- [ ] Frame reuse (RENDER.md → "Frame reuse"): the idle skip (scene version unchanged →
+      no render, no swap — zero gaps); per-layer caches as an API choice
+      (`make_layer` / draw-into-layer / `invalidate` / `draw_layer(layer, mvp)` — the
+      same verbs targeted at an owned FBO texture, never a global mode); scissored
+      partial redraw inside a layer behind the `gl_scissor` gap in (a).
+- [ ] Recording: the same verbs captured into a batch handle
+      (`record … → draw_batch(batch, mvp)`) — static content (a level's walls) records
+      once, replays per frame under the camera matrix. Display-list model: static
+      performance without a second API.
+- [ ] crawler adopts piecewise, proving each: R5's capsule-SDF wall shader flows back
+      as the lib's stroke shader; R8's sprite batch becomes the painter's internal
+      batcher; `draw_texture_rot` (today reaching into painter internals) is subsumed
+      by the rotated sprite verb. The general path layer is lib-side scope (crawler
+      itself needs lines/circles/rects/sprites/text) — it lands with its own tests +
+      a vector-graphics demo as the second consumer.
+
+**(c) The library landing ladder** (evaluated 2026-06-12 — what "fully reusable"
+adds beyond the crawler proofs: de-crawlering, a non-crawler consumer, lib-side
+testability, publication):
+
+- [ ] **L0** (S): clone `loft-libs-graphics` sibling + crawler dev `--lib` wiring
+      (this box only has the registry copy).
+- [ ] **L1** (M, = PLAN-RENDER P5): the `gl_*` substrate lands IN `graphics` (native
+      Rust FFI — no home choice) + one GL smoke per entry; releasable as 0.2.0 alone.
+- [ ] **L2** (S): painter v2 = a NEW pure-loft package (`canvas`) in the graphics
+      chunk repo, layered ON `graphics` (graphics stays the lean binding; the canvas
+      iterates without native rebuilds — the mesh3d layering rationale). README API
+      contract first, from RENDER.md → "The API layer".
+- [ ] **L3** (M per piece): port each crawler-proven piece as it's proven (stroke+SDF
+      after P3, batcher+frame-stats after P7/P8, atlas after P7, recording/layers
+      after P9). Each port = a **de-crawlering pass** (stride-10/visUV/FOV-dimming
+      are CRAWLER policy — the lib carries a generic aux channel; the visUV trick
+      becomes a consumer pattern) + lib tests + crawler consumes via `--lib` + the
+      in-crawler copy DELETED + gate green. Generalize only what the demo consumer
+      exercises — the generalization pass is where scope creep enters.
+- [ ] **L4** (L): the generic tier (paths/fills/gradients/clip + join/cap/taper/
+      arc-UV) built against the vector-graphics demo as the forcing consumer; the
+      probe-harness pattern ported into the lib's test culture (it already has
+      `tests/gold/`). Keep the three-layer testability: pure-data core headless,
+      thin GL shell, Xvfb pixel probes.
+- [ ] **L5** (S): docs migration — RENDER.md's "API layer" section MOVES to the
+      package README when the canvas ships (pointer left behind, incoming links
+      rewritten — the plan-close rule).
+- [ ] **L6** (S per release): the five-step registry flow; crawler switches off the
+      dev `--lib`. Cadence: graphics 0.2.0 after L1; canvas 0.1.0 after L3's first
+      two pieces.
+- [ ] **L7** (external): a second REAL consumer (moros tooling / a loft UI app / the
+      draw skill's renderer) — the API stays pre-1.0 until one exists; "fully
+      reusable" is a claim a consumer makes, not the author. Survival-guide rules
+      apply lib-side too (#339 no thin pub wrappers, #320 idiom, no vector<text>
+      literals in big fns); E0514 note in the README (interpreter fallback until the
+      toolchain refresh).
+
 ## Tier 2 — one decoupling each, then they join `hexgrid`
 
 - [ ] **`wallgeo`** (hex-region → smoothed wall outlines): replace its `use sim` with
@@ -209,5 +319,6 @@ crawler consumes when the wilderness lands (blocks sample `terrain_sample`).
 ## Order of work
 
 1 (`hexgrid`) → 2 (text layout) → 3 (draw.py flow-back) → 4 (`random`, behind its soak
-guard) → Tier 2 decouplings opportunistically. Each step independently shippable,
-each ends gate-green.
+guard) → Tier 2 decouplings opportunistically. 6 (GPU 2D primitives) is paced by
+RENDER.md: substrate (a) when R7 starts; painter v2 (b) piecewise as crawler proves
+each piece. Each step independently shippable, each ends gate-green.
