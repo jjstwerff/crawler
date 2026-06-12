@@ -208,13 +208,17 @@ three tiers:
    digest — a mismatch prints "bundle X found but not wired — run make bundles"
    instead of silently missing content. Engine compares DATA (keys vs digest),
    never naming a bundle — the standing check holds.
-3. **The kernel-era endgame (gated on SCRIPTING.md Stage 1, like the bundle-system
-   extraction)**: the @PLN18 kernel ships `rebuild_start()`/`swap_start()` — port
-   the scanner to loft and a RUNNING game detects manifest drift, regenerates,
-   background-rebuilds, and swaps the build under the live world: drop a bundle
-   mid-game and its monsters arrive without losing your position. Desktop-only
-   (wasm can't write files); the routine seam reshapes under SCRIPTING Stage 1
-   first.
+3. **"Next world" — the in-game reload (PLAN-KERNEL K5; the user's vision
+   2026-06-12)**: port the scanner to loft (stdlib verified sufficient: `files()`
+   dir listing, `content()`/`write()`, `json_parse`) and a RUNNING game re-scans,
+   regenerates the registries, `rebuild_start()`s in the background, and
+   `swap_start()`s at the next-world boundary — drop a bundle in the folder, take
+   the stairs to the next world, its content is live. Rides the BUILD-SWAP tier
+   (S4/S5/S8 — per-fn live-reload can't add modules), so loft#346/#347 don't
+   gate it. The handoff is KEY-based (catalogs reshuffle; the G4 save-format
+   rule). v1 = fresh character; continuity when the key-based snapshot lands.
+   Desktop-only (wasm can't write files); full routine-as-data stays gated on
+   SCRIPTING Stage 1.
 
 ## Cross-references — the legend + the link pass
 
