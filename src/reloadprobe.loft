@@ -1,0 +1,25 @@
+// reloadprobe — K3 verification: a single-file windowed kernel program whose
+// draw color is LIVE-EDITED while it runs (the smoke seds the literal below,
+// the reload swaps tick_draw, the pixels change). Esc / close to exit.
+use graphics;
+use engine_host;
+
+fn tick_draw(painter: graphics::Painter2D) {
+  if !graphics::gl_poll_events() || graphics::gl_key_pressed(27) {
+    engine_host::client_stop();
+    return;
+  }
+  graphics::gl_clear(graphics::rgba(10, 10, 10, 255));
+  graphics::draw_rect_at(painter, 200.0, 150.0, 400.0, 300.0, 0.90, 0.15, 0.15, 1.0);
+  graphics::gl_swap_buffers();
+}
+
+fn main() {
+  if !graphics::gl_create_window(800, 600, "reload probe") { return; }
+  painter = graphics::create_painter_2d(800.0, 600.0);
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  engine_host::run_local(16666, fn(_ev: engine_host::Event) {}, fn() {
+    tick_draw(painter);
+  });
+  graphics::gl_destroy_window();
+}
