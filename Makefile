@@ -81,8 +81,11 @@ LOFTFLAGS := $(LOFTFLAGS) $(LIB_DEPS) $(BUNDLE_LIBS)
 # Which loft repo `make loft-doctor` compares the installed binary against.
 REF_REPO ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../loft2)
 
-SRC   := src/story.loft       # game entry (window + loop)
-KTEST := src/selftest.loft    # headless kernel self-test
+# Game entry (window + loop) · headless kernel self-test · build artifacts.
+# (Comments live ABOVE the assignments: a trailing `# …` keeps the spaces
+# before it IN the value, which breaks quoted "$(VAR)" uses.)
+SRC   := src/story.loft
+KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
@@ -170,129 +173,7 @@ loft-doctor:
 	    || echo "FAIL — installed loft errors (usually a stale stdlib; run the refresh above)"
 
 test:
-	@echo "  [1/13] kernel self-test (headless, deterministic) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) $(KTEST) | tee /tmp/story_selftest.log
-	@grep -q "ALL CHECKS PASS" /tmp/story_selftest.log || { \
-	    echo "    FAIL: kernel self-test did not pass"; exit 1; }
-	@echo "  [2/13] combat loop (player melee + enemy attacks) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/combattest.loft | tee /tmp/story_combat.log
-	@grep -q "COMBAT OK" /tmp/story_combat.log || { echo "    FAIL: combat loop"; exit 1; }
-	@echo "  [3/13] dungeon wiring (procedural gen + DB monsters) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/wiretest.loft | tee /tmp/story_wire.log
-	@grep -q "WIRING OK" /tmp/story_wire.log || { echo "    FAIL: dungeon wiring"; exit 1; }
-	@echo "  [4/13] monster AI (awareness + never-move) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/aitest.loft | tee /tmp/story_ai.log
-	@grep -q "AI OK" /tmp/story_ai.log || { echo "    FAIL: monster AI"; exit 1; }
-	@echo "  [5/13] placement (budget + weighted + start-safe) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/placetest.loft | tee /tmp/story_place.log
-	@grep -q "PLACEMENT OK" /tmp/story_place.log || { echo "    FAIL: placement"; exit 1; }
-	@echo "  [6/13] levels (stairs + descent) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/leveltest.loft | tee /tmp/story_level.log
-	@grep -q "LEVEL OK" /tmp/story_level.log || { echo "    FAIL: levels"; exit 1; }
-	@echo "  [7/13] hero (XP + level-up) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/herotest.loft | tee /tmp/story_hero.log
-	@grep -q "HERO OK" /tmp/story_hero.log || { echo "    FAIL: hero"; exit 1; }
-	@echo "  [8/13] curve + ratio cap (gentle, fair, capped) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/curvetest.loft | tee /tmp/story_curve.log
-	@grep -q "CURVE OK" /tmp/story_curve.log || { echo "    FAIL: curve"; exit 1; }
-	@echo "  [9/13] items (gold + drops + pickup) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/itemtest.loft | tee /tmp/story_item.log
-	@grep -q "ITEM OK" /tmp/story_item.log || { echo "    FAIL: items"; exit 1; }
-	@echo "  [10/13] equipment (wield + effects) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/equiptest.loft | tee /tmp/story_equip.log
-	@grep -q "EQUIP OK" /tmp/story_equip.log || { echo "    FAIL: equipment"; exit 1; }
-	@echo "  [11/13] save points (checkpoint respawn + grave) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/savetest.loft | tee /tmp/story_save.log
-	@grep -q "SAVE OK" /tmp/story_save.log || { echo "    FAIL: save points"; exit 1; }
-	@echo "  [12/13] FOV (facing-cone fog-of-war) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/fovtest.loft | tee /tmp/story_fov.log
-	@grep -q "FOV OK" /tmp/story_fov.log || { echo "    FAIL: FOV"; exit 1; }
-	@echo "  [13/13] compile gate (parse + bytecode) ..."
-	@$(LOFT) --interpret --check $(LOFTFLAGS) $(SRC) >/dev/null 2>&1 || { echo "    FAIL: compile"; exit 1; }
-	@echo "  [bundles] regenerate index + character-bundle test ..."
-	@python3 tools/gen_bundles.py >/dev/null
-	@$(LOFT) --interpret $(LOFTFLAGS) src/bundletest.loft | tee /tmp/story_bundle.log
-	@grep -q "BUNDLE OK" /tmp/story_bundle.log || { echo "    FAIL: bundles"; exit 1; }
-	@echo "  [bundle-defs] world bundle enemies/items -> catalog merge ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/bundledeftest.loft | tee /tmp/story_bundledef.log
-	@grep -q "BUNDLEDEF OK" /tmp/story_bundledef.log || { echo "    FAIL: bundle-defs"; exit 1; }
-	@echo "  [defs] class/race/item tables — races now per-bundle via race_catalog ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/deftest.loft | tee /tmp/story_defs.log
-	@grep -q "DEFS OK" /tmp/story_defs.log || { echo "    FAIL: defs"; exit 1; }
-	@echo "  [rooms] rooms bundle -> room registry ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/roomtest.loft | tee /tmp/story_rooms.log
-	@grep -q "ROOMS OK" /tmp/story_rooms.log || { echo "    FAIL: rooms"; exit 1; }
-	@echo "  [items] item-use (Explorer potions: heal + custom detect) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/itemusetest.loft | tee /tmp/story_itemuse.log
-	@grep -q "ITEM-USE OK" /tmp/story_itemuse.log || { echo "    FAIL: item-use"; exit 1; }
-	@echo "  [clock] monster energy/speed (1.0x vs 1.5x) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/clocktest.loft | tee /tmp/story_clock.log
-	@grep -q "CLOCK OK" /tmp/story_clock.log || { echo "    FAIL: clock"; exit 1; }
-	@echo "  [status] timed statuses (slow / stun, pre-calc expiry) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/statustest.loft | tee /tmp/story_status.log
-	@grep -q "STATUS OK" /tmp/story_status.log || { echo "    FAIL: status"; exit 1; }
-	@echo "  [persist] dungeon delta round-trip (death-only; regenerate + replay) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/persisttest.loft | tee /tmp/story_persist.log
-	@grep -q "PERSIST OK" /tmp/story_persist.log || { echo "    FAIL: persist"; exit 1; }
-	@echo "  [surface] depth-0 desert + dungeon entrance (SLICE step 1+2) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/surfacetest.loft | tee /tmp/story_surface.log
-	@grep -q "SURFACE OK" /tmp/story_surface.log || { echo "    FAIL: surface"; exit 1; }
-	@echo "  [skills] passive melee skill (level + STR -> damage) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/skilltest.loft | tee /tmp/story_skill.log
-	@grep -q "SKILL OK" /tmp/story_skill.log || { echo "    FAIL: skill"; exit 1; }
-	@echo "  [depth] beginner-dungeon spawn pool is depth-gentle (no lich at 1-3) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/depthtest.loft | tee /tmp/story_depth.log
-	@grep -q "DEPTH OK" /tmp/story_depth.log || { echo "    FAIL: depth"; exit 1; }
-	@echo "  [ranged] launcher fire action (bow + ammo -> shoot) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/rangedtest.loft | tee /tmp/story_ranged.log
-	@grep -q "RANGED OK" /tmp/story_ranged.log || { echo "    FAIL: ranged"; exit 1; }
-	@echo "  [quickslot] type-routed auto-slot + bind + press-to-use dispatch ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/quickslottest.loft | tee /tmp/story_quickslot.log
-	@grep -q "QUICKSLOT OK" /tmp/story_quickslot.log || { echo "    FAIL: quickslot"; exit 1; }
-	@echo "  [quest] desert_surprise overlay: throne set-piece + grant + boss -> infestation ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/questtest.loft | tee /tmp/story_quest.log
-	@grep -q "QUEST OK" /tmp/story_quest.log || { echo "    FAIL: quest"; exit 1; }
-	@echo "  [msg] message log: ring buffer + event lines (kill/level/descend/nothing) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/msgtest.loft | tee /tmp/story_msg.log
-	@grep -q "MSG OK" /tmp/story_msg.log || { echo "    FAIL: msg"; exit 1; }
-	@echo "  [invhub] inventory hub: two ring slots + equipped names + reslot bind ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/invhubtest.loft | tee /tmp/story_invhub.log
-	@grep -q "INVHUB OK" /tmp/story_invhub.log || { echo "    FAIL: invhub"; exit 1; }
-	@echo "  [effect] use-item effects: blink / heal / restore / magic-mapping ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/effecttest.loft | tee /tmp/story_effect.log
-	@grep -q "EFFECT OK" /tmp/story_effect.log || { echo "    FAIL: effect"; exit 1; }
-	@echo "  [special] monster specials: gaze paralysis + venom + antivenin ward (+ deadlock/struggle) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/specialtest.loft | tee /tmp/story_special.log
-	@grep -q "SPECIAL OK" /tmp/story_special.log || { echo "    FAIL: special"; exit 1; }
-	@echo "  [unknown] unknown items: per-game flavours / identify-on-use / carry / IF_KNOWN exempt ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/unknowntest.loft | tee /tmp/story_unknown.log
-	@grep -q "UNKNOWN OK" /tmp/story_unknown.log || { echo "    FAIL: unknown"; exit 1; }
-	@echo "  [race] chosen race applies: stat block / hit-die HP / skills / save / free-action gate ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/racetest.loft | tee /tmp/story_race.log
-	@grep -q "RACE OK" /tmp/story_race.log || { echo "    FAIL: race"; exit 1; }
-	@echo "  [class] classes from bundles: apply / SP pool / the spell chain (routine-by-id) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/classtest.loft | tee /tmp/story_class.log
-	@grep -q "CLASS OK" /tmp/story_class.log || { echo "    FAIL: class"; exit 1; }
-	@echo "  [crystal] the shrine re-spec: bump = interact / apply race+class / roster ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/crystaltest.loft | tee /tmp/story_crystal.log
-	@grep -q "CRYSTAL OK" /tmp/story_crystal.log || { echo "    FAIL: crystal"; exit 1; }
-	@echo "  [overland] the contract wilderness: invariants / walked scale / towns+roads ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/overlandtest.loft | tee /tmp/story_overland.log
-	@grep -q "OVERLAND OK" /tmp/story_overland.log || { echo "    FAIL: overland"; exit 1; }
-	@echo "  [cave] natural caves: mouths on the surface, narrow winding levels ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/cavetest.loft | tee /tmp/story_cave.log
-	@grep -q "CAVE OK" /tmp/story_cave.log || { echo "    FAIL: cave"; exit 1; }
-	@echo "  [seam] trait seam: no engine spawn by monster key (PLAN-BUNDLES A) ..."
-	@if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then \
-	  echo "    FAIL: engine references a monster key:"; \
-	  grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal; exit 1; fi
-	@echo "  [travel] window crossing + the desert gate ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/traveltest.loft | tee /tmp/story_travel.log
-	@grep -q "TRAVEL OK" /tmp/story_travel.log || { echo "    FAIL: travel"; exit 1; }
-	@echo "  [idle-skip] scene key: hold when idle, bump on events (PLAN-RENDER P1) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) src/idletest.loft | tee /tmp/story_idle.log
-	@grep -q "IDLESKIP OK" /tmp/story_idle.log || { echo "    FAIL: idle-skip"; exit 1; }
-	@echo "  PASS"
+	@tools/run_tests.sh "$(LOFT)" "$(LOFTFLAGS)" "$(KTEST)" "$(SRC)"
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
 
