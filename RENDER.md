@@ -325,6 +325,33 @@ color channel, which crawler's stride-10 layout needs. Keep the local emit helpe
 now; a color-carrying `mesh_to_floats` variant is a candidate `mesh3d` flow-back when
 the wall mesh lands (EXTRACTION.md).
 
+### 2.5D — the intermediate tier (evaluated 2026-06-12)
+
+The stack serves height-aware top-down/oblique worlds (terrain relief, wall faces,
+depth-sorted objects) largely AS-IS — 2.5D is a waypoint on the same data path, not
+a fork:
+
+- **The z slot exists**: stride-10 is `pos.xyz` (z=0 today); a 2.5D camera is the
+  same mat4 plus a shear term (screen-y ∝ height); terrain relief = per-vertex z
+  from `hex_terrain` through the existing floor path.
+- **The order-preserving batcher IS 2.5D compositing**: painter's algorithm
+  back-to-front — emit in y-sorted order (near-free on a hex grid) and the
+  "never reorder" doctrine does the rest. The 2D-correctness decision doubles as
+  the 2.5D enabler.
+- **The extrusion data is the face data**: the classic 2.5D wall = top face +
+  darker vertical band offset downward — exactly the WALLS.md outer face polyline
+  + height, rendered as flat quads under the shear camera (no mesh3d needed yet);
+  cliffs via the generalized region-outline machinery.
+- **Layers with per-layer MVPs = parallax planes**; instanced billboards with a
+  height→y-offset are the standard 2.5D object model unchanged.
+- **Spec delta**: per-instance **2×3 affine** (instead of pos/rot/scale) — skew
+  shadows are a sheared dark re-emission of the same atlas entry; blob shadows are
+  free SDF ellipses.
+- **Honest cost**: y-sorted emission interleaves materials → more batch breaks than
+  layer-grouped 2D; the shared atlas + ubershader mitigate, frame-stats (P8)
+  measures it. Translucency-vs-depth resolves the standard way: world objects =
+  opaque + alpha-test, true alpha stays in overlays.
+
 ### Extrusion — the 2D base lines become the 3D constructions (evaluated 2026-06-12)
 
 **What extrudes is the KERNEL geometry (bands, centerlines, footprints) — never the
