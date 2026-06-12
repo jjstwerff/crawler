@@ -7,6 +7,16 @@ version later.
 
 (The loft package is named `story`; `crawler` is the project/repo.)
 
+## The world
+
+![The contract wilderness — orthographic projection](doc/overland_ortho.png)
+
+The island above is the game's overworld — rendered here by the *design
+blueprint* (`python3 tools/overland_blueprint.py`, output in `tools/_overland/`),
+but the same deterministic definition drives the in-game depth-0 surface and the
+`ovmap.loft` character map: three renderers, one world. Side profile:
+`doc/overland_profile.png`.
+
 ## Why — the anti-moros
 
 `crawler` shares its world model with **moros** (the hex world + heights/layers +
