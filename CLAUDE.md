@@ -171,6 +171,14 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   lesson our fur hasn't taken yet: **texture lives in the broken silhouette edge + the
   value gradient, not as strokes floating inside a smooth outline** — see
   `assets/sprites/ref/README.md` for what each teaches and how to extend the set.
+- **Docs-first knowledge capture (user rule, 2026-06-12): anything memory-worthy
+  goes into the appropriate repo doc** (RENDER/PLAN-*/EXTRACTION/BUNDLE/this file)
+  — agent memory holds only pointers. The repo is the shared brain; private notes
+  must not be the sole home of project knowledge.
+- **Standing grant (2026-06-12): file loft issues for rough spots found on the
+  debugger and the games kernel proactively** — no per-issue authorization needed;
+  use the filing shape below (one sev:*, one VERIFIED wa:*, area:*, hit-by:crawler),
+  then work around and keep moving.
 - Commits: branch **`combat`** (not `main`); end messages with
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Push only
   when asked.
