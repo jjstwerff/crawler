@@ -106,6 +106,26 @@ frames that draw). Against the modern options:
   save format rides @PLN11 store serialization so one format serves save + replay +
   net sync). Needs the K1 fixed-tick quantization landed first.
 
+## Boot responsiveness (evaluated 2026-06-12 — a FLAW, not unavoidable)
+
+The cold-boot input gap decomposes into two fixable flaws (boot LATENCY is
+unavoidable; UNRESPONSIVENESS is not):
+
+1. **Polled input has no memory** — `gl_key_pressed` reads current state; any
+   press-and-release inside a gap vanishes (boot = the biggest gap; the 60 Hz
+   tick blind spot = the same flaw smaller). Fix = the input-as-events adoption
+   already on the board (`post()` + the events class): boot presses QUEUE and
+   drain at the first tick.
+2. **The window never pumps during boot** — `gl_create_window` then 4-5
+   interpreted seconds with zero `gl_poll_events`: a frozen black window real
+   compositors flag "not responding". Crawler-side sequencing bug. Fix (S):
+   a loading frame + `gl_poll_events()` between boot phases (gen → walls →
+   HUD → VBOs). The native tier later shrinks the latency itself, but any
+   unpumped gap reproduces the flaw at smaller scale.
+
+The smokes' repeated-press workaround treats symptom 1 for automation and stays
+valid regardless (synthetic taps are sub-16 ms even against a healthy loop).
+
 ## Order + status
 
 | Step | Effort | Status |
@@ -115,4 +135,4 @@ frames that draw). Against the modern options:
 | K2 observer slice | M | **DONE 2026-06-12** — crawler is the HOST (`run(STORY_PORT)`; `host_event` serves the intent log to joiners); every Sim mutation routes through `gameflow` intents (genesis/`flow_move`/`flow_action` + the S/T/A wire codec), logged + broadcast; `src/observe.loft` = the spectator (replica + the FULL renderer). Verified: replaytest (gate 39 — 92-step replica identity incl. the codec) AND the live two-process smoke (`tools/k2_smoke.sh`): host key == observer key after driven play. Bug found by the smoke and fixed at the chokepoint: the observer's genesis missed the class KIT → `flow_genesis` is now the ONE shared boot. Known quirks: observer redraw cadence batches under llvmpipe (eyeball on real display); idle host = zero wire traffic (the distance clock) |
 | K3 live-reload dev mode | S | peeling the onion (2026-06-12): #346 (stdlib) + #347 (warnings) FIXED upstream same-day — story.loft now WATCHES; the next two layers found by the probe smoke and filed: loft#350 (the shadow session lacks registry/--lib resolution — 'Unknown library graphics' on any real consumer; sev:medium, no workaround) and loft#351 (only the ENTRY file is watched — view/bundle edits never noticed). `src/reloadprobe.loft` + the pixel smoke stand ready; rerun on the next fix |
 | K4 MP lockstep | L | gated on a design pass (K1/K2 shipped the foundations) |
-| K5 "next world" — in-game bundle reload | M | **SCANNER PORTED + the swap frontier probed (2026-06-12)** — `tools/gen_bundles.loft` byte-identical (python deleted; loft#348 found en route). The REBUILD arc VERIFIED under the local role (`rebuild_start` → ready in ~280 ms, cached artifact) with LOFT_LIVE_DRIVER/SRC set; the SWAP handover never completes for `run_local` (S5's readiness rides the listener socket) — filed as loft#352. **v1 ships without it**: in-game trigger → scanner-as-module regenerates → `stop()` → a restart loop around `make play` relaunches; the interpreted boot re-parse IS the swap, the restart IS the loading beat. Remaining: the scanner-as-module refactor + the in-game trigger + the play loop|
+| K5 "next world" — in-game bundle reload | M | **v1 SHIPPED 2026-06-12** — press **N** in-game: `genbundles::regen_bundles()` re-scans the manifests in-process (drop-ins wired), the new seed rides `.story_next`, `stop()` exits, and `make play`'s restart loop relaunches — verified live: seed 1337 → N → RELAUNCH → seed 1338 with the registries regenerated. The scanner is `src/genbundles.loft` (module + program). The true in-process swap stays gated on loft#352 (local-role handover); the rebuild arc itself is verified (~280 ms to a cached artifact). Lesson (twice now): cold boot eats brief key presses — smokes press repeatedly|

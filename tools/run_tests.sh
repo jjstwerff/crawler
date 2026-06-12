@@ -55,7 +55,7 @@ echo "  [13/13] compile gate (parse + bytecode) ..."
   echo "    FAIL: compile"; exit 1; }
 
 echo "  [bundles] regenerate index + character-bundle test ..."
-"$LOFT" --interpret tools/gen_bundles.loft >/dev/null 2>&1
+"$LOFT" --interpret src/genbundles.loft >/dev/null 2>&1
 run src/bundletest.loft "BUNDLE OK" /tmp/story_bundle.log "bundles" \
   "[bundles] character-bundle test ..."
 

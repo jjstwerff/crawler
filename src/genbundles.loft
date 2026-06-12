@@ -1,10 +1,11 @@
-// gen_bundles — scan bundles/*/bundle.json and (re)generate the loft registries
-// that wire them in. The loft port of tools/gen_bundles.py (BUNDLE.md § Game-start
-// coherence: the scanner in loft is K5's prerequisite — a RUNNING game can call
-// this). Stdlib only (files/json/text); the crawler root comes from $PWD
-// (relative paths resolve from the SCRIPT dir in loft, so cwd is read explicitly):
+// genbundles — scan bundles/*/bundle.json and (re)generate the loft registries
+// that wire them in (BUNDLE.md § Game-start coherence). Stdlib only
+// (files/json/text); the crawler root comes from $PWD (relative paths resolve
+// from the SCRIPT dir in loft). BOTH a module and a program:
 //
-//     loft --interpret tools/gen_bundles.loft        (= make bundles)
+//     loft --interpret src/genbundles.loft           (= make bundles)
+//     use genbundles; regen_bundles();               (K5: the RUNNING game calls it
+//                                                     before stop() — "next world")
 //
 // Output is BYTE-IDENTICAL to the python generator (the port's golden test).
 // Every system is cut up into bundles; a bundle's "kind" decides which registry
@@ -360,11 +361,11 @@ fn gen_spell_defs(root: text, owners: vector<JsonValue>, bundle_dirs: vector<tex
   (len(smods), len(fx_mod))
 }
 
-fn main() {
+// Re-scan + regenerate everything; returns the one-line summary ("" = no root).
+pub fn regen_bundles() -> text {
   root = env_variable("PWD") ?? "";
   if !exists("{root}/bundles") {
-    println("gen_bundles: no bundles/ under PWD ('{root}') — run from the crawler root");
-    return;
+    return "";
   }
   two = `x
 y`;
@@ -412,5 +413,11 @@ y`;
   ncl = gen_class_defs(root, chars, nl);
   owners = chars + races;
   (nsp, nfx) = gen_spell_defs(root, owners, dirs, nl);
-  println("gen_bundles: {nc} character bundle(s) -> src/bundles.loft ({keys}); {nr} room type(s) -> src/rooms_gen.loft; {ne} enemy + {ni} item def module(s) -> src/bundle_defs.loft; {ns} stencil + {npl} placement module(s) -> src/world_place_gen.loft; {nra} race bundle(s) -> src/race_defs_gen.loft; {ncl} class def(s) -> src/class_defs_gen.loft; {nsp} spell module(s)/{nfx} effect(s) -> src/spell_defs_gen.loft");
+  "gen_bundles: {nc} character bundle(s) -> src/bundles.loft ({keys}); {nr} room type(s) -> src/rooms_gen.loft; {ne} enemy + {ni} item def module(s) -> src/bundle_defs.loft; {ns} stencil + {npl} placement module(s) -> src/world_place_gen.loft; {nra} race bundle(s) -> src/race_defs_gen.loft; {ncl} class def(s) -> src/class_defs_gen.loft; {nsp} spell module(s)/{nfx} effect(s) -> src/spell_defs_gen.loft"
+}
+
+fn main() {
+  msg = regen_bundles();
+  if len(msg) > 0 { println(msg); }
+  else { println("gen_bundles: no bundles/ under PWD — run from the crawler root"); }
 }

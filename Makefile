@@ -109,8 +109,8 @@ all: fmt check
 # The bundle registries regenerate whenever a manifest changed — drop a bundle
 # dir and `make play` wires it (BUNDLE.md § Game-start coherence; the test gate
 # re-scans regardless).
-src/bundles.loft: $(wildcard bundles/*/bundle.json) tools/gen_bundles.loft
-	@$(LOFT) --interpret tools/gen_bundles.loft 2>/dev/null | grep gen_bundles: || true
+src/bundles.loft: $(wildcard bundles/*/bundle.json) src/genbundles.loft
+	@$(LOFT) --interpret src/genbundles.loft 2>/dev/null | grep gen_bundles: || true
 	@echo "  bundles: registries regenerated"
 
 bundles: src/bundles.loft
@@ -122,8 +122,12 @@ play: src/bundles.loft
 	    echo "    Install it:  ( cd ../loft && make install )   then: make loft-doctor"; \
 	    echo "    Or use a repo build:  make play LOFT_REPO=../loft2"; \
 	    exit 1; }
-	@echo "  [2/2] launching story (Esc to quit) ..."
-	@$(LOFT) $(LOFTFLAGS) $(SRC)
+	@echo "  [2/2] launching story (Esc quits; N = next world — re-scans bundles) ..."
+	@while :; do \
+	    $(LOFT) $(LOFTFLAGS) $(SRC); \
+	    [ -f .story_next ] || break; \
+	    echo "  next world (bundles re-scanned; the restart IS the loading beat) ..."; \
+	done
 
 # ── Browser build ────────────────────────────────────────────────────────
 

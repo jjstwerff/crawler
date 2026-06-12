@@ -10,7 +10,7 @@ want it (3D is additive, not the destination). Full design + roadmap: **DESIGN.m
 ## Run / build / test
 
 ```sh
-make play     # native window (W/S glide, A/D turn, walk onto stairs, . wait, g grab, Esc quit)
+make play     # native window (W/S glide, A/D turn, walk onto stairs, . wait, g grab, N next world, Esc quit)
 make test     # headless deterministic gate — RUN THIS before committing
 make check    # quiet compile-only gate (parse + bytecode), no display
 make shot     # one Xvfb frame -> story.png  (positionally unreliable, see below)

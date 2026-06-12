@@ -19,7 +19,7 @@ by a data-move alone.
    (CLAUDE.md cardinal rule): build the system, don't make the content lie. Each spell's
    **effect is a bundle-side routine** (resolved by id), so the spell is content like any
    other — and a custom spell finishes the same way.
-5. **Builds green** — `python3 tools/gen_bundles.loft` regenerates, `make check` clean,
+5. **Builds green** — `python3 src/genbundles.loft` regenerates, `make check` clean,
    `make test LOFT_REPO=../loft2` green.
 
 ## Library-like invariant (the standing check — BUNDLE.md)

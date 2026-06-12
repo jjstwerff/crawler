@@ -93,7 +93,7 @@ migratable, not rebuilt.
 ## World bundles — kinds, linkable places, and scoped overlays
 
 The bundle graph is realized concretely by a **kind-dispatch scanner**
-(`tools/gen_bundles.loft`): every `bundle.json` carries a `kind`, and the scanner emits a
+(`src/genbundles.loft`): every `bundle.json` carries a `kind`, and the scanner emits a
 **per-system generated registry** for each — `character → src/bundles.loft` (`bundle_activate`),
 `world → src/rooms_gen.loft` (the rooms section's `RoomDef` table + `room_connect_*`). One
 scanner, many kinds, many registries; the kernel stays the *mechanism* and bundles are the
@@ -208,8 +208,10 @@ three tiers:
    digest — a mismatch prints "bundle X found but not wired — run make bundles"
    instead of silently missing content. Engine compares DATA (keys vs digest),
    never naming a bundle — the standing check holds.
-3. **"Next world" — the in-game reload (PLAN-KERNEL K5; the user's vision
-   2026-06-12)**: port the scanner to loft (stdlib verified sufficient: `files()`
+3. **"Next world" — the in-game reload (PLAN-KERNEL K5). v1 SHIPPED 2026-06-12:
+   press N in-game — the scanner (`src/genbundles.loft`, a module the game calls)
+   re-scans in-process, the new seed rides `.story_next`, and `make play`'s
+   restart loop relaunches into the new world. The original design: port the scanner to loft (stdlib verified sufficient: `files()`
    dir listing, `content()`/`write()`, `json_parse`) and a RUNNING game re-scans,
    regenerates the registries, `rebuild_start()`s in the background, and
    `swap_start()`s at the next-world boundary — drop a bundle in the folder, take

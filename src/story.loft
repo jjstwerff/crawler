@@ -18,6 +18,7 @@ use bundles;   // bundle_activate — the quick-start class kit (generated regis
 use framekey;    // scene_key — the idle skip (redraw only when the frame would differ)
 use engine_host; // run — the games kernel owns the loop; crawler is the HOST (K1/K2)
 use gameflow;    // the deterministic intent seam: apply + broadcast (K2)
+use genbundles;  // the bundle scanner — N ("next world") re-scans before restart (K5)
 
 WIN_W   = 800;
 WIN_H   = 600;
@@ -35,6 +36,8 @@ KEY_1   = 49;       // '1'..'9' — in play: use quick-slot N; char page: spend 
 KEY_Q   = 113;      // 'q' — quick-slot active Q (fire the launcher)
 KEY_E   = 101;      // 'e' — quick-slot active E (spell — later)
 KEY_ENTER = 13;     // Enter — equip the selected item in the inventory hub
+KEY_N   = 110;      // 'n' — NEXT WORLD: re-scan bundles (drop-ins included), new seed,
+                    //   restart into it (K5 v1 — the restart is the loading beat)
 
 STORY_PORT = 18099;  // K2: the game LISTENS — observers connect with src/observe.loft
 
@@ -122,6 +125,18 @@ fn host_event(w: GameWorld, ev: engine_host::Event) {
 fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
              wallprog: integer, postprog: integer, postfbo: integer, posttex: integer) {
   if !graphics::gl_poll_events() || graphics::gl_key_pressed(KEY_ESC) {
+    engine_host::stop();
+    return;
+  }
+  if graphics::gl_key_pressed(KEY_N) {
+    println("story: next world — re-scanning bundles ...");
+    // K5 "next world": re-scan the bundle manifests (drop-ins get wired), leave
+    // the new seed for the relaunch, and stop — make play's loop restarts us;
+    // the boot re-parse IS the swap (loft#352 tracks the true in-process swap).
+    msg = regen_bundles();
+    if len(msg) > 0 { println(msg); }
+    root = env_variable("PWD") ?? ".";
+    file("{root}/.story_next").write("{w.s.wseed + 1}");
     engine_host::stop();
     return;
   }
@@ -326,10 +341,20 @@ fn main() {
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
   graphics::gl_enable(graphics::GL_BLEND);
   graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  // K5: a pending "next world" flag carries the new seed across the restart.
+  seed = GEN_SEED;
+  root = env_variable("PWD") ?? ".";
+  nf = "{root}/.story_next";
+  if exists(nf) {
+    (fs, _u1, _u2) = wire3("S {file(nf).content()}");
+    if fs > 0 { seed = fs; }
+    _del = delete(nf);
+  }
+  println("story: world seed={seed}");
   // QUICK-START genesis (shared with observers + replaytest via gameflow): a
   // ready-made HUMAN WARRIOR with its class kit — no creation screen in the way.
   // The crystal re-specs race/class later; the kit is a new-game grant only.
-  s = flow_genesis(GEN_SEED, GEN_DEPTH);
+  s = flow_genesis(seed, GEN_DEPTH);
   walls = build_walls(s);   // smoothed wall outline, built once (static per level)
   hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
   ml = build_msglog(s, hud.font);     // baked message-log lines (rebaked only when a message arrives)
@@ -356,7 +381,7 @@ fn main() {
     inv_cursor: 0, crys_col: 0, crys_cur: 0, sq: sq, sr: sr,
     last_key: 0, ticks_n: 0, frames_drawn: 0,
   };
-  w.ilog += ["S {GEN_SEED} {GEN_DEPTH}"];   // genesis — an observer's first line
+  w.ilog += ["S {seed} {GEN_DEPTH}"];   // genesis — an observer's first line
   // K1/K2: the games kernel owns the loop — drift-free ticks, idle backoff,
   // the debug endpoint, the swap machinery — and crawler is the HOST: run()
   // listens on STORY_PORT; an observer (src/observe.loft) connecting gets the

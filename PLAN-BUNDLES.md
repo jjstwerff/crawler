@@ -7,7 +7,7 @@ adds or removes at will to compose their own game — plus a per-bundle
 **difficulty knob** so a player can soften (or sharpen) one theme's mobs without
 touching its defs.
 
-Anchors: **BUNDLE.md** (the seam law + the standing check), `tools/gen_bundles.loft`
+Anchors: **BUNDLE.md** (the seam law + the standing check), `src/genbundles.loft`
 (the scanner/merger), `catalog.loft` (the merge points), `bundles/desert_surprise/`
 (the proven theme-bundle prototype: enemies + items + stencils + placement),
 `bundles/world_classic/` (the dungeon as a world bundle).
