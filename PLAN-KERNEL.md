@@ -87,11 +87,16 @@ frames that draw). Against the modern options:
   Tier-0 win (idle CPU zero) and giving drift-free fixed ticks, which is ALSO the
   dt-quantization fix the MP/replay evaluation called for (the float-dt lockstep
   hazard). Ask upstream: expose idle/wait or the windowed host role.
-- **K2 — the observer slice (M)**: the first networked crawler — a second process
-  connects via `run_client` and renders a read-only live view (spectator/map page);
-  the deterministic Sim broadcasts input intents + seeds, the observer replays.
-  Exercises lanes end-to-end with crawler data (events = messages, sync = player
-  pose) without touching gameplay.
+- **K2 — the observer slice (M, UNBLOCKED 2026-06-12)**: the first networked
+  crawler — a second process connects via `run_client` and renders a read-only
+  live view (spectator/map page); the deterministic Sim broadcasts input intents
+  + seeds, the observer replays. Exercises lanes end-to-end with crawler data
+  (events = messages, sync = player pose) without touching gameplay. Upstream
+  `5f517c01` shipped the trio this needs: `post()` (local input as events-class
+  messages, cid -1 — ALSO the structural fix for tick-rate polling losing
+  sub-16 ms taps; an optional K1 refinement), listener `stop()`, and the
+  listener frame yield — so crawler-as-HOST (the player's windowed game runs
+  `run()`) is the natural shape.
 - **K3 — live-reload dev mode (S, after K1)**: run crawler under the kernel with
   `LOFT_LIVE_RELOAD=1` — edit a bundle routine or a view fn while the game runs.
   Pairs with the debugger's in-game breakpoints (@PLN16 6c) — the loft-debug skill
