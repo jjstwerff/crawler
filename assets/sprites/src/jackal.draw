@@ -3,6 +3,16 @@
 # a clear NECK NARROWING, a snout protruding well past the skull, ears flanking with a gap,
 # the dark saddle FRONT-LOADED over the shoulders (the black-backed identifier), a bushy
 # slightly-angled black-tipped tail. Menace: lean + low head + bared forward fangs.
+#
+# --- ENHANCE (fur + limbs — ref assets/sprites/ref/fur/jackal_canis_mesomelas) ---
+# FUR: the saddle is the right idea but flat-filled; the Canis mesomelas plate shows it as a
+# value-graded mantle with fur-direction strokes and a SOFT broken edge into the tan flank.
+#  - value the body Circles (radial, lit from the snout) instead of flat 132,100,62;
+#  - the saddle Poly -> a grad fill (54,44,34>96,74,48) so it FADES into the flank, not a
+#    hard band; lay a few ~-curved tapered fur strokes along it + strays at its lower edge.
+# LIMBS: the paws are bare tucked Circles. Optionally hint two SHORT tapered forelegs the way
+# cave_spider.draw does its legs (Poly @-tapered) — but keep them short/tucked (splayed legs
+# read insect; that's why they're tucked). The plate's standing legs are the form reference.
 # Source for assets/sprites/jackal.png.
 size 256x256
 Background transparent

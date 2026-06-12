@@ -6,6 +6,11 @@
 # forepaws. Whip tail trails DOWN (may overhang). FRONT=UP.
 # Techniques: lean-capsule mass + dark DORSAL-RIDGE stroke + flank striation strokes =
 # the menacing-animal recipe (posture + fur, reusable for jackal/wolf kin).
+#
+# --- ENHANCE (fur): same upgrade as giant_rat.draw — value-gradient mass + broken-edge
+# tufts + curved clumped flank ribbons + dark gaps (ref assets/sprites/ref/fur). As the BOSS
+# it can carry MORE of it: mangier, deeper value range (radial=72,52,40>40,26,20), heavier
+# dark-gap occlusion + more ragged edge strays than the common rat — fur is a menace cue here.
 # Source for assets/sprites/skarn_rat_king.png.
 size 256x256
 Background transparent

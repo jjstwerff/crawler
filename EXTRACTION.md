@@ -122,17 +122,47 @@ are pure functions over `gl_measure_text` — every text-bearing loft app rewrit
 
 ### 3. `tools/draw.py` flow-back → the draw skill (loft repo)
 
-crawler's copy gained `Background transparent` (+ this week exercised `flat=`
-foreshortening and `grad=` fills hard; rotation/atlas named next). The skill's
-`sketch/draw.py` is the library layer for sprite authoring.
+crawler's copy gained `Background transparent` (+ exercised `flat=` foreshortening and
+`grad=` fills hard), and now the **array primitives**: `Petals` (radial flower head) and
+`Fronds` (a linear array of tapered strokes rooted along a spine — veins/barbs/fur/grass —
+**non-uniform + construction-hiding by default**, mirror-symmetric, with a **fractal `depth`**
+that re-applies the array to each frond, i.e. real leaf venation). Both designs are pinned by
+falsification-probe blueprints (`tools/{petal,fronds}_blueprint.py`, 12/12 + 10/10).
+rotation/atlas still named next. The skill's `sketch/draw.py` is the library layer.
 
-- [ ] Diff crawler's `tools/draw.py` vs the skill's `sketch/draw.py`; port the
-      extensions upstream (the skill's own examples must still render).
-- [ ] Note in the skill's docs: the sprite-authoring techniques proven here
-      (rim-ring readability, discrete blotches over traced patterns on smoothed
-      paths, menace-via-posture, the join discipline) — doc, not code.
-- [ ] crawler keeps its copy only if it still carries unported experiments;
-      otherwise delete and call the skill's.
+- [ ] Diff crawler's `tools/draw.py` vs the skill's `sketch/draw.py`; port the extensions
+      upstream — `Background transparent`, **`Petals`, `Fronds` (+ the `_hash01`/`_lowfreq`
+      deterministic noise and the blueprints)** — (the skill's own examples must still render).
+- [ ] Note in the skill's docs the techniques proven here (rim-ring readability, discrete
+      blotches, menace-via-posture, the join discipline; **arrays: "never a uniform row" —
+      trend+jitter — and "hide the construction" — clumping/aperiodic/occlusion/fray/wash**)
+      — doc, not code. (Already drafted in the skill's `references/2d.md` Earned 2D rules.)
+- [ ] crawler keeps its copy only if it still carries unported experiments; else delete and
+      call the skill's.
+
+**Future capability — complex decorative patterns (library-tier, for LATER games not crawler;
+a "nice addition").** The user wants the tool to eventually do **decorative surface patterns**
+— wall/wallpaper damask, curtain/cloth prints, engraved/inlaid motifs on cutlery and objects.
+It stacks on the array/symmetry/fractal foundation above; build order when a later game needs it:
+
+- [ ] **Symbol capture + affine `place`** — define a motif once in local coords, then
+      translate/rotate/scale/**skew** it. (Also unlocks placing a broad leaf on a branch.)
+      The tool is friendly to this — every op is a point list, like `petal_polys`/`fronds`
+      already transform internally; the fiddly part is transforming the PAINT specs too
+      (gradient axis, radial centre, stroke width).
+- [ ] **Grid/lattice array + wallpaper-group tiling** — the 2D generalization of `Fronds`'
+      1D array, with per-tile offset (brick/half-drop), mirror, rotate so the repeat isn't a
+      flat stamp.
+- [ ] **Clip-to-region** — confine the pattern to the surface shape (drape, panel, blade);
+      the architectural one (a mask stack across ops — draw.py masks only per-shape today).
+- [ ] **Surface-conform / warp** — advanced: a curtain pattern follows the FOLDS, cutlery the
+      curved/perspective surface (a displacement field or perspective place).
+
+**Key inversion vs. foliage:** decorative man-made patterns WANT the uniform special case
+(`jitter=field=fray=0`, crisp); the "not a flat stamp" realism comes from the SURFACE (folds,
+perspective, lighting, wear), NOT from jitter on the marks. The motif's own internals can still
+use the shipped `mirror` + fractal `depth`. (Roadmap also held in the auto-memory
+`draw-tool-decorative-patterns`.)
 
 ### 4. `random` — a VALUE-stream API for the EXISTING loft-libs-core package
 

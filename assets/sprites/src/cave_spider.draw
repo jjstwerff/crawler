@@ -1,7 +1,13 @@
 # CAVE SPIDER — dark silhouette + eye-glints (alive, not a still). top-down, FRONT=UP.
 # Transparent base (tools/draw.py `Background transparent`): AA -> alpha, and the
 # bright eye catchlights survive (real pixels, no colour-key). Engine rotates (12-dir)
-# + scales. Source for assets/sprites/cave_spider.png.
+# + scales.
+#
+# --- NOTE (LIMB EXEMPLAR): the 8 legs below are the project's reference limb construction —
+# jointed, @-tapered Poly ribbons (@7 -> @3 -> @1.5, root to tip). COPY this for any tapered
+# limb (jackal forelegs, centipede leg-fringe). ENHANCE (fur): the body is flat-fill; a radial
+# gradient + a few fine leg-hairs breaking the silhouette would lift it (ref assets/sprites/ref/fur).
+# Source for assets/sprites/cave_spider.png.
 size 256x256
 Background transparent
 

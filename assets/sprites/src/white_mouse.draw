@@ -6,6 +6,11 @@
 # forepaws. Whip tail trails DOWN (may overhang). FRONT=UP.
 # Techniques: lean-capsule mass + dark DORSAL-RIDGE stroke + flank striation strokes =
 # the menacing-animal recipe (posture + fur, reusable for jackal/wolf kin).
+#
+# --- ENHANCE (fur): same upgrade as giant_rat.draw — value-gradient mass + broken-edge
+# tufts + curved clumped flank ribbons + dark gaps (ref assets/sprites/ref/fur). For the
+# PALE coat the value step matters MORE: a flat light fill reads as plastic; a radial
+# light->mid gradient (e.g. radial=212,206,196>176,170,160) is what makes it read as soft fur.
 # Source for assets/sprites/white_mouse.png.
 size 256x256
 Background transparent

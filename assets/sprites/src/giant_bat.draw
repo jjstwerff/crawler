@@ -4,6 +4,10 @@
 # on the wing bends + deep dusk tones. Wings overhang the cell (appendage rule).
 # Techniques: scalloped-membrane wing poly (~ smooth dips between strut points); finger
 # strut lines; tiny-body-big-wings proportion; red eyeshine (giant_rat).
+#
+# --- ENHANCE (fur): the body is a small flat-fill teardrop; a quick radial gradient + 2-3
+# tiny tufts breaking its edge make it read FURRY vs. rubbery (ref assets/sprites/ref/fur).
+# Fur on the body ONLY — the wings are membrane (correctly flat).
 # Source for assets/sprites/giant_bat.png.
 size 256x256
 Background transparent

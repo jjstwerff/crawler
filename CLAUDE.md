@@ -84,8 +84,10 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   **user is the visual verifier**. A `src/shot.loft` aid exists but trust the user.
 - **2D sprites → the `draw` skill** (method: loft `.claude/skills/draw`; **tool:
   crawler's own `tools/draw.py`** — copied from the skill's `sketch/draw.py` and
-  extended: `Background transparent`, `--once` (render-and-exit; exit 1 on unparsed
-  lines / failed checks — agent/CI use) + unparsed-line reporting now, rotation/atlas next. Built to be extractable
+  extended: `Background transparent`, `--once` (render-and-exit; exit 1 on unparsed lines /
+  failed checks — agent/CI use) + unparsed-line reporting, and the `Petals`/`Fronds` ARRAY
+  primitives (radial + linear natural marks — non-uniform + construction-hiding by default;
+  designs pinned in `tools/{petal,fronds}_blueprint.py`); rotation/atlas next. Built to be extractable
   as a **reusable 2D sprite library** — 3D/moros is the goal, but the 2D stack stands
   on its own for 2D-preferring devs): used to author the game's **simple 2D sprites** — the mob/item
   presentations (and other 2D art), upgrading the text-glyph placeholders. **2D only —
@@ -160,6 +162,15 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   bury a part's joint corners inside the neighbouring mass, bridge with an intermediate
   shape/tone (e.g. a skull circle between shoulders and muzzle), and run connecting
   features (a spine ridge) ACROSS the joint to tie the parts together.
+- **Reference drawings — draw AGAINST real form + real mark-making.** `assets/sprites/ref/`
+  holds a small fixed set of public-domain plates (Dürer's hare = canonical fur; the
+  *Canis mesomelas* / *Mus decumanus* prints = the exact species our jackal/rat model;
+  Van Gogh reed-pen + Rembrandt for foliage/terrain marks) plus pointers to the open
+  corpora (BHL, Smithsonian, Rijksstudio, Met/NGA open access, Ruskin/Pennell). Open the
+  matching plate beside the `.draw` source and compare region-by-region. The recurring
+  lesson our fur hasn't taken yet: **texture lives in the broken silhouette edge + the
+  value gradient, not as strokes floating inside a smooth outline** — see
+  `assets/sprites/ref/README.md` for what each teaches and how to extend the set.
 - Commits: branch **`combat`** (not `main`); end messages with
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Push only
   when asked.

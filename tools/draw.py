@@ -31,6 +31,17 @@ Commands (coords are fractions; origin top-left, y down; gray L in 0..1, 0=black
   Line (x1,y1) - (x2,y2) [w=N]
   Circle (cx,cy) r=R [n=N] [flat=F] [w=N] [<fill>]   round; <fill> => filled
   Poly (x1,y1) (x2,y2) ... [w=N] [<fill>]            stroke; <fill> => filled
+  Petals (cx,cy) n=N r=R len=L w=W [bulge=B] [a0=D] <fill>   N teardrop petals arrayed
+    round the centre (base at radius R, tip at R+L, widest W at bulge*L; a0 in degrees,
+    0 = a petal pointing up). One filled, congruent, vertical-symmetric flower head.
+  Fronds (x1,y1)-(x2,y2) n=N len=L [len2=] [w=] [w2=] [ang=] [ang2=] [mirror=1]
+    [jitter=] [field=] [fray=] [bow=] [seed=] [depth=] [sub=] [stroke=r,g,b]   a LINEAR
+    ARRAY of N tapered strokes rooted along the spine (veins, barbs, fur clumps, grass, a
+    leg-fringe, hatching). len/ang ramp len→len2 / ang→ang2 along the run (TREND); placement
+    clumps on a seeded low-frequency field + per-frond jitter, and ends fray — NON-UNIFORM by
+    default (set jitter=field=fray=0 for a uniform man-made comb). mirror=1 → symmetric both
+    sides. depth=2 → FRACTAL: each frond grows its own sub-array scaled by sub (real leaf
+    venation; depth=1 = single level).
     <fill> = fill=L | rgb=R,G,B                      solid (gray / colour)
            | grad=R,G,B>R,G,B [dir=ax,ay,bx,by]      linear gradient (c1->c2)
            | radial=R,G,B>R,G,B [at=cx,cy,r]         radial gradient (centre->edge)
@@ -64,6 +75,11 @@ SIZE = re.compile(r"size\s+(\d+)\s*x\s*(\d+)", re.I)
 CIRCLE = re.compile(r"Circle\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*r=([-\d.]+)"
                     r"(?:\s+n=(\d+))?(?:\s+flat=([-\d.]+))?", re.I)
 BG = re.compile(r"Background\s+top\s*=\s*([\d.]+)\s+bot(?:tom)?\s*=\s*([\d.]+)", re.I)
+PETALS = re.compile(r"Petals\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s+n\s*=\s*(\d+)"
+                    r"\s+r\s*=\s*([-\d.]+)\s+len\s*=\s*([-\d.]+)\s+w\s*=\s*([-\d.]+)"
+                    r"(?:\s+bulge\s*=\s*([-\d.]+))?(?:\s+a0\s*=\s*([-\d.]+))?", re.I)
+FRONDS = re.compile(r"Fronds\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*-\s*"
+                    r"\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s+n\s*=\s*(\d+)\s+len\s*=\s*([-\d.]+)", re.I)
 PT = re.compile(r"\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)")
 PTF = re.compile(r"\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*(~?)\s*(?:@\s*([-\d.]+))?")
 WOPT = re.compile(r"\bw\s*=\s*(\d+)", re.I)
@@ -164,6 +180,107 @@ def circle_pts(cx, cy, r, n, flat, W, H):
     ary = r * (W / H) * (1 - flat)
     return [(cx + r*math.cos(2*math.pi*i/n), cy + ary*math.sin(2*math.pi*i/n))
             for i in range(n + 1)]
+
+
+def petal_polys(cx, cy, n, r, length, w, bulge, a0deg, W, H):
+    """N teardrop petal outlines (fractional control points) arrayed around (cx,cy):
+    each is the SAME canonical petal rotated by a0 + i*(2pi/n), built in PIXEL space
+    (r/len/w scale by the single ref dim W) so petals stay congruent + round on
+    non-square paper, exactly circle_pts' intent. Base at radius r, tip at r+len, widest
+    |a|=w at bulge*len; a0 in degrees, 0 = a petal pointing up. Verified construction —
+    see tools/petal_blueprint.py (12/12 falsification probes). Smooth each closed."""
+    bw = bulge * length
+    tmpl = [(0.0, 0.0), (-w, bw), (-w * 0.6, length * 0.93), (0.0, length),
+            (w * 0.6, length * 0.93), (w, bw)]
+    cxp, cyp, rp = cx * W, cy * H, r * W
+    a0 = a0deg * math.pi / 180.0
+    out = []
+    for i in range(n):
+        phi = a0 + i * (2 * math.pi / n)
+        dx, dy = math.sin(phi), -math.cos(phi)      # outward (length) dir
+        px, py = math.cos(phi), math.sin(phi)       # across dir
+        poly = []
+        for (a, b) in tmpl:
+            ap, bp = a * W, b * W
+            ox = ap * px + (rp + bp) * dx
+            oy = ap * py + (rp + bp) * dy
+            poly.append(((cxp + ox) / W, (cyp + oy) / H))
+        out.append(poly)
+    return out
+
+
+def _hash01(seed, i, salt):
+    """A REPRODUCIBLE pseudo-random float in [-1,1) from small non-negative ints — never
+    random()/hash() (those break reproducible renders). Used for Fronds' seeded jitter."""
+    x = ((seed * 73856093) ^ (i * 19349663) ^ (salt * 83492791)) & 0xFFFFFFFF
+    x = (x ^ (x >> 13)) & 0xFFFFFFFF
+    x = (x * 1274126177) & 0xFFFFFFFF
+    return (x / 0xFFFFFFFF) * 2.0 - 1.0
+
+
+def _lowfreq(seed, u):
+    """A smooth LOW-FREQUENCY wave ~[-1,1] (two low harmonics, seed-derived phases).
+    Smooth in u ⇒ neighbouring fronds correlate ⇒ CLUMPS + gaps, not white noise."""
+    p1 = _hash01(seed, 0, 11) * math.pi
+    p2 = _hash01(seed, 0, 22) * math.pi
+    return 0.6 * math.sin(2 * math.pi * u + p1) + 0.4 * math.sin(4 * math.pi * u + p2)
+
+
+def fronds(x1, y1, x2, y2, n, length, length2, w, w2, ang, ang2,
+           mirror, jitter, field, fray, seed, bow, W, H, depth=1, sub=0.32):
+    """A LINEAR ARRAY of N tapered strokes rooted along the spine (x1,y1)-(x2,y2): each
+    frond is the template placed at u_i along the spine and tilted forward off the normal.
+    Placement clumps on a seeded low-frequency field (uniform u=(i+0.5)/n when field=0),
+    len/w/ang follow a TREND ramp ± seeded jitter, ends FRAY, and mirror pairs share the
+    SAME sample reflected across the spine (equal across the axis). Built in PIXEL space
+    so it's correct on non-square paper. Returns (centerline_pts_frac, widths, side, i) per
+    frond. FRACTAL: depth>1 re-applies Fronds to EACH frond's centerline as a spine (scaled
+    by `sub`) — self-similar venation (midrib→primaries→secondaries→…); depth=1 is byte-
+    identical to single-level. Verified construction — see tools/fronds_blueprint.py (10/10)."""
+    P1 = (x1 * W, y1 * H)
+    P2 = (x2 * W, y2 * H)
+    dx, dy = P2[0] - P1[0], P2[1] - P1[1]
+    Ln = math.hypot(dx, dy) or 1e-9
+    d = (dx / Ln, dy / Ln)
+    nrm = (-d[1], d[0])
+    base = []
+    for i in range(n):
+        ub = (i + 0.5) / n
+        u = min(1.0, max(0.0, ub + field * _lowfreq(seed, ub) * (0.5 / n)))
+        t = u
+        Ltr = length + (length2 - length) * t
+        dte = min(u, 1 - u)
+        frayf = 1 - fray * max(0.0, 1 - dte / 0.25)
+        Lpx = Ltr * frayf * (1 + jitter * 0.4 * _hash01(seed, i, 1)) * W
+        an = (ang + (ang2 - ang) * t) + jitter * 15.0 * _hash01(seed, i, 2)
+        phi = math.radians(an)
+        wi = (w + (w2 - w) * t) * (1 + jitter * 0.3 * _hash01(seed, i, 3))
+        Rx, Ry = P1[0] + u * dx, P1[1] + u * dy
+        for side in ([1, -1] if mirror else [1]):
+            nx, ny = nrm[0] * side, nrm[1] * side
+            fx = nx * math.cos(phi) + d[0] * math.sin(phi)   # tilt the normal forward (→P2)
+            fy = ny * math.cos(phi) + d[1] * math.sin(phi)
+            Tx, Ty = Rx + Lpx * fx, Ry + Lpx * fy
+            pts = [(Rx / W, Ry / H), (Tx / W, Ty / H)]
+            wid = [wi, max(0.5, wi * 0.15)]                  # taper root→tip
+            if bow != 0.0:                                   # curved frond (flow follows form)
+                px, py = -fy, fx                             # perp to frond dir
+                Mx = (Rx + Tx) / 2 + bow * Lpx * px
+                My = (Ry + Ty) / 2 + bow * Lpx * py
+                pts = [(Rx / W, Ry / H), (Mx / W, My / H), (Tx / W, Ty / H)]
+                wid = [wi, (wi + wid[1]) / 2, wid[1]]
+            base.append((pts, wid, side, i))
+    if depth <= 1:
+        return base
+    # FRACTAL recursion: each frond's centerline (root→tip) is the spine of a smaller array.
+    out = list(base)
+    cn = max(2, round(n * 0.55))
+    for k, (pts, wid, _s, _i) in enumerate(base):
+        (rx, ry), (tx, ty) = pts[0], pts[-1]
+        out += fronds(rx, ry, tx, ty, cn, length * sub, length * sub * 0.5,
+                      w * 0.5, max(0.6, w2 * 0.5), ang, ang2, 1, jitter, field, fray,
+                      seed * 31 + k + 1, bow, W, H, depth - 1, sub)
+    return out
 
 
 def _smooth_pts(pts, flags, closed, samples=10, vals=None):
@@ -301,6 +418,45 @@ def parse(text):
             else:
                 wm = WOPT.search(s)
                 ops.append(("stroke", pts, int(wm[1]) if wm else 3, _stroke_color(s)))
+            continue
+        if low.startswith("petals"):
+            m = PETALS.search(s)
+            if m:
+                cx, cy, n = float(m[1]), float(m[2]), int(m[3])
+                r, length, pw = float(m[4]), float(m[5]), float(m[6])
+                bulge = float(m[7]) if m[7] else 0.5
+                a0 = float(m[8]) if m[8] else 0.0
+                paint = _paint(s) or ("solid", (38, 32, 36))
+                for poly in petal_polys(cx, cy, n, r, length, pw, bulge, a0, W, H):
+                    sm = _smooth_pts(poly, [True] * len(poly), closed=True)
+                    accpts(sm)
+                    ops.append(("fill", sm, paint))
+            continue
+        if low.startswith("fronds"):
+            m = FRONDS.search(s)
+            if m:
+                def optf(key, dflt):
+                    mm = re.search(r"\b" + key + r"\s*=\s*([-\d.]+)", s, re.I)
+                    return float(mm[1]) if mm else dflt
+                x1, y1, x2, y2 = float(m[1]), float(m[2]), float(m[3]), float(m[4])
+                n, length = int(m[5]), float(m[6])
+                length2 = optf("len2", length)
+                w = optf("w", 3.0); w2 = optf("w2", w)
+                ang = optf("ang", 30.0); ang2 = optf("ang2", ang)
+                mirror = int(optf("mirror", 0))
+                # DEFAULT non-uniform + construction-hiding; zero them for a man-made comb
+                jitter, field, fray = optf("jitter", 0.5), optf("field", 0.6), optf("fray", 0.4)
+                bow, seed = optf("bow", 0.0), int(optf("seed", 1))
+                depth, sub = int(optf("depth", 1)), optf("sub", 0.32)   # FRACTAL venation
+                col = _stroke_color(s) or (38, 32, 36)
+                for (pts, wid, _side, _i) in fronds(x1, y1, x2, y2, n, length, length2,
+                        w, w2, ang, ang2, mirror, jitter, field, fray, seed, bow, W, H, depth, sub):
+                    if len(pts) > 2:
+                        cl, ww = _smooth_pts(pts, [False, True, False], closed=False, vals=wid)
+                    else:
+                        cl, ww = pts, wid
+                    accpts(cl)
+                    ops.append(("stroke", cl, ww, col))
             continue
         if low.startswith("poly"):
             raw = PTF.findall(s)
