@@ -155,7 +155,7 @@ proof pieces (P3's stroke shader, P7's batcher/atlas) that flow back into it.
 |---|---|---|
 | P0 probe harness | S | DONE 2026-06-12 — `make probe`: selftest + gpushot scene, 3/3 pixels dmax=0 |
 | P1 idle skip | S | DONE 2026-06-12 — `framekey.loft` + idletest (gate 36); 6s idle under Xvfb drew **1 of 8287** iterations. CAVEAT: no swap = no vsync block, the idle loop busy-spins (~1k Hz); the complete win needs the `gl_wait_events_timeout` substrate gap (EXTRACTION §6a) |
-| P2 tint bake (R4) | S | — |
+| P2 tint bake (R4) | S | DONE 2026-06-12 — `worldmesh.loft` (mesh builder moved KERNEL-side, tint pre-composed) + meshtest (gate 38, exact colors) + worldprobe/world_r4.probe (4/4 dmax=0 incl. the 0.451 dim ratio); wash loop deleted |
 | P3 SDF walls (R5) | M | — |
 | P4 light cone (R6) | M | — |
 | P5 substrate flow-back | M (lib) | — |

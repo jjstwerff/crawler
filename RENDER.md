@@ -91,15 +91,14 @@ P1 idle skip → R4→R6 → lib flow-back → R7/R8 → frame-stats → R9).
 
 ### Showcase tier A — no lib changes, do now (in this order)
 
-- **R4 — Tint bake.** Fold the terrain-kind tints INTO the floor VBO at
-  `build_world_mesh` time: pre-compose `mix(floor_rgb, kind_tint_rgb, tint_a)` per hex
-  into the vertex color. The tint is static per level; the only dynamic part (dimming
-  remembered hexes) is exactly what the R3 vis texture already does. Deletes the
-  hottest per-frame CPU loop (lw×lh iterations — ~10k on overland) AND fixes the
-  geometry mismatch (today the wash is an axis-aligned *square* over a *hexagonal*
-  cell; baked, it's the hexagon itself). Parity check: the remembered-state halving of
-  tint alpha folds into the vis dimming, or gets its own vis-texture channel if exact
-  parity is required.
+- **R4 — Tint bake. ✅ SHIPPED (P2, 2026-06-12).** The mesh builder moved KERNEL-side
+  (`worldmesh.loft` — no graphics import, per the architecture invariant) with
+  `mix(floor_rgb, kind_tint_rgb, tint_a)` pre-composed into vertex colors; the
+  per-frame wash loop (lw×lh iterations, an axis-aligned square over a hexagonal
+  cell) is deleted. Remembered dimming folds into the R3 vis multiply — uniform over
+  floor and tint (probed at exactly ×0.451). Verified: meshtest (headless exact
+  colors vs hardcoded oracles) + worldprobe/world_r4.probe (grass/remembered/road/
+  untinted-wall, all dmax=0 through the real pipeline).
 - **R5 — SDF wall strokes.** Replace `draw_segment`'s 13-squares stipple: each
   `wallgeo` segment becomes one slightly-oversized world-space quad; the fragment
   shader computes distance-to-segment (a **capsule SDF**) for solid strokes with round

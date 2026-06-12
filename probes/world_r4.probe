@@ -1,0 +1,17 @@
+# world_r4.probe — P2/R4 (PLAN-RENDER): the tint BAKE through the real pipeline
+# (worldmesh → view VBO/shader/vis/camera), rendered by src/worldprobe.loft on the
+# depth-0 surface (seed 1337). Expected colors are FORMULA-derived (floor·(1−a) +
+# tint·a, then ×vis), confirmed by measurement 2026-06-12:
+#   grass mix  (0.52,0.64,0.33 @ .55) -> (165,175,114) at vis 1.0
+#   remembered = ×0.451 (the manufactured 3×3 block west of the player) -> (74,79,51)
+#   road  mix  (0.58,0.50,0.38 @ .55) -> (173,156,121)
+#   wall keeps the wall tone (0.15,0.14,0.13) -> (38,36,33) — never tinted
+# Deterministic scene (fixed seed/camera): the pinned pixels are stable for THIS
+# worldprobe code.
+
+image /tmp/probe_world.png
+
+probe vis_grass 400 420 165 175 114 tol 4
+probe rem_grass 106 360 74 79 51 tol 4
+probe road 107 590 173 156 121 tol 4
+probe wall_untinted 246 20 38 36 33 tol 4

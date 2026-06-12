@@ -1,0 +1,80 @@
+// worldmesh — the per-level terrain mesh, kernel-side (PLAN-RENDER P2; RENDER.md R4).
+//
+// Geometry + colors only — NO graphics import (the architecture invariant: mesh
+// BUILDING is geometry; the view uploads and draws it). One real hexagon per cell
+// (a 6-triangle fan from the centre, 18 verts) — the cells tile with no gaps, so
+// the floor reads as one continuous surface. Stride 10 = pos.xyz ·
+// visUV-in-normal · color.
+//
+// R4: the terrain-kind tint is PRE-COMPOSED into the vertex color here —
+// tinted = floor·(1−a) + tint·a — replacing the old per-frame wash loop (an
+// axis-aligned square over a hexagonal cell, re-emitted every frame for every
+// hex). The tint is static per level; the only dynamic part — FOV dimming — is
+// the R3 vis texture applied in the fragment shader, so movement never
+// invalidates the bake. Tint rules preserved from the wash exactly: floor tiles
+// only (walls keep the wall tone), kind >= 0 (the dungeon draws none), never
+// K_FACE (stone faces read as wall).
+
+use sim;
+use hex_grid;
+use overland;
+
+// The terrain-kind wash colors (the contract wilderness; light-floor doctrine).
+fn kind_tint(k: integer) -> (float, float, float, float) {
+  if k == K_FOREST { return (0.13, 0.35, 0.16, 0.55); }
+  if k == K_SAND { return (0.86, 0.78, 0.55, 0.50); }
+  if k == K_SCREE { return (0.45, 0.42, 0.36, 0.50); }
+  if k == K_MEADOW { return (0.52, 0.72, 0.35, 0.50); }
+  if k == K_SNOW { return (0.93, 0.95, 0.97, 0.60); }
+  if k == K_ICE { return (0.75, 0.84, 0.94, 0.60); }
+  if k == K_RIVER { return (0.22, 0.45, 0.72, 0.65); }
+  if k == K_LAKE { return (0.15, 0.35, 0.60, 0.70); }
+  if k == K_SEA { return (0.08, 0.22, 0.42, 0.75); }
+  if k == K_FIELD { return (0.76, 0.66, 0.30, 0.50); }
+  if k == K_ROAD { return (0.58, 0.50, 0.38, 0.55); }
+  if k == K_SWAMP { return (0.28, 0.40, 0.30, 0.62); }
+  (0.52, 0.64, 0.33, 0.55)
+}
+
+// Per-level terrain VBO data: one hexagon fan/hex, stride 10. Vertex count is
+// deterministic: 18 · lw · lh.
+pub fn build_world_mesh(s: Sim) -> vector<single> {
+  buf: vector<single> = [];
+  one = 1.0 as single;
+  zz = 0.0 as single;
+  lwf = s.lw as float;
+  lhf = s.lh as float;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      t = tile_at(s, q, r);
+      cr = 0.80; cg = 0.745; cb = 0.59;
+      if t == 1 {
+        cr = 0.15; cg = 0.14; cb = 0.13;
+      } else {
+        k = sim_tile_kind(s, q, r);
+        if k >= 0 && k != K_FACE {
+          (tnr, tng, tnb, tna) = kind_tint(k);
+          keep = 1.0 - tna;
+          cr = cr * keep + tnr * tna;
+          cg = cg * keep + tng * tna;
+          cb = cb * keep + tnb * tna;
+        }
+      }
+      cs_r = cr as single; cs_g = cg as single; cs_b = cb as single;
+      u = ((gq as float + 0.5) / lwf) as single;
+      v = ((gr as float + 0.5) / lhf) as single;
+      (wx, wy) = hex_to_px(q, r);
+      cxs = wx as single; cys = wy as single;
+      for kc in 0..6 {
+        (kax, kay) = hex_corner_px(q, r, kc);
+        (kbx, kby) = hex_corner_px(q, r, (kc + 1) % 6 ?? 0);
+        buf += [cxs, cys, zz, u, v, zz, cs_r, cs_g, cs_b, one];
+        buf += [kax as single, kay as single, zz, u, v, zz, cs_r, cs_g, cs_b, one];
+        buf += [kbx as single, kby as single, zz, u, v, zz, cs_r, cs_g, cs_b, one];
+      }
+    }
+  }
+  buf
+}

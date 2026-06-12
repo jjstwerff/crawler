@@ -74,9 +74,9 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently 37 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
+  (currently 38 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
   msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
-  idle-skip/kernel/…). Keep it **warning-clean**. Pixel-level render checks live in
+  idle-skip/mesh/kernel/…). Keep it **warning-clean**. Pixel-level render checks live in
   **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — PLAN-RENDER P0).
   The games-kernel adoption track (@PLN18 engine_host): **PLAN-KERNEL.md**.
 - **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
@@ -253,6 +253,8 @@ All siblings under `/home/jurjen/workspace/`:
 - `catalog.loft` — the merges: `game_monsters`/`game_items`/`race_catalog`/`class_catalog`.
 - `castfx.loft` / `itemfx.loft` — the API layer above the kernel: cast + use-item verbs,
   dispatching to BUNDLE routines via the generated `spell_defs_gen`/effect arms.
+- `worldmesh.loft` — the kernel-side terrain mesh (hexagon fans, stride 10, R4
+  tint bake pre-composed into vertex colors; the view only uploads/draws it).
 - `view.loft` — egocentric renderer; `Hud` + `build_hud` bake glyph/HUD textures AND the
   sprites (by-name from `assets/sprites/`: `<monster_key>.png`, `player.png`, per-category
   loot; glyph fallback); overlays: char page, inv hub, crystal page. `wallgeo.loft` —

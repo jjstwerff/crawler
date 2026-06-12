@@ -1,0 +1,79 @@
+// meshtest — the kernel-side terrain mesh (PLAN-RENDER P2 / RENDER.md R4): the
+// vertex-count invariant holds, wall hexes keep the wall tone, dungeon floors
+// (kind -1) stay untinted, and a surface sand hex carries the EXACT pre-composed
+// tint — expected values hardcoded from the design numbers (floor 0.80/0.745/0.59,
+// sand tint 0.86/0.78/0.55 @ a=0.50 → 0.83/0.7625/0.57), an independent oracle,
+// not the bake formula re-run. Headless, deterministic.
+use sim;
+use worldmesh;
+use hex_grid;
+use overland;
+
+// Color floats ride the mesh as singles; compare against float literals loosely.
+fn near(a: float, b: float) -> boolean {
+  d = a - b;
+  d < 0.0005 && d > -0.0005
+}
+
+// The color triple of hex (gq,gr) in grid coords: first vertex of its fan,
+// stride 10, color at offset 6.
+fn hex_color(buf: vector<single>, s: Sim, gq: integer, gr: integer) -> (float, float, float) {
+  base = ((gr * s.lw) + gq) * 180;
+  ((buf[base + 6] ?? 0.0) as float, (buf[base + 7] ?? 0.0) as float, (buf[base + 8] ?? 0.0) as float)
+}
+
+fn main() {
+  println("=== story world-mesh test (R4 tint bake: counts + exact colors) ===");
+
+  // ── The dungeon (depth 1, kind -1 everywhere): counts + untinted tones ──
+  d = sim_new_gen(1337, 1);
+  dbuf = build_world_mesh(d);
+  count_ok = len(dbuf) == 180 * d.lw * d.lh;
+  println("count={count_ok} ({len(dbuf)} floats for {d.lw}x{d.lh})");
+
+  // find one floor and one wall hex; their colors are the plain design tones
+  floor_ok = false;
+  wall_ok = false;
+  for gr in 0..d.lh {
+    for gq in 0..d.lw {
+      t = tile_at(d, d.qmin + gq, d.rmin + gr);
+      (cr, cg, cb) = hex_color(dbuf, d, gq, gr);
+      if t == 0 && !floor_ok {
+        floor_ok = near(cr, 0.80) && near(cg, 0.745) && near(cb, 0.59);
+      }
+      if t == 1 && !wall_ok {
+        wall_ok = near(cr, 0.15) && near(cg, 0.14) && near(cb, 0.13);
+      }
+    }
+  }
+  println("dungeon-floor-untinted={floor_ok} wall-tone={wall_ok}");
+
+  // ── The surface (depth 0): a sand hex carries the exact pre-composed mix ──
+  s = sim_new_gen(1337, 0);
+  sbuf = build_world_mesh(s);
+  sand_ok = false;
+  face_dark = true;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      k = sim_tile_kind(s, q, r);
+      t2 = tile_at(s, q, r);
+      (cr2, cg2, cb2) = hex_color(sbuf, s, gq, gr);
+      if t2 == 0 && k == K_SAND && !sand_ok {
+        sand_ok = near(cr2, 0.83) && near(cg2, 0.7625) && near(cb2, 0.57);
+      }
+      // every impassable hex keeps the wall tone — faces/water never tint
+      if t2 == 1 && face_dark {
+        face_dark = near(cr2, 0.15) && near(cg2, 0.14) && near(cb2, 0.13);
+      }
+    }
+  }
+  println("sand-exact={sand_ok} impassable-wall-tone={face_dark}");
+
+  if count_ok && floor_ok && wall_ok && sand_ok && face_dark {
+    println("=== MESH OK ===");
+  } else {
+    println("=== MESH FAILED ===");
+  }
+}

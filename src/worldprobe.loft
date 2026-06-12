@@ -1,0 +1,54 @@
+// worldprobe — R4 probe scene (PLAN-RENDER P2): the depth-0 surface rendered
+// through the REAL view pipeline (worldmesh bake → view's VBO/shader/vis/camera),
+// with the heading flipped once after the first FOV so the hexes that fell out of
+// the forward cone are REMEMBERED (seen, not visible) — both dim states land in
+// one deterministic frame. gl_screenshot → /tmp/probe_world.png; asserted by
+// probes/world_r4.probe (expected colors derived from the bake formula).
+use graphics;
+use sim;
+use view;
+use hex_grid;
+
+fn main() {
+  if !graphics::gl_create_window(800, 600, "world r4 probe") {
+    println("worldprobe: no window");
+    return;
+  }
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+
+  s = sim_new_gen(1337, 0);   // the surface: grass + road + stone faces
+  sim_compute_fov(s);
+  // The surface is daylight-visible, so REMEMBERED never occurs naturally here.
+  // Manufacture it deterministically: a 3x3 block six hexes west of the player
+  // keeps seen but loses vis -> the shader's dim path (0.451) gets asserted.
+  (pq, pr) = sim_player_hex(s);
+  for dq in 0..3 {
+    for dr in 0..3 {
+      mq = pq - 7 + dq;
+      mr = pr - 1 + dr;
+      mi = (mr - s.rmin) * s.lw + (mq - s.qmin);
+      if mi >= 0 && mi < len(s.vis) {
+        vv = s.vis;
+        vv[mi] = 0;
+        sv = s.seen;
+        sv[mi] = 1;
+      }
+    }
+  }
+
+  wprog = make_world_shader();
+  wvao = build_world_vbo(s);
+  vistex = build_vis_texture(s);
+  mat = world_cam_mat4(s);
+
+  graphics::gl_poll_events();
+  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
+  graphics::gl_use_shader(wprog);
+  graphics::gl_set_uniform_mat4(wprog, "uMVP", mat);
+  graphics::gl_bind_texture(vistex, 0);
+  graphics::gl_set_uniform_int(wprog, "uVis", 0);
+  graphics::gl_draw(wvao, 18 * s.lw * s.lh);
+  ok = graphics::gl_screenshot(800, 600, "/tmp/probe_world.png");
+  println("worldprobe: shot={ok} heading={s.heading} player=({s.px},{s.py})");
+  graphics::gl_destroy_window();
+}

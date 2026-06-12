@@ -11,8 +11,8 @@
 use graphics;
 use hex_grid;
 use sim;
-use overland;   // terrain-kind constants for the wilderness tints
 use wallgeo;
+use worldmesh;  // the kernel-side terrain mesh (R4 tint bake)
 use items;
 
 VIEW_W   = 800.0;
@@ -449,7 +449,8 @@ pub fn make_world_shader() -> integer {
 }
 
 // World→clip mat4 (column-major), folding world_to_screen + the px→NDC map.
-fn world_cam_mat4(s: Sim) -> vector<float> {
+// (Pub: worldprobe renders through the real pipeline pieces.)
+pub fn world_cam_mat4(s: Sim) -> vector<float> {
   phi = PI / 2.0 - s.heading;
   cc = cos(phi);
   ss = sin(phi);
@@ -466,65 +467,17 @@ fn world_cam_mat4(s: Sim) -> vector<float> {
   [a, c, 0.0, 0.0,  b, d, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  e, f, 0.0, 1.0]
 }
 
-// Per-level terrain VBO: one quad/hex, stride 10 (pos · visUV-in-normal · color).
-fn build_world_mesh(s: Sim) -> vector<single> {
-  buf: vector<single> = [];
-  one = 1.0 as single;
-  zz = 0.0 as single;
-  lwf = s.lw as float;
-  lhf = s.lh as float;
-  for gr in 0..s.lh {
-    for gq in 0..s.lw {
-      q = s.qmin + gq;
-      r = s.rmin + gr;
-      t = tile_at(s, q, r);
-      cr = 0.80; cg = 0.745; cb = 0.59;
-      if t == 1 { cr = 0.15; cg = 0.14; cb = 0.13; }
-      cR = cr as single; cG = cg as single; cB = cb as single;
-      U = ((gq as float + 0.5) / lwf) as single;
-      V = ((gr as float + 0.5) / lhf) as single;
-      // One real hexagon per cell (6-triangle fan from the centre) — the cells
-      // tile with no gaps, so the floor reads as a single continuous surface
-      // (textures later). All 18 verts of a cell share its per-hex visUV + colour.
-      (wx, wy) = hex_to_px(q, r);
-      CXs = wx as single; CYs = wy as single;
-      for k in 0..6 {
-        (kax, kay) = hex_corner_px(q, r, k);
-        (kbx, kby) = hex_corner_px(q, r, (k + 1) % 6 ?? 0);
-        buf += [CXs, CYs, zz, U, V, zz, cR, cG, cB, one];
-        buf += [kax as single, kay as single, zz, U, V, zz, cR, cG, cB, one];
-        buf += [kbx as single, kby as single, zz, U, V, zz, cR, cG, cB, one];
-      }
-    }
-  }
-  buf
-}
-
-// Build the per-level terrain VBO (rebuild on each level change). Vertex count is
-// deterministic: 18 * lw * lh (6-triangle hexagon fan per cell).
+// Build the per-level terrain VBO (rebuild on each level change). The mesh data —
+// hexagon fans with the R4 tint pre-composed into vertex colors — comes from the
+// kernel-side worldmesh module; this is the one GL touch (upload). Vertex count is
+// deterministic: 18 * lw * lh.
 pub fn build_world_vbo(s: Sim) -> integer {
   graphics::gl_upload_vertices(build_world_mesh(s), 10)
 }
 
-// The terrain-kind wash colors (the contract wilderness; light-floor doctrine).
-fn kind_tint(k: integer) -> (float, float, float, float) {
-  if k == K_FOREST { return (0.13, 0.35, 0.16, 0.55); }
-  if k == K_SAND { return (0.86, 0.78, 0.55, 0.50); }
-  if k == K_SCREE { return (0.45, 0.42, 0.36, 0.50); }
-  if k == K_MEADOW { return (0.52, 0.72, 0.35, 0.50); }
-  if k == K_SNOW { return (0.93, 0.95, 0.97, 0.60); }
-  if k == K_ICE { return (0.75, 0.84, 0.94, 0.60); }
-  if k == K_RIVER { return (0.22, 0.45, 0.72, 0.65); }
-  if k == K_LAKE { return (0.15, 0.35, 0.60, 0.70); }
-  if k == K_SEA { return (0.08, 0.22, 0.42, 0.75); }
-  if k == K_FIELD { return (0.76, 0.66, 0.30, 0.50); }
-  if k == K_ROAD { return (0.58, 0.50, 0.38, 0.55); }
-  if k == K_SWAMP { return (0.28, 0.40, 0.30, 0.62); }
-  (0.52, 0.64, 0.33, 0.55)
-}
-
 // Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
-fn build_vis_texture(s: Sim) -> integer {
+// (Pub: worldprobe renders through the real pipeline pieces.)
+pub fn build_vis_texture(s: Sim) -> integer {
   pix: vector<integer> = [];
   for gr in 0..s.lh {
     for gq in 0..s.lw {
@@ -670,28 +623,9 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, walls: vector<WallSeg>, h
   graphics::gl_draw(wvao, 18 * s.lw * s.lh);
   graphics::gl_delete_texture(vistex);
 
-  // Terrain-kind tints (the contract wilderness): a translucent wash per hex
-  // over the floor mesh — water blue, forest dark green, snow white, fields
-  // gold, roads earth. The dungeon (kind -1) draws nothing.
-  for kr in 0..s.lh {
-    for kq in 0..s.lw {
-      tq = s.qmin + kq;
-      tr = s.rmin + kr;
-      k3 = sim_tile_kind(s, tq, tr);
-      st3 = sim_hex_state(s, tq, tr);
-      if k3 >= 0 && k3 != K_FACE && st3 != 0 && tile_at(s, tq, tr) != 1 {
-        (kwx, kwy) = hex_to_px(tq, tr);
-        (khx, khy) = world_to_screen(s, kwx, kwy);
-        if khx > -cell && khx < VIEW_W + cell && khy > -cell && khy < VIEW_H + cell {
-          (tcr, tcg, tcb, tca) = kind_tint(k3);
-          al = tca;
-          if st3 == 1 { al = tca * 0.5; }
-          graphics::draw_rect_at(painter, khx - cell * 0.52, khy - cell * 0.52,
-                                 cell * 1.04, cell * 1.04, tcr, tcg, tcb, al);
-        }
-      }
-    }
-  }
+  // Terrain-kind tints are BAKED into the floor VBO's vertex colors (worldmesh,
+  // R4) — no per-frame wash; FOV dimming covers tint and floor uniformly via the
+  // vis texture above.
 
   // Stair glyphs (the floor/wall tiles are the GPU mesh now; only glyphs stay immediate).
   for vr in 0..s.lh {
