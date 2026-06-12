@@ -878,11 +878,14 @@ def panel_profile(ov, rivers, fname):
     sheet.save(fname)
     print("wrote " + fname)
 
-def panel_view3d(ov, rivers, fname):
-    """Orthographic 3D MINIATURE of the WHOLE map — a relief model of the
-    continent viewed from the south (parallel projection, y-buffer painter)."""
-    pm = WORLD_W / 1440.0
-    Wg, Hg = 1440, int(WORLD_H / pm)
+def panel_view3d(ov, rivers, fname, wpx=1440, ck=0.55, hk=1.0 / 7.0,
+                 caption="orthographic 3D miniature of the whole map "
+                         "(24x16 km, height exaggerated)"):
+    """Orthographic 3D relief model of the WHOLE map, viewed from the south
+    (parallel projection, y-buffer painter). wpx/ck/hk size it: the default is
+    the miniature; the `orthofull` mode renders the full-detail version."""
+    pm = WORLD_W / float(wpx)
+    Wg, Hg = wpx, int(WORLD_H / pm)
     img2d, hgt = render_window(ov, rivers, 0.0, 0.0, Wg, Hg, pm, want_height=True)
     im2 = Image.fromarray(img2d)             # bake the river overlay into the colors
     d2 = ImageDraw.Draw(im2)
@@ -896,8 +899,6 @@ def panel_view3d(ov, rivers, fname):
                     fill=(40, 96, 150), width=wpx2)
     img2d = np.array(im2)
     hgt = np.maximum(hgt, 0.0)               # water surfaces at sea level
-    ck = 0.55                                # screen px per terrain row
-    hk = 1.0 / 7.0                           # 1 px per 7 m height (reads at miniature)
     top_off = int(hgt.max() * hk) + 10
     Himg = int(Hg * ck) + top_off + 16
     out = np.zeros((Himg, Wg, 3), np.uint8)
@@ -916,8 +917,7 @@ def panel_view3d(ov, rivers, fname):
             out[sy[m] + k, cols[m]] = color[m]
         ybuf = np.minimum(ybuf, sy)
     im = Image.fromarray(out)
-    ImageDraw.Draw(im).text((10, 8), "orthographic 3D miniature of the whole map "
-                            "(24x16 km, height exaggerated)", fill=(255, 255, 90))
+    ImageDraw.Draw(im).text((10, 8), caption, fill=(255, 255, 90))
     im.save(fname)
     print("wrote " + fname)
 
@@ -1056,6 +1056,14 @@ def main():
 
     if what in ("view3d", "all"):
         panel_view3d(ov, rivers, os.path.join(OUT, "ortho_3d.png"))
+
+    if what in ("orthofull",):
+        # the FULL orthographic render — the whole island at fine-pipeline detail
+        panel_view3d(ov, rivers, os.path.join(OUT, "ortho_3d_full.png"),
+                     wpx=2880, ck=0.7, hk=1.0 / 5.0,
+                     caption="orthographic 3D of the whole map, full detail "
+                             "(24x16 km, height exaggerated)")
+        print("wrote ortho_3d_full.png")
 
     if what in ("profile", "all"):
         panel_profile(ov, rivers, os.path.join(OUT, "side_profile.png"))
