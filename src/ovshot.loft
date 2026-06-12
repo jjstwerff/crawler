@@ -1,9 +1,11 @@
-// ovshot — the contract wilderness as a full PNG map, rendered by the GAME's
-// own world code (overland.loft's ov_sample over the whole 13.5x9.1 km world)
-// in the game's own palette (worldmesh's tint composite). Headless — Canvas +
-// save_png, no window. The loft-side answer to "show me the world":
+// ovshot — the contract wilderness rendered by the GAME's own world code
+// (overland.loft's ov_sample over the whole 13.5x9.1 km world) in the game's
+// own palette. Headless — Canvas + save_png, no window. Two outputs:
+//   doc/world_loft.png   the flat map (10 m/px)
+//   doc/world_ortho.png  the ORTHOGRAPHIC RELIEF (parallel projection from the
+//                        south, y-buffer painter — heights from ov_sample)
 //
-//     loft --interpret <libs> src/ovshot.loft     -> doc/world_loft.png
+//     loft --interpret <libs> src/ovshot.loft
 //
 // Walkable kinds use the in-game composite (floor*(1-a) + tint*a — what the
 // renderer bakes into the terrain mesh); impassables (sea/lake/face) use their
@@ -40,12 +42,20 @@ fn main() {
   c = graphics::canvas(W, H, graphics::rgb(24, 56, 96));
   sx = 13500.0 / (W as float);
   sy = 9100.0 / (H as float);
+  colors: vector<integer> = [];
+  hgts: vector<single> = [];
+  maxh = 0.0;
   for py in 0..H {
     wy = ((py as float) + 0.5) * sy;
     for px in 0..W {
       wx = ((px as float) + 0.5) * sx;
-      (_, k) = ov_sample(o, wx, wy);
-      c.set_pixel(px, py, kind_rgb(k));
+      (hh, k) = ov_sample(o, wx, wy);
+      col = kind_rgb(k);
+      c.set_pixel(px, py, col);
+      colors += [col];
+      hv = if hh > 0.0 { hh } else { 0.0 };   // water surfaces at sea level
+      if hv > maxh { maxh = hv; }
+      hgts += [hv as single];
     }
   }
   // point features: towns (size-coded), ruins, wizard towers
@@ -77,4 +87,37 @@ fn main() {
   }
   c.save_png("doc/world_loft.png");
   println("ovshot: wrote doc/world_loft.png ({W}x{H}, 10 m/px)");
+
+  // ── the orthographic relief: parallel projection from the south, painted
+  //    near -> far with a per-column y-buffer (the python bench's algorithm,
+  //    now on the REAL world's heights) ──
+  ck = 0.55;                       // screen px per terrain row
+  hk = 140.0 / maxh ?? 0.1;        // relief amplitude: ~140 px at the peaks
+  top_off = (maxh * hk) as integer + 10;
+  oh = ((H as float) * ck) as integer + top_off + 16;
+  oc = graphics::canvas(W, oh, graphics::rgb(12, 14, 18));
+  ybuf: vector<integer> = [];
+  for _i in 0..W { ybuf += [oh - 1]; }
+  r = H - 1;
+  while r >= 0 {
+    for px in 0..W {
+      idx = r * W + px;
+      hpx = (hgts[idx] ?? 0.0) as float;
+      sy2 = ((r as float) * ck) as integer + top_off - (hpx * hk) as integer;
+      if sy2 < 0 { sy2 = 0; }
+      yb = ybuf[px] ?? 0;
+      if yb > sy2 {
+        col = colors[idx] ?? 0;
+        yy = sy2;
+        while yy < yb {
+          oc.set_pixel(px, yy, col);
+          yy += 1;
+        }
+        ybuf[px] = sy2;
+      }
+    }
+    r -= 1;
+  }
+  oc.save_png("doc/world_ortho.png");
+  println("ovshot: wrote doc/world_ortho.png ({W}x{oh}, relief {maxh}m -> {(maxh * hk) as integer}px)");
 }

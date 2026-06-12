@@ -9,11 +9,12 @@ version later.
 
 ## The world
 
-![The contract wilderness — the game's overworld, rendered by the game's own world code](doc/world_loft.png)
+![The contract wilderness — orthographic relief, rendered by the game's own world code](doc/world_ortho.png)
 
-The game's overworld — 13.5 × 9.1 km of contract wilderness, rendered straight
-from the loft world code (`src/ovshot.loft` samples `overland.loft` at 10 m/px in
-the in-game palette). Twin stone massifs under snow, the crater lake, grasslands,
+The game's overworld — 13.5 × 9.1 km of contract wilderness in **orthographic
+relief**, rendered straight from the loft world code (`src/ovshot.loft` samples
+`overland.loft` at 10 m/px — heights and kinds — in the in-game palette; the
+flat map is [doc/world_loft.png](doc/world_loft.png)). Twin stone massifs under snow, the crater lake, grasslands,
 fields and coastal sands; the markers are towns (ringed), ruins and wizard
 towers. The depth-0 surface you walk is a 101×101-hex window of exactly this
 map, and `ovmap.loft` prints the same world as a ZAngband-style character map —
