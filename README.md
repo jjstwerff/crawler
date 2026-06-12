@@ -9,14 +9,15 @@ version later.
 
 ## The world
 
-![The contract wilderness — orthographic projection](doc/overland_ortho.png)
+![The contract wilderness — the game's overworld, rendered by the game's own world code](doc/world_loft.png)
 
-The island above is the game's overworld — rendered here by the *design
-blueprint* (`python3 tools/overland_blueprint.py orthofull`, output in
-`tools/_overland/`),
-but the same deterministic definition drives the in-game depth-0 surface and the
-`ovmap.loft` character map: three renderers, one world. Side profile:
-`doc/overland_profile.png`.
+The game's overworld — 13.5 × 9.1 km of contract wilderness, rendered straight
+from the loft world code (`src/ovshot.loft` samples `overland.loft` at 10 m/px in
+the in-game palette). Twin stone massifs under snow, the crater lake, grasslands,
+fields and coastal sands; the markers are towns (ringed), ruins and wizard
+towers. The depth-0 surface you walk is a 101×101-hex window of exactly this
+map, and `ovmap.loft` prints the same world as a ZAngband-style character map —
+one deterministic definition, every renderer agrees.
 
 ## Why — the anti-moros
 

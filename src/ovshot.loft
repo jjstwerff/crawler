@@ -1,0 +1,80 @@
+// ovshot — the contract wilderness as a full PNG map, rendered by the GAME's
+// own world code (overland.loft's ov_sample over the whole 13.5x9.1 km world)
+// in the game's own palette (worldmesh's tint composite). Headless — Canvas +
+// save_png, no window. The loft-side answer to "show me the world":
+//
+//     loft --interpret <libs> src/ovshot.loft     -> doc/world_loft.png
+//
+// Walkable kinds use the in-game composite (floor*(1-a) + tint*a — what the
+// renderer bakes into the terrain mesh); impassables (sea/lake/face) use their
+// full tone (in-game they read as the dark wall mass; a map wants water blue).
+use graphics;
+use overland;
+
+W = 1350;     // 10 m / px over 13500 x 9100 m
+H = 910;
+
+fn kind_rgb(k: integer) -> integer {
+  // the walkable composite: floor (0.80,0.745,0.59) mixed with worldmesh's tints
+  if k == K_GRASS { return graphics::rgb(165, 175, 114); }
+  if k == K_FOREST { return graphics::rgb(110, 132, 90); }
+  if k == K_SAND { return graphics::rgb(212, 194, 145); }
+  if k == K_SCREE { return graphics::rgb(160, 150, 121); }
+  if k == K_MEADOW { return graphics::rgb(170, 187, 120); }
+  if k == K_SNOW { return graphics::rgb(232, 238, 240); }
+  if k == K_ICE { return graphics::rgb(204, 222, 235); }
+  if k == K_RIVER { return graphics::rgb(96, 138, 178); }
+  if k == K_FIELD { return graphics::rgb(199, 178, 113); }
+  if k == K_ROAD { return graphics::rgb(173, 156, 121); }
+  if k == K_SWAMP { return graphics::rgb(124, 139, 113); }
+  // impassables at full tone — the map reads water as water
+  if k == K_LAKE { return graphics::rgb(48, 90, 140); }
+  if k == K_SEA { return graphics::rgb(24, 56, 96); }
+  if k == K_FACE { return graphics::rgb(58, 54, 50); }
+  graphics::rgb(165, 175, 114)
+}
+
+fn main() {
+  o = overland_new();
+  println("ovshot: towns={len(o.ov_towns)} roads={len(o.ov_roads)} ruins={len(o.ov_ruins)} wiz={len(o.ov_wiz)}");
+  c = graphics::canvas(W, H, graphics::rgb(24, 56, 96));
+  sx = 13500.0 / (W as float);
+  sy = 9100.0 / (H as float);
+  for py in 0..H {
+    wy = ((py as float) + 0.5) * sy;
+    for px in 0..W {
+      wx = ((px as float) + 0.5) * sx;
+      (_, k) = ov_sample(o, wx, wy);
+      c.set_pixel(px, py, kind_rgb(k));
+    }
+  }
+  // point features: towns (size-coded), ruins, wizard towers
+  for ti in 0..len(o.ov_towns) {
+    t = o.ov_towns[ti];
+    if t != null {
+      tx = (t.ot_x / sx) as integer;
+      ty = (t.ot_y / sy) as integer;
+      r = 2 + t.ot_size;
+      c.fill_circle(tx, ty, r, graphics::rgb(120, 40, 30));
+      c.draw_circle(tx, ty, r + 1, graphics::rgb(255, 235, 200));
+    }
+  }
+  for ri in 0..len(o.ov_ruins) {
+    ru = o.ov_ruins[ri];
+    if ru != null {
+      rx = (ru.ru_x / sx) as integer;
+      ry = (ru.ru_y / sy) as integer;
+      c.fill_rect(rx - 2, ry - 2, 5, 5, graphics::rgb(70, 70, 78));
+    }
+  }
+  for wi in 0..len(o.ov_wiz) {
+    wz = o.ov_wiz[wi];
+    if wz != null {
+      wxp = (wz.wz_x / sx) as integer;
+      wyp = (wz.wz_y / sy) as integer;
+      c.fill_circle(wxp, wyp, 3, graphics::rgb(140, 90, 200));
+    }
+  }
+  c.save_png("doc/world_loft.png");
+  println("ovshot: wrote doc/world_loft.png ({W}x{H}, 10 m/px)");
+}
