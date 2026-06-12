@@ -191,6 +191,31 @@ Bundles compose freely over the existing routine pool; a genuinely new behavior 
 kernel addition. *(Upgrade path: if loft's function-value story matures, routines
 could become loadable — noted, not relied on.)*
 
+## Game-start coherence — the scan meets the boot (evaluated 2026-06-12)
+
+Bundle ROUTINES are loft code and `use` is compile-time, so a fully dynamic
+boot-scan can't exist today — but the scan integrates with the game start in
+three tiers:
+
+1. **Build-start coherence — SHIPPED**: `src/bundles.loft` is a Makefile target
+   depending on every `bundles/*/bundle.json` (+ the generator) — `make
+   play`/`check`/`game` re-scan exactly when a manifest changed. Drop a bundle
+   dir, hit play, it's wired. (`make bundles` runs the scan alone; the test gate
+   re-scans regardless.)
+2. **Boot self-verification (S, when bundle-dropping becomes a second-person
+   workflow)**: the game reads `bundles/*/bundle.json` at startup (the `files` +
+   `json` stdlib) and compares the discovered key set against a generator-stamped
+   digest — a mismatch prints "bundle X found but not wired — run make bundles"
+   instead of silently missing content. Engine compares DATA (keys vs digest),
+   never naming a bundle — the standing check holds.
+3. **The kernel-era endgame (gated on SCRIPTING.md Stage 1, like the bundle-system
+   extraction)**: the @PLN18 kernel ships `rebuild_start()`/`swap_start()` — port
+   the scanner to loft and a RUNNING game detects manifest drift, regenerates,
+   background-rebuilds, and swaps the build under the live world: drop a bundle
+   mid-game and its monsters arrive without losing your position. Desktop-only
+   (wasm can't write files); the routine seam reshapes under SCRIPTING Stage 1
+   first.
+
 ## Cross-references — the legend + the link pass
 
 A stencil cell isn't "a goblin" — it's a **legend slot** → a key → a pool index.

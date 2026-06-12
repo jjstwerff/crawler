@@ -94,7 +94,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe fmt clean all loft-doctor
+.PHONY: help play game serve test check check-native shot probe bundles fmt clean all loft-doctor
 
 # Default target: print the overview above.
 help:
@@ -106,7 +106,16 @@ all: fmt check
 
 # ── Run ────────────────────────────────────────────────────────────────
 
-play:
+# The bundle registries regenerate whenever a manifest changed — drop a bundle
+# dir and `make play` wires it (BUNDLE.md § Game-start coherence; the test gate
+# re-scans regardless).
+src/bundles.loft: $(wildcard bundles/*/bundle.json) tools/gen_bundles.py
+	@python3 tools/gen_bundles.py
+	@echo "  bundles: registries regenerated"
+
+bundles: src/bundles.loft
+
+play: src/bundles.loft
 	@echo "  [1/2] checking loft toolchain ..."
 	@command -v $(LOFT) >/dev/null 2>&1 || { \
 	    echo "    FAIL: loft not found ($(LOFT))."; \
@@ -118,7 +127,7 @@ play:
 
 # ── Browser build ────────────────────────────────────────────────────────
 
-game:
+game: src/bundles.loft
 	@echo "  [1/3] checking loft toolchain ..."
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "    FAIL: loft not found ($(LOFT)) — see 'make loft-doctor', or LOFT_REPO=../loft2"; exit 1; }
 	@echo "  [2/3] compiling story -> $(HTML) ..."
@@ -136,7 +145,7 @@ serve: game
 
 # ── Tests / gates ────────────────────────────────────────────────────────
 
-check:
+check: src/bundles.loft
 	@echo "  compiling (parse + bytecode gate) ..."
 	@$(LOFT) --interpret --check $(LOFTFLAGS) $(SRC) || { echo "    FAIL: compile"; exit 1; }
 
