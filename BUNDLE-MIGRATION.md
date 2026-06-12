@@ -19,7 +19,7 @@ by a data-move alone.
    (CLAUDE.md cardinal rule): build the system, don't make the content lie. Each spell's
    **effect is a bundle-side routine** (resolved by id), so the spell is content like any
    other — and a custom spell finishes the same way.
-5. **Builds green** — `python3 tools/gen_bundles.py` regenerates, `make check` clean,
+5. **Builds green** — `python3 tools/gen_bundles.loft` regenerates, `make check` clean,
    `make test LOFT_REPO=../loft2` green.
 
 ## Library-like invariant (the standing check — BUNDLE.md)
@@ -34,7 +34,7 @@ game.
 
 The whole point of the move: **the library boundary extends cleanly**. A user-authored
 class, race, or spell must drop in **exactly like any other bundle** — a folder under
-`bundles/`, rebuilt with `gen_bundles.py`, with **zero `src/` edits** — and be selectable/
+`bundles/`, rebuilt with `gen_bundles.loft`, with **zero `src/` edits** — and be selectable/
 castable in an unchanged game. Concretely:
 
 - **Spells belong to their owner — not a separate bundle.** There is **no `kind:"spell"`**.
@@ -113,7 +113,7 @@ say, a 2-race game by dropping in just those two folders.
 
 ## Landed so far (2026-06-10) — races
 
-- **Seam (Phase A):** `kind:"race"` scanner in `gen_bundles.py` → `race_defs_gen.loft`;
+- **Seam (Phase A):** `kind:"race"` scanner in `gen_bundles.loft` → `race_defs_gen.loft`;
   `catalog.loft` `race_catalog()` = (empty) `race_table()` + `bundle_races()`.
 - **Content (Phase E data-move):** 10 per-race bundles `bundles/<race>/` (one race each, unique
   `<key>_race_defs()`); `races.loft` drained to struct + `RF_*` vocab + helpers.
@@ -152,10 +152,10 @@ look = the user's visual verify (make play). The caster SP sidebar row is in (li
 
 ## Phase A — Engine seam (generic merge; no per-bundle references)
 
-- [x] `gen_bundles.py`: scan `kind:"character"` for a `"class"` def module → emit
+- [x] `gen_bundles.loft`: scan `kind:"character"` for a `"class"` def module → emit
       `src/class_defs_gen.loft` exposing `bundle_classes()` (+ the `"spells"` scan →
       `spell_defs_gen.loft` defs + routine-by-id dispatch).
-- [x] `gen_bundles.py`: add a `kind:"race"` scanner → emit `src/race_defs_gen.loft`
+- [x] `gen_bundles.loft`: add a `kind:"race"` scanner → emit `src/race_defs_gen.loft`
       exposing `bundle_races()` (def fns globally unique by style).
 - [x] `catalog.loft`: `race_catalog()` + `class_catalog()` (merged; `*_none()` fallbacks).
 - [x] `make check` clean; gate green (deftest reads `race_catalog()`, asserts engine base empty).
@@ -184,7 +184,7 @@ class/race bundle** (Phase D/E), merged generically — never an engine table.
 - [x] `SpellDef` struct + `spell_none()` in the engine (vocabulary): owner/realm key · name ·
       min-level · SP cost · **effect routine id** · desc. No spell *rows* in `src/`.
 - [x] SP pool on the `Sim` + regeneration over the clock (per-tick, like poison/ward).
-- [x] `gen_bundles.py`: scan a `"spells"` section on `kind:"character"` **and** `kind:"race"`
+- [x] `gen_bundles.loft`: scan a `"spells"` section on `kind:"character"` **and** `kind:"race"`
       bundles → emit `src/spell_defs_gen.loft` exposing `bundle_spells()`; `spell_catalog()`
       merges them. (Each bundle's `spell_defs()` uniquely named — `use`-flatten constraint.)
 - [x] **Effect dispatch by routine id** — resolve a spell's effect through the **routine pool**

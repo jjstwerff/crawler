@@ -345,7 +345,7 @@ testability, publication):
 - **`roguelike-kit`** (energy/speed scheduler, status-until-tick timers, flow-field
   pathing, message ring): genuinely reusable, but lives inside `Sim` — extraction is
   earned by a SECOND roguelike existing (rule of three), not before.
-- **The bundle system** (gen_bundles.py + catalog merge + routine-by-id): the most
+- **The bundle system** (gen_bundles.loft + catalog merge + routine-by-id): the most
   valuable candidate and the most premature — SCRIPTING.md Stage 1 (the event bus) will
   reshape the routine seam. Extract after that lands and the shape survives two
   consumers.

@@ -7,7 +7,7 @@ adds or removes at will to compose their own game — plus a per-bundle
 **difficulty knob** so a player can soften (or sharpen) one theme's mobs without
 touching its defs.
 
-Anchors: **BUNDLE.md** (the seam law + the standing check), `tools/gen_bundles.py`
+Anchors: **BUNDLE.md** (the seam law + the standing check), `tools/gen_bundles.loft`
 (the scanner/merger), `catalog.loft` (the merge points), `bundles/desert_surprise/`
 (the proven theme-bundle prototype: enemies + items + stencils + placement),
 `bundles/world_classic/` (the dungeon as a world bundle).
@@ -79,7 +79,7 @@ end.
 
 ## Phase B — the `theme` bundle kind + the canary (undead)
 
-`gen_bundles.py` learns `kind: "theme"`: scans `monsters`/`items` def modules
+`gen_bundles.loft` learns `kind: "theme"`: scans `monsters`/`items` def modules
 (same shapes as `ds_enemies`/`ds_items`) into the generated merge. `undead` moves
 out first — it is the canary because it exercises every seam: ruins tags, the
 tower dweller, swamp habitat, two uniques, drop items. Gate green with the bundle
@@ -109,7 +109,7 @@ in BUNDLE.md.)
 - A game-local **`tuning.json`** at the repo/game root maps bundle key →
   multiplier (`{"undead": 0.6}`) so a player softens a theme WITHOUT touching
   the bundle (removable, shareable, survives bundle updates).
-- `gen_bundles.py` bakes `effective = bundle.difficulty × tuning[key]` into the
+- `gen_bundles.loft` bakes `effective = bundle.difficulty × tuning[key]` into the
   generated merge; the catalog applies it at merge time:
   `hp' = max(1, round(hp·d))`, `dam' = max(1, round(dam·d))`,
   `xp' = max(1, round(xp·(0.5 + 0.5·d)))` — softer mobs still pay (half-)way,
@@ -177,7 +177,7 @@ combinatorial sweep): builds + headlessly boots/walks/descends with
 (1) all themes, (2) NO themes (the empty world: walkable, spawnless, valid),
 (3) each theme solo. Asserts: gen never crashes, every spawn site tolerates
 empty, every theme is self-contained (its defs reference no other bundle's
-keys — `gen_bundles.py` verifies cross-references at build time and fails loud).
+keys — `gen_bundles.loft` verifies cross-references at build time and fails loud).
 
 ## Phase G — buildings & lairs per theme (gated on the stencil milestone)
 

@@ -95,7 +95,7 @@ determinism + MP), plus the **primitive set** itself — new primitives remain e
 - [ ] Define the event surface + an `EventCtx` (the deterministic, MP-safe handle a routine
       receives: actor/target ids, seeded RNG, the API).
 - [ ] Dispatch only fires events with ≥1 subscriber (perf); routines bound by id from bundles.
-- [ ] `gen_bundles.py` scans bundle event-bindings → generated subscriber registry (no engine
+- [ ] `gen_bundles.loft` scans bundle event-bindings → generated subscriber registry (no engine
       reference to a specific bundle).
 - [ ] **Proof:** a content-only bundle adds a monster that does something new `on_hit` (e.g.
       steals gold) with zero `src/` edits. `eventtest.loft` in the gate.

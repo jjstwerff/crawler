@@ -93,7 +93,7 @@ migratable, not rebuilt.
 ## World bundles — kinds, linkable places, and scoped overlays
 
 The bundle graph is realized concretely by a **kind-dispatch scanner**
-(`tools/gen_bundles.py`): every `bundle.json` carries a `kind`, and the scanner emits a
+(`tools/gen_bundles.loft`): every `bundle.json` carries a `kind`, and the scanner emits a
 **per-system generated registry** for each — `character → src/bundles.loft` (`bundle_activate`),
 `world → src/rooms_gen.loft` (the rooms section's `RoomDef` table + `room_connect_*`). One
 scanner, many kinds, many registries; the kernel stays the *mechanism* and bundles are the

@@ -55,7 +55,7 @@ echo "  [13/13] compile gate (parse + bytecode) ..."
   echo "    FAIL: compile"; exit 1; }
 
 echo "  [bundles] regenerate index + character-bundle test ..."
-python3 tools/gen_bundles.py >/dev/null
+"$LOFT" --interpret tools/gen_bundles.loft >/dev/null 2>&1
 run src/bundletest.loft "BUNDLE OK" /tmp/story_bundle.log "bundles" \
   "[bundles] character-bundle test ..."
 

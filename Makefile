@@ -109,8 +109,8 @@ all: fmt check
 # The bundle registries regenerate whenever a manifest changed — drop a bundle
 # dir and `make play` wires it (BUNDLE.md § Game-start coherence; the test gate
 # re-scans regardless).
-src/bundles.loft: $(wildcard bundles/*/bundle.json) tools/gen_bundles.py
-	@python3 tools/gen_bundles.py
+src/bundles.loft: $(wildcard bundles/*/bundle.json) tools/gen_bundles.loft
+	@$(LOFT) --interpret tools/gen_bundles.loft 2>/dev/null | grep gen_bundles: || true
 	@echo "  bundles: registries regenerated"
 
 bundles: src/bundles.loft
