@@ -143,6 +143,27 @@ CLEARED (matched toolchain via the repo binary) and the remaining blocker is a
 REAL codegen bug: loft#354 (block-split variable loss, 51 errors on sim; the
 same family that breaks make game). Rerun the boot probe natively when it lands.
 
+## Shipping distance (evaluated 2026-06-12)
+
+Native builds for Linux/macOS/Windows are NOT a port problem: the graphics
+native crate sits on glutin/winit 0.30 (all three platforms first-class), the
+shaders are #version 330 core (inside macOS's GL 4.1 ceiling), and upstream
+already runs Windows CI. The distance = one bug + release engineering:
+
+1. **loft#354** (block-split codegen) gates EVERY native build — filed with the
+   recipe; rerun the boot probe + `make game` when it lands.
+2. Program-relative asset paths (the in-flight `fix-255-program-relative-font`
+   upstream branch) — a shipped binary must find sprites/font.
+3. `engine_host` registry publication (no sibling-checkout dep in a release).
+4. Packaging: Linux tarball/AppImage days after #354; Windows = a focused week
+   (toolchain-on-platform discipline; SO_REUSEPORT is swap-only, not on the
+   single-player path); macOS = a focused week, mostly signing/notarization.
+5. crawler-side: the N-key restart needs a 3-line relauncher (or loft#352);
+   save-dir conventions wait for G4.
+
+Estimate: #354 + 2–4 focused weeks to a presentable Linux build; Windows/macOS
+each ~a week behind, parallelizable.
+
 ## Order + status
 
 | Step | Effort | Status |
