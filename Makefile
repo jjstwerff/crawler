@@ -102,7 +102,7 @@ play:
 	    echo "    Or use a repo build:  make play LOFT_REPO=../loft2"; \
 	    exit 1; }
 	@echo "  [2/2] launching story (Esc to quit) ..."
-	@$(LOFT) --interpret $(LOFTFLAGS) $(SRC)
+	@$(LOFT) $(LOFTFLAGS) $(SRC)
 
 # ── Browser build ────────────────────────────────────────────────────────
 
