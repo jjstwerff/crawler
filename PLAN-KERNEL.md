@@ -138,8 +138,10 @@ codegen breakage may be fixed by #341). Levers when needed: a SEED-KEYED world
 cache (genesis is deterministic; @PLN11 serialization = the same machinery G4
 saves want → ~100 ms warm starts every tier), lazy genesis (hex_terrain's
 window-independence invariant exists for this), and the shipped boot pump for
-whatever remains. Multipliers estimated, not yet measured on this workload
-(blocked on the E0514 env for the native tier).
+whatever remains. Multipliers estimated, not yet measured on this workload — the env class is
+CLEARED (matched toolchain via the repo binary) and the remaining blocker is a
+REAL codegen bug: loft#354 (block-split variable loss, 51 errors on sim; the
+same family that breaks make game). Rerun the boot probe natively when it lands.
 
 ## Order + status
 
