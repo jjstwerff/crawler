@@ -108,8 +108,9 @@ unavoidable; UNRESPONSIVENESS is not):
    tick blind spot = the same flaw smaller). OWNERSHIP SPLIT (2026-06-12): the
    transport (`post()`/events) is engine work, SHIPPED; the missing piece is the
    window-side EVENT SOURCE — graphics exposes only polled state, no key-event
-   queue — filed as loft#353 (gl_key_events(), or the local role pumping +
-   posting natively). Crawler-side post()-from-polls would only dissolve the
+   queue — the upstream ask (a key-event queue, or the local role pumping +
+   posting natively) was absorbed into the @PLN18 roadmap (the filed issue was
+   removed; the need stays documented HERE). Crawler-side post()-from-polls would only dissolve the
    edge flags, not the blind spots.
 2. **The window never pumps during boot** — `gl_create_window` then 4-5
    interpreted seconds with zero `gl_poll_events`: a frozen black window real
