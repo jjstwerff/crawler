@@ -7,10 +7,9 @@
 # Techniques: lean-capsule mass + dark DORSAL-RIDGE stroke + flank striation strokes =
 # the menacing-animal recipe (posture + fur, reusable for jackal/wolf kin).
 #
-# --- ENHANCE (fur): same upgrade as giant_rat.draw — value-gradient mass + broken-edge
-# tufts + curved clumped flank ribbons + dark gaps (ref assets/sprites/ref/fur). As the BOSS
-# it can carry MORE of it: mangier, deeper value range (radial=72,52,40>40,26,20), heavier
-# dark-gap occlusion + more ragged edge strays than the common rat — fur is a menace cue here.
+# --- FUR (giant_rat.draw recipe, APPLIED): value-graded body + a Fronds flank fur. As the BOSS
+# it carries MORE — mangier: a deeper value range, a longer/denser/frayed Fronds, and bigger
+# claws than the common rat (fur + claws are the menace cue here). Ref assets/sprites/ref/fur.
 # Source for assets/sprites/skarn_rat_king.png.
 size 256x256
 Background transparent

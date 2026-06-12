@@ -6,23 +6,15 @@
 # Techniques: lean-capsule mass + dark DORSAL-RIDGE stroke + flank striation strokes =
 # the menacing-animal recipe (posture + fur, reusable for jackal/wolf kin).
 #
-# --- ENHANCE (fur — ref assets/sprites/ref/fur: Mus decumanus plate + Dürer hare) ---
-# Fur is the weakest part here: flat-fill circles + straight interior `Line` striations.
-# The plates carry fur with VALUE + a BROKEN EDGE, not lines inside a clean circle.
-# Upgrade cheapest-first (each is one edit; draw.py already supports it):
-#  1. VALUE the mass — swap the flat body Circles for a radial gradient lit from the head:
-#     Circle (..) r=.. radial=100,70,50>60,40,28 at=0.5,0.40,0.16  (light crown -> shadow flank).
-#  2. BREAK the silhouette — a few short tapered tufts PAST the body outline, so the edge
-#     reads furry not moulded: Poly (edge)@3 (just-past)~@0.5 stroke=<darkfur>. Clustered,
-#     irregular; the strays are what say "fur".
-#  3. CLUMP, don't comb — replace the straight `Line w=3` striations with CURVED tapered
-#     ribbons following the body: Poly (a)@3 (b)~@2 (c)@1 stroke=<dark>. Fewer, grouped,
-#     uneven length; let some ride the silhouette edge (steps 2+3 share those strokes).
-#  4. DARK GAPS — 2-3 occlusion strokes DARKER than the mass, between clumps, carve the locks.
-# Layer: gradient mass -> dark dorsal ridge -> dark gap strokes -> lighter fur clumps ->
-# a few bright flyaways at the edge last. Keep it SPARSE: at sprite scale 5-6 marks read as
-# fur, 20 read as mud (notan stays clear). This is the canonical FUR recipe (mouse/king copy
-# it; jackal/wolf kin reuse it). Verify each step live in tools/draw.py.
+# --- FUR recipe, APPLIED (ref assets/sprites/ref/fur: Mus decumanus + Dürer hare) ---
+# Fur reads by VALUE + a BROKEN EDGE, not by lines inside a clean circle. How it's built here
+# (the canonical recipe — mouse/king copy it, jackal/wolf kin reuse it):
+#  1. VALUE — the body Circles are RADIAL GRADIENTS lit from the head (crown light -> flank shadow).
+#  2. CLUMP — the flank fur is a FRONDS rooted on the dorsal midline (curved, tapered, swept
+#     back, clumped/jittered), not straight Line striations; the longer jittered strokes reach
+#     the margin and break the silhouette ("fur", not a moulded edge).
+#  3. DARK GAPS — the fur strokes sit darker than the mass, carving the locks.
+# Layer: gradient mass -> dark dorsal ridge -> Fronds fur. Keep it SPARSE (notan stays clear).
 # Source for assets/sprites/giant_rat.png.
 size 256x256
 Background transparent

@@ -5,9 +5,8 @@
 # Techniques: scalloped-membrane wing poly (~ smooth dips between strut points); finger
 # strut lines; tiny-body-big-wings proportion; red eyeshine (giant_rat).
 #
-# --- ENHANCE (fur): the body is a small flat-fill teardrop; a quick radial gradient + 2-3
-# tiny tufts breaking its edge make it read FURRY vs. rubbery (ref assets/sprites/ref/fur).
-# Fur on the body ONLY — the wings are membrane (correctly flat).
+# --- NOTE (fur): the small body is value-graded with a few short edge tufts so it reads FURRY
+# vs. rubbery; fur on the body ONLY — the wings are membrane (correctly flat).
 # Source for assets/sprites/giant_bat.png.
 size 256x256
 Background transparent
@@ -35,10 +34,13 @@ name claws
 Poly (0.245,0.262) (0.215,0.212) (0.258,0.243) rgb=216,208,186
 Poly (0.755,0.262) (0.785,0.212) (0.742,0.243) rgb=216,208,186
 
-# body — small furry teardrop between the wings (bats are tiny under all that wing)
+# body — small furry teardrop between the wings (bats are tiny under all that wing): value-
+# graded + a few short edge tufts so it reads FURRY not rubbery (wings stay flat membrane)
 name body
-Circle (0.50,0.50) r=0.082 rgb=74,58,50
-Circle (0.50,0.43) r=0.068 rgb=74,58,50
+Circle (0.50,0.50) r=0.082 radial=84,66,56>54,40,34 at=0.50,0.46,0.10
+Circle (0.50,0.43) r=0.068 radial=84,66,56>54,40,34 at=0.50,0.40,0.085
+name bodyfur
+Fronds (0.50,0.45)-(0.50,0.555) n=3 len=0.045 len2=0.035 w=1.5 w2=0.7 ang=42 ang2=58 mirror=1 bow=0.1 seed=8 stroke=58,44,38
 # tail membrane — a short point trailing between the wing roots
 name tailm
 Poly (0.455,0.565) (0.545,0.565) (0.50,0.66) rgb=54,46,50

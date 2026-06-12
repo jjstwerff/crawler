@@ -7,10 +7,9 @@
 # Techniques: lean-capsule mass + dark DORSAL-RIDGE stroke + flank striation strokes =
 # the menacing-animal recipe (posture + fur, reusable for jackal/wolf kin).
 #
-# --- ENHANCE (fur): same upgrade as giant_rat.draw — value-gradient mass + broken-edge
-# tufts + curved clumped flank ribbons + dark gaps (ref assets/sprites/ref/fur). For the
-# PALE coat the value step matters MORE: a flat light fill reads as plastic; a radial
-# light->mid gradient (e.g. radial=212,206,196>176,170,160) is what makes it read as soft fur.
+# --- FUR (giant_rat.draw recipe, APPLIED): value-graded body + a Fronds flank fur. For the
+# PALE coat the value step matters MORE (a flat light fill reads plastic), and the fur clumps
+# are DARKER than the body so dark strands read on the pale coat (ref assets/sprites/ref/fur).
 # Source for assets/sprites/white_mouse.png.
 size 256x256
 Background transparent

@@ -4,16 +4,12 @@
 # in BODY SCALE: they emerge from under the pauldrons, hands visible — shield strapped on
 # the left forearm, the sword drawn from the right hand. Humanoid-from-above: hair only.
 #
-# --- ENHANCE (hair — ref assets/sprites/ref/fur/durer_young_hare + skill 2d.md hair rule) ---
-# The head (below) is a single flat-fill circle — exactly the "flat mass" the hair rule warns
-# against. Hair = MASS + VALUE + a FEW strands, never a clean disc:
-#  1. radial-gradient the head, lit crown -> shadow nape:
-#     Circle (0.50,0.345) r=0.075 radial=96,64,40>56,36,22 at=0.5,0.32,0.075;
-#  2. a SHEEN band — 3-4 ~-curved tapered strokes fanning from the crown, LIGHTER than the
-#     mass: Poly (crown)@3 (out)~@1 stroke=120,86,56;
-#  3. BREAK the edge — a few short strays past the circle (a hard outline reads as a helmet/wig);
-#  4. 1-2 dark parting strokes between clumps. Total 6-8 marks (this is the most-seen sprite —
-#     must stay clean). This is the canonical HAIR recipe; reuse for any haired humanoid.
+# --- HAIR recipe, APPLIED (ref assets/sprites/ref/fur/durer_young_hare + skill 2d.md) ---
+# Hair = MASS + VALUE + a FEW strands, never a clean disc. The canonical recipe (reuse for any
+# haired humanoid), as built on the head below: (1) the head is a RADIAL GRADIENT, lit crown ->
+# shadow nape; (2) a few lighter SHEEN strands fan from the crown whorl; (3) a few strays break
+# the edge (a hard outline reads as a helmet/wig); (4) a dark parting between clumps. Kept to
+# ~8 marks — the most-seen sprite must stay clean.
 # Source for assets/sprites/player.png.
 size 256x256
 Background transparent
