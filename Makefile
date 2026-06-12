@@ -31,6 +31,10 @@
 #
 #   make shot     Render one frame under Xvfb and save story.png.
 #
+#   make probe    Pixel-probe gate (PLAN-RENDER P0): render the probe scenes
+#                 under Xvfb (gpushot + any src/*probe.loft), then assert known
+#                 pixels via tools/probe.py against each probes/*.probe spec.
+#
 #   make fmt      Format src/*.loft in place.
 #   make clean    Remove generated artifacts (story.html, story.png, caches).
 #   make help     Print this overview again.
@@ -82,7 +86,7 @@ KTEST := src/selftest.loft    # headless kernel self-test
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot fmt clean all loft-doctor
+.PHONY: help play game serve test check check-native shot probe fmt clean all loft-doctor
 
 # Default target: print the overview above.
 help:
@@ -301,6 +305,32 @@ shot:
 	    tools/snap.sh "$(SHOT)" "$(LOFT)" "$(SRC)" "$(LOFTFLAGS)" || { \
 	    echo "  shot: FAILED"; exit 1; }
 	@echo "  wrote $(abspath $(SHOT))"
+
+# ── Pixel probes (Xvfb; PLAN-RENDER P0) ───────────────────────────────────
+# Render side: gpushot (the R1+R3 scene) + every src/*probe.loft, each a
+# deterministic scene -> gl_screenshot. Assert side: tools/probe.py per
+# probes/*.probe spec (point colors / ramps / golden diffs); exit 1 on FAIL.
+# gl_screenshot reads the GL framebuffer — reliable under Xvfb (the
+# positional caveat applies only to `make shot`'s X11 window grab).
+
+probe:
+	@command -v xvfb-run >/dev/null 2>&1 || { \
+	    echo "  probe: missing xvfb-run — install: apt install xvfb"; exit 1; }
+	@python3 tools/probe.py --selftest >/dev/null || { \
+	    echo "  probe: harness self-test FAILED"; exit 1; }
+	@echo "  [render] src/gpushot.loft -> /tmp/gpu_r3.png ..."
+	@xvfb-run -a -s "-screen 0 800x600x24" \
+	    $(LOFT) --interpret $(LOFTFLAGS) src/gpushot.loft >/dev/null 2>&1 || { \
+	    echo "  probe: gpushot render FAILED"; exit 1; }
+	@for p in src/*probe.loft; do [ -e "$$p" ] || continue; \
+	    echo "  [render] $$p ..."; \
+	    xvfb-run -a -s "-screen 0 800x600x24" \
+	        $(LOFT) --interpret $(LOFTFLAGS) $$p >/dev/null 2>&1 || { \
+	        echo "  probe: $$p render FAILED"; exit 1; }; done
+	@fail=0; for s in probes/*.probe; do \
+	    python3 tools/probe.py $$s || fail=1; done; \
+	    [ $$fail -eq 0 ] || { echo "  probe: FAILURES"; exit 1; }
+	@echo "  probe: all specs green"
 
 # ── Housekeeping ──────────────────────────────────────────────────────────
 

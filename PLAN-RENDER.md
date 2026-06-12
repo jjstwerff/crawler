@@ -153,7 +153,7 @@ proof pieces (P3's stroke shader, P7's batcher/atlas) that flow back into it.
 
 | Step | Effort | Status |
 |---|---|---|
-| P0 probe harness | S | — |
+| P0 probe harness | S | DONE 2026-06-12 — `make probe`: selftest + gpushot scene, 3/3 pixels dmax=0 |
 | P1 idle skip | S | — |
 | P2 tint bake (R4) | S | — |
 | P3 SDF walls (R5) | M | — |
