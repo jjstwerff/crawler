@@ -55,12 +55,17 @@ Build in order; each is small + headless-tested where it's kernel logic.
   *teaches itself* instead of being filler — a novelty curve, not just a difficulty one.
 - **Persistence** — cleared-stays-cleared on revisit (distinct from G4 respawn).
 - **Showcase 2D GPU renderer** (**RENDER.md**) — doctrine: crawler showcases the best
-  2D primitives possible on a modern GPU. World VBO + shader FOV are **live**; next the
-  no-lib-gap stages (tint bake R4, SDF wall strokes R5, light-cone post-fx R6), then the
-  instanced tier (floor R7, one-call sprite batch R8 — absorbs the sprite atlas) behind
+  2D primitives possible on a modern GPU. **Tier A is SHIPPED** (world VBO + shader
+  FOV + tint bake R4 + SDF wall strokes R5 + light-cone post-fx R6 — every world
+  pixel GPU-computed, probe-verified); next the instanced tier (floor R7, one-call
+  sprite batch R8 — absorbs the sprite atlas) behind
   the `graphics` flow-backs (EXTRACTION.md § GPU 2D primitives, which also carries the
   simple-verbs-over-batched-backend painter API). `moros_render` 3D-bridge groundwork.
   Step plan + verification channels: **PLAN-RENDER.md**.
+- **The platform track** (crosscutting, largely SHIPPED 2026-06-12): the games
+  kernel owns the loop (drift-free ticks, idle backoff), crawler hosts a live
+  spectator (`observe.loft`, bit-identical replica), N = next world re-scans
+  bundles, and shipping distance is mapped — **PLAN-KERNEL.md**.
 
 ## Phase 3 — the world → **M-World** (player-chosen difficulty, §3a #9)
 
@@ -86,8 +91,10 @@ Build in order; each is small + headless-tested where it's kernel logic.
   STENCILS.md): pool → stencils → sets → places → quests → motifs. moros-side.
 - **M4 — 3D** (`moros_render`): the validated rotation/scale/12-24-direction model goes
   native; the renderer-agnostic kernel drives it unchanged.
-- **Multiplayer** — the door §3a deliberately left open (persistent characters,
-  seed-deterministic shared world, flat-curve co-op, `loft-libs-net`).
+- **Multiplayer** — the foundations SHIPPED with the platform track (K1 fixed
+  quanta + K2's intent wire: a live observer renders a bit-identical replica
+  today); MP proper = K4 in PLAN-KERNEL.md (intents flow both ways; the G4 save
+  format doubles as the net/replay snapshot).
 
 ## The path in one line
 

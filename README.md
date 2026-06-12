@@ -1,7 +1,7 @@
 # crawler
 
 A clean-room, ZAngband-style **hex roguelike** written in the
-[loft](https://github.com/jjstwerff/loft) language — playable in 2D today, and
+[loft](https://github.com/loft-lang/loft) language — playable in 2D today, and
 built so the *same* renderer-agnostic simulation kernel can drive a 3D browser
 version later.
 
@@ -30,6 +30,13 @@ no editor dependency.
   its world position; once visited its state persists, so re-entering restores
   it — and travelling to harder **zones** (not just deeper) drives difficulty.
 
+The game runs on loft's **games kernel** (`engine_host`): a drift-free 60 Hz
+fixed-tick loop, deterministic simulation quanta, and a wire so transparent that
+`src/observe.loft` renders a live, bit-identical spectator view of a running game
+from its intent stream alone (PLAN-KERNEL.md). The renderer is a probe-verified
+GPU showcase — SDF wall strokes, baked-tint terrain mesh, a directed light cone
+(RENDER.md / PLAN-RENDER.md).
+
 See **[DESIGN.md](DESIGN.md)** for the full design.
 
 ## Controls
@@ -38,8 +45,12 @@ See **[DESIGN.md](DESIGN.md)** for the full design.
 |---|---|
 | `W` / `S` | glide forward / back |
 | `A` / `D` | turn left / right (free — no time passes) |
-| `E` | use the stairs under you (`>` descend · `<` ascend) |
+| *(walk onto stairs)* | `>` descend · `<` ascend — no key; step off and back on to re-trigger |
 | `.` / `Space` | wait one tick (enemies act, you don't move) |
+| `G` | grab the items under you (gold auto-collects) |
+| `C` / `I` | character page (spend stat points) / inventory hub |
+| `1`-`9`, `Q`, `E` | use the bound quick-slot (potions, the bow, spells) |
+| `N` | **next world** — re-scans dropped-in bundles, restarts into a fresh seed |
 | `Esc` | quit |
 
 ## How to play
@@ -48,7 +59,7 @@ You are **`@`**. Glide with `W`/`S` and turn with `A`/`D` — the dungeon rotate
 around you. Steer into a monster to attack it (pressing forward into it lands a
 hit each tick); you trade blows until one of you dies. Kills earn **XP** — fill
 the blue bar under the green HP bar to **level up** (more max HP). Find a **`>`**
-down-stair and press `E` to descend; deeper levels are tougher. The top-left HUD
+down-stair and walk onto it to descend; deeper levels are tougher. The top-left HUD
 shows HP, the XP bar + level (`CL`), and the dungeon **DEPTH** (top-right).
 
 On the map:

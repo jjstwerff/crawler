@@ -17,11 +17,11 @@ a showcase demonstrates judgment too; immediate mode is the right tool there.
 - **World floor = a real retained mesh, live** (R1+R3): one per-level stride-10 VBO
   (pos·visUV-in-normal·color), one `gl_draw`, FOV from a tiny per-hex visibility
   texture sampled in the fragment shader (discards unseen, dims remembered).
-- **Still immediate, queued for conversion:** terrain-kind tints (a per-frame CPU loop
-  over all lw×lh hexes emitting `draw_rect_at` washes → R4), wall segments (each drawn
-  as a stipple of 13 small squares because the painter only does axis-aligned quads →
-  R5), mobs/items/glyphs (`draw_texture_at` / the hand-rolled `draw_texture_rot` per
-  entity → R8).
+- **Tints baked into the mesh** (R4 ✅), **walls = one capsule-SDF draw** (R5 ✅),
+  **the world composites through the light-cone + vignette pass** (R6 ✅) — every
+  world pixel is GPU-computed; details per stage below.
+- **Still immediate, queued:** mobs/items/glyphs (`draw_texture_at` / the
+  hand-rolled `draw_texture_rot` per entity → R8, gated on the P5 substrate).
 - **Deliberately immediate, stays:** sidebar/HUD/overlay pages (bars, labels, text).
 
 ## The primitives (what `graphics` has / lacks)

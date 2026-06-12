@@ -24,8 +24,9 @@ don't even contain structs.
   doc/impl divergence. Sibling layout + `loft install .` also verified working.)
 - **Registry publication** is the five-step flow in loft2 `doc/claude/REGISTRY_SUBMIT.md`
   (see "Updating a library" below) — done when a package settles.
-- **The crawler gate keeps guarding**: after each extraction the same 33 tests run
-  against the lib code; the in-repo module is DELETED (never two copies drifting).
+- **The crawler gate keeps guarding**: after each extraction the full gate (39
+  tests today) runs against the lib code; the in-repo module is DELETED (never
+  two copies drifting).
 
 ## Updating a library repo (the change loop, per contribution)
 
@@ -62,7 +63,7 @@ The loop, end to end:
 1. The package builds standalone (`loft test` in its folder, with at least a smoke test).
 2. crawler consumes it (dev: the `--lib` dir; released: the registry version) and the
    duplicated `src/` module is **deleted**.
-3. `make test` green (33/33) + `make check` clean against the dep.
+3. `make test` green (the full gate — 39 tests today) + `make check` clean against the dep.
 4. Globally-unique pub names preferred (style — the native dup-symbol bug that
    required this is fixed).
 5. Style rule honoured (the one live bug): no capture-append-reassign on struct

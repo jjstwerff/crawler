@@ -14,6 +14,8 @@ make play     # native window (W/S glide, A/D turn, walk onto stairs, . wait, g 
 make test     # headless deterministic gate — RUN THIS before committing
 make check    # quiet compile-only gate (parse + bytecode), no display
 make shot     # one Xvfb frame -> story.png  (positionally unreliable, see below)
+make probe    # pixel-probe gate: Xvfb renders + tools/probe.py asserts probes/*.probe
+make bundles  # re-scan bundles/*/bundle.json -> the generated registries (loft scanner)
 make game     # single-file story.html (WebGL) — unblocked (the E0514 rustc-mismatch is resolved)
 ```
 
@@ -40,8 +42,8 @@ study (growing, → enhance the engineering-rigor skill's DESIGN column): **DESI
 ## Architecture invariant (do not break)
 
 **Kernel** modules import **no graphics** — the `hex_grid` LIB (was hexgeo+gridgeo;
-now `loft-lang/loft-libs-world`), `sim`, `gen`,
-`monsters`/`classes`/`races`/`items`. **View** is the swappable 2D front-end —
+now `loft-lang/loft-libs-world`), `sim`, `gen`, `worldmesh`, `wallgeo`,
+`framekey`, `gameflow`, `genbundles`, `monsters`/`classes`/`races`/`items`. **View** is the swappable 2D front-end —
 `view.loft`, `story.loft`. The view reads the kernel only through `sim_*`
 accessors. That split is what lets the kernel later drive `moros_render` in 3D, so
 keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
@@ -278,6 +280,10 @@ All siblings under `/home/jurjen/workspace/`:
   `flow_action` + the S/T/A wire codec; the host applies AND broadcasts, a replica
   replays — scene_key-identical worlds (replaytest). `observe.loft` = the live
   spectator (connects to a running `story` on :18099, full renderer).
+- `story.loft` — the entry: the games-kernel HOST (`engine_host::run` — drift-free
+  60 Hz ticks, idle backoff, observers served the intent log; `game_tick` is the
+  frame; N = next world via `genbundles`). `framekey.loft` — the idle-skip scene
+  digest (the ONE chokepoint for stale-frame bugs).
 - `view.loft` — egocentric renderer; `Hud` + `build_hud` bake glyph/HUD textures AND the
   sprites (by-name from `assets/sprites/`: `<monster_key>.png`, `player.png`, per-category
   loot; glyph fallback); overlays: char page, inv hub, crystal page. `wallgeo.loft` —
