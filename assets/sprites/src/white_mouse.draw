@@ -21,11 +21,11 @@ Poly (0.50,0.66)@8 (0.61,0.80)@4.5 (0.49,0.91)@2.5 (0.34,0.985)@1.5 stroke=196,1
 
 # body — LEAN tense capsule, spine arched: narrow flanks, the mass gathered forward
 name haunches
-Circle (0.50,0.585) r=0.095 rgb=204,198,188
+Circle (0.50,0.585) r=0.095 radial=210,204,194>176,170,158 at=0.50,0.55,0.13
 name midbody
-Circle (0.50,0.470) r=0.104 rgb=204,198,188
+Circle (0.50,0.470) r=0.104 radial=214,208,198>180,174,162 at=0.50,0.425,0.14
 name shoulders
-Circle (0.50,0.375) r=0.098 rgb=204,198,188
+Circle (0.50,0.375) r=0.098 radial=214,208,198>180,174,162 at=0.50,0.335,0.13
 
 # gathered haunch bulges — the hind legs coiled under, ready to spring
 name haunchL
@@ -38,18 +38,24 @@ Circle (0.572,0.610) r=0.044 rgb=188,182,172
 name spine
 Poly (0.50,0.300)@6 (0.50,0.460)@11 (0.50,0.600)@7 (0.50,0.675)@4 stroke=168,162,152
 
+# flank FUR — Fronds off the dorsal midline, mirrored, swept back. Pale coat, so the clumps
+# are DARKER than the body (dark strands read on pale fur); short + sparse.
+name fur
+Fronds (0.50,0.40)-(0.50,0.62) n=6 len=0.10 len2=0.065 w=2.2 w2=1.0 ang=38 ang2=56 mirror=1 bow=0.13 seed=5 stroke=150,144,132
+
 
 # clawed forepaws — splayed beside the muzzle (the lunge)
 name pawL
 Circle (0.405,0.272) r=0.036 rgb=66,44,32
-Poly (0.386,0.244) (0.374,0.200) (0.402,0.238) rgb=200,188,160
-Poly (0.402,0.238) (0.400,0.194) (0.418,0.236) rgb=200,188,160
-Poly (0.418,0.236) (0.430,0.198) (0.434,0.242) rgb=200,188,160
+# claws — HOOKED tapered talons (curved ~ ribbons), larger + fanned forward (the lunge)
+Poly (0.386,0.252)@3.2 (0.372,0.208)~@1.6 (0.366,0.164)@0.3 stroke=210,200,170
+Poly (0.404,0.248)@3.2 (0.400,0.202)~@1.6 (0.396,0.156)@0.3 stroke=210,200,170
+Poly (0.422,0.250)@3.2 (0.432,0.204)~@1.6 (0.440,0.162)@0.3 stroke=210,200,170
 name pawR
 Circle (0.595,0.272) r=0.036 rgb=66,44,32
-Poly (0.614,0.244) (0.626,0.200) (0.598,0.238) rgb=200,188,160
-Poly (0.598,0.238) (0.600,0.194) (0.582,0.236) rgb=200,188,160
-Poly (0.582,0.236) (0.570,0.198) (0.566,0.242) rgb=200,188,160
+Poly (0.614,0.252)@3.2 (0.628,0.208)~@1.6 (0.634,0.164)@0.3 stroke=210,200,170
+Poly (0.596,0.248)@3.2 (0.600,0.202)~@1.6 (0.604,0.156)@0.3 stroke=210,200,170
+Poly (0.578,0.250)@3.2 (0.568,0.204)~@1.6 (0.560,0.162)@0.3 stroke=210,200,170
 
 # head — emerges FROM the shoulder mass, never bolted on: a SKULL circle bridges the joint
 # (tone between body and muzzle), the muzzle wedge's base corners are BURIED inside it, and

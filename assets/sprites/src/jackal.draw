@@ -22,30 +22,27 @@ name tail
 Poly (0.50,0.68)@10 (0.535,0.82)@8 (0.525,0.93)@5 stroke=120,92,58
 Poly (0.527,0.91)@6 (0.518,0.99)@3 stroke=30,26,22
 
-# paw hints — tucked under the shoulders (splayed legs read insect)
-name paws
-Circle (0.428,0.330) r=0.028 rgb=104,80,50
-Circle (0.572,0.330) r=0.028 rgb=104,80,50
+# forelegs are drawn LAST (on top), reaching forward alongside the snout, so they're VISIBLE
+# rather than hidden under the body (the old tucked paws were). See the forelegs block at the end.
 
 # body — ONE smooth lean oval (closely-stacked overlapping circles, no seams)
 name hips
-Circle (0.50,0.575) r=0.108 rgb=132,100,62
-Circle (0.50,0.525) r=0.115 rgb=132,100,62
+Circle (0.50,0.575) r=0.108 radial=142,110,70>106,78,46 at=0.50,0.37,0.26
+Circle (0.50,0.525) r=0.115 radial=142,110,70>106,78,46 at=0.50,0.37,0.26
 name midbody
-Circle (0.50,0.475) r=0.118 rgb=132,100,62
-Circle (0.50,0.425) r=0.115 rgb=132,100,62
+Circle (0.50,0.475) r=0.118 radial=142,110,70>106,78,46 at=0.50,0.37,0.26
+Circle (0.50,0.425) r=0.115 radial=142,110,70>106,78,46 at=0.50,0.37,0.26
 name shoulders
-Circle (0.50,0.385) r=0.110 rgb=132,100,62
+Circle (0.50,0.385) r=0.110 radial=142,110,70>106,78,46 at=0.50,0.37,0.26
 
 # THE SADDLE — front-loaded dark mantle as a tapered dorsal WASH (hard-edged geometry
 # fights the organic body; a wide-to-narrow stroke follows it)
 name saddle
-Poly (0.50,0.385)@42 (0.50,0.475)~@30 (0.50,0.565)@14 stroke=54,44,34
-name fleck
-Line (0.475,0.42) - (0.465,0.48) w=2
-Line (0.505,0.44) - (0.510,0.51) w=2
-Line (0.530,0.42) - (0.538,0.47) w=2
-Line (0.492,0.535) - (0.488,0.585) w=2
+Poly (0.50,0.390)@20 (0.50,0.475)~@15 (0.50,0.560)@7 stroke=54,44,34
+# flank/saddle FUR — Fronds off the dorsal midline, mirrored, swept back: dark clumps over
+# the saddle and onto the flanks, fading the black mantle into the tan coat (not a hard band).
+name fur
+Fronds (0.50,0.40)-(0.50,0.58) n=8 len=0.13 len2=0.08 w=2.4 w2=1.0 ang=34 ang2=54 mirror=1 bow=0.13 seed=7 stroke=52,42,32
 
 # head — set OFF the body by a neck narrowing: small skull, long protruding snout
 name skull
@@ -74,3 +71,18 @@ Poly (0.483,0.175) (0.517,0.175) (0.50,0.148) rgb=26,20,18
 name teeth
 Poly (0.476,0.182) (0.470,0.132) (0.488,0.176) rgb=234,228,206
 Poly (0.524,0.182) (0.530,0.132) (0.512,0.176) rgb=234,228,206
+
+# forelegs — two SHORT lean forelegs reaching FORWARD alongside the snout (a stalking reach;
+# forward not splayed, so it reads canine not insect), each ending in a small clawed paw.
+# Drawn last (on top), clear of the central snout/teeth so they don't clutter the face.
+name forelegL
+Poly (0.448,0.378)@5 (0.434,0.322)~@4 (0.432,0.264)@2.6 stroke=116,88,54
+name forelegR
+Poly (0.552,0.378)@5 (0.566,0.322)~@4 (0.568,0.264)@2.6 stroke=116,88,54
+name forepaws
+Circle (0.432,0.264) r=0.026 rgb=104,80,50
+Circle (0.568,0.264) r=0.026 rgb=104,80,50
+Poly (0.424,0.252)@2 (0.418,0.226)~@1 (0.414,0.202)@0.3 stroke=206,194,166
+Poly (0.438,0.250)@2 (0.436,0.224)~@1 (0.434,0.200)@0.3 stroke=206,194,166
+Poly (0.576,0.252)@2 (0.582,0.226)~@1 (0.586,0.202)@0.3 stroke=206,194,166
+Poly (0.562,0.250)@2 (0.564,0.224)~@1 (0.566,0.200)@0.3 stroke=206,194,166

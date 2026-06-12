@@ -21,11 +21,11 @@ Poly (0.50,0.66)@8 (0.61,0.80)@4.5 (0.49,0.91)@2.5 (0.34,0.985)@1.5 stroke=148,1
 
 # body — LEAN tense capsule, spine arched: narrow flanks, the mass gathered forward
 name haunches
-Circle (0.50,0.585) r=0.132 rgb=64,44,34
+Circle (0.50,0.585) r=0.132 radial=72,52,40>44,28,20 at=0.50,0.55,0.17
 name midbody
-Circle (0.50,0.470) r=0.142 rgb=64,44,34
+Circle (0.50,0.470) r=0.142 radial=78,56,44>48,32,22 at=0.50,0.425,0.19
 name shoulders
-Circle (0.50,0.375) r=0.132 rgb=64,44,34
+Circle (0.50,0.375) r=0.132 radial=78,56,44>48,32,22 at=0.50,0.335,0.17
 
 # gathered haunch bulges — the hind legs coiled under, ready to spring
 name haunchL
@@ -39,25 +39,23 @@ name spine
 Poly (0.50,0.300)@6 (0.50,0.460)@11 (0.50,0.600)@7 (0.50,0.675)@4 stroke=56,36,26
 
 # darker fur STRIPES — angled striations along the flanks
-name stripes
-Line (0.435,0.415) - (0.392,0.480) w=3
-Line (0.452,0.475) - (0.408,0.545) w=3
-Line (0.448,0.545) - (0.420,0.610) w=2
-Line (0.565,0.415) - (0.608,0.480) w=3
-Line (0.548,0.475) - (0.592,0.545) w=3
-Line (0.552,0.545) - (0.580,0.610) w=2
+# flank FUR — Fronds off the dorsal midline, mirrored, swept back. As the BOSS: MANGIER —
+# more clumps, darker, longer, raggeder than the common rat (fur is a menace cue here).
+name fur
+Fronds (0.50,0.40)-(0.50,0.62) n=9 len=0.15 len2=0.10 w=2.9 w2=1.2 ang=33 ang2=53 mirror=1 bow=0.15 fray=0.5 seed=6 stroke=40,26,18
 
 # clawed forepaws — splayed beside the muzzle (the lunge)
 name pawL
 Circle (0.405,0.272) r=0.036 rgb=66,44,32
-Poly (0.386,0.244) (0.374,0.200) (0.402,0.238) rgb=200,188,160
-Poly (0.402,0.238) (0.400,0.194) (0.418,0.236) rgb=200,188,160
-Poly (0.418,0.236) (0.430,0.198) (0.434,0.242) rgb=200,188,160
+# claws — HOOKED tapered talons (curved ~ ribbons), bigger for the BOSS, fanned forward
+Poly (0.384,0.252)@3.6 (0.368,0.204)~@1.8 (0.360,0.156)@0.3 stroke=216,206,176
+Poly (0.404,0.248)@3.6 (0.400,0.198)~@1.8 (0.396,0.146)@0.3 stroke=216,206,176
+Poly (0.424,0.250)@3.6 (0.436,0.202)~@1.8 (0.446,0.154)@0.3 stroke=216,206,176
 name pawR
 Circle (0.595,0.272) r=0.036 rgb=66,44,32
-Poly (0.614,0.244) (0.626,0.200) (0.598,0.238) rgb=200,188,160
-Poly (0.598,0.238) (0.600,0.194) (0.582,0.236) rgb=200,188,160
-Poly (0.582,0.236) (0.570,0.198) (0.566,0.242) rgb=200,188,160
+Poly (0.616,0.252)@3.6 (0.632,0.204)~@1.8 (0.640,0.156)@0.3 stroke=216,206,176
+Poly (0.596,0.248)@3.6 (0.600,0.198)~@1.8 (0.604,0.146)@0.3 stroke=216,206,176
+Poly (0.576,0.250)@3.6 (0.564,0.202)~@1.8 (0.554,0.154)@0.3 stroke=216,206,176
 
 # head — emerges FROM the shoulder mass, never bolted on: a SKULL circle bridges the joint
 # (tone between body and muzzle), the muzzle wedge's base corners are BURIED inside it, and

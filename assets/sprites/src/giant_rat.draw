@@ -33,11 +33,11 @@ Poly (0.50,0.66)@8 (0.61,0.80)@4.5 (0.49,0.91)@2.5 (0.34,0.985)@1.5 stroke=148,1
 
 # body — LEAN tense capsule, spine arched: narrow flanks, the mass gathered forward
 name haunches
-Circle (0.50,0.585) r=0.112 rgb=84,58,42
+Circle (0.50,0.585) r=0.112 radial=96,66,48>56,38,26 at=0.50,0.55,0.15
 name midbody
-Circle (0.50,0.470) r=0.122 rgb=84,58,42
+Circle (0.50,0.470) r=0.122 radial=102,72,52>60,40,28 at=0.50,0.425,0.16
 name shoulders
-Circle (0.50,0.375) r=0.114 rgb=84,58,42
+Circle (0.50,0.375) r=0.114 radial=102,72,52>60,40,28 at=0.50,0.335,0.15
 
 # gathered haunch bulges — the hind legs coiled under, ready to spring
 name haunchL
@@ -50,26 +50,24 @@ Circle (0.582,0.615) r=0.052 rgb=74,50,36
 name spine
 Poly (0.50,0.300)@6 (0.50,0.460)@11 (0.50,0.600)@7 (0.50,0.675)@4 stroke=56,36,26
 
-# darker fur STRIPES — angled striations along the flanks
-name stripes
-Line (0.435,0.415) - (0.392,0.480) w=3
-Line (0.452,0.475) - (0.408,0.545) w=3
-Line (0.448,0.545) - (0.420,0.610) w=2
-Line (0.565,0.415) - (0.608,0.480) w=3
-Line (0.548,0.475) - (0.592,0.545) w=3
-Line (0.552,0.545) - (0.580,0.610) w=2
+# flank FUR — Fronds rooted on the dorsal midline, mirrored, swept back toward the haunches:
+# clumped/jittered curved tapers (not straight lines); the longer jittered ones reach the
+# margin and break the silhouette (the "fur" read). Replaces the old straight striations.
+name fur
+Fronds (0.50,0.40)-(0.50,0.62) n=7 len=0.135 len2=0.09 w=2.6 w2=1.1 ang=36 ang2=54 mirror=1 bow=0.14 seed=4 stroke=48,30,22
 
 # clawed forepaws — splayed beside the muzzle (the lunge)
 name pawL
 Circle (0.405,0.272) r=0.036 rgb=66,44,32
-Poly (0.386,0.244) (0.374,0.200) (0.402,0.238) rgb=200,188,160
-Poly (0.402,0.238) (0.400,0.194) (0.418,0.236) rgb=200,188,160
-Poly (0.418,0.236) (0.430,0.198) (0.434,0.242) rgb=200,188,160
+# claws — HOOKED tapered talons (curved ~ ribbons), larger + fanned forward (the lunge)
+Poly (0.386,0.252)@3.2 (0.372,0.208)~@1.6 (0.366,0.164)@0.3 stroke=210,200,170
+Poly (0.404,0.248)@3.2 (0.400,0.202)~@1.6 (0.396,0.156)@0.3 stroke=210,200,170
+Poly (0.422,0.250)@3.2 (0.432,0.204)~@1.6 (0.440,0.162)@0.3 stroke=210,200,170
 name pawR
 Circle (0.595,0.272) r=0.036 rgb=66,44,32
-Poly (0.614,0.244) (0.626,0.200) (0.598,0.238) rgb=200,188,160
-Poly (0.598,0.238) (0.600,0.194) (0.582,0.236) rgb=200,188,160
-Poly (0.582,0.236) (0.570,0.198) (0.566,0.242) rgb=200,188,160
+Poly (0.614,0.252)@3.2 (0.628,0.208)~@1.6 (0.634,0.164)@0.3 stroke=210,200,170
+Poly (0.596,0.248)@3.2 (0.600,0.202)~@1.6 (0.604,0.156)@0.3 stroke=210,200,170
+Poly (0.578,0.250)@3.2 (0.568,0.204)~@1.6 (0.560,0.162)@0.3 stroke=210,200,170
 
 # head — emerges FROM the shoulder mass, never bolted on: a SKULL circle bridges the joint
 # (tone between body and muzzle), the muzzle wedge's base corners are BURIED inside it, and

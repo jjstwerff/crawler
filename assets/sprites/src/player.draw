@@ -50,6 +50,18 @@ name pauldrons
 Circle (0.405,0.395) r=0.062 rgb=128,132,142
 Circle (0.595,0.395) r=0.062 rgb=128,132,142
 
-# the head — hair from above (no face: humanoid rule)
+# the head — hair from above (no face). MASS = radial-gradient scalp (lit crown -> shadow
+# nape); lighter SHEEN strands fan back from the crown whorl, a dark parting between them,
+# and a few strays break the silhouette (a clean disc reads as a helmet). Hair recipe.
 name head
-Circle (0.50,0.345) r=0.075 rgb=76,50,30
+Circle (0.50,0.345) r=0.075 radial=98,66,42>54,34,20 at=0.50,0.325,0.086
+name parting
+Poly (0.50,0.312)@2 (0.492,0.40)~@1 stroke=46,30,18
+name sheen
+Poly (0.50,0.325)@3 (0.50,0.405)~@1 stroke=124,88,56
+Poly (0.486,0.325)@3 (0.451,0.392)~@1 stroke=116,82,52
+Poly (0.514,0.325)@3 (0.549,0.392)~@1 stroke=116,82,52
+name strays
+Poly (0.466,0.398)@1.5 (0.449,0.430)~@0.6 stroke=120,86,56
+Poly (0.534,0.398)@1.5 (0.551,0.430)~@0.6 stroke=120,86,56
+Poly (0.50,0.414)@1.5 (0.50,0.446)~@0.6 stroke=110,80,52

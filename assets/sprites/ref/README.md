@@ -79,6 +79,25 @@ tiling → clip-to-region → surface-conform. Roadmap + capability stack: **EXT
   haunch** mass, fur direction sweeping back, the dorsal-darker → flank-lighter tonal
   gradient, the bare scaly tail thick at the root.
 
+### limbs/ — legs / wings / claws (limb construction)
+
+Form reference for limbs, which the fur plates only show incidentally. The project's limb
+*technique* is the jointed, `@`-tapered ribbon (`cave_spider.draw` legs; humanoid arms) and
+the `Fronds` leg-fringe — these plates anchor the *shapes*.
+
+- **`arthropod_legs_scorpion_britannica1911.png`** — scorpion (1911 *Britannica*, PD). The
+  best **jointed-arthropod-leg** reference: 4 leg pairs with the segment chain (coxa →
+  trochanter → femur → patella → tibia → tarsus), each tapering to a point, plus the pincer
+  pedipalps. The form behind `cave_spider` legs + the `centipede` leg-fringe; reuse for any
+  bug/spider/crustacean limb.
+- **`claws_cat_foot_anatomy.jpg`** — cat foot dissection (*Anatomy of the Cat*, IA Book
+  Images, **No restrictions** ≈ PD). Curved **claws** on tapered digits + the tendon lines
+  along each toe — the reference for clawed forepaws, raptor talons, any keratin claw (the
+  curve + the taper to a hard point are the diagnostic cues).
+- **`bat_wings_flying_fox_brehm.jpg`** — flying foxes (Brehm's *Thierleben*, PD). The **wing**
+  membrane, the finger-strut skeleton spanning it, the hooked thumb-claw at the wrist, and the
+  clawed hind feet — the form behind `giant_bat`'s membrane + struts.
+
 ### flora/ — flowers / herbs / ingredients (for the gathering feature)
 
 For the herb/ingredient/pigment gathering work. Botanical plates are side / three-quarter

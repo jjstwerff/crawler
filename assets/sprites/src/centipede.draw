@@ -2,31 +2,30 @@
 # body in a hunting S, a leg fringe per segment, whip antennae, and the dark venom
 # FORCIPULES (the pincer fangs, its attack) curving in ahead of the head. Reddish-brown
 # (true colour, dark enough for the floor). Menace: the S + the pincers.
-#
-# --- ENHANCE (limbs): the leg fringe below is straight `Line w=2`. Tapered ribbons
-# (Poly @2 -> @0.5, like cave_spider.draw's legs) read as jointed legs rather than drawn
-# rules; a slight ~ curve adds the scuttle. Low priority (the fringe is small) but it's the
-# same limb upgrade as the spider's legs.
+# Legs: APPLIED — the fringe is now tapered, knee-bent Polys (the cave_spider limb
+# construction), not straight Lines (ref assets/sprites/ref/limbs/). See the legs block below.
 # Source for assets/sprites/centipede.png.
 size 256x256
 Background transparent
 
-# the leg fringe — thin angled strokes per segment, both sides (under the body)
+# the leg fringe — one pair of TAPERED, knee-bent legs per segment (Poly @root->@tip with a
+# ~ joint, the cave_spider limb construction; ref assets/sprites/ref/limbs/arthropod_legs_scorpion):
+# thick at the root, tapering to a point, swept out + back. Under the body (roots hidden).
 name legs
-Line (0.455,0.80) - (0.385,0.85) w=2
-Line (0.545,0.80) - (0.615,0.85) w=2
-Line (0.487,0.71) - (0.415,0.76) w=2
-Line (0.583,0.71) - (0.655,0.76) w=2
-Line (0.50,0.62) - (0.428,0.665) w=2
-Line (0.60,0.62) - (0.672,0.665) w=2
-Line (0.487,0.53) - (0.413,0.57) w=2
-Line (0.583,0.53) - (0.657,0.57) w=2
-Line (0.452,0.45) - (0.378,0.485) w=2
-Line (0.548,0.45) - (0.622,0.485) w=2
-Line (0.417,0.37) - (0.345,0.40) w=2
-Line (0.513,0.37) - (0.585,0.40) w=2
-Line (0.412,0.29) - (0.342,0.315) w=2
-Line (0.508,0.29) - (0.578,0.315) w=2
+Poly (0.455,0.80)@2.6 (0.420,0.831)~@1.4 (0.385,0.85)@0.6 stroke=96,46,26
+Poly (0.545,0.80)@2.6 (0.580,0.831)~@1.4 (0.615,0.85)@0.6 stroke=96,46,26
+Poly (0.487,0.71)@2.6 (0.451,0.741)~@1.4 (0.415,0.76)@0.6 stroke=96,46,26
+Poly (0.583,0.71)@2.6 (0.619,0.741)~@1.4 (0.655,0.76)@0.6 stroke=96,46,26
+Poly (0.50,0.62)@2.6 (0.464,0.648)~@1.4 (0.428,0.665)@0.6 stroke=96,46,26
+Poly (0.60,0.62)@2.6 (0.636,0.648)~@1.4 (0.672,0.665)@0.6 stroke=96,46,26
+Poly (0.487,0.53)@2.6 (0.450,0.556)~@1.4 (0.413,0.57)@0.6 stroke=96,46,26
+Poly (0.583,0.53)@2.6 (0.620,0.556)~@1.4 (0.657,0.57)@0.6 stroke=96,46,26
+Poly (0.452,0.45)@2.6 (0.415,0.474)~@1.4 (0.378,0.485)@0.6 stroke=96,46,26
+Poly (0.548,0.45)@2.6 (0.585,0.474)~@1.4 (0.622,0.485)@0.6 stroke=96,46,26
+Poly (0.417,0.37)@2.6 (0.381,0.391)~@1.4 (0.345,0.40)@0.6 stroke=96,46,26
+Poly (0.513,0.37)@2.6 (0.549,0.391)~@1.4 (0.585,0.40)@0.6 stroke=96,46,26
+Poly (0.412,0.29)@2.6 (0.377,0.309)~@1.4 (0.342,0.315)@0.6 stroke=96,46,26
+Poly (0.508,0.29)@2.6 (0.543,0.309)~@1.4 (0.578,0.315)@0.6 stroke=96,46,26
 
 # the body — segments along a hunting S (discrete beads, joined by overlap)
 name segments
