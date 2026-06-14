@@ -95,6 +95,36 @@ The loop, end to end:
 8. **Consumers switch**: crawler moves that package from the dev `--lib` dir to the
    registry version and re-runs its gate.
 
+### Worked example — graphics 0.2.0, the first release driven from here (2026-06-14)
+
+The end-to-end flow, VERIFIED, with the gotchas that bit. Needs the **refreshed loft**
+(`../loft` cleanup build at `target/release/loft` — the installed 0.8.5 lacks
+`package`/`publish`/the signed-registry tooling):
+
+1. Branch off the lib's `main` (`feat/gl-2d-substrate`); make the change + version bump
+   (`graphics/loft.toml` 0.1.1 → 0.2.0); lib gate green (`loft test` in `graphics/` — 67).
+2. Push → PR → CI green → `gh pr merge --squash --delete-branch` (lands on `main`).
+3. Tag the merged commit **`graphics-v0.2.0`** (the monorepo's per-package tag form) + push.
+4. `loft package` → deterministic tarball + sha256 + size. ⚠️ its index-entry HINT derives
+   the WRONG repo URL (`loft-graphics`); use **`loft publish`**'s entry instead — it derives
+   the correct `loft-libs-graphics` + tag URL (a `loft package` bug worth filing).
+5. `gh release create graphics-v0.2.0 graphics-0.2.0.tar.gz -R loft-lang/loft-libs-graphics`.
+6. `loft publish` — verifies the live release exists + emits the correct index entry.
+7. **Sign with the LOCAL trust-root key.** Clone `loft-lang/registry`, insert the 0.2.0 block
+   under `packages.graphics.versions` (textual insert — preserve formatting for a clean signed
+   diff), then `scripts/registry-sign.sh --registry-dir <clone> --no-push --yes` (downloads the
+   tarball, **re-checks sha256 = the integrity gate**, signs `index.json.sig`, commits with
+   `~/.loft/trust-root/registry-signing-key.bin`). The final `git push` to `loft-lang/registry`
+   `main` is **maintainer-only** — the agent's push to shared trust infra is (correctly) blocked
+   by the safety classifier, so a human runs that one line.
+8. **Consumer switch:** crawler `loft.toml` `graphics = ">=0.2"` + `loft install`. The #322
+   cache never bites here because a VERSION bump re-keys the cache — this is the win over the
+   dev `--lib` route, and it **collapses the PLAN-RENDER L0 node to a version bump**.
+
+Side lesson (filed as the CI gap): the chunk's `library-ci.yml` matrix only tested the pure-loft
+packages — the native `graphics`/`imaging` were uncovered, so 0.2.0 was validated only locally.
+Fixed by adding them to the matrix + a graphics-only system-dep install (its `[native]` build-deps).
+
 ## Extraction Definition of Done (per package)
 
 1. The package builds standalone (`loft test` in its folder, with at least a smoke test).
