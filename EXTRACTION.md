@@ -11,6 +11,43 @@ shared libraries are gone; the one live shape bug (#320 capture-append-reassign 
 upstream, still in the installed 0.8.5) has a clean style rule, and the Tier-1 candidates
 don't even contain structs.
 
+## Library-handling state (loft, 2026-06-14)
+
+What the recent `../loft` work (branch `cleanup`) changes for crawler as a CONSUMER. Most
+of it tightens or *removes* old caveats; act on the marked items when convenient.
+
+- **Resolution precedence — `--lib` outranks the registry (VERIFIED).** `Parser::lib_path`
+  tries `--lib`/`lib_dirs` *before* the `~/.loft/registry/` probe, so a sibling shadows a
+  same-named registry copy. The ONE catch on the installed **0.8.5**: the **#322
+  stale-program-cache** bug doesn't invalidate when a `--lib` dep is added/edited, so it
+  keeps serving the registry binding until the cache is busted (`LOFT_NO_CACHE=1`, or a
+  toolchain refresh past #322 which self-invalidates). A `path` dep in `loft.toml`
+  (`graphics = { path = "…" }`) is higher-precedence still and flag-independent, if a
+  committed pin is wanted. (This is the corrected story behind PLAN-RENDER's L0.)
+- **Native libs are largely toolchain-free now (@PLN21 / #370, MERGED).** A loft native
+  artifact is a **cdylib** linking loft-ffi's C-ABI, keyed on a *loft-ffi fingerprint*, not
+  rustc — so **hand-written** native (`graphics`, `random`, `gridmesh`) is rustc-INDEPENDENT
+  (E0514 was only ever an **auto-compiled**-native problem; see the DoD caveat above).
+  `prebuilt/<triple>/` cdylibs + `[native] runtime-libs`/`build-deps` manifest fields mean a
+  fresh machine can `use graphics` with **no rustc/~90 s compile** once the registry ships
+  the binaries (distribution scoped to hand-written libs; auto-native stays a loft-release-CI
+  artifact). Crawler's `make game` E0514 note narrows accordingly.
+- **▶ TODO (cheap win) — generate `.loft/api/*.api` stubs (#362, SHIPPED).** `loft
+  install/update/pin` now writes committed, diffable API stubs (every `pub` signature) for
+  each locked dep, and `loft api <name>` prints a lib's public surface. crawler's deps
+  (`graphics`/`hex_grid`/`hex_terrain`/`random`) live under `~/.loft` — invisible to an agent
+  in this tree. Committing `.loft/api/` would let an agent read the exact signatures instead
+  of guessing. Do after a toolchain refresh exposes the command.
+- **Registry is signed now (#371, MERGED).** Three-key Ed25519 trust root; once a refreshed
+  toolchain embeds the keys, `loft install`/auto-install **requires** a signed `index.json`
+  or hard-fails. Operational note for the next `make install`.
+- **`lib_audit` @PLN20 (design ready, unimplemented).** A nightly health gate over the
+  `loft-libs-*` packages crawler consumes — catches a lib silently rotting against current
+  loft. Nothing to do; expect greener libs once it lands.
+- **Catalog currency.** `graphics` + `random` registry copies are STALE (their repos are
+  ahead); `hex_grid`/`hex_terrain` are NOT published yet (crawler rightly consumes them
+  sibling-side via `--lib`). The §1/§4/§5 owner registry-release tails are what close this.
+
 ## Mechanics (what "extract" means here)
 
 - A **library package** = a folder with `loft.toml` (`[package]` + `[library] entry =
@@ -71,11 +108,17 @@ The loop, end to end:
 6. Docs: the package README states its convention/contract; crawler's CLAUDE.md "Where
    things are" updated.
 
-**Environment caveat (not a blocker):** the local installed `libloft.rlib` is rustc-1.95
-vs active 1.96, so a `use`d package's auto-native cdylib fails locally (E0514) and falls
-back to the interpreter — correct, just not the optimized tier. Fix when convenient:
-install a loft built with the active rustc (the `cargo +1.96.0` recipe) or pin the
-default toolchain to 1.95.
+**Environment caveat (not a blocker) — NARROWED 2026-06-14 by loft @PLN21 (#370).** E0514
+bites **only AUTO-compiled native** (a pure-loft lib loft compiles to a cdylib that
+`extern crate loft`s — rlib-linked, so SVH/rustc-locked): with the installed `libloft.rlib`
+at rustc-1.95 vs active 1.96 it fails locally and falls back to the interpreter — correct,
+just unoptimized. **HAND-WRITTEN native libs are rustc-INDEPENDENT** (they link loft-ffi's
+`#[repr(C)]` C-ABI, not `libloft.rlib`), so `graphics`/`random`/`gridmesh` compile and load
+fine across the mismatch — VERIFIED: crawler's sibling `graphics/native` builds clean.
+The real fix is @PLN21's **prebuilt `prebuilt/<triple>/` cdylibs** (loft-ffi-fingerprinted,
+no rustc to *use* a lib) once the registry publishes them; the `cargo +1.96.0` rebuild /
+1.95 pin only matters for the auto-native tier in the meantime. See "Library-handling
+state (loft, 2026-06-14)" below.
 
 ---
 

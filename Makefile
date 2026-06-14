@@ -79,6 +79,11 @@ endif
 # ../loft/lib carries the @PLN18 games kernel (engine_host — story's loop since
 # PLAN-KERNEL K1); its natives ride the installed loft binary. Sibling checkout
 # required until engine_host is registry-published.
+# NOTE (PLAN-RENDER L0): consuming the `graphics` sibling (--lib ../loft-libs-graphics/)
+# is VERIFIED to outrank the registry copy — but the installed 0.8.5 has the #322
+# stale-program-cache bug, so it keeps the registry binding until the cache is busted.
+# Wire it at P5 (when the §6(a) substrate edits begin) AFTER a toolchain refresh past
+# the #322 fix; until then it'd make resolution cache-state-dependent for no gain.
 LIB_DEPS    := --lib ../loft-libs-core-main/ --lib ../loft-libs-world/ --lib ../loft/lib/
 BUNDLE_LIBS := $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
 LOFTFLAGS := $(LOFTFLAGS) $(LIB_DEPS) $(BUNDLE_LIBS)

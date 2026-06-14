@@ -157,11 +157,18 @@ TRUNK (built — the renderer already stands on it):
   P0 probe ─ P1 idle skip ─ P2 R4 tint ─ P3 R5 SDF walls ─ P4 R6 light cone     [all DONE]
 
 GPU SPINE (remaining):
-  L0  graphics dev-lib wiring ............................. prereq: none   ◀ START HERE
-   │    sibling ../loft-libs-graphics is PRESENT (branch fix-255-…); crawler still
-   │    consumes graphics from the REGISTRY. L0 = add `--lib ../loft-libs-graphics/`
-   │    to the Makefile LIB_DEPS, settle its branch, gate+probe green resolving
-   │    graphics from the sibling (no behaviour change — pure plumbing).
+  L0  graphics dev-lib wiring ........................ prereq: toolchain refresh (#322)
+   │    sibling ../loft-libs-graphics is PRESENT (branch fix-255-…); crawler consumes
+   │    graphics from the REGISTRY. VERIFIED 2026-06-14: `--lib ../loft-libs-graphics/`
+   │    DOES outrank the registry (parser lib_path: --lib probes run before the registry
+   │    probe) and the sibling's HAND-WRITTEN native crate compiles fine (loft-ffi C-ABI,
+   │    rustc-independent — E0514 is an AUTO-native-only caveat, not this). The catch:
+   │    the installed 0.8.5 has the #322 stale-program-cache bug, so it keeps the registry
+   │    binding until the cache is busted (LOFT_NO_CACHE=1) — non-deterministic to commit.
+   │    So L0 = (1) refresh the installed loft past #322 (cache self-invalidates on --lib
+   │    dep edits), THEN (2) add the --lib line, gate+probe green off the sibling. Do it
+   │    when P5 begins; wiring it earlier is a cache-fragile no-op. [Makefile carries the
+   │    recipe as a comment.]
    └─ P5/L1  gl_* substrate IN graphics ................... prereq: L0
        │     gl_draw_instanced + per-instance attrs · gl_update_vertices ·
        │     gl_set_uniform_vec2/vec4 · EBO upload · sampler control · tex sub-upload ·
@@ -211,10 +218,10 @@ back into it via L3.
 | P2 tint bake (R4) | S | DONE 2026-06-12 — `worldmesh.loft` (mesh builder moved KERNEL-side, tint pre-composed) + meshtest (gate 38, exact colors) + worldprobe/world_r4.probe (4/4 dmax=0 incl. the 0.451 dim ratio); wash loop deleted |
 | P3 SDF walls (R5) | M | DONE 2026-06-12 — blueprint (tools/blueprints/wall_sdf.py: interior pure, 1px ramps, joins gap-free; fringe over-blend consciously re-pinned one-sided ≤21) → worldmesh::build_wall_mesh (self-describing quads) + wall shader; stipple + draw_segment DELETED; meshtest exact corners/locals/visUV; world_r5.probe 3/3 (interior dmax=0, rem ×0.451, mono ramp) |
 | P4 light cone (R6) | M | DONE 2026-06-12 — FBO world layer + fullscreen cone/vignette pass (HUD unlit); blueprint tools/blueprints/light_cone.py generates the spec; post_r6.probe 5/5 dmax=0 on uniform gray (ahead 117 > behind 73). En route: shot.loft's stale teleport (landed in rock off-level) fixed gen-proof |
-| L0 graphics dev-lib wiring | S | — — sibling ../loft-libs-graphics PRESENT (branch fix-255-…); add `--lib` to LIB_DEPS, settle branch, gate green off the sibling. **START HERE** |
+| L0 graphics dev-lib wiring | S | BLOCKED on a toolchain refresh — `--lib` verified to outrank the registry, but installed 0.8.5's #322 stale-cache keeps the registry binding; do it when P5 begins (recipe in the tree + Makefile) |
 | P5/L1 substrate flow-back | M (lib) | — |
 | P6 instanced floor (R7) | S | — |
-| P7a atlas packer (data) | S | — — pure-data leaf, no GPU/lib; runnable now alongside L0 |
+| P7a atlas packer (data) | S | — — pure-data leaf, no GPU/lib/toolchain-refresh; **runnable NOW** |
 | P7 sprite batch + atlas (R8) | M | — |
 | P8 frame-stats | S | — |
 | P9 layer caches (R9) | M | gated on profiling |
