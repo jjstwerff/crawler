@@ -217,8 +217,12 @@ cross-module `&`, casts, store pressure, struct-literal comprehensions). What st
 - **NEVER build `vector<text>` literals in large functions** — they can HANG the
   interpreter; indexing one in a call argument can PANIC the allocator (loft#336).
   Use branch-selector functions returning text (`fn key(i) -> text { if ... }`).
-- Manifest `{ path = ... }` deps are NOT compile-time resolved (loft#337) — consume
-  local packages via `--lib` dirs or sibling layout (the EXTRACTION.md dev route).
+- Manifest `{ path = ... }` deps are NOT compile-time resolved on the installed 0.8.5
+  (loft#337) — consume local packages via `--lib` dirs or sibling layout (the EXTRACTION.md
+  dev route). **`--lib` outranks the registry** (VERIFIED) so a sibling shadows a same-named
+  registry copy — BUT 0.8.5's **#322 stale-program-cache** doesn't invalidate when a `--lib`
+  dep changes, so it keeps the old binding until you bust the cache (`LOFT_NO_CACHE=1`) or
+  refresh past the #322 fix. (Full picture: EXTRACTION.md → "Library-handling state".)
 - Doubled braces `{{`/`}}` in string literals (C14, by design).
 - Soak-period habits kept as defense-in-depth (their bugs are fixed, the idioms are still
   good): same-module `&`-mutating helpers; don't hold many large `Sim`s live / consume
@@ -256,8 +260,17 @@ All siblings under `/home/jurjen/workspace/`:
 **User library store `~/.loft/`:**
 - `registry/` — *built/published* libs **auto-loaded on `use`**: `graphics-0.1.0`,
   `glb-0.1.0`, `gridmesh`, `mesh3d`, `shapes`, `server`, `web` (+ `index.json`). crawler's
-  `use graphics` (declared in `loft.toml`) resolves here — no sibling repo needed for libs.
+  `use graphics` (declared in `loft.toml`) resolves here by default — a sibling `--lib` can
+  shadow it (the L0 dev route). The `index.json` is **Ed25519-signed** now (loft#371): once a
+  refreshed toolchain embeds the trust keys, `loft install` requires a signed index.
 - `build-cache/` — compiled native cdylibs per lib. `lib/` — global `loft install` packages (empty now).
+- **Native libs are toolchain-free-ish now (loft @PLN21/#370):** a native artifact is a
+  loft-ffi-fingerprinted **cdylib**, so **hand-written** native (`graphics`/`random`) is
+  rustc-INDEPENDENT (E0514 is auto-native-only); published `prebuilt/<triple>/` cdylibs will
+  drop the ~90 s first-use compile entirely. **`.loft/api/<name>.api` stubs** (loft#362): a
+  refreshed toolchain's `loft install/update/pin` writes committed, agent-readable `pub`
+  signatures for each dep — worth committing so the out-of-`~/.loft` APIs are visible in-tree.
+  Details + action items: EXTRACTION.md → "Library-handling state (loft, 2026-06-14)".
 
 ## Where things are
 
