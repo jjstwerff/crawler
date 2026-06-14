@@ -56,9 +56,13 @@ of it tightens or *removes* old caveats; act on the marked items when convenient
 - **Consume locally NOW via a `--lib` dir** (VERIFIED 2026-06-10): the compile-time
   `use` resolver searches *local src → package lib dirs → `--lib` dirs → sibling
   packages* — crawler adds `--lib ../loft-libs-world/` to LOFTFLAGS exactly like the
-  bundle dirs. (A `{ path = ... }` manifest dep is honoured by `loft test --deps` but
-  NOT by compile-time use-resolution — PACKAGES.md overpromises there; tracked as a
-  doc/impl divergence. Sibling layout + `loft install .` also verified working.)
+  bundle dirs. (Sibling layout + `loft install .` also verified working.)
+  **UPDATE 2026-06-14 — loft#337 is FIXED (CLOSED upstream, independently re-verified):**
+  a `{ path = "../leaf" }` manifest dep now compile-time use-resolves on the
+  **2026-06** loft (positive + negative-control probe: drop the edge → `use` fails,
+  restore it → resolves). The installed **0.8.5 still has the bug**, so `--lib` stays
+  the dev route until the toolchain refresh — after which crawler can switch its
+  `--lib ../loft-libs-world/` etc. to cleaner `{ path = … }` deps in `loft.toml`.
 - **Registry publication** is the five-step flow in loft2 `doc/claude/REGISTRY_SUBMIT.md`
   (see "Updating a library" below) — done when a package settles.
 - **The crawler gate keeps guarding**: after each extraction the full gate (39

@@ -219,7 +219,8 @@ cross-module `&`, casts, store pressure, struct-literal comprehensions). What st
   Use branch-selector functions returning text (`fn key(i) -> text { if ... }`).
 - Manifest `{ path = ... }` deps are NOT compile-time resolved on the installed 0.8.5
   (loft#337) — consume local packages via `--lib` dirs or sibling layout (the EXTRACTION.md
-  dev route). **`--lib` outranks the registry** (VERIFIED) so a sibling shadows a same-named
+  dev route). **#337 is FIXED in the 2026-06 loft (verified 2026-06-14)** — after the
+  toolchain refresh, the `--lib` dev dirs can become `{ path = … }` deps in `loft.toml`. **`--lib` outranks the registry** (VERIFIED) so a sibling shadows a same-named
   registry copy — BUT 0.8.5's **#322 stale-program-cache** doesn't invalidate when a `--lib`
   dep changes, so it keeps the old binding until you bust the cache (`LOFT_NO_CACHE=1`) or
   refresh past the #322 fix. (Full picture: EXTRACTION.md → "Library-handling state".)
