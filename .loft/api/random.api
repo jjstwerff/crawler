@@ -1,0 +1,20 @@
+# random 0.1.0 — public API surface
+# generated from /home/jurjen/.loft/registry/random-0.1.0
+# use it with: use random;
+
+## src/random.loft
+
+// --- Random ---
+
+// Returns a random integer in [lo, hi] (inclusive).
+// Returns null when lo > hi or when either argument is null.
+pub fn rand(lo: integer, hi: integer) -> integer
+
+// Seeds the thread-local random number generator with the given value.
+// Call this before rand() or rand_indices() to get reproducible sequences.
+pub fn rand_seed(seed: integer)
+
+// Returns a vector of n integers [0, 1, ..., n-1] in a random order.
+// Useful for random iteration, shuffling, or sampling without replacement.
+// Returns an empty vector when n is 0 or null.
+pub fn rand_indices(n: integer) -> vector<integer>

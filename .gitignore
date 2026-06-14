@@ -1,6 +1,7 @@
-# loft build caches / artifacts
-.loft/
-**/.loft/
+# loft build caches / artifacts — ignore everything under .loft/ EXCEPT the
+# committed, agent-readable dep API stubs (loft#362)
+**/.loft/*
+!**/.loft/api/
 *.wasm
 native-auto/
 

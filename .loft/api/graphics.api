@@ -1,0 +1,682 @@
+# graphics 0.2.1 — public API surface
+# generated from /home/jurjen/.loft/registry/graphics-0.2.1
+# use it with: use graphics;
+
+## src/glb.loft
+
+// Export a Mesh as a GLB 2.0 file.
+// The output file will contain POSITION, NORMAL, and TEXCOORD_0 vertex attributes
+// plus triangle indices.  Readable by Blender, three.js, gltf-validator.
+pub fn save_glb(m: mesh::Mesh, path: text)
+
+// --- buffer ---
+
+// Export a Scene as a GLB 2.0 file.
+// All meshes are packed into one BIN chunk; materials use pbrMetallicRoughness.
+pub fn save_scene_glb(sc: scene::Scene, path: text)
+
+## src/graphics.loft
+
+// Pack RGBA channels into a single integer using bitwise ops.
+// Layout: bits 24..31 = alpha, 16..23 = red, 8..15 = green, 0..7 = blue.
+// Loft integers are 64-bit signed post-2c, so the packed value fits
+// directly — no widening cast needed.
+pub fn rgba(cr: integer, cg: integer, cb: integer, ca: integer) -> integer
+
+pub fn rgb(cr: integer, cg: integer, cb: integer) -> integer
+
+pub fn color_r(color: integer) -> integer
+
+pub fn color_g(color: integer) -> integer
+
+pub fn color_b(color: integer) -> integer
+
+pub fn color_a(color: integer) -> integer
+
+pub struct Canvas {
+
+// Create a canvas filled with a solid color.
+pub fn canvas(cw: integer, ch: integer, fill_color: integer) -> Canvas
+
+// Get pixel color at (x, y). Returns 0 if out of bounds.
+pub fn get_pixel(self: const Canvas, gx: integer, gy: integer) -> integer
+
+// Set pixel color at (x, y). No-op if out of bounds.
+pub fn set_pixel(self: Canvas, sx: integer, sy: integer, color: integer)
+
+// Fill the entire canvas with a solid color.
+pub fn clear(self: Canvas, color: integer)
+
+// Alpha-blend src over dst. Both are 0xAARRGGBB packed integers.
+// Uses standard "src over" compositing: out = src * alpha + dst * (1 - alpha).
+pub fn blend(dst: integer, src: integer) -> integer
+
+// Draw a pixel with alpha blending at (x, y).
+pub fn blend_pixel(self: Canvas, bx: integer, by: integer, color: integer)
+
+// Fill a rectangle with a solid color. Clipped to canvas bounds.
+pub fn fill_rect(self: Canvas, rx: integer, ry: integer, rw: integer, rh: integer, color: integer)
+
+// Draw a horizontal line from (x0, y) to (x1, y). Clipped.
+pub fn hline(self: Canvas, hx0: integer, hx1: integer, hy: integer, color: integer)
+
+// Draw a vertical line from (x, y0) to (x, y1). Clipped.
+pub fn vline(self: Canvas, vx: integer, vy0: integer, vy1: integer, color: integer)
+
+// Draw a rectangle outline (1px border). Clipped.
+pub fn draw_rect(self: Canvas, drx: integer, dry: integer, drw: integer, drh: integer, color: integer)
+
+// --- GL2.2: Bresenham line drawing ---
+
+// Draw a line from (x0, y0) to (x1, y1) using Bresenham's algorithm.
+// Handles all octants. Each pixel is set (no blending).
+pub fn draw_line(self: Canvas, lx0: integer, ly0: integer, lx1: integer, ly1: integer, color: integer)
+
+// --- GL2.3: Circle and ellipse ---
+
+// Draw a circle outline using the midpoint algorithm.
+// Center at (cx, cy) with the given radius. Clipped via set_pixel.
+pub fn draw_circle(self: Canvas, ccx: integer, ccy: integer, radius: integer, color: integer)
+
+// Fill a circle (solid disk). Center at (cx, cy), given radius.
+pub fn fill_circle(self: Canvas, fcx: integer, fcy: integer, radius: integer, color: integer)
+
+// Fill an axis-aligned ellipse (solid). Center (cx, cy), radii (rx, ry).
+pub fn fill_ellipse(self: Canvas, fex: integer, fey: integer, ferx: integer, fery: integer, color: integer)
+
+// Draw an axis-aligned ellipse outline. Center (cx, cy), radii (rx, ry).
+pub fn draw_ellipse(self: Canvas, ecx: integer, ecy: integer, erx: integer, ery: integer, color: integer)
+
+// --- GL2.4: Cubic Bezier curves ---
+
+// Draw a cubic Bezier curve from (bx0,by0) to (bx3,by3) with control points
+// (bx1,by1) and (bx2,by2). Uses adaptive subdivision — splits until segments
+// are flat enough, then draws with Bresenham lines.
+// Flatness threshold: max deviation of control points from the chord.
+pub fn draw_bezier(self: Canvas, bx0: integer, by0: integer, bx1: integer, by1: integer, bx2: integer, by2: integer, bx3: integer, by3: integer, color: integer)
+
+// --- GL2.6: Wu anti-aliased line ---
+
+// Draw an anti-aliased line using Xiaolin Wu's algorithm.
+// Uses blend_pixel for sub-pixel coverage.
+pub fn draw_aa_line(self: Canvas, ax0: integer, ay0: integer, ax1: integer, ay1: integer, color: integer)
+
+// --- GL2.5: Triangle fill (scanline) ---
+
+// Fill a triangle with vertices (tx0,ty0), (tx1,ty1), (tx2,ty2).
+// Uses flat-top/flat-bottom decomposition with scanline fill.
+pub fn fill_triangle(self: Canvas, tx0: integer, ty0: integer, tx1: integer, ty1: integer, tx2: integer, ty2: integer, color: integer)
+
+// Save canvas as a PNG file. Automatically uses RGBA if any pixel has alpha < 255,
+// otherwise uses RGB. Returns true on success.
+pub fn save_png(self: const Canvas, path: text) -> boolean
+
+// Capture the current GL back-buffer to an RGB PNG.  Call after a frame's
+// draw calls and BEFORE gl_swap_buffers (reads GL_BACK).  Works on a
+// headless / Wayland desktop where the window itself can't be grabbed.
+pub fn gl_screenshot(width: integer, height: integer, path: text) -> boolean
+
+// --- OpenGL (GL5) ---
+
+// Create a window with an OpenGL 3.3 context. Returns true on success.
+pub fn gl_create_window(width: integer, height: integer, title: text) -> boolean
+
+// Open a borderless fullscreen window at the primary monitor's native
+// resolution. Returns true on success. Read the actual viewport size
+// afterwards with `gl_window_width` / `gl_window_height` if you need
+// to set up an aspect-aware camera.
+pub fn gl_create_fullscreen_window(title: text) -> boolean
+
+// Toggle fullscreen on the existing window (runtime flip, cheaper
+// than recreating the GL context — textures / VAOs / shaders
+// survive).  Pass `true` for borderless fullscreen, `false` for
+// windowed.  Browsers (WASM) require a user gesture to enter
+// fullscreen; calling outside one is non-fatal.
+pub fn gl_set_fullscreen(on: boolean)
+
+// Current window inner size in physical pixels.  Query after creating a
+// (especially fullscreen) window so projection / 2D ortho / overlays use
+// the real resolution rather than a windowed hint.
+pub fn gl_window_width() -> integer
+
+pub fn gl_window_height() -> integer
+
+// Poll window events. Returns false when the window should close.
+pub fn gl_poll_events() -> boolean
+
+// Swap buffers (present the frame).
+pub fn gl_swap_buffers()
+
+// Clear the screen with an RGBA color (packed as 0xRRGGBBAA).
+pub fn gl_clear(color: integer)
+
+// Destroy the window and OpenGL context.
+pub fn gl_destroy_window()
+
+// Compile and link a shader program. Returns the program ID (0 on failure).
+pub fn gl_create_shader(vertex_source: text, fragment_source: text) -> integer
+
+// Use a shader program for subsequent draw calls.
+pub fn gl_use_shader(program: integer)
+
+// Draw a VAO with vertex_count vertices as triangles.
+pub fn gl_draw(vao: integer, vertex_count: integer)
+
+// Upload a vector<single> as a vertex buffer. Returns VAO handle.
+// stride = floats per vertex (3=pos, 6=pos+normal, 10=pos+normal+color).
+// Native codegen: loft_gl_upload_vertices(data_ptr: *const f32, count: u32, stride: i32) -> i32
+pub fn gl_upload_vertices(data: vector<single>, stride: integer) -> integer
+
+// Upload per-instance data to a DYNAMIC_DRAW buffer. Returns the VBO handle
+// (pass it to gl_instance_attrib). DYNAMIC because instances change per frame.
+pub fn gl_upload_instance_buffer(data: vector<single>) -> integer
+
+// Bind instance VBO `ivbo`'s field to attribute `location` on `vao`, advancing
+// once per INSTANCE (VertexAttribDivisor=1). components = floats in the field
+// (2=vec2, 4=vec4); stride_floats = floats per instance record; offset_floats =
+// this field's start within the record. Use locations >=5 to clear the vertex attrs.
+pub fn gl_instance_attrib(vao: integer, ivbo: integer, location: integer, components: integer, stride_floats: integer, offset_floats: integer)
+
+// Draw vertex_count vertices of `vao` as triangles, instance_count times.
+pub fn gl_draw_instanced(vao: integer, vertex_count: integer, instance_count: integer)
+
+// Orphan + re-upload an existing VBO (returned by gl_upload_vertices /
+// gl_upload_instance_buffer) with new data, DYNAMIC_DRAW — per-frame updates
+// without recreating the buffer.
+pub fn gl_update_buffer(vbo: integer, data: vector<single>)
+
+// Upload triangle indices as an element (index) buffer bound to `vao`, so
+// gl_draw_elements(vao, index_count, mode) draws indexed. Returns the EBO handle.
+pub fn gl_upload_indices(vao: integer, data: vector<integer>) -> integer
+
+pub struct GroupVboSet {
+
+// Create an empty set for a fixed vertex stride + draw mode.
+pub fn group_vbos_new(stride: integer, draw_mode: integer) -> GroupVboSet
+
+// Upload (or RE-upload) one group's baked vertices: delete the group's old VAO
+// if present, upload the new data, and record the handle + vertex count + world
+// bounds.  Call this only for the DIRTY groups each edit; untouched groups keep
+// their cached VBOs.
+pub fn group_vbos_upsert(set: &GroupVboSet, gk: integer, verts: vector<single>,
+
+// Draw every group's cached VBO with the set's draw mode.  (Per-group frustum
+// culling — skip groups whose world bounds fall outside the view — is a future
+// addition; the bounds are already stored.)
+pub fn group_vbos_draw_all(set: GroupVboSet)
+
+// Free every group's VAO and clear the set (call on teardown / world reset).
+pub fn group_vbos_destroy(set: &GroupVboSet)
+
+// Set a mat4 uniform on a shader program. mat is a Mat4.m vector (16 floats).
+// Native codegen: loft_gl_set_mat4(program: i32, name_ptr, name_len, mat_ptr: *const f64, count: u32)
+pub fn gl_set_uniform_mat4(program: integer, name: text, mat: vector<float>)
+
+// --- Uniforms ---
+
+// Set a float uniform.
+pub fn gl_set_uniform_float(program: integer, name: text, val: float)
+
+// Set an integer uniform (also used for sampler2D texture unit bindings).
+pub fn gl_set_uniform_int(program: integer, name: text, val: integer)
+
+// Set a vec2 uniform (e.g. screen size, texel size, a 2D offset).
+pub fn gl_set_uniform_vec2(program: integer, name: text, x: float, y: float)
+
+// Set a vec3 uniform (e.g. light position, color).
+pub fn gl_set_uniform_vec3(program: integer, name: text, x: float, y: float, z: float)
+
+// Set a vec4 uniform (e.g. an RGBA color, a rect x/y/w/h).
+pub fn gl_set_uniform_vec4(program: integer, name: text, x: float, y: float, z: float, w: float)
+
+// --- GL state ---
+
+// Enable a GL capability (GL_DEPTH_TEST, GL_BLEND, GL_CULL_FACE, GL_SCISSOR_TEST).
+pub fn gl_enable(cap: integer)
+
+// Disable a GL capability.
+pub fn gl_disable(cap: integer)
+
+// Set blend function (e.g. gl_blend_func(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA)).
+pub fn gl_blend_func(src: integer, dst: integer)
+
+// Set which face to cull (0=back, 1=front).
+pub fn gl_cull_face(face: integer)
+
+// Enable/disable depth buffer writing.
+pub fn gl_depth_mask(write: boolean)
+
+// Set the viewport rectangle (used for FBO render passes).
+pub fn gl_viewport(x: integer, y: integer, w: integer, h: integer)
+
+// Set the scissor box — clips rendering to this rect (origin bottom-left, like
+// the viewport). Takes effect only while gl_enable(GL_SCISSOR_TEST) is set; use
+// it for partial-damage redraw (re-render just a changed region).
+pub fn gl_scissor(x: integer, y: integer, w: integer, h: integer)
+
+// --- Framebuffer objects ---
+
+// Create a framebuffer object. Returns FBO handle.
+pub fn gl_create_framebuffer() -> integer
+
+// Bind a framebuffer (0 = default screen framebuffer).
+pub fn gl_bind_framebuffer(fbo: integer)
+
+// Attach a texture to an FBO (attachment: 0=color, 1=depth).
+pub fn gl_framebuffer_texture(fbo: integer, attachment: integer, tex: integer)
+
+// Create a depth-only texture for shadow mapping.
+pub fn gl_create_depth_texture(width: integer, height: integer) -> integer
+
+// Create an empty RGBA texture for render-to-texture.
+pub fn gl_create_color_texture(width: integer, height: integer) -> integer
+
+// Set a texture's filtering: nearest = crisp pixel-art, else linear/smooth.
+pub fn gl_texture_filter(tex: integer, nearest: boolean)
+
+// Generate mipmaps + trilinear minification for `tex` (after its pixels are
+// uploaded) — keeps minified sprites / atlas pages clean.
+pub fn gl_generate_mipmap(tex: integer)
+
+// Upload a sub-region of RGBA pixels (Canvas data, 0xAARRGGBB) into an existing
+// texture at (x,y) sized w*h — incremental atlas packing without re-uploading.
+pub fn gl_texture_subimage(tex: integer, x: integer, y: integer, w: integer, h: integer, data: vector<integer>)
+
+// Draw a fullscreen quad (for post-processing). Uses built-in VAO with UV coords.
+// Vertex shader receives: layout(location=0) vec2 aPos, layout(location=1) vec2 aUV.
+pub fn gl_draw_fullscreen_quad()
+
+// --- Draw modes ---
+
+// Draw a VAO with explicit mode (DRAW_TRIANGLES, DRAW_LINES, DRAW_POINTS).
+pub fn gl_draw_mode(vao: integer, vertex_count: integer, mode: integer)
+
+// Draw using an index buffer (EBO). mode: DRAW_TRIANGLES, DRAW_LINES, DRAW_POINTS.
+pub fn gl_draw_elements(vao: integer, index_count: integer, mode: integer)
+
+// Set line width for DRAW_LINES rendering.
+pub fn gl_line_width(width: float)
+
+// Set point size for DRAW_POINTS rendering.
+pub fn gl_point_size(size: float)
+
+// --- Input ---
+
+// Returns true if the key is currently pressed (use KEY_* constants).
+pub fn gl_key_pressed(key_code: integer) -> boolean
+
+// Mouse position X (pixels from left edge of window).
+pub fn gl_mouse_x() -> float
+
+// Mouse position Y (pixels from top edge of window).
+pub fn gl_mouse_y() -> float
+
+// Mouse button bitmask: 1=left, 2=right, 4=middle.
+pub fn gl_mouse_button() -> integer
+
+// Scroll-wheel delta accumulated since the last call (positive = up).
+// Reset on read.  Use per-frame to drive the editor's `InputState.in_wheel`
+// or any other scroll-driven UI.  Pixel-delta trackpad scrolling is
+// quantised at 20 px/line.
+pub fn gl_mouse_wheel() -> integer
+
+// --- Text rendering (GL3) ---
+
+// Load a font from a file path. Returns a font handle (>= 0) or null on error.
+pub fn gl_load_font(path: text) -> integer
+
+// Measure text width in pixels at the given font size.
+pub fn gl_measure_text(font: integer, content: text, size: float) -> float
+
+// Return the line height in pixels for a font at the given size.
+pub fn gl_text_height(font: integer, size: float) -> integer
+
+// @P340: return the font ASCENT in pixels (baseline -> top of glyphs) from the
+// font's real metrics.  gl_draw_text(x, y) anchors by the TOP, placing the
+// baseline at y + gl_font_ascent(font, size); to baseline-align mixed sizes,
+// draw each at y = baseline - gl_font_ascent(font, size_i).
+pub fn gl_font_ascent(font: integer, size: float) -> float
+
+pub fn draw_text(self: Canvas, font: integer, content: text, size: float,
+
+// --- Textures (GL5.5) ---
+
+// Load an image file (PNG, JPG) and upload it as a GL texture.
+// Returns the texture ID (0 on failure).
+pub fn gl_load_texture(path: text) -> integer
+
+// Upload Canvas pixel data as a GL texture. Returns the texture ID.
+// Converts 0xAARRGGBB packed integers to RGBA bytes for OpenGL.
+pub fn gl_upload_canvas(data: vector<integer>, width: integer, height: integer) -> integer
+
+// Bind a texture to a texture unit (0-based) for rendering.
+pub fn gl_bind_texture(texture_id: integer, unit: integer)
+
+// Delete a texture.
+pub fn gl_delete_texture(texture_id: integer)
+
+// --- GPU resource cleanup ---
+
+// Delete a shader program.
+pub fn gl_delete_shader(program: integer)
+
+// Delete a vertex array object.
+pub fn gl_delete_vao(vao: integer)
+
+// Delete a framebuffer object.
+pub fn gl_delete_framebuffer(fbo: integer)
+
+// A sprite sheet backed by a Canvas atlas uploaded as a GL texture.
+// Sprites are arranged in a grid of `ss_cols` x `ss_rows` cells.
+pub struct SpriteSheet {
+
+// Create a sprite sheet from a Canvas atlas.
+// The canvas is divided into a grid of `cols` x `rows` cells.
+// Sprite index 0 is top-left, incrementing left-to-right then top-to-bottom.
+pub fn create_sprite_sheet(atlas: const Canvas, cols: integer, rows: integer, vao: integer) -> SpriteSheet
+
+// Draw sprite at `index` (0-based, row-major).
+// `mvp` is the pre-multiplied projection * model matrix (16 singles).
+// The caller builds the MVP for the desired screen position and size.
+pub fn draw_sprite(sheet: const SpriteSheet, mvp: const vector<float>, sp_idx: integer)
+
+// A 2D painter bundling shaders, a unit-quad VAO, and an orthographic
+// projection. Create once per window with `create_painter_2d`, then use
+// `draw_rect_at`, `draw_sprite_at`, and `draw_texture_at` to render.
+pub struct Painter2D {
+
+// Create a Painter2D for a window of size `screen_w` x `screen_h`.
+// Compiles the flat and textured shaders, uploads the unit-quad VAO, and
+// builds an orthographic projection with the origin at the top-left.
+// Call once after `gl_create_window`.
+pub fn create_painter_2d(screen_w: float, screen_h: float) -> Painter2D
+
+// Return the unit-quad VAO owned by the painter, so it can be shared with
+// `create_sprite_sheet` instead of uploading a second copy.
+pub fn painter_vao(self: const Painter2D) -> integer
+
+// Draw a filled rectangle at screen position (x, y) with size (w, h).
+// Colour channels are in 0.0..1.0. Uses the painter's flat-color shader.
+pub fn draw_rect_at(painter: const Painter2D, x: float, y: float, w: float, h: float,
+
+// Draw a sprite from `sheet` at screen position (x, y) with size (w, h).
+// `sp_idx` is the 0-based sprite index (row-major) in the sheet.
+// This is a one-liner replacement for `make_mvp` + `draw_sprite`.
+pub fn draw_sprite_at(sheet: const SpriteSheet, painter: const Painter2D,
+
+// Draw an arbitrary GL texture as a screen-space quad at (x, y, w, h).
+// Uses the painter's textured shader, which flips V to match canvas origin.
+// Suitable for textures created with `create_text_texture` or `gl_upload_canvas`.
+pub fn draw_texture_at(painter: const Painter2D, tex: integer,
+
+// Rasterize `content` with `font` at `size` pixels, upload the glyph bitmap
+// as a GL texture, and return the texture ID. The texture is sized to fit
+// the measured text plus a small padding; pair with `draw_texture_at` to
+// render. Caller owns the texture — call `gl_delete_texture` when done.
+// Returns 0 if the text cannot be measured.
+pub fn create_text_texture(font: integer, content: text, size: float, color: integer) -> integer
+
+// --- G5: Audio ---
+
+// Load an audio clip (WAV or OGG). Returns handle (>= 0) or null on failure.
+pub fn audio_load(path: text) -> integer
+
+// Play a loaded clip at the given volume (0.0-1.0). Returns playback handle.
+pub fn audio_play(clip: integer, volume: float) -> integer
+
+// Stop a playing clip by its playback handle.
+pub fn audio_stop(sink: integer)
+
+// Set volume of a playing clip (0.0-1.0).
+pub fn audio_set_volume(sink: integer, volume: float)
+
+// Play raw PCM samples (mono, values -1.0 to 1.0) at the given sample rate.
+// Returns playback handle, or null on failure.
+pub fn audio_play_raw(samples: vector<single>, sample_rate: integer, volume: float) -> integer
+
+// --- Procedural audio synthesis (chiptune) ---
+
+// Short percussive beep — brick hit, UI click.
+pub fn sfx_beep(sb_freq: single, sb_dur: single, sb_vol: single) -> integer
+
+// Descending tone — life lost, negative event.
+pub fn sfx_descend(sd_f0: single, sd_f1: single, sd_dur: single, sd_vol: single) -> integer
+
+// Rising chirp — pickup collected, positive event.
+pub fn sfx_chirp(sc_f0: single, sc_f1: single, sc_dur: single, sc_vol: single) -> integer
+
+// White noise burst — percussion, explosion, brick break.
+pub fn sfx_noise(sn_dur: single, sn_vol: single) -> integer
+
+// Paddle bounce — low square wave thud with pitch drop.
+pub fn sfx_bounce(sp_freq: single, sp_vol: single) -> integer
+
+## src/math.loft
+
+// --- Vectors ---
+
+// A 2D vector / point.
+pub struct Vec2 {
+
+pub fn vec2(vx: float, vy: float) -> Vec2
+
+// A 3D vector / point.
+pub struct Vec3 {
+
+pub fn vec3(vx: float, vy: float, vz: float) -> Vec3
+
+// A 4D vector (homogeneous coordinates).
+pub struct Vec4 {
+
+pub fn vec4(vx: float, vy: float, vz: float, vw: float) -> Vec4
+
+// --- Vec3 operations ---
+
+pub fn add3(va: const Vec3, vb: const Vec3) -> Vec3
+
+pub fn sub3(va: const Vec3, vb: const Vec3) -> Vec3
+
+pub fn scale3(sv: const Vec3, ss: float) -> Vec3
+
+pub fn dot3(da: const Vec3, db: const Vec3) -> float
+
+pub fn cross(ca: const Vec3, cb: const Vec3) -> Vec3
+
+pub fn length3(lv: const Vec3) -> float
+
+pub fn normalize3(nv: const Vec3) -> Vec3
+
+// --- 4x4 Matrix (column-major, matching OpenGL/GLB convention) ---
+
+// A 4x4 transformation matrix stored as 16 floats in column-major order.
+// m[0..3] = column 0, m[4..7] = column 1, m[8..11] = column 2, m[12..15] = column 3.
+pub struct Mat4 {
+
+// Create an identity matrix.
+pub fn mat4_identity() -> Mat4
+
+// Create a translation matrix.
+pub fn mat4_translate(tx: float, ty: float, tz: float) -> Mat4
+
+// Create a uniform scale matrix.
+pub fn mat4_scale(sx: float, sy: float, sz: float) -> Mat4
+
+// Multiply two 4x4 matrices (A * B). Result = A applied after B.
+pub fn mat4_mul(ma: const Mat4, mb: const Mat4) -> Mat4
+
+// Transform a Vec3 by a Mat4 (as a point, w=1).
+pub fn mat4_transform(tm: const Mat4, tv: const Vec3) -> Vec3
+
+// Perspective projection matrix.
+// fov_y = vertical field of view in radians, aspect = width/height.
+pub fn mat4_perspective(fov_y: float, aspect: float, near: float, far: float) -> Mat4
+
+// View matrix looking from eye towards target with up direction.
+pub fn mat4_look_at(eye: const Vec3, target: const Vec3, up: const Vec3) -> Mat4
+
+// Rotation around the Y axis by angle radians.
+pub fn mat4_rotate_y(angle: float) -> Mat4
+
+// Rotation around the X axis by angle radians.
+pub fn mat4_rotate_x(angle: float) -> Mat4
+
+// Orthographic projection matrix.
+// Maps the box [left,right] x [bottom,top] x [near,far] to the [-1,1] cube.
+pub fn mat4_ortho(left: float, right: float, bottom: float, top: float, near: float, far: float) -> Mat4
+
+// Combined translate + rotate_y + scale in one call.
+pub fn mat4_trs(tx: float, ty: float, tz: float, ry: float, sx: float, sy: float, sz: float) -> Mat4
+
+## src/mesh.loft
+
+// --- Vertex and mesh ---
+
+// A single vertex with position, normal, and texture coordinates.
+pub struct Vertex {
+
+pub fn vertex(vp: math::Vec3, vn: math::Vec3, vuv: math::Vec2) -> Vertex
+
+// A triangle defined by three vertex indices.
+pub struct Triangle {
+
+// A mesh: a collection of vertices and triangles.
+pub struct Mesh {
+
+pub fn mesh(mn: text) -> Mesh
+
+// Add a vertex to the mesh and return its index.
+pub fn add_vertex(self: Mesh, av: Vertex) -> integer
+
+// Add a triangle by vertex indices.
+pub fn add_triangle(self: Mesh, ti0: integer, ti1: integer, ti2: integer)
+
+// Build a simple quad (two triangles) from 4 vertices.
+// Vertices should be in counter-clockwise order.
+pub fn add_quad(self: Mesh, qi0: integer, qi1: integer, qi2: integer, qi3: integer)
+
+// --- Primitive builders ---
+
+// Create a unit cube centered at origin (side length 1).
+// 24 vertices (4 per face with correct per-face normals), 12 triangles.
+pub fn cube() -> Mesh
+
+// Create a flat horizontal plane centered at origin.
+// pw = width (x-axis), pd = depth (z-axis); normal = (0, 1, 0).
+pub fn plane(pn: text, pw: float, pd: float) -> Mesh
+
+// Create a UV sphere centered at origin.
+// sr = radius, ss = longitudinal slices (≥3), st = latitudinal stacks (≥2).
+// Produces (ss+1)*(st+1) vertices and ss*st*2 triangles.
+pub fn sphere(sn: text, sr: float, ss: integer, st: integer) -> Mesh
+
+// Flatten a mesh to a vector<single> for GL upload.
+// Expands triangles: for each triangle, emits 3 vertices with pos+normal (stride=6).
+// Returns the flat buffer suitable for gl_upload_vertices(data, 6).
+// Flatten a mesh to a vector<single> with UV coords for GL upload.
+// Expands triangles: for each triangle, emits 3 vertices with pos+normal+uv (stride=8).
+// Returns the flat buffer suitable for gl_upload_vertices(data, 8).
+pub fn mesh_to_floats_uv(mu: const Mesh) -> vector<single>
+
+// Flatten a mesh to a vector<single> for GL upload.
+pub fn mesh_to_floats(mf: const Mesh) -> vector<single>
+
+## src/render.loft
+
+pub struct Renderer {
+
+// Create a renderer with a window.  Compiles built-in shaders, allocates
+// shadow map FBO.  Returns null on failure (no display).
+pub fn create_renderer(rw: integer, rh: integer, title: text) -> Renderer
+
+// Seconds since the renderer was created.
+pub fn elapsed(self: const Renderer) -> float
+
+// Upload all meshes in the scene to GPU VAOs.
+pub fn upload_scene(self: Renderer, sc: const scene::Scene)
+
+// Render one frame's 3D passes WITHOUT swapping buffers.  Callers
+// that want to draw a 2D overlay between the 3D pass and the swap
+// (e.g. the native Moros editor's panel) use this variant and
+// invoke `graphics::gl_swap_buffers()` themselves after their
+// overlay renders.  Returns false when close requested.
+// 
+// Introduced by Initiative 03 Phase 3b (native moros editor
+// panel overlay).  The existing `render_frame` wrapper below
+// preserves backward compatibility with every current caller.
+pub fn render_frame_no_swap(self: Renderer, sc: const scene::Scene,
+
+// Render one frame (3D passes + buffer swap).  Convenience wrapper
+// for callers that don't need a 2D overlay between the 3D pass and
+// the swap — brick-buster, 24-renderer-demo, and every other current
+// consumer.  Returns false when close requested.
+pub fn render_frame(self: Renderer, sc: const scene::Scene,
+
+// Convenience: render loop until close.
+pub fn render_loop(self: Renderer, sc: const scene::Scene, cam: const scene::Camera)
+
+// Destroy GPU resources and close the window.
+pub fn destroy(self: Renderer)
+
+## src/scene.loft
+
+// --- Materials ---
+
+// A simple PBR-like material.
+pub struct Material {
+
+pub fn material(mname: text) -> Material
+
+// Shorthand: opaque dielectric material with the given color.
+pub fn material_color(mname: text, mr: float, mg: float, mb: float) -> Material
+
+// Shorthand: metallic material with the given color and roughness.
+pub fn material_metal(mname: text, mr: float, mg: float, mb: float, mrough: float) -> Material
+
+pub fn set_color(self: Material, scr: float, scg: float, scb: float)
+
+// --- Scene nodes ---
+
+// A node in the scene graph with a mesh, material, and transform.
+pub struct Node {
+
+pub fn node(nn: text, nm: integer, nmat: integer) -> Node
+
+// Create a node with an explicit transform (avoids mutation of transform field).
+pub fn node_at(nn: text, nm: integer, nmat: integer, xf: math::Mat4) -> Node
+
+// --- Camera ---
+
+pub struct Camera {
+
+pub fn camera(cname: text) -> Camera
+
+// --- Lights (KHR_lights_punctual) ---
+
+pub enum LightType { Directional, Point, Spot }
+
+pub struct Light {
+
+pub fn directional_light(ln: text, lr: float, lg: float, lb: float, li: float, ldir: math::Vec3) -> Light
+
+pub fn point_light(ln: text, lr: float, lg: float, lb: float, li: float, lpos: math::Vec3) -> Light
+
+// --- Scene ---
+
+// A complete 3D scene.
+pub struct Scene {
+
+pub fn scene(sn: text) -> Scene
+
+// Add a mesh to the scene and return its index.
+pub fn add_mesh(self: Scene, sm: mesh::Mesh) -> integer
+
+// Add a material to the scene and return its index.
+pub fn add_material(self: Scene, smat: Material) -> integer
+
+// Add a node to the scene.
+pub fn add_node(self: Scene, sn: Node)
+
+// Add a camera to the scene.
+pub fn add_camera(self: Scene, sc: Camera)
+
+pub fn add_light(self: Scene, sl: Light) -> integer
