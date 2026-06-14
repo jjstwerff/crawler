@@ -138,9 +138,15 @@ The end-to-end flow, VERIFIED, with the gotchas that bit. Needs the **refreshed 
    origin/main:index.json` lists the new version, AND `loft-keygen verify` of
    `origin/main:index.json` against `origin/main:index.json.sig` says valid. (This is the check
    that catches the step-7 gotcha — we hit it, the first push published the sig without the entry.)
-10. **Consumer switch:** crawler `loft.toml` `graphics = ">=0.2"` + `loft install`. The #322
-   cache never bites here because a VERSION bump re-keys the cache — this is the win over the
-   dev `--lib` route, and it **collapses the PLAN-RENDER L0 node to a version bump**.
+10. **Consumer switch:** crawler `loft.toml` `graphics = ">=0.2"`, then **`loft update graphics`**
+   — NOT `loft install`. `loft install` honours an existing satisfying lock (0.2.0 satisfies
+   `>=0.2`, so it won't move); `loft update <pkg>` bumps to the newest matching version, verifies
+   the signature, and rewrites `loft.lock`. It also writes the loft#362 `.loft/api/<dep>.api`
+   stubs — **commit them** (a `.gitignore` `!**/.loft/api/` exception keeps the rest of `.loft/`
+   ignored) so the out-of-`~/.loft` API surface is visible in-tree. The #322 cache never bites
+   here because a VERSION bump re-keys the cache — the win over the dev `--lib` route, and it
+   **collapses the PLAN-RENDER L0 node to a version bump**. (0.2.1 consumed this way 2026-06-14,
+   gate green, commit `c01faed`; the signed-install path worked with no CDN transient this time.)
 
 Side lessons:
 - **CI gap (filed):** the chunk's `library-ci.yml` matrix only tested the pure-loft packages —
