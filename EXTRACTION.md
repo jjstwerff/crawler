@@ -110,20 +110,41 @@ The end-to-end flow, VERIFIED, with the gotchas that bit. Needs the **refreshed 
    the correct `loft-libs-graphics` + tag URL (a `loft package` bug worth filing).
 5. `gh release create graphics-v0.2.0 graphics-0.2.0.tar.gz -R loft-lang/loft-libs-graphics`.
 6. `loft publish` — verifies the live release exists + emits the correct index entry.
-7. **Sign with the LOCAL trust-root key.** Clone `loft-lang/registry`, insert the 0.2.0 block
-   under `packages.graphics.versions` (textual insert — preserve formatting for a clean signed
-   diff), then `scripts/registry-sign.sh --registry-dir <clone> --no-push --yes` (downloads the
-   tarball, **re-checks sha256 = the integrity gate**, signs `index.json.sig`, commits with
-   `~/.loft/trust-root/registry-signing-key.bin`). The final `git push` to `loft-lang/registry`
-   `main` is **maintainer-only** — the agent's push to shared trust infra is (correctly) blocked
-   by the safety classifier, so a human runs that one line.
-8. **Consumer switch:** crawler `loft.toml` `graphics = ">=0.2"` + `loft install`. The #322
+7. **Add the index entry, then COMMIT IT, then sign.** Clone `loft-lang/registry`; insert the
+   0.2.0 block under `packages.graphics.versions` (textual insert — preserve formatting for a
+   clean diff); **`git commit` that `index.json` edit FIRST.**
+   > ⚠️ **The gotcha that bit us (cost a broken publish — re-verify against it).**
+   > `scripts/registry-sign.sh` commits **only `index.json.sig`**, *not* your `index.json`
+   > change. If the entry is still UNCOMMITTED when you sign, the push carries a *signature over
+   > content that isn't in the committed index* → the index and its sig **mismatch** (a #371-aware
+   > consumer gets `signature INVALID — refusing to load`) **and the version never publishes**.
+   > It fails SILENTLY — the sign + push both "succeed". So: commit the entry first; after pushing,
+   > always re-verify `origin/main` (below). [Worth a loft issue: registry-sign.sh should commit
+   > the index edit too, or refuse when `index.json` is dirty.]
+8. **Sign + verify.** `scripts/registry-sign.sh --registry-dir <clone> --no-push --yes` downloads
+   the tarball, **re-checks sha256 (the integrity gate)**, and signs `index.json.sig` with
+   `~/.loft/trust-root/registry-signing-key.bin` (= **K_laptop**, one of the three embedded
+   trust-root keys in loft `src/registry_keys.rs` — sign with a NON-embedded key and consumers
+   reject it). Ed25519 signing is **deterministic**, so re-signing identical content is a no-op.
+   Verify before pushing: `loft-keygen verify --in index.json --sig index.json.sig --pub <64-hex>`
+   → `signature valid`.
+9. **Push (maintainer-only) + re-verify.** `git push origin HEAD:main` to `loft-lang/registry` —
+   the agent's push to shared trust infra is (correctly) blocked by the safety classifier, so a
+   human runs that one line. Then **re-verify `origin/main` end-to-end**: `git show
+   origin/main:index.json` lists the new version, AND `loft-keygen verify` of
+   `origin/main:index.json` against `origin/main:index.json.sig` says valid. (This is the check
+   that catches the step-7 gotcha — we hit it, the first push published the sig without the entry.)
+10. **Consumer switch:** crawler `loft.toml` `graphics = ">=0.2"` + `loft install`. The #322
    cache never bites here because a VERSION bump re-keys the cache — this is the win over the
    dev `--lib` route, and it **collapses the PLAN-RENDER L0 node to a version bump**.
 
-Side lesson (filed as the CI gap): the chunk's `library-ci.yml` matrix only tested the pure-loft
-packages — the native `graphics`/`imaging` were uncovered, so 0.2.0 was validated only locally.
-Fixed by adding them to the matrix + a graphics-only system-dep install (its `[native]` build-deps).
+Side lessons:
+- **CI gap (filed):** the chunk's `library-ci.yml` matrix only tested the pure-loft packages —
+  native `graphics`/`imaging` were uncovered, so 0.2.0 was validated only locally. Adding them
+  (PR #7) surfaced a deeper skew: the CI clones the `jjstwerff/loft` fork's main, which is behind
+  `loft-lang/loft`, so the native crates don't build there — fix the CI loft source, then they go green.
+- **`loft package` URL bug:** its index-entry hint derives `loft-graphics` (wrong); `loft publish`
+  derives the correct `loft-libs-graphics` URL — always take the entry from `loft publish`.
 
 ## Extraction Definition of Done (per package)
 
