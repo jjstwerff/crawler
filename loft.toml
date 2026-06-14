@@ -5,4 +5,4 @@ version = "0.0.0"
 loft    = ">=0.8"
 
 [dependencies]
-graphics = ">=0.1"
+graphics = ">=0.2"
