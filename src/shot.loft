@@ -21,8 +21,9 @@ fn main() {
   s = sim_new_gen(1337, 5);
   walls = build_walls(s);
   hud = build_hud(s);
-  wprog = make_world_shader();
-  wvao = build_world_vbo(s);
+  wprog = make_world_shader_inst();   // R7 instanced terrain shader
+  wvao = build_hex_vao();             // base hexagon (built once)
+  wivbo = build_world_ivbo(wvao, s);  // floor instances (shot has one level — no update)
   wallprog = make_wall_shader();
   postprog = make_post_shader();
   (postfbo, posttex) = make_post_target();

@@ -29,7 +29,8 @@ struct ObsWorld {
   hud:     Hud not null,
   ml:      vector<integer> not null,
   last_total: integer not null,
-  wvao:    integer not null,
+  wvao:    integer not null,           // base-hexagon VAO (built once; R7 instanced floor)
+  wivbo:   integer not null,           // per-level floor instance buffer
   wallvao: integer not null,
   walln:   integer not null,
   sq:      integer not null,
@@ -43,8 +44,14 @@ struct ObsWorld {
 fn obs_rebuild(w: ObsWorld) {
   w.walls = build_walls(w.s);
   w.hud = build_hud(w.s);
-  if w.wvao != 0 { graphics::gl_delete_vao(w.wvao); }
-  w.wvao = build_world_vbo(w.s);
+  // R7 instanced floor: the base hexagon is built once; each level just re-uploads
+  // the per-hex instance buffer (PLAN-RENDER P6).
+  if w.wvao == 0 {
+    w.wvao = build_hex_vao();
+    w.wivbo = build_world_ivbo(w.wvao, w.s);
+  } else {
+    update_world_ivbo(w.wivbo, w.s);
+  }
   if w.wallvao != 0 { graphics::gl_delete_vao(w.wallvao); }
   w.wallvao = build_walls_vbo(w.s, w.walls);
   w.walln = len(w.walls) * 6;
@@ -108,7 +115,7 @@ fn main() {
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
   graphics::gl_enable(graphics::GL_BLEND);
   graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
-  wprog = make_world_shader();
+  wprog = make_world_shader_inst();   // R7 instanced terrain shader
   wallprog = make_wall_shader();
   postprog = make_post_shader();
   (postfbo, posttex) = make_post_target();
@@ -117,7 +124,7 @@ fn main() {
   s0 = sim_new_gen(1, 1);   // placeholder only — genesis replaces it
   w = ObsWorld {
     s: s0, live: false, walls: [], hud: build_hud(s0), ml: [], last_total: 0,
-    wvao: 0, wallvao: 0, walln: 0, sq: 0, sr: 0,
+    wvao: 0, wivbo: 0, wallvao: 0, walln: 0, sq: 0, sr: 0,
     last_key: 0, tsteps: 0, frames_drawn: 0,
   };
   println("observe: connecting to ws://127.0.0.1:{OBS_PORT} ...");

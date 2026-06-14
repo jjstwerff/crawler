@@ -429,8 +429,38 @@ void main() {{
 `;
 
 // Compile the world-terrain shader once (global; pass the program to view_draw).
+// (Legacy fat path — still drives the probes; the play path uses the instanced
+// shader below. PLAN-RENDER P6.)
 pub fn make_world_shader() -> integer {
   graphics::gl_create_shader(WVERT, WFRAG)
+}
+
+// R7 instanced floor (PLAN-RENDER P6): the base hexagon's corner offsets (loc0)
+// + per-instance lattice anchor / visUV / color (loc5/6/7, divisor 1), expanded
+// to world space by the LATTICE construction  x = √3·(column+dx), y = row_y+dy
+// — watertight by design (worldmesh::build_world_instances). Reuses WFRAG
+// (vColor + vVisUV are produced identically). The √3 literal MUST match
+// hex_grid::SQRT3 so x lands on the same lattice as the wall/glyph geometry.
+WVERT_I = `
+#version 330 core
+layout (location = 0) in vec3 aBase;    // (dx_lattice, dy_world, 0)
+layout (location = 5) in vec2 aLat;     // (column = q+0.5·par, row_y = 1.5·r) / instance
+layout (location = 6) in vec2 aVisUV;   // FOV texel / instance
+layout (location = 7) in vec3 aColor;   // R4-baked floor tone / instance
+uniform mat4 uMVP;
+out vec3 vColor;
+out vec2 vVisUV;
+void main() {{
+  vColor = aColor;
+  vVisUV = aVisUV;
+  float x = 1.7320508075688772 * (aLat.x + aBase.x);
+  float y = aLat.y + aBase.y;
+  gl_Position = uMVP * vec4(x, y, 0.0, 1.0);
+}}
+`;
+
+pub fn make_world_shader_inst() -> integer {
+  graphics::gl_create_shader(WVERT_I, WFRAG)
 }
 
 // ── R5 wall strokes: capsule-SDF quads (geometry: worldmesh::build_wall_mesh;
@@ -558,6 +588,31 @@ pub fn world_cam_mat4(s: Sim) -> vector<float> {
 // deterministic: 18 * lw * lh.
 pub fn build_world_vbo(s: Sim) -> integer {
   graphics::gl_upload_vertices(build_world_mesh(s), 10)
+}
+
+// R7 instanced floor (PLAN-RENDER P6). The base hexagon (18 verts of corner
+// offsets, stride 3 → loc0) is built ONCE — it never changes. Per-level the floor
+// is just a fresh instance buffer.
+pub fn build_hex_vao() -> integer {
+  graphics::gl_upload_vertices(build_hex_offsets(), 3)
+}
+
+// Upload this level's per-hex instance records and bind them to the base-hexagon
+// VAO at loc5/6/7 (divisor 1). Returns the instance VBO — keep it and feed it to
+// update_world_ivbo on each level change (re-uploads in place, no re-bind needed).
+pub fn build_world_ivbo(hexvao: integer, s: Sim) -> integer {
+  ivbo = graphics::gl_upload_instance_buffer(build_world_instances(s));
+  graphics::gl_instance_attrib(hexvao, ivbo, 5, 2, 7, 0);   // aLat (column, row_y)
+  graphics::gl_instance_attrib(hexvao, ivbo, 6, 2, 7, 2);   // aVisUV (u, v)
+  graphics::gl_instance_attrib(hexvao, ivbo, 7, 3, 7, 4);   // aColor (r, g, b)
+  ivbo
+}
+
+// Re-upload the instance buffer for a new level (orphan + DYNAMIC_DRAW); the
+// loc5/6/7 bindings persist across the re-upload, so no re-bind. Instance count
+// (lw·lh) is passed at draw time — it tracks s, not the buffer.
+pub fn update_world_ivbo(ivbo: integer, s: Sim) {
+  graphics::gl_update_buffer(ivbo, build_world_instances(s));
 }
 
 // Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
@@ -710,7 +765,9 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
   graphics::gl_set_uniform_mat4(wprog, "uMVP", mat);
   graphics::gl_bind_texture(vistex, 0);
   graphics::gl_set_uniform_int(wprog, "uVis", 0);
-  graphics::gl_draw(wvao, 18 * s.lw * s.lh);
+  // R7: one instanced draw — the base hexagon (18 verts), lw·lh instances. wvao
+  // carries the per-level instance buffer (loc5/6/7). PLAN-RENDER P6.
+  graphics::gl_draw_instanced(wvao, 18, s.lw * s.lh);
 
   // R5 wall strokes: ONE draw of the per-level capsule-SDF quads — solid lines
   // with round joins and analytic AA (was: 13 stipple squares per segment per

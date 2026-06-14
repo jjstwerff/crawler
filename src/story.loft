@@ -62,7 +62,8 @@ struct GameWorld {
   ml:      vector<integer> not null,   // baked message-log textures
   last_total: integer not null,        // msg counter watched for rebakes
   last_known: integer not null,        // identify counter watched for rebakes
-  wvao:    integer not null,           // per-level GPU buffers
+  wvao:    integer not null,           // base-hexagon VAO (built once; R7 instanced floor)
+  wivbo:   integer not null,           // per-level floor instance buffer (loc5/6/7)
   wallvao: integer not null,
   walln:   integer not null,
   w_was:   boolean not null,           // edge-triggers (wait/grab/pages/slots/hub/crystal)
@@ -291,8 +292,7 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
       // the level changed (respawn / stairs / travel): rebuild the visuals
       w.walls = build_walls(w.s);
       w.hud = build_hud(w.s);
-      graphics::gl_delete_vao(w.wvao);
-      w.wvao = build_world_vbo(w.s);
+      update_world_ivbo(w.wivbo, w.s);   // R7: re-upload floor instances (base hexagon persists)
       graphics::gl_delete_vao(w.wallvao);
       w.wallvao = build_walls_vbo(w.s, w.walls);
       w.walln = len(w.walls) * 6;
@@ -380,8 +380,9 @@ fn main() {
   ml = build_msglog(s, hud.font);     // baked message-log lines (rebaked only when a message arrives)
   last_total = sim_msg_total(s);      // watch this to know when to rebake
   last_known = sim_known_count(s);    // watch identifications to re-bake the quick-slot names (flavour → real)
-  wprog = make_world_shader();   // GPU terrain shader (global, built once)
-  wvao = build_world_vbo(s);     // GPU terrain VBO (rebuilt on each level change)
+  wprog = make_world_shader_inst();  // R7 instanced terrain shader (global, built once)
+  wvao = build_hex_vao();            // base hexagon (global, built once)
+  wivbo = build_world_ivbo(wvao, s); // per-level floor instances (updated on level change)
   wallprog = make_wall_shader(); // R5 wall-stroke shader (global, built once)
   postprog = make_post_shader(); // R6 light-cone + vignette pass (built once)
   (postfbo, posttex) = make_post_target();
@@ -392,7 +393,7 @@ fn main() {
                                   // standing on it doesn't fire (walk-onto edge-trigger)
   w = GameWorld {
     s: s, walls: walls, hud: hud, ml: ml, last_total: last_total, last_known: last_known,
-    wvao: wvao, wallvao: wallvao, walln: walln,
+    wvao: wvao, wivbo: wivbo, wallvao: wallvao, walln: walln,
     w_was: false, g_was: false, c_was: false, spend_was: false, qs_was: false,
     i_was: false, iu_was: false, id_was: false, iq_was: false, ie_was: false,
     ient_was: false, cu_was: false, cd_was: false, ca_was: false, cdd_was: false,
