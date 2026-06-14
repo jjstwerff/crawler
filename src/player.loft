@@ -10,13 +10,14 @@
 
 use sim;
 
-pub struct Player {
-  pid: integer not null,   // 0 = the single active player today; a players-vector index later
-}
+// `Player` is now the kernel-side character record (defined in sim.loft, beside Enemy).
+// These methods are the bundle/event-facing facade over it. Today they still delegate to
+// the sim_* primitives (the data lives on s.player); a later step routes them through
+// `self` directly (DESIGN.md §2 — scalars-first data move came first).
 
-// The handle for player `pid`. The active player is player 0 for now; multi-player will
-// hand scripts the right Player, but they only ever see `Player`, never an id.
-pub fn player_new(pid: integer) -> Player { Player { pid: pid } }
+// The handle for player `pid`. Today a fresh record with default scalars; multi-player /
+// the method-self rewiring will replace this with the LIVE s.player (player_new → s.player).
+pub fn player_new(pid: integer) -> Player { Player { pid: pid, clevel: 1, xp: 0, gold: 0 } }
 
 // Put an item (by key) into this player's inventory.
 pub fn give_item(self: Player, s: &Sim, key: text) {

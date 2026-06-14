@@ -33,9 +33,9 @@ pub fn scene_key(s: Sim, page_i: integer, inv_i: integer, crys_i: integer,
   k = mix(k, s.php);                            // mid-tick melee can change hp
   k = mix(k, s.sp);
   k = mix(k, s.msg_n);                          // any logged event (kill, pickup, …)
-  k = mix(k, s.gold);
-  k = mix(k, s.clevel);
-  k = mix(k, s.xp);
+  k = mix(k, s.player.gold);
+  k = mix(k, s.player.clevel);
+  k = mix(k, s.player.xp);
   k = mix(k, s.stat_pts);                       // char-page spends
   k = mix(k, s.shrine_ev);
   k = mix(k, if s.over { 1 } else { 0 });

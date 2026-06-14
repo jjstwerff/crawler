@@ -38,6 +38,18 @@ Consequence that recurs throughout: **everything is procedural** (dungeons,
 buildings, towns, roads, terrain), and the engine favors a solid generated core
 over hand-authored content.
 
+**Build order + the character model (direction, 2026-06-14).** Construction goes
+**world first → content → character/NPC interactions** — the structural layers
+before the social/behavioural ones. The current D&D/Angband-derived character
+system (stats, classes, races) is **transitional**: the long-term target is to
+adopt **moros's character types** (same as the world model is shared with moros),
+not to deepen the D&D model. So the player/character data structures are built to
+**generalize, not to be player-specific** — **NPCs will share most of their DNA
+with players** (a common character/being core; `Enemy` is the NPC precursor today).
+Concretely: the `Player` struct lives kernel-side (`sim.loft`, beside `Enemy`) as a
+character record, with `player.loft` a thin method facade over it — shaped so the
+same core later backs NPCs and swaps to moros types without a call-site rewrite.
+
 ---
 
 ## 3. Goals & Non-Goals

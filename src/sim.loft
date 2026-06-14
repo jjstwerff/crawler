@@ -116,6 +116,20 @@ pub struct Enemy {
   c2g:   integer not null,
 }
 
+// The player's own state — the character record (DESIGN.md §2: moving player-owned
+// fields out of the Sim god-object). Sim holds ONE today (s.player); a players
+// vector + an NPC-shared character core come later (Enemy is the NPC precursor).
+// loft struct vars are REFERENCES — mutate via direct `s.player.field` (works
+// through &Sim), never via a `p = s.player; … ; s.player = p` copy-back.
+// Scalars-first slice (DESIGN.md §2): scalar fields migrate here in groups; the
+// stat/inventory/equipment VECTORS stay on Sim until the vector slice.
+pub struct Player {
+  pid:    integer not null,   // 0 = the single active player today; players-vector index later
+  clevel: integer not null,   // character level (1..MAX_CLEVEL)
+  xp:     integer not null,   // experience points
+  gold:   integer not null,   // gold (income arrives with items, I1)
+}
+
 pub struct Sim {
   tkind: vector<integer> not null,   // surface terrain kind + 1 (0 = dungeon/none)
   lw:      integer not null,
@@ -135,9 +149,7 @@ pub struct Sim {
   php:     integer not null,   // player hit points
   phpmax:  integer not null,
   over:    boolean not null,   // game over (player died)
-  clevel:  integer not null,   // character level (1..MAX_CLEVEL)
-  xp:      integer not null,   // experience points
-  gold:    integer not null,   // gold (income arrives with items, I1)
+  player:  Player not null,    // the player's own record — scalars migrating here (clevel/xp/gold so far)
   race:    text not null,      // chosen race key (default "human"); its RaceDef applies to stats/HP/skills/flags
   pclass:  text not null,      // chosen class key ("" = the unclassed baseline; the FRONT-END picks the
                                //   quick-start default — story boots a warrior; the crystal re-specs)
@@ -444,7 +456,7 @@ fn refresh_stats(s: &Sim) {
   s.wdam = wd;
   s.pac = ac;
   oldmax = s.phpmax;
-  newmax = hero_maxhp(s.clevel) + ac + rc_hp_bonus(s);   // the cached race+class hit-die, level-scaled
+  newmax = hero_maxhp(s.player.clevel) + ac + rc_hp_bonus(s);   // the cached race+class hit-die, level-scaled
   if newmax < 1 { newmax = 1; }
   if newmax > oldmax { s.php += newmax - oldmax; }   // donning armour grants the HP
   if s.php > newmax { s.php = newmax; }
@@ -457,7 +469,7 @@ fn refresh_stats(s: &Sim) {
   if s.rc_realm != "none" && s.rc_realm != "" {
     bonus = 0;
     if s.rc_spi >= 0 { bonus = stat_eff(s, s.rc_spi) - HERO_CON; }
-    newsp = 2 + s.clevel + bonus;
+    newsp = 2 + s.player.clevel + bonus;
     if newsp < 1 { newsp = 1; }
   }
   oldsp = s.spmax;
@@ -840,7 +852,7 @@ fn start_stats() -> vector<integer> {
 // Hit-die HP at the current level from the CACHED combined hit-die (race + class; baked by
 // apply_creation): rc_hd>0 => tankier (warrior/half-troll), <0 => frailer (elf). Level-scaled.
 fn rc_hp_bonus(s: Sim) -> integer {
-  s.rc_hd * (s.clevel + 2) / 2 ?? 0
+  s.rc_hd * (s.player.clevel + 2) / 2 ?? 0
 }
 
 // XP required to BE at level `lvl` for THIS character: the base curve scaled by the CACHED
@@ -1074,10 +1086,10 @@ pub fn sim_stat_max(s: Sim, stat: text) -> integer {
 // with the skill system. Kept so the Player API is stable now (scripts/events written today
 // won't change). The args document the shape; they no-op until those fields exist.
 pub fn sim_grant_skill(s: &Sim, skill: text, n: integer) {
-  if false { s.gold = s.gold + n + len(skill); }   // touch args; no per-player skill store yet
+  if false { s.player.gold = s.player.gold + n + len(skill); }   // touch args; no per-player skill store yet
 }
 pub fn sim_grant_save(s: &Sim, save: text, n: integer) {
-  if false { s.gold = s.gold + n + len(save); }     // touch args; no per-player save store yet
+  if false { s.player.gold = s.player.gold + n + len(save); }     // touch args; no per-player save store yet
 }
 
 // Heal the player, clamped to max HP.
@@ -1107,7 +1119,7 @@ pub fn sim_damage(s: &Sim, amount: integer, kind: text) {
 // level, equipped armour (AC), and Constitution — so gearing up and stat upgrades both help.
 // Capped below 100% (friendly but fair — never total immunity; §3a).
 pub fn sim_player_save(s: Sim) -> integer {
-  sv = 5 + s.clevel + s.pac / 4 + stat_eff(s, ST_CON) / 3 + s.rc_save;   // cached race+class bonus
+  sv = 5 + s.player.clevel + s.pac / 4 + stat_eff(s, ST_CON) / 3 + s.rc_save;   // cached race+class bonus
   if sv > 75 { sv = 75; }
   if sv < 0 { sv = 0; }
   sv
@@ -1146,7 +1158,7 @@ pub fn sim_cure_venom(s: &Sim, dur: integer) {
 // baseline (level 1, starting STR), so it never shifts early combat; it grows as you level AND as
 // you spend stat points on STR (the stat-choice payoff). refresh_stats folds it into wdam.
 pub fn sim_skill_melee(s: Sim) -> integer {
-  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_STR) - HERO_CON) + s.rc_melee;   // cached race+class aptitude
+  b = (s.player.clevel - 1) / 2 + (stat_eff(s, ST_STR) - HERO_CON) + s.rc_melee;   // cached race+class aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -1155,7 +1167,7 @@ pub fn sim_skill_melee(s: Sim) -> integer {
 // range at which a monster notices you (its effective vision in the awareness check), so a stealthy
 // (high-level / high-DEX) character can slip closer before waking sleepers. refresh-free (derived).
 pub fn sim_skill_stealth(s: Sim) -> integer {
-  b = (s.clevel - 1) / 3 + (stat_eff(s, ST_DEX) - HERO_CON) + s.rc_stealth;   // cached race+class
+  b = (s.player.clevel - 1) / 3 + (stat_eff(s, ST_DEX) - HERO_CON) + s.rc_stealth;   // cached race+class
   if b < 0 { b = 0; }
   b
 }
@@ -1163,7 +1175,7 @@ pub fn sim_skill_stealth(s: Sim) -> integer {
 // Passive SHOOTING skill — a flat to-damage bonus for missiles, from level + DEX (Angband shoots
 // off DEX). 0 at the baseline; grows with level and DEX-spending. Added to the launched damage.
 pub fn sim_skill_shoot(s: Sim) -> integer {
-  b = (s.clevel - 1) / 2 + (stat_eff(s, ST_DEX) - HERO_CON) + s.rc_bow;   // cached race+class aptitude
+  b = (s.player.clevel - 1) / 2 + (stat_eff(s, ST_DEX) - HERO_CON) + s.rc_bow;   // cached race+class aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -1250,12 +1262,12 @@ pub fn sim_msg_at(s: Sim, k: integer) -> text {
 }
 
 pub fn sim_award_xp(s: &Sim, amount: integer) {
-  if amount > 0 { s.xp += amount; }
-  while s.clevel < MAX_CLEVEL && s.xp >= xp_need(s, s.clevel + 1) {   // race expfact scales the curve
-    s.clevel += 1;
+  if amount > 0 { s.player.xp += amount; }
+  while s.player.clevel < MAX_CLEVEL && s.player.xp >= xp_need(s, s.player.clevel + 1) {   // race expfact scales the curve
+    s.player.clevel += 1;
     refresh_stats(s);   // max HP grows with level (hero_maxhp); the gained HP is granted
     s.stat_pts += 1;    // BANK a stat-growth point — never auto-spent; the player picks when ready
-    sim_log(s, "Welcome to level {s.clevel}!");
+    sim_log(s, "Welcome to level {s.player.clevel}!");
   }
 }
 
@@ -1267,10 +1279,10 @@ pub fn sim_raise_stat(s: &Sim, stat: text) -> boolean {
   if i < 0 || s.stat_pts <= 0 { return false; }
   ga = s.stat_grown_at;
   last = ga[i] ?? 0;
-  if last != 0 && (s.clevel - last) < STAT_COOLDOWN { return false; }   // on cooldown
+  if last != 0 && (s.player.clevel - last) < STAT_COOLDOWN { return false; }   // on cooldown
   mx = s.stat_max; mx[i] = (mx[i] ?? 0) + 1;
   cu = s.stat_cur; cu[i] = (cu[i] ?? 0) + 1;
-  ga[i] = s.clevel;
+  ga[i] = s.player.clevel;
   s.stat_pts = s.stat_pts - 1;
   refresh_stats(s);
   true
@@ -1286,7 +1298,7 @@ pub fn sim_can_raise_stat(s: Sim, stat: text) -> boolean {
   if i < 0 || s.stat_pts <= 0 { return false; }
   ga = s.stat_grown_at;
   last = ga[i] ?? 0;
-  last == 0 || (s.clevel - last) >= STAT_COOLDOWN
+  last == 0 || (s.player.clevel - last) >= STAT_COOLDOWN
 }
 
 // ── Loot (gold + item drops) ─────────────────────────────────────────
@@ -1384,11 +1396,11 @@ fn player_attack(s: &Sim, idx: integer) {
   if idx >= 0 && idx < len(enemies) {
     e = enemies[idx];
     if e.alive {
-      e.hp -= capped_dmg(s.wdam, s.clevel, e.mlvl);
+      e.hp -= capped_dmg(s.wdam, s.player.clevel, e.mlvl);
       gain = 0;
       if e.hp <= 0 {
         e.alive = false;
-        gain = e.xp * e.mlvl / s.clevel ?? 0;
+        gain = e.xp * e.mlvl / s.player.clevel ?? 0;
         if gain < 1 { gain = 1; }
         drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
         sim_log(s, "You have slain the {e.name}.");
@@ -1449,12 +1461,12 @@ pub fn sim_bolt(s: &Sim, dam: integer) -> integer {
   if target < 0 { return 0; }
   enemies = s.enemies;
   e = enemies[target];
-  e.hp -= capped_dmg(dam, s.clevel, e.mlvl);
+  e.hp -= capped_dmg(dam, s.player.clevel, e.mlvl);
   ret = 3;
   gain = 0;
   if e.hp <= 0 {
     e.alive = false;
-    gain = e.xp * e.mlvl / s.clevel ?? 0;
+    gain = e.xp * e.mlvl / s.player.clevel ?? 0;
     if gain < 1 { gain = 1; }
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
     sim_log(s, "Your bolt slays the {e.name}.");
@@ -1493,12 +1505,12 @@ pub fn sim_fire(s: &Sim) -> integer {
   avg = item_dd(itbl, ad) * (item_ds(itbl, ad) + 1) / 2 ?? 0;
   base = avg * mult + sim_skill_shoot(s);
   e = enemies[target];
-  e.hp -= capped_dmg(base, s.clevel, e.mlvl);
+  e.hp -= capped_dmg(base, s.player.clevel, e.mlvl);
   ret = 3;
   gain = 0;
   if e.hp <= 0 {
     e.alive = false;
-    gain = e.xp * e.mlvl / s.clevel ?? 0;
+    gain = e.xp * e.mlvl / s.player.clevel ?? 0;
     if gain < 1 { gain = 1; }
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
     sim_log(s, "Your shot slays the {e.name}.");
@@ -1531,7 +1543,7 @@ fn sim_autocollect_gold(s: &Sim) {
       r = fr[i] ?? -999;
       amt = fg[i] ?? 0;
       if q == pq && r == pr && amt > 0 {
-        s.gold += amt;
+        s.player.gold += amt;
         fl[i] = 0;
       }
     }
@@ -1555,7 +1567,7 @@ pub fn sim_pickup(s: &Sim) {
       if q == pq && r == pr {
         amt = fg[i] ?? 0;
         if amt > 0 {
-          s.gold += amt;
+          s.player.gold += amt;
           sim_log(s, "You find {amt} gold.");
         } else {
           ni = s.ninv;
@@ -2126,7 +2138,7 @@ pub fn sim_tick(s: &Sim) {
             hit = false;
             if e.dam > 0 {     // 0-melee monsters (the floating eye — its threat is the GAZE) truly
                                // deal no melee; without this the capped-dmg floor gives them 1
-              s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.clevel), s.pac);  // ratio cap, then armour DR
+              s.php -= apply_dr(capped_dmg(e.dam, e.mlvl, s.player.clevel), s.pac);  // ratio cap, then armour DR
               sim_log(s, "The {e.name} hits you.");
               hit = true;
               if s.php <= 0 { s.over = true; sim_log(s, "You die."); }
@@ -2178,14 +2190,14 @@ fn sim_reclaim_grave(s: &Sim) {
   if s.depth != s.grave_depth { return; }
   (pq, pr) = px_to_hex(s.px, s.py);
   if pq == s.grave_q && pr == s.grave_r {
-    s.gold += s.grave_gold;
+    s.player.gold += s.grave_gold;
     s.grave_gold = 0;
   }
 }
 
 // Grant gold (quest / reward income; also used by tests).
 pub fn sim_grant_gold(s: &Sim, amt: integer) {
-  if amt > 0 { s.gold += amt; }
+  if amt > 0 { s.player.gold += amt; }
 }
 
 pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
@@ -2525,17 +2537,17 @@ pub fn sim_player_hp(s: Sim) -> integer { s.php }
 pub fn sim_player_hp_max(s: Sim) -> integer { s.phpmax }
 pub fn sim_over(s: Sim) -> boolean { s.over }
 
-pub fn sim_clevel(s: Sim) -> integer { s.clevel }
-pub fn sim_xp(s: Sim) -> integer { s.xp }
-pub fn sim_gold(s: Sim) -> integer { s.gold }
+pub fn sim_clevel(s: Sim) -> integer { s.player.clevel }
+pub fn sim_xp(s: Sim) -> integer { s.player.xp }
+pub fn sim_gold(s: Sim) -> integer { s.player.gold }
 
 // Fraction from the current level toward the next (0..1) — for the XP bar.
 pub fn sim_xp_frac(s: Sim) -> float {
-  lo = xp_need(s, s.clevel);       // the XP bar tracks the race-scaled curve (expfact)
-  hi = xp_need(s, s.clevel + 1);
+  lo = xp_need(s, s.player.clevel);       // the XP bar tracks the race-scaled curve (expfact)
+  hi = xp_need(s, s.player.clevel + 1);
   f = 0.0;
   if hi > lo {
-    f = (s.xp - lo) as float / (hi - lo) as float ?? 0.0;
+    f = (s.player.xp - lo) as float / (hi - lo) as float ?? 0.0;
   }
   if f < 0.0 { f = 0.0; }
   if f > 1.0 { f = 1.0; }
@@ -2742,7 +2754,7 @@ pub fn sim_new() -> Sim {
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0, race: "human", pclass: "", sp: 0, spmax: 0,
+    player: Player { pid: 0, clevel: 1, xp: 0, gold: 0 }, race: "human", pclass: "", sp: 0, spmax: 0,
     rc_flags: 0, rc_melee: 0, rc_bow: 0, rc_stealth: 0, rc_save: 0,
     rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
@@ -3978,7 +3990,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
     php: hero_maxhp(1), phpmax: hero_maxhp(1), over: false,
-    clevel: 1, xp: 0, gold: 0, race: "human", pclass: "", sp: 0, spmax: 0,
+    player: Player { pid: 0, clevel: 1, xp: 0, gold: 0 }, race: "human", pclass: "", sp: 0, spmax: 0,
     rc_flags: 0, rc_melee: 0, rc_bow: 0, rc_stealth: 0, rc_save: 0,
     rc_hd: 0, rc_xpf: 100, rc_realm: "none", rc_spi: -1, shrine_ev: 0,
     stat_max: start_stats(), stat_cur: start_stats(), stat_tmp: zeros(NUM_STATS), stat_tmp_t: zeros(NUM_STATS),
@@ -4040,9 +4052,9 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.php = s.php;
   ns.phpmax = s.phpmax;
   ns.over = s.over;
-  ns.clevel = s.clevel;   // carry the hero across levels
-  ns.xp = s.xp;
-  ns.gold = s.gold;
+  ns.player.clevel = s.player.clevel;   // carry the hero across levels
+  ns.player.xp = s.player.xp;
+  ns.player.gold = s.player.gold;
   ns.race = s.race;       // the chosen race + class travel with the character
   ns.pclass = s.pclass;
   ns.sp = s.sp;           // the mana pool persists across levels (like HP)
@@ -4118,8 +4130,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rwy = 0;
   if s.anc_kind != 0 { rd = s.anc_depth; rwx = s.anc_wx; rwy = s.anc_wy; }
   rs = sim_new_gen_s(s.wseed, rd, s.boss_slain, 0, rwx, rwy);
-  rs.clevel = s.clevel;
-  rs.xp = s.xp;
+  rs.player.clevel = s.player.clevel;
+  rs.player.xp = s.player.xp;
   rs.race = s.race;             // race + class persist through death (identity)
   rs.pclass = s.pclass;
   rs.rc_flags = s.rc_flags;     // the baked race+class cache survives with them
@@ -4137,8 +4149,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.stat_grown_at = s.stat_grown_at;
   // Souls stake: leave GRAVE_PCT% of gold as a grave at the death spot. SP keeps one
   // grave, so a fresh death forfeits any prior one (MP would append — §3a #5).
-  drop = s.gold * GRAVE_PCT / 100 ?? 0;
-  rs.gold = s.gold - drop;
+  drop = s.player.gold * GRAVE_PCT / 100 ?? 0;
+  rs.player.gold = s.player.gold - drop;
   (dq, dr) = px_to_hex(s.px, s.py);
   rs.grave_depth = s.depth;
   rs.grave_q = dq;
@@ -4269,9 +4281,9 @@ pub fn sim_travel(s: Sim) -> Sim {
   ns.php = s.php;
   ns.phpmax = s.phpmax;
   ns.over = s.over;
-  ns.clevel = s.clevel;   // carry the hero across levels
-  ns.xp = s.xp;
-  ns.gold = s.gold;
+  ns.player.clevel = s.player.clevel;   // carry the hero across levels
+  ns.player.xp = s.player.xp;
+  ns.player.gold = s.player.gold;
   ns.race = s.race;       // the chosen race + class travel with the character
   ns.pclass = s.pclass;
   ns.sp = s.sp;           // the mana pool persists across levels (like HP)
