@@ -1296,7 +1296,7 @@ pub fn sim_can_raise_stat(s: Sim, stat: text) -> boolean {
 pub fn sim_roll(s: &Sim, lo: integer, hi: integer) -> integer {   // pub: castfx rolls spell failure
   if hi <= lo { return lo; }
   r = random::RandStream { s1: s.rs1, s2: s.rs2 };
-  v = r.get(lo, hi) ?? lo;
+  v = r.get(lo, hi);
   s.rs1 = r.s1;
   s.rs2 = r.s2;
   v
@@ -3093,7 +3093,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     if shq >= 0 {
       pq8 = shq;
       pr8 = shr;
-      for pl9 in 0..5 {
+      for _pl9 in 0..5 {
         (pq8, pr8) = hex_neighbor(pq8, pr8, shd);
         ti9 = pr8 * w + pq8;
         if ti9 >= 0 && ti9 < len(tk) {

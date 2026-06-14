@@ -52,8 +52,8 @@ pub fn build_wall_mesh(s: Sim, walls: vector<WallSeg>) -> vector<single> {
         ny = ux;
         // the FOV texel of the segment's midpoint hex (the old stipple's rule)
         (mq, mr) = px_to_hex((sg.ax + sg.bx) / 2.0, (sg.ay + sg.by) / 2.0);
-        vu = (((mq - s.qmin) as float + 0.5) / lwf) as single;
-        vv = (((mr - s.rmin) as float + 0.5) / lhf) as single;
+        vu = ((((mq - s.qmin) as float + 0.5) / lwf) ?? 0.0) as single;
+        vv = ((((mr - s.rmin) as float + 0.5) / lhf) ?? 0.0) as single;
         hw = WALL_HALFW as single;
         aa = WALL_AA as single;
         lns = ln as single;
@@ -132,8 +132,8 @@ pub fn build_world_mesh(s: Sim) -> vector<single> {
       r = s.rmin + gr;
       (cr, cg, cb) = hex_floor_rgb(s, q, r);
       cs_r = cr as single; cs_g = cg as single; cs_b = cb as single;
-      u = ((gq as float + 0.5) / lwf) as single;
-      v = ((gr as float + 0.5) / lhf) as single;
+      u = (((gq as float + 0.5) / lwf) ?? 0.0) as single;
+      v = (((gr as float + 0.5) / lhf) ?? 0.0) as single;
       (wx, wy) = hex_to_px(q, r);
       cxs = wx as single; cys = wy as single;
       for kc in 0..6 {
@@ -211,8 +211,8 @@ pub fn build_world_instances(s: Sim) -> vector<single> {
       par = r & 1;
       column = (q as float) + 0.5 * (par as float);
       row_y = 1.5 * (r as float);
-      u = (gq as float + 0.5) / lwf;
-      v = (gr as float + 0.5) / lhf;
+      u = ((gq as float + 0.5) / lwf) ?? 0.0;   // lw,lh ≥ 1 — the guard only silences the warning
+      v = ((gr as float + 0.5) / lhf) ?? 0.0;
       (cr, cg, cb) = hex_floor_rgb(s, q, r);
       buf += [column as single, row_y as single, u as single, v as single,
               cr as single, cg as single, cb as single];

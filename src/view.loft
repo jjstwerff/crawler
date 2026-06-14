@@ -571,14 +571,14 @@ pub fn world_cam_mat4(s: Sim) -> vector<float> {
   ss = sin(phi);
   hw = VIEW_W / 2.0;
   hh = VIEW_H / 2.0;
-  sxw = SCALE / hw;
-  syw = SCALE / hh;
+  sxw = (SCALE / hw) ?? 0.0;   // hw,hh = half the window dims — never 0; guard only quiets the warning
+  syw = (SCALE / hh) ?? 0.0;
   a = sxw * cc;
   b = 0.0 - sxw * ss;
   c = syw * ss;
   d = syw * cc;
-  e = CX / hw - 1.0 - sxw * (s.px * cc - s.py * ss);
-  f = 1.0 - ANCHOR_Y / hh - syw * (s.px * ss + s.py * cc);
+  e = ((CX / hw) ?? 0.0) - 1.0 - sxw * (s.px * cc - s.py * ss);
+  f = 1.0 - ((ANCHOR_Y / hh) ?? 0.0) - syw * (s.px * ss + s.py * cc);
   [a, c, 0.0, 0.0,  b, d, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  e, f, 0.0, 1.0]
 }
 
