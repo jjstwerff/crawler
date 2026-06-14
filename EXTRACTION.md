@@ -368,7 +368,16 @@ the rate the platform supports outsiders. Gated on the first publications
 
 ## Order of work
 
-1 (`hexgrid`) → 2 (text layout) → 3 (draw.py flow-back) → 4 (`random`, behind its soak
-guard) → Tier 2 decouplings opportunistically. 6 (GPU 2D primitives) is paced by
-RENDER.md: substrate (a) when R7 starts; painter v2 (b) piecewise as crawler proves
-each piece. Each step independently shippable, each ends gate-green.
+**LANDED:** §1 `hexgrid` (→ `hex_grid`), §4 `random` value-stream, §5 `hex_terrain` —
+all merged in their lib repos and consumed by crawler, gate green (owner registry-
+release is the only tail on each). **OPEN:** §2 text-layout (small), §3 draw.py
+flow-back (small — the Petals/Fronds port), §6 GPU 2D primitives (the big block),
+Tier-2 decouplings (opportunistic), Tier-3 (gated).
+
+**The master order for the OPEN 2D/graphics work is the dependency tree in
+PLAN-RENDER.md → "Implementation tree"** — §6's rungs (L0–L7) interleave with the
+P-steps on one spine there; this doc keeps the per-rung detail, the tree owns the order.
+The next actionable node is **L0** (wire the `../loft-libs-graphics` dev `--lib`), with
+§3 (draw.py flow-back) and P7a (atlas packer) as no-dep leaves runnable alongside it.
+Tier-2 decouplings stay opportunistic. Each step independently shippable, each ends
+gate-green.

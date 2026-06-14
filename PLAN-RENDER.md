@@ -144,12 +144,65 @@ build, in what order, and **how to see quickly that it works**. Effort: S/M/L.
 - **Done when:** parity probes green AND the frame-stats show the cached path's draw
   count drop — otherwise the layer isn't earning its complexity; defer again.
 
-## Order + status
+## Implementation tree (dependency-ordered — the MASTER order, §6's too)
 
-P0 → P1 → P2 → P3 → P4 (no upstream deps, each independently shippable, gate-green)
-→ P5 (lib) → P6 → P7 → P8 → P9 (gated). Painter v2's full canvas surface
-(EXTRACTION.md §6(b)) is paced separately by lib consumers — this plan ships crawler
-proof pieces (P3's stroke shader, P7's batcher/atlas) that flow back into it.
+Read this as a tree: a node's children need it built first, so **"follow the plan" =
+walk it leaf-first** (do a node once all its parents are DONE). The GPU steps (P*) and
+the EXTRACTION.md §6(c) library rungs (L0–L7) interleave on **one spine** — both live
+here so the order is *derivable from the edges*, not guessed. EXTRACTION §6 defers to
+this tree for ORDER and keeps the per-rung detail.
+
+```
+TRUNK (built — the renderer already stands on it):
+  P0 probe ─ P1 idle skip ─ P2 R4 tint ─ P3 R5 SDF walls ─ P4 R6 light cone     [all DONE]
+
+GPU SPINE (remaining):
+  L0  graphics dev-lib wiring ............................. prereq: none   ◀ START HERE
+   │    sibling ../loft-libs-graphics is PRESENT (branch fix-255-…); crawler still
+   │    consumes graphics from the REGISTRY. L0 = add `--lib ../loft-libs-graphics/`
+   │    to the Makefile LIB_DEPS, settle its branch, gate+probe green resolving
+   │    graphics from the sibling (no behaviour change — pure plumbing).
+   └─ P5/L1  gl_* substrate IN graphics ................... prereq: L0
+       │     gl_draw_instanced + per-instance attrs · gl_update_vertices ·
+       │     gl_set_uniform_vec2/vec4 · EBO upload · sampler control · tex sub-upload ·
+       │     gl_scissor.  Releasable as graphics 0.2.0 (pure additions).
+       ├─ P6  instanced floor (golden parity vs fat VBO) .. prereq: P5
+       ├─ P7  sprite batch + auto-atlas .................... prereq: P5 + P7a
+       │   │    atlas pages at load; ONE instanced draw for sprites+glyphs; absorbs
+       │   │    draw_texture_rot. (Directly continues the sprite set just authored.)
+       │   └─ P8  painter frame-stats (asserts P7's 1-draw)  prereq: P7
+       │       └─ L3  port proven pieces INTO canvas ....... prereq: L2 + the P-proof
+       │            stroke+SDF[P3✓] · batcher+stats[P7/P8] · atlas[P7]; each =
+       │            de-crawler + lib tests + crawler consumes + DELETE in-repo copy.
+       │            ├─ L4  generic path/fill/gradient/clip .. prereq: L3 (+ demo consumer)
+       │            ├─ L5  docs migration (RENDER→README) ... prereq: canvas ships
+       │            ├─ L6  registry release ................ prereq: L1 (gfx 0.2.0)/L3 (canvas 0.1.0)
+       │            └─ L7  second real consumer ............ prereq: L3/L4 (external)
+       ├─ L2  canvas package skeleton (README API contract)  prereq: L1
+       └─ P9  layer caches (needs gl_scissor) ............. prereq: P5 — GATED on profiling
+
+OFF-SPINE LEAVES (no GPU, no lib — runnable NOW, alongside L0):
+  P7a  atlas packer: blueprint + src/atlastest.loft ....... prereq: none
+        skyline-pack the real assets/sprites/*.png as DATA (no-overlap/padding/
+        oversize-bypass/page-chain); the pure-data half of P7, feeds it.
+  §3   draw.py flow-back → the draw skill ................. prereq: none
+        Petals/Fronds + _hash01/_lowfreq + the blueprints upstream to sketch/draw.py.
+  §2   text-layout (fit_text/wrap_text) → graphics ........ prereq: L0 (lands in that repo)
+```
+
+**Walk order** (the linear reduction of the tree — what "follow that" executes):
+1. **L0** ‖ P7a ‖ §3 — root of the spine + the two no-dep leaves
+2. **P5/L1** — the gate for every GPU step below it
+3. P6 ‖ P7 (packer ready from P7a) ‖ L2 ‖ §2
+4. P8
+5. L3 → { L4 ‖ L5 ‖ L6 }
+6. L7 (external); P9 only when profiling demands it
+
+Painter v2's full canvas surface (EXTRACTION.md §6(b)) is paced by lib consumers; this
+plan ships the crawler proof pieces (P3's stroke shader, P7's batcher/atlas) that flow
+back into it via L3.
+
+## Status
 
 | Step | Effort | Status |
 |---|---|---|
@@ -158,8 +211,10 @@ proof pieces (P3's stroke shader, P7's batcher/atlas) that flow back into it.
 | P2 tint bake (R4) | S | DONE 2026-06-12 — `worldmesh.loft` (mesh builder moved KERNEL-side, tint pre-composed) + meshtest (gate 38, exact colors) + worldprobe/world_r4.probe (4/4 dmax=0 incl. the 0.451 dim ratio); wash loop deleted |
 | P3 SDF walls (R5) | M | DONE 2026-06-12 — blueprint (tools/blueprints/wall_sdf.py: interior pure, 1px ramps, joins gap-free; fringe over-blend consciously re-pinned one-sided ≤21) → worldmesh::build_wall_mesh (self-describing quads) + wall shader; stipple + draw_segment DELETED; meshtest exact corners/locals/visUV; world_r5.probe 3/3 (interior dmax=0, rem ×0.451, mono ramp) |
 | P4 light cone (R6) | M | DONE 2026-06-12 — FBO world layer + fullscreen cone/vignette pass (HUD unlit); blueprint tools/blueprints/light_cone.py generates the spec; post_r6.probe 5/5 dmax=0 on uniform gray (ahead 117 > behind 73). En route: shot.loft's stale teleport (landed in rock off-level) fixed gen-proof |
-| P5 substrate flow-back | M (lib) | — |
+| L0 graphics dev-lib wiring | S | — — sibling ../loft-libs-graphics PRESENT (branch fix-255-…); add `--lib` to LIB_DEPS, settle branch, gate green off the sibling. **START HERE** |
+| P5/L1 substrate flow-back | M (lib) | — |
 | P6 instanced floor (R7) | S | — |
+| P7a atlas packer (data) | S | — — pure-data leaf, no GPU/lib; runnable now alongside L0 |
 | P7 sprite batch + atlas (R8) | M | — |
 | P8 frame-stats | S | — |
 | P9 layer caches (R9) | M | gated on profiling |
