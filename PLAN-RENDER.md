@@ -109,12 +109,35 @@ build, in what order, and **how to see quickly that it works**. Effort: S/M/L.
 
 ### P6 — R7 instanced floor (S, after P5)
 
-- **Build:** one 18-vert hexagon + per-instance (center, color, visUV) records.
-- **Verify (headless):** instance records in `meshtest` — count `lw·lh`, each
-  record's center/color equal to the old per-hex derivation (same formula, exact).
-- **Verify (probe):** **golden parity** — old-VBO frame vs instanced frame, same
-  seed + camera: pixel diff ≈ 0. Same geometry, so this is exact; any diff is a bug.
-- **Done when:** parity green, fat VBO path deleted.
+**Blueprint (`tools/blueprints/instanced_floor.py`) — corrected the parity invariant
+BEFORE any loft.** The plan assumed "same geometry → bit-exact parity vs the fat VBO;
+any diff is a bug." That is FALSE: the fat VBO uploads `f32(center_f64 + offset_f64)`
+(the CPU rounds an f64 corner once); an f32-only vertex shader cannot reproduce that
+f64 rounding, so ~1-ULP divergence is unavoidable. Worse, the obvious `center + offset`
+decomposition is **not watertight** — adjacent hexes round their shared corner
+differently (767 cracks/24² patch at the origin), opening sub-pixel gaps that, under
+camera jitter, flip up to 104 px at a tint boundary. The achievable, CORRECT invariant
+is **watertightness**: adjacent hexes must compute a shared corner *identically*.
+
+- **Build (LATTICE construction — watertight by design):** one 18-vert base hexagon
+  (the 6-triangle fan) carrying per vertex `(dx_lattice∈{0,±0.5}, dy_world∈{0,±0.5,±1}, 0)`
+  at stride 3 (loc0); per-instance records `(aLat = column=q+0.5·par, row_y=1.5·r ;
+  visUV u,v ; color r,g,b)` = 7 floats (loc5/6/7, divisor 1). Shader computes
+  `x = √3·(aLat.x + dx)`, `y = aLat.y + dy`. `column`/`row_y` are exact half-integers
+  and `dx`/`dy` exact, so `column+dx` and `row_y+dy` are bit-identical across every hex
+  that shares the corner → identical f32 → **0 cracks at all offsets** (blueprint [2]).
+- **Verify (headless):** instance records in `meshtest` — count `lw·lh`, each record's
+  `(column,row_y)`/color equal to the per-hex derivation (`column=q+0.5·(r&1)`,
+  `row_y=1.5·r`; same color formula as the old mesh, exact).
+- **Verify (probe):** the floor is GPU-rendered, so the sandbox can't screenshot it
+  reliably — **re-bake the golden from the instanced path** (the fat VBO is deleted, so
+  there is no bit-reference to diff against) and assert (a) **watertight** — no dark
+  background specks in the floor interior — and (b) the frame matches the re-baked
+  golden. The lattice floor differs from the OLD fat-VBO floor only by sub-pixel ULP
+  (≤5 px of A↔B edge shift at extreme offsets, 0 at the origin — blueprint [3]); that
+  is expected, not a regression. **User is the visual verifier** (CLAUDE.md).
+- **Done when:** headless `meshtest` green; user confirms the floor renders identically;
+  fat VBO path (`build_world_mesh`/`build_world_vbo`/`make_world_shader` stride-10) deleted.
 
 ### P7 — R8 sprite batch + auto-atlas (M)
 
