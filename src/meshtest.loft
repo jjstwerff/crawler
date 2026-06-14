@@ -93,7 +93,38 @@ fn main() {
   wallmesh_ok = six_verts && c0 && c2 && locals_ok && vis_ok;
   println("wallmesh: verts={six_verts} corners={c0}/{c2} locals={locals_ok} visuv={vis_ok}");
 
-  if count_ok && floor_ok && wall_ok && sand_ok && face_dark && wallmesh_ok {
+  // ── R7 instanced floor (P6): the base hexagon + per-hex instance records.
+  //    Independent oracles — base hexagon = 18 verts of EXACT lattice/world
+  //    offsets; instance count = 7·lw·lh; column=q+0.5·(r&1), row_y=1.5·r; the
+  //    instance color == the fat mesh's color for the same hex (the shared bake).
+  hexoff = build_hex_offsets();
+  base_ok = len(hexoff) == 54
+         && near((hexoff[0] ?? 9.0) as float, 0.0)        // fan centre x
+         && near((hexoff[1] ?? 9.0) as float, 0.0)        // fan centre y
+         && near((hexoff[3] ?? 9.0) as float, 0.0)        // corner0 dx = 0
+         && near((hexoff[4] ?? 9.0) as float, 1.0)        // corner0 dy = 1
+         && near((hexoff[6] ?? 9.0) as float, 0.0 - 0.5)  // corner1 dx = -0.5
+         && near((hexoff[7] ?? 9.0) as float, 0.5);       // corner1 dy = 0.5
+  println("base-hexagon: {base_ok} ({len(hexoff)} floats)");
+
+  ibuf = build_world_instances(d);
+  icount_ok = len(ibuf) == 7 * d.lw * d.lh;
+  // lattice anchors + color parity for hex (gq=1, gr=1) — oracles computed here
+  iq = d.qmin + 1; ir = d.rmin + 1;
+  ipar = ir & 1;
+  exp_col = (iq as float) + 0.5 * (ipar as float);
+  exp_row = 1.5 * (ir as float);
+  ib = ((1 * d.lw) + 1) * 7;
+  lat_ok = near((ibuf[ib + 0] ?? 0.0) as float, exp_col)
+        && near((ibuf[ib + 1] ?? 0.0) as float, exp_row);
+  (fr, fg, fb) = hex_color(dbuf, d, 1, 1);                // the fat mesh's color
+  icol_ok = near((ibuf[ib + 4] ?? 0.0) as float, fr)
+         && near((ibuf[ib + 5] ?? 0.0) as float, fg)
+         && near((ibuf[ib + 6] ?? 0.0) as float, fb);
+  inst_ok = base_ok && icount_ok && lat_ok && icol_ok;
+  println("instances: count={icount_ok} lattice={lat_ok} color-parity={icol_ok}");
+
+  if count_ok && floor_ok && wall_ok && sand_ok && face_dark && wallmesh_ok && inst_ok {
     println("=== MESH OK ===");
   } else {
     println("=== MESH FAILED ===");

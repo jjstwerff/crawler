@@ -95,8 +95,31 @@ fn kind_tint(k: integer) -> (float, float, float, float) {
   (0.52, 0.64, 0.33, 0.55)
 }
 
+// The pre-composed floor color of hex (q,r): bare-floor tone with the terrain-kind
+// tint baked in (R4), or the dark wall tone for impassable hexes (walls/faces/water
+// never tint). The ONE color oracle — shared by the instanced floor
+// (build_world_instances) and the legacy fat mesh, so they can never diverge.
+fn hex_floor_rgb(s: Sim, q: integer, r: integer) -> (float, float, float) {
+  t = tile_at(s, q, r);
+  cr = 0.80; cg = 0.745; cb = 0.59;
+  if t == 1 {
+    cr = 0.15; cg = 0.14; cb = 0.13;
+  } else {
+    k = sim_tile_kind(s, q, r);
+    if k >= 0 && k != K_FACE {
+      (tnr, tng, tnb, tna) = kind_tint(k);
+      keep = 1.0 - tna;
+      cr = cr * keep + tnr * tna;
+      cg = cg * keep + tng * tna;
+      cb = cb * keep + tnb * tna;
+    }
+  }
+  (cr, cg, cb)
+}
+
 // Per-level terrain VBO data: one hexagon fan/hex, stride 10. Vertex count is
-// deterministic: 18 · lw · lh.
+// deterministic: 18 · lw · lh. (Legacy fat path — superseded by the instanced
+// floor below; PLAN-RENDER P6.)
 pub fn build_world_mesh(s: Sim) -> vector<single> {
   buf: vector<single> = [];
   one = 1.0 as single;
@@ -107,20 +130,7 @@ pub fn build_world_mesh(s: Sim) -> vector<single> {
     for gq in 0..s.lw {
       q = s.qmin + gq;
       r = s.rmin + gr;
-      t = tile_at(s, q, r);
-      cr = 0.80; cg = 0.745; cb = 0.59;
-      if t == 1 {
-        cr = 0.15; cg = 0.14; cb = 0.13;
-      } else {
-        k = sim_tile_kind(s, q, r);
-        if k >= 0 && k != K_FACE {
-          (tnr, tng, tnb, tna) = kind_tint(k);
-          keep = 1.0 - tna;
-          cr = cr * keep + tnr * tna;
-          cg = cg * keep + tng * tna;
-          cb = cb * keep + tnb * tna;
-        }
-      }
+      (cr, cg, cb) = hex_floor_rgb(s, q, r);
       cs_r = cr as single; cs_g = cg as single; cs_b = cb as single;
       u = ((gq as float + 0.5) / lwf) as single;
       v = ((gr as float + 0.5) / lhf) as single;
@@ -133,6 +143,79 @@ pub fn build_world_mesh(s: Sim) -> vector<single> {
         buf += [kax as single, kay as single, zz, u, v, zz, cs_r, cs_g, cs_b, one];
         buf += [kbx as single, kby as single, zz, u, v, zz, cs_r, cs_g, cs_b, one];
       }
+    }
+  }
+  buf
+}
+
+// ── R7 instanced floor (PLAN-RENDER P6; blueprint: tools/blueprints/
+//    instanced_floor.py) ──
+//
+// The fat mesh above re-emits 18 verts PER hex. The instanced floor emits the
+// hexagon ONCE (build_hex_offsets) and one small record per hex
+// (build_world_instances), drawn via gl_draw_instanced. The decomposition is the
+// LATTICE construction the blueprint pinned: a corner's world position is
+//   x = SQRT3 · (column + dx),   y = row_y + dy
+// where column = q + 0.5·(r&1) and row_y = 1.5·r are EXACT half-integers (per
+// instance) and dx ∈ {0,±0.5} (lattice) / dy ∈ {0,±0.5,±1} (world) are EXACT
+// per-vertex offsets. Because column+dx and row_y+dy are bit-identical for every
+// hex that shares a corner, the shader's f32 result is identical there too — the
+// floor is WATERTIGHT (no seam cracks). This is the achievable invariant:
+// bit-exact parity with the f64-rounded fat VBO is impossible from an f32 shader,
+// but watertight + sub-pixel-identical (≤1 ULP) is, and that is what the floor
+// needs. The naive center+offset decomposition is NOT watertight (see blueprint).
+
+// Lattice/world corner offset of the base hexagon, corner i (matches hex_grid
+// hex_corner_offset: dy is its y; dx is its x ÷ SQRT3, hardcoded EXACT as ±0.5 so
+// the shared-corner arithmetic stays bit-exact).
+fn hex_lat_offset(i: integer) -> (float, float) {
+  if i == 0 { return (0.0, 1.0); }
+  if i == 1 { return (0.0 - 0.5, 0.5); }
+  if i == 2 { return (0.0 - 0.5, 0.0 - 0.5); }
+  if i == 3 { return (0.0, 0.0 - 1.0); }
+  if i == 4 { return (0.5, 0.0 - 0.5); }
+  (0.5, 0.5)
+}
+
+// The base hexagon for the instanced floor: the 6-triangle fan as 18 verts of
+// (dx_lattice, dy_world, 0), stride 3 (loc0). Constant — built once, not per
+// level. The fan center carries the (0,0) lattice/world offset (so it lands on
+// the hex centre via x=SQRT3·column, y=row_y).
+pub fn build_hex_offsets() -> vector<single> {
+  buf: vector<single> = [];
+  zz = 0.0 as single;
+  for kc in 0..6 {
+    (adx, ady) = hex_lat_offset(kc);
+    (bdx, bdy) = hex_lat_offset((kc + 1) % 6 ?? 0);
+    buf += [zz, zz, zz];                                  // fan centre
+    buf += [adx as single, ady as single, zz];
+    buf += [bdx as single, bdy as single, zz];
+  }
+  buf
+}
+
+// Per-level instance records for the instanced floor: one 7-float record per hex
+// — (column = q + 0.5·(r&1), row_y = 1.5·r, visU, visV, r, g, b). Paired with
+// build_hex_offsets() + gl_draw_instanced(vao, 18, lw·lh). column/row_y are the
+// EXACT lattice anchors; visUV is the per-hex FOV texel (centre); the color is
+// the R4-baked floor tone (hex_floor_rgb — the same oracle as the fat mesh).
+// Record count = lw · lh.
+pub fn build_world_instances(s: Sim) -> vector<single> {
+  buf: vector<single> = [];
+  lwf = s.lw as float;
+  lhf = s.lh as float;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      par = r & 1;
+      column = (q as float) + 0.5 * (par as float);
+      row_y = 1.5 * (r as float);
+      u = (gq as float + 0.5) / lwf;
+      v = (gr as float + 0.5) / lhf;
+      (cr, cg, cb) = hex_floor_rgb(s, q, r);
+      buf += [column as single, row_y as single, u as single, v as single,
+              cr as single, cg as single, cb as single];
     }
   }
   buf
