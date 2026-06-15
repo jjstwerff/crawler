@@ -6,3 +6,5 @@ loft    = ">=0.8"
 
 [dependencies]
 graphics = ">=0.2"
+hex_grid = ">=0.1"
+hex_terrain = ">=0.1"

@@ -245,7 +245,11 @@ probe:
 # `make viewer-gold` — headless: render the dual frame under Xvfb, diff vs the
 #                      golden (imagemagick `compare`, fuzz-tolerant). On first run
 #                      (no golden) it prints the copy command to adopt the frame.
-VIEWER_FLAGS := $(LIB_DEPS)
+# The viewer resolves entirely from installed libs: graphics/hex_grid/hex_terrain from the
+# registry (declared in loft.toml), math from the installed stdlib. No sibling --lib dirs — so
+# it doesn't depend on ../loft-libs-* checkouts and avoids the source-lib native-compile fallback.
+# (story/test still need $(LIB_DEPS): engine_host is sibling-only, not registry-published.)
+VIEWER_FLAGS :=
 VIEWER_GOLD  := tools/golden/viewer_s5e.png
 
 viewer:
