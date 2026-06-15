@@ -36,6 +36,20 @@ pub fn weather_rub(h: float) -> float {
   0.5 + 4.0 * t
 }
 
+// move rubble from cell ri to a lower neighbour nj so their surface step drops toward repose.
+// Returns the amount moved. bed is `const` (borrowed, not copied — the loop calls this ~100k×).
+// Index-writes are length-guarded (ri/nj are provably in [0,g*g) but the guard keeps it warning-clean).
+fn shed(bed: const vector<float>, rub: &vector<float>, ri: integer, nj: integer, sr: float) -> float {
+  d = ((bed[ri] ?? 0.0) + (rub[ri] ?? 0.0)) - ((bed[nj] ?? 0.0) + (rub[nj] ?? 0.0));
+  if d <= sr { return 0.0; }
+  m = (d - sr) / 2.0;
+  cur = rub[ri] ?? 0.0;
+  if m > cur { m = cur; }
+  if ri < rub.len() { rub[ri] = cur - m; }
+  if nj < rub.len() { rub[nj] = (rub[nj] ?? 0.0) + m; }
+  m
+}
+
 // 4-neighbour Gauss-Seidel sandpile on a g x g grid (row-major). Rubble slides to lower neighbours
 // until no rubble surface step exceeds repose (capped at TALUS_ITERS). bed read-only; rub mutated.
 pub fn talus_relax(bed: vector<float>, rub: &vector<float>, g: integer) {
@@ -47,59 +61,10 @@ pub fn talus_relax(bed: vector<float>, rub: &vector<float>, g: integer) {
       for c in 0..g {
         ri = r * g + c;
         if (rub[ri] ?? 0.0) > 0.0 {
-          bh = bed[ri] ?? 0.0;
-          // EAST
-          if c + 1 < g {
-            ni = ri + 1;
-            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
-            if d > sr {
-              cur = rub[ri] ?? 0.0;
-              m = (d - sr) / 2.0;
-              if m > cur { m = cur; }
-              rub[ri] = cur - m;
-              rub[ni] = (rub[ni] ?? 0.0) + m;
-              moved = moved + m;
-            }
-          }
-          // WEST
-          if c > 0 {
-            ni = ri - 1;
-            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
-            if d > sr {
-              cur = rub[ri] ?? 0.0;
-              m = (d - sr) / 2.0;
-              if m > cur { m = cur; }
-              rub[ri] = cur - m;
-              rub[ni] = (rub[ni] ?? 0.0) + m;
-              moved = moved + m;
-            }
-          }
-          // SOUTH
-          if r + 1 < g {
-            ni = ri + g;
-            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
-            if d > sr {
-              cur = rub[ri] ?? 0.0;
-              m = (d - sr) / 2.0;
-              if m > cur { m = cur; }
-              rub[ri] = cur - m;
-              rub[ni] = (rub[ni] ?? 0.0) + m;
-              moved = moved + m;
-            }
-          }
-          // NORTH
-          if r > 0 {
-            ni = ri - g;
-            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
-            if d > sr {
-              cur = rub[ri] ?? 0.0;
-              m = (d - sr) / 2.0;
-              if m > cur { m = cur; }
-              rub[ri] = cur - m;
-              rub[ni] = (rub[ni] ?? 0.0) + m;
-              moved = moved + m;
-            }
-          }
+          if c + 1 < g { moved = moved + shed(bed, rub, ri, ri + 1, sr); }
+          if c > 0 { moved = moved + shed(bed, rub, ri, ri - 1, sr); }
+          if r + 1 < g { moved = moved + shed(bed, rub, ri, ri + g, sr); }
+          if r > 0 { moved = moved + shed(bed, rub, ri, ri - g, sr); }
         }
       }
     }
@@ -168,8 +133,8 @@ pub fn flow_accumulate(surf: vector<float>, g: integer) -> vector<float> {
       cv = contrib[i] ?? 0.0;
       t = tgt[i] ?? -1;
       if cv > 0.0 && t >= 0 {
-        acc[t] = (acc[t] ?? 0.0) + cv;
-        nc2[t] = (nc2[t] ?? 0.0) + cv;
+        if t < acc.len() { acc[t] = (acc[t] ?? 0.0) + cv; }
+        if t < nc2.len() { nc2[t] = (nc2[t] ?? 0.0) + cv; }
         any = true;
       }
     }

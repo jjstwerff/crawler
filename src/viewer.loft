@@ -132,10 +132,10 @@ fn window_update(o: Overland, lcx: &vector<integer>, lcz: &vector<integer>, lvao
         for k in 0..MAXLOAD {
           if (lvao[k] ?? 1) == 0 && slot < 0 { slot = k; }
         }
-        if slot >= 0 {
+        if slot >= 0 && slot < lvao.len() {
           lvao[slot] = bake_chunk(o, cx, cz, idx, overworld, use_talus);
-          lcx[slot] = cx;
-          lcz[slot] = cz;
+          if slot < lcx.len() { lcx[slot] = cx; }
+          if slot < lcz.len() { lcz[slot] = cz; }
           bakes += 1;
         }
       }
