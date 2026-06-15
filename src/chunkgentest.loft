@@ -1,0 +1,36 @@
+// chunkgentest — @PLN2 S2: an overworld chunk is a FAITHFUL sample of the loft engine
+// (each cell == ov_sample at the hex centre, height within the 0.05 m quantisation, kind exact)
+// and DETERMINISTIC (regenerate -> identical). Headless.
+use chunk;
+use chunkgen;
+use overland;
+
+fn main() {
+  println("=== story chunk-gen test (S2: overworld chunk from the loft engine) ===");
+  o = overland_new();
+  ch = overworld_chunk(o, 0, 0);
+
+  // faithful: each cell matches ov_sample at the hex centre (cx=cz=0 -> q=hx, r=hz)
+  faithful = true;
+  for hz in 0..32 {
+    for hx in 0..32 {
+      (x, y) = overworld_center(hx, hz);
+      (eh, ek) = ov_sample(o, x, y);
+      i = dk_cell_idx(hx, hz);
+      if abs(chunk_height(ch, i) - eh) > 0.051 { faithful = false; }
+      if chunk_kind(ch, i) != ek { faithful = false; }
+    }
+  }
+
+  // deterministic: regenerate -> identical base / offsets / kinds
+  ch2 = overworld_chunk(o, 0, 0);
+  det = ch.dk_base == ch2.dk_base;
+  for ci in 0..1024 {
+    if (ch.dk_off[ci] ?? -1) != (ch2.dk_off[ci] ?? -2) { det = false; }
+    if (ch.dk_kind[ci] ?? -1) != (ch2.dk_kind[ci] ?? -2) { det = false; }
+  }
+
+  println("faithful={faithful} deterministic={det} base={ch.dk_base}");
+  ok = faithful && det;
+  if ok { println("=== CHUNKGEN OK ==="); } else { println("=== CHUNKGEN FAIL ==="); }
+}

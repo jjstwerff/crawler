@@ -27,6 +27,15 @@ build, in what order, and **how to see quickly that it works**. Effort: S/M/L.
    the loft code then ports a verified picture, not a guess.
 5. **User visual pass** (`make play` / noVNC): theme + feel only — never the
    correctness channel.
+6. **WebGL headless-browser gate** (for `make game` / the @PLN2 loft viewer): serve the
+   `loft --html` build and drive headless Chrome (`chromium` — present) via loft's
+   `tools/html_render_check.mjs` — a JS-error gate + a canvas color-count gate (blank canvas =
+   fail) + a CDP screenshot. Browser AA isn't pixel-exact, so this gates *renders-without-error
+   + non-blank + structure*; the native `gl_screenshot` golden (channels 2–3) stays the
+   pixel-exact one. Native deterministic-GL recipe: `xvfb-run -s "-screen 0 WxHx24"` +
+   `LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe`, a `--smoke` mode scripting fixed ticks
+   then `graphics::gl_screenshot(w,h,path)` (the loft `crystal_editor_gold` / brick-buster
+   pattern; golden tolerance ~max-16/mean-2).
 
 ## Steps
 

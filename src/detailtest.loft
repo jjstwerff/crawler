@@ -1,0 +1,59 @@
+// detailtest — @PLN2 S3: the detail (LOD) tier. A detail chunk round-trips (I-HEIGHT), is
+// deterministic (I-DET), is watertight across chunk bases (I-SEAM), and is consistent with the
+// overworld tier on zoom (I-LOD: the detail surface passes through the overworld hex centres,
+// since both sample the SAME engine field). Headless.
+use chunk;
+use chunkgen;
+use overland;
+
+fn main() {
+  println("=== story detail-chunk test (S3: LOD tier — I-HEIGHT / I-DET / I-SEAM / I-LOD) ===");
+  o = overland_new();
+
+  // a detail chunk over the mountain overworld hex (5,3)
+  (mcx, mcy) = overworld_center(5, 3);
+  (dcx, dcz) = detail_chunk_of(mcx, mcy);
+  ch = detail_chunk(o, dcx, dcz);
+
+  // I-HEIGHT: each cell reconstructs ov_sample at its centre within the 0.05 m quantisation
+  rt = true;
+  for hz in 0..32 {
+    for hx in 0..32 {
+      (x, y) = detail_cell_center(dcx, dcz, hx, hz);
+      (eh, _) = ov_sample(o, x, y);
+      if abs(chunk_height(ch, dk_cell_idx(hx, hz)) - eh) > 0.051 { rt = false; }
+    }
+  }
+
+  // I-DET: regenerate -> identical
+  ch2 = detail_chunk(o, dcx, dcz);
+  det = ch.dk_base == ch2.dk_base;
+  for ci in 0..1024 {
+    if (ch.dk_off[ci] ?? -1) != (ch2.dk_off[ci] ?? -2) { det = false; }
+  }
+
+  // I-SEAM: across this chunk and its east neighbour, a shared in-range height reconstructs
+  // identically under their (different) bases -> watertight by construction
+  chN = detail_chunk(o, dcx + 1, dcz);
+  seam = true;
+  smax = 0.0;
+  bmax = ch.dk_base;
+  if chN.dk_base > bmax { bmax = chN.dk_base; }
+  for j in 0..8 {
+    hv = (bmax as float) + 20.0 + (j as float) * 60.0;
+    d = abs(chunk_quant(ch.dk_base, hv) - chunk_quant(chN.dk_base, hv));
+    if d > smax { smax = d; }
+    if d > 0.051 { seam = false; }
+  }
+
+  // I-LOD: the detail surface passes through the overworld hex centre (no pop on zoom) —
+  // the detail cell holding the centre reconstructs ~ the overworld value (same field)
+  (oh, _) = ov_sample(o, mcx, mcy);
+  (lhx, lhz) = detail_local_of(mcx, mcy);
+  ldiff = abs(chunk_height(ch, dk_cell_idx(lhx, lhz)) - oh);
+  lod = ldiff <= 8.0;
+
+  println("rt={rt} det={det} seam={seam}(d={smax}) lod={lod}(diff={ldiff}) base={ch.dk_base}");
+  ok = rt && det && seam && lod;
+  if ok { println("=== DETAIL OK ==="); } else { println("=== DETAIL FAIL ==="); }
+}

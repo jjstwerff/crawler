@@ -469,6 +469,14 @@ the rate the platform supports outsiders. Gated on the first publications
   valuable candidate and the most premature — SCRIPTING.md Stage 1 (the event bus) will
   reshape the routine seam. Extract after that lands and the shape survives two
   consumers.
+- **The @PLN2 chunked-world substrate** (chunk/world model, heightfield surface mesh,
+  camera+input, golden harness): the shared-world-substrate convergence with dryopea
+  Plan 07 + moros (`gridmesh` + `hex_terrain`/`moros_map` + `moros_render`). Detailed
+  targets, concrete homes, and working extraction sources (audience-demo `AutoCam`/VBO,
+  dryopea `golden.loft`, crawler `chunk_mesh`) are in **`plans/2-chunked-lod-world/`** →
+  "Extract to proper shared libraries". Gated: prove in crawler first, and the substrate
+  itself is blocked by loft `use`-namespacing + the native struct-return bug (both noted
+  there). Extract once those clear and the primitives are proven.
 
 ## Order of work
 

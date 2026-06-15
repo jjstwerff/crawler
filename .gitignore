@@ -17,3 +17,8 @@ tools/__pycache__/
 tools/_overland/
 tools/_triangle/
 .story_next
+
+# @PLN1 Ortler fixture: regenerable OSM polygon cache (large) + python bytecode
+plans/1-ortler-worldgen-fixture/data/osm_polys.npz
+**/__pycache__/
+plans/1-ortler-worldgen-fixture/out/

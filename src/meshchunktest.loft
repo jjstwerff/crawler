@@ -1,0 +1,66 @@
+// meshchunktest — @PLN2 S4: the detail-chunk heightfield mesh. Correct vertex count, the mesh
+// FOLLOWS THE DATA (vertex height == chunk_height), it is WATERTIGHT across chunks (a chunk's
+// right edge == the east neighbour's cell-0 column), and DETERMINISTIC. Headless.
+use chunk;
+use chunkgen;
+use chunkmesh;
+use overland;
+
+fn main() {
+  println("=== story mesh-chunk test (S4: heightfield mesh — count / follows-data / watertight) ===");
+  o = overland_new();
+  (mcx, mcy) = overworld_center(5, 3);
+  (dcx, dcz) = detail_chunk_of(mcx, mcy);
+  ca = detail_chunk(o, dcx, dcz);
+  ce = detail_chunk(o, dcx + 1, dcz);
+  cs = detail_chunk(o, dcx, dcz + 1);
+  cse = detail_chunk(o, dcx + 1, dcz + 1);
+  mesh = chunk_mesh(ca, ce, cs, cse);
+
+  // count: 33x33 vertices x stride
+  count_ok = len(mesh) == 33 * 33 * MESH_STRIDE;
+
+  // follows-data: interior vertex (i,j) height == chunk_height(ca, idx)
+  fdata = true;
+  for j in 0..32 {
+    for i in 0..32 {
+      vi = (j * 33 + i) * MESH_STRIDE;
+      if abs((mesh[vi + 1] ?? 0.0) - chunk_height(ca, dk_cell_idx(i, j))) > 0.001 { fdata = false; }
+    }
+  }
+
+  // watertight: the right-edge vertices (i=32) take the east neighbour's cell-0 column -> the
+  // shared boundary is identical in both chunks' meshes (I-SEAM)
+  seam = true;
+  for j in 0..32 {
+    vi = (j * 33 + 32) * MESH_STRIDE;
+    if abs((mesh[vi + 1] ?? 0.0) - chunk_height(ce, dk_cell_idx(0, j))) > 0.001 { seam = false; }
+  }
+
+  // deterministic: same chunks -> identical buffer
+  mesh2 = chunk_mesh(ca, ce, cs, cse);
+  det = len(mesh) == len(mesh2);
+  for q in 0..len(mesh) {
+    if (mesh[q] ?? 0.0) != (mesh2[q] ?? 1.0) { det = false; }
+  }
+
+  // OVERWORLD-tier mesh (S5d): same count + follows-data, but vertices sit at hex centres
+  oca = overworld_chunk(o, 0, 0);
+  oce = overworld_chunk(o, 1, 0);
+  ocs = overworld_chunk(o, 0, 1);
+  ocse = overworld_chunk(o, 1, 1);
+  omesh = chunk_mesh_ov(oca, oce, ocs, ocse);
+  ov_count_ok = len(omesh) == 33 * 33 * MESH_STRIDE;
+  ov_fdata = true;
+  for j in 0..32 {
+    for i in 0..32 {
+      vi = (j * 33 + i) * MESH_STRIDE;
+      if abs((omesh[vi + 1] ?? 0.0) - chunk_height(oca, dk_cell_idx(i, j))) > 0.001 { ov_fdata = false; }
+    }
+  }
+
+  println("count={count_ok}({len(mesh)}) follows-data={fdata} watertight={seam} det={det} tris={chunk_mesh_tris()}");
+  println("ov: count={ov_count_ok}({len(omesh)}) follows-data={ov_fdata}");
+  ok = count_ok && fdata && seam && det && ov_count_ok && ov_fdata;
+  if ok { println("=== MESHCHUNK OK ==="); } else { println("=== MESHCHUNK FAIL ==="); }
+}

@@ -81,9 +81,17 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   idle-skip/mesh/kernel/replay/…). Keep it **warning-clean**. Pixel-level render checks live in
   **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — PLAN-RENDER P0).
   The games-kernel adoption track (@PLN18 engine_host): **PLAN-KERNEL.md**.
-- **The sandbox can't reliably screenshot** the GL window (`gl_screenshot` under
-  Xvfb is positionally off — a known test-env quirk). Verify *logic* headlessly; the
-  **user is the visual verifier**. A `src/shot.loft` aid exists but trust the user.
+- **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under
+  Xvfb reads the GL **framebuffer reliably** — it's exactly what `make probe` uses (PLAN-RENDER
+  P0). The only *positionally-unreliable* capture is `make shot`'s window-grab
+  (`xdotool`/`import`) — not `gl_screenshot`. So render **correctness can be gated headlessly**
+  via golden-image diffs, two paths (deps present: `xvfb-run`/`chromium`/`node`/`convert`):
+  (1) **native GL** — `gl_screenshot` under `xvfb-run` + Mesa `llvmpipe` (deterministic
+  software GL), diffed vs a golden PNG (tolerance ~max-16/mean-2, the loft `crystal_editor_gold`
+  pattern); (2) **WebGL** — the `loft --html` build in headless Chrome via loft's
+  `tools/html_render_check.mjs` (CDP screenshot + canvas color-count gate). The **user still
+  judges *aesthetics***, but the agent self-checks structure/regressions. Recipe + the
+  scene-`--smoke`-then-`gl_screenshot` idiom: **PLAN-RENDER.md**.
 - **2D sprites → the `draw` skill** (method: loft `.claude/skills/draw`; **tool:
   crawler's own `tools/draw.py`** — copied from the skill's `sketch/draw.py` and
   extended: `Background transparent`, `--once` (render-and-exit; exit 1 on unparsed lines /
@@ -208,6 +216,14 @@ cross-module `&`, casts, store pressure, struct-literal comprehensions). What st
 - **STILL LIVE — a thin arity-reducing pub wrapper around a big-struct-returning pub fn
   panics codegen** (loft#339: "Too few parameters on n_<fn>"): don't wrap; pass the
   defaulted arg at the call sites.
+- **STILL LIVE — a `fn(...) -> vector<single>` whose result is passed to a native FFI call
+  (e.g. `graphics::gl_upload_vertices`) SILENTLY ABORTS the program** (no stdout — even
+  earlier `println`s are swallowed — no PNG, exit 0; only a "stores not freed" warning) once
+  the real data pipeline is in context (loft#392, `sev:high`; standalone shrinks all pass →
+  context-dependent store-lifetime). **Workaround (clean): INLINE the buffer-building loop in
+  the caller**, don't route it through a helper that returns `vector<single>`. The silent
+  no-diagnostic failure is the trap — if a GL program produces no output and no PNG, suspect
+  this.
 - `!x` on a **non-boolean is a NULL test, not logical-not** — BY DESIGN (loft C69; an
   always-false warning covers `not null` operands). Compare `== 0`.
 - **NEVER swap struct elements of a vector in place via a temp link** (`tmp = v[j];

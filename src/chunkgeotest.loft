@@ -1,0 +1,44 @@
+// chunkgeotest — @PLN2 S1: the two-tier coordinate mapping. Tier sizes are right; the
+// overworld hex and detail-cell mappings round-trip exactly; one overworld hex covers ~32
+// detail chunks across. Headless, deterministic.
+use chunk;
+
+fn main() {
+  println("=== story chunk-geo test (S1: two-tier coord mapping) ===");
+
+  // tier sizes: detail chunk = OV_TILE/32, detail cell = OV_TILE/1024 (~1.5 m)
+  size_ok = abs(DETAIL_CHUNK_M - 46.875) < 0.001 && abs(DETAIL_CELL_M - 1.46484375) < 0.0001;
+
+  // overworld hex round-trip (odd-r parity) over even and odd rows
+  ow = true;
+  for k in 0..8 {
+    q = 30 + k;
+    r = 40 + (k % 3);
+    (x, y) = overworld_center(q, r);
+    (q2, r2) = overworld_hex_of(x, y);
+    if q2 != q || r2 != r { ow = false; }
+  }
+
+  // detail cell round-trip: cell centre -> chunk + local -> the same cell
+  dt = true;
+  for k in 0..16 {
+    dcx = 5 + k;
+    dcz = 100 - k;
+    hx = (k * 2) % 32;
+    hz = (k * 3) % 32;
+    (x, y) = detail_cell_center(dcx, dcz, hx, hz);
+    (rcx, rcz) = detail_chunk_of(x, y);
+    (rhx, rhz) = detail_local_of(x, y);
+    if rcx != dcx || rcz != dcz || rhx != hx || rhz != hz { dt = false; }
+  }
+
+  // concrete instance: an overworld hex maps to ~32 detail chunks across
+  (a0, b0, a1, b1) = overworld_detail_range(40, 40);
+  span_x = a1 - a0 + 1;
+  span_z = b1 - b0 + 1;
+  range_ok = span_x >= 30 && span_x <= 36 && span_z >= 32 && span_z <= 42;
+
+  println("size={size_ok} overworld-rt={ow} detail-rt={dt} range={range_ok}(x={span_x} z={span_z})");
+  ok = size_ok && ow && dt && range_ok;
+  if ok { println("=== CHUNKGEO OK ==="); } else { println("=== CHUNKGEO FAIL ==="); }
+}

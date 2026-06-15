@@ -1,0 +1,104 @@
+// talustest — @PLN2 S6.2: the angle-of-repose talus on the detail tier. Asserts the model
+// invariants (rubble CONSERVED + repose satisfied after relaxation), DETERMINISM (which gives the
+// watertight seam for free — chunk_mesh shares edges from the neighbour's deterministic cells),
+// and that bare ROCK FACES actually appear on a steep flank. Headless.
+use chunk;
+use talus;
+use overland;
+
+fn main() {
+  println("=== story talus test (S6.2: angle-of-repose talus on the detail tier) ===");
+  sr = 0.7002 * DETAIL_CELL_M;
+
+  // (1) synthetic grid: a plateau dropping via a one-cell cliff to a valley; uniform rubble mantle.
+  g = 16;
+  bed: vector<float> = [];
+  rub: vector<float> = [];
+  for r in 0..g {
+    for c in 0..g {
+      h = 100.0;
+      if c == 7 { h = 70.0; }
+      if c >= 8 { h = 40.0; }
+      bed += [h];
+      rub += [3.0];
+    }
+  }
+  before = 0.0;
+  for i in 0..(g * g) { before = before + (rub[i] ?? 0.0); }
+  talus_relax(bed, rub, g);
+  after = 0.0;
+  for i in 0..(g * g) { after = after + (rub[i] ?? 0.0); }
+  conserve = abs(after - before) < 0.01;
+
+  // repose: no rubble-on-rubble orthogonal step exceeds the angle of repose (+ a small capped slack)
+  maxstep = 0.0;
+  for r in 0..g {
+    for c in 0..g {
+      ri = r * g + c;
+      if (rub[ri] ?? 0.0) > 0.2 {
+        if c + 1 < g {
+          if (rub[ri + 1] ?? 0.0) > 0.2 {
+            d = abs(((bed[ri] ?? 0.0) + (rub[ri] ?? 0.0)) - ((bed[ri + 1] ?? 0.0) + (rub[ri + 1] ?? 0.0)));
+            if d > maxstep { maxstep = d; }
+          }
+        }
+        if r + 1 < g {
+          if (rub[ri + g] ?? 0.0) > 0.2 {
+            d = abs(((bed[ri] ?? 0.0) + (rub[ri] ?? 0.0)) - ((bed[ri + g] ?? 0.0) + (rub[ri + g] ?? 0.0)));
+            if d > maxstep { maxstep = d; }
+          }
+        }
+      }
+    }
+  }
+  repose_ok = maxstep <= sr + 0.05;
+
+  // (2) real talus chunk over the flank cliff (143,83): determinism + faces appear
+  o = overland_new();
+  ch = talus_chunk(o, 143, 83);
+  ch2 = talus_chunk(o, 143, 83);
+  det = ch.dk_base == ch2.dk_base;
+  for i in 0..1024 {
+    if (ch.dk_off[i] ?? -1) != (ch2.dk_off[i] ?? -2) { det = false; }
+  }
+  nface = 0;
+  for i in 0..1024 {
+    if chunk_kind(ch, i) == K_FACE { nface = nface + 1; }
+  }
+
+  // (3) alpine chunk (176,83, above the treeline): exercises the SCREE accumulation path
+  cha = talus_chunk(o, 176, 83);
+  nscree = 0;
+  for i in 0..1024 {
+    if chunk_kind(cha, i) == K_SCREE { nscree = nscree + 1; }
+  }
+
+  // (4) flow accumulation (S6.3): a tilted plane drains to one corner -> high accumulation there;
+  // flow is strictly downhill by construction (target = lowest LOWER neighbour). I3 echo.
+  fg = 16;
+  fn2 = fg * fg;
+  fs: vector<float> = [];
+  for r in 0..fg {
+    for c in 0..fg { fs += [100.0 - (r as float) - (c as float)]; }
+  }
+  facc = flow_accumulate(fs, fg);
+  maxacc = 0.0;
+  allpos = true;
+  for i in 0..fn2 {
+    a = facc[i] ?? 0.0;
+    if a > maxacc { maxacc = a; }
+    if a < 1.0 { allpos = false; }
+  }
+  flow_ok = maxacc >= 0.8 * (fn2 as float) && allpos;
+
+  // (5) flow-carved channels appear in a talus chunk
+  nriver = 0;
+  for i in 0..1024 {
+    if chunk_kind(ch, i) == K_RIVER { nriver = nriver + 1; }
+  }
+
+  println("conserve={conserve}({before}->{after}) repose={repose_ok}(max={maxstep} sr={sr}) det={det} faces={nface}(flank) scree={nscree}(alpine)");
+  println("flow={flow_ok}(maxacc={maxacc}/{fn2}) channels={nriver}(flank)");
+  ok = conserve && repose_ok && det && nface > 0 && nscree > 0 && flow_ok && nriver > 0;
+  if ok { println("=== TALUS OK ==="); } else { println("=== TALUS FAIL ==="); }
+}

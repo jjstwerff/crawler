@@ -1,0 +1,219 @@
+// talus — @PLN2 S6.2: the angle-of-repose TALUS model on the detail (1.5 m) tier.
+//
+// Each detail cell = BEDROCK (ov_sample) + a WEATHERING-driven RUBBLE layer (more debris from
+// high/cold bedrock above the treeline). Rubble can't hold a slope steeper than the angle of
+// repose, so it slides to lower neighbours (a capped sandpile relaxation) -> talus. Where bedrock
+// alone exceeds a steeper CLIFF angle and the rubble stripped away, BARE ROCK FACE (K_FACE) is
+// revealed; where rubble piled up, SCREE (K_SCREE). Cliff placement/height = the bedrock step to
+// neighbours (neighbour-coupled). Combined with the engine's coarse classification (ZAngband-style):
+// below the treeline vegetation holds the rubble (no bare faces except true cliffs); above, the
+// talus carves faces + scree.
+//
+// HALO coupling: a chunk is relaxed over a 32+2*HALO grid (border sampled from neighbours) so
+// rubble flows across the chunk edge approximately. WATERTIGHT is automatic: chunk_mesh takes a
+// shared edge from the NEIGHBOUR chunk's cells, and talus_chunk is deterministic, so adjacent
+// chunks agree at the seam. CAPPED iterations -> approximate (not exact) repose equilibrium.
+// Design + pins: plans/2-chunked-lod-world/s6-subhex-finding.md
+use chunk;
+use overland;
+
+pub const TALUS_HALO = 4;
+pub const TALUS_ITERS = 120;          // capped (generation-time precompute; not per-frame)
+const TREELINE = 2150.0;              // = overland TREEL: rubble production rises above it
+const FACE_RUB = 0.2;                 // rubble below this (m) = bedrock exposed
+const REPOSE_TAN = 0.7002;            // tan(35 deg) — rubble rest angle (scree)
+const CLIFF_TAN = 1.1918;             // tan(50 deg) — bedrock steeper than this = bare face
+
+fn repose_step() -> float { REPOSE_TAN * DETAIL_CELL_M }
+fn cliff_step() -> float { CLIFF_TAN * DETAIL_CELL_M }
+
+// weathering rubble (m) on bedrock of height h: a small base everywhere, rising above the treeline
+// (frost-shattering produces alpine debris). Pure function of h -> deterministic.
+pub fn weather_rub(h: float) -> float {
+  t = (h - TREELINE) / 300.0;
+  if t < 0.0 { t = 0.0; }
+  if t > 1.0 { t = 1.0; }
+  0.5 + 4.0 * t
+}
+
+// 4-neighbour Gauss-Seidel sandpile on a g x g grid (row-major). Rubble slides to lower neighbours
+// until no rubble surface step exceeds repose (capped at TALUS_ITERS). bed read-only; rub mutated.
+pub fn talus_relax(bed: vector<float>, rub: &vector<float>, g: integer) {
+  sr = repose_step();
+  it = 0;
+  while it < TALUS_ITERS {
+    moved = 0.0;
+    for r in 0..g {
+      for c in 0..g {
+        ri = r * g + c;
+        if (rub[ri] ?? 0.0) > 0.0 {
+          bh = bed[ri] ?? 0.0;
+          // EAST
+          if c + 1 < g {
+            ni = ri + 1;
+            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
+            if d > sr {
+              cur = rub[ri] ?? 0.0;
+              m = (d - sr) / 2.0;
+              if m > cur { m = cur; }
+              rub[ri] = cur - m;
+              rub[ni] = (rub[ni] ?? 0.0) + m;
+              moved = moved + m;
+            }
+          }
+          // WEST
+          if c > 0 {
+            ni = ri - 1;
+            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
+            if d > sr {
+              cur = rub[ri] ?? 0.0;
+              m = (d - sr) / 2.0;
+              if m > cur { m = cur; }
+              rub[ri] = cur - m;
+              rub[ni] = (rub[ni] ?? 0.0) + m;
+              moved = moved + m;
+            }
+          }
+          // SOUTH
+          if r + 1 < g {
+            ni = ri + g;
+            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
+            if d > sr {
+              cur = rub[ri] ?? 0.0;
+              m = (d - sr) / 2.0;
+              if m > cur { m = cur; }
+              rub[ri] = cur - m;
+              rub[ni] = (rub[ni] ?? 0.0) + m;
+              moved = moved + m;
+            }
+          }
+          // NORTH
+          if r > 0 {
+            ni = ri - g;
+            d = (bh + (rub[ri] ?? 0.0)) - ((bed[ni] ?? 0.0) + (rub[ni] ?? 0.0));
+            if d > sr {
+              cur = rub[ri] ?? 0.0;
+              m = (d - sr) / 2.0;
+              if m > cur { m = cur; }
+              rub[ri] = cur - m;
+              rub[ni] = (rub[ni] ?? 0.0) + m;
+              moved = moved + m;
+            }
+          }
+        }
+      }
+    }
+    if moved < 0.001 { it = TALUS_ITERS; } else { it = it + 1; }
+  }
+}
+
+// classify one halo-grid cell: K_FACE (stripped + cliff-steep bedrock, any elevation), else below
+// the treeline keep the engine kind (vegetation holds rubble), else K_SCREE where rubble piled up.
+fn talus_kind(bed: vector<float>, rub: vector<float>, basek: vector<integer>,
+              g: integer, gx: integer, gz: integer) -> integer {
+  gi = gz * g + gx;
+  b = bed[gi] ?? 0.0;
+  base = basek[gi] ?? 0;
+  // water/wetland is carved by water, not weathered to rock — keep it (the engine's fed rivers)
+  if base == K_RIVER || base == K_LAKE || base == K_SEA || base == K_SWAMP { return base; }
+  cs = cliff_step();
+  steep = false;
+  if gx + 1 < g { if abs(b - (bed[gi + 1] ?? b)) > cs { steep = true; } }
+  if gx > 0 { if abs(b - (bed[gi - 1] ?? b)) > cs { steep = true; } }
+  if gz + 1 < g { if abs(b - (bed[gi + g] ?? b)) > cs { steep = true; } }
+  if gz > 0 { if abs(b - (bed[gi - g] ?? b)) > cs { steep = true; } }
+  rv = rub[gi] ?? 0.0;
+  if rv < FACE_RUB && steep { return K_FACE; }    // genuine bare cliff (trees can't root)
+  if b < TREELINE { return base; }                // forested/vegetated: rubble held, keep kind
+  if rv > weather_rub(b) + 0.5 { return K_SCREE; } // alpine talus accumulation
+  base
+}
+
+pub const T_CHANNEL = 45.0;            // upstream cells draining through -> a channel (K_RIVER)
+
+// flow accumulation over a g x g surface: D8 steepest descent + wavefront propagation downhill.
+// acc[i] = number of cells (incl. self) that drain through i. Fine channels = high-accumulation
+// cells (the convergent inter-cell paths). The major rivers are already fed by ov_sample's kind.
+pub fn flow_accumulate(surf: vector<float>, g: integer) -> vector<float> {
+  n = g * g;
+  dro: vector<integer> = [-1, -1, -1, 0, 0, 1, 1, 1];
+  dco: vector<integer> = [-1, 0, 1, -1, 1, -1, 0, 1];
+  tgt: vector<integer> = [];
+  for r in 0..g {
+    for c in 0..g {
+      ri = r * g + c;
+      bh = surf[ri] ?? 0.0;
+      best = -1;
+      for k in 0..8 {
+        nr = r + (dro[k] ?? 0);
+        nc = c + (dco[k] ?? 0);
+        if nr >= 0 && nr < g && nc >= 0 && nc < g {
+          ni = nr * g + nc;
+          nh = surf[ni] ?? 0.0;
+          if nh < bh { bh = nh; best = ni; }
+        }
+      }
+      tgt += [best];
+    }
+  }
+  acc: vector<float> = [];
+  contrib: vector<float> = [];
+  for _i in 0..n { acc += [1.0]; contrib += [1.0]; }
+  p = 0;
+  while p < 2 * g {
+    nc2: vector<float> = [];
+    for _j in 0..n { nc2 += [0.0]; }
+    any = false;
+    for i in 0..n {
+      cv = contrib[i] ?? 0.0;
+      t = tgt[i] ?? -1;
+      if cv > 0.0 && t >= 0 {
+        acc[t] = (acc[t] ?? 0.0) + cv;
+        nc2[t] = (nc2[t] ?? 0.0) + cv;
+        any = true;
+      }
+    }
+    contrib = nc2;
+    if any { p = p + 1; } else { p = 2 * g; }
+  }
+  acc
+}
+
+// build a talus-modified detail chunk: bedrock (ov_sample) + weathering rubble, relaxed with a
+// halo, surface = bed+rubble, kinds reclassified (K_FACE/K_SCREE), + flow-carved channels
+// (K_RIVER where accumulation > T_CHANNEL). Deterministic.
+pub fn talus_chunk(ov: Overland, dcx: integer, dcz: integer) -> DetailChunk {
+  g = CHUNK + 2 * TALUS_HALO;
+  bed: vector<float> = [];
+  basek: vector<integer> = [];
+  rub: vector<float> = [];
+  for gz in 0..g {
+    for gx in 0..g {
+      hx = gx - TALUS_HALO;
+      hz = gz - TALUS_HALO;
+      (wx, wy) = detail_cell_center(dcx, dcz, hx, hz);
+      (hh, kk) = ov_sample(ov, wx, wy);
+      bed += [hh];
+      basek += [kk];
+      rub += [weather_rub(hh)];
+    }
+  }
+  talus_relax(bed, rub, g);
+  // flow over the talus surface -> fine channels
+  surf: vector<float> = [];
+  for si in 0..(g * g) { surf += [(bed[si] ?? 0.0) + (rub[si] ?? 0.0)]; }
+  acc = flow_accumulate(surf, g);
+  hs: vector<float> = [];
+  ks: vector<integer> = [];
+  for ez in 0..CHUNK {
+    for ex in 0..CHUNK {
+      gi = (ez + TALUS_HALO) * g + (ex + TALUS_HALO);
+      hs += [(bed[gi] ?? 0.0) + (rub[gi] ?? 0.0)];
+      kk = talus_kind(bed, rub, basek, g, ex + TALUS_HALO, ez + TALUS_HALO);
+      // flow-carved channel: high accumulation -> K_RIVER (but never override standing water)
+      if (acc[gi] ?? 0.0) > T_CHANNEL && kk != K_LAKE && kk != K_SEA { kk = K_RIVER; }
+      ks += [kk];
+    }
+  }
+  chunk_build(dcx, dcz, hs, ks)
+}

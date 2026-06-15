@@ -1,0 +1,105 @@
+// chunk — @PLN2 detail-chunk model: a 32x32 cell chunk whose heights are stored as a
+// BASE height (the chunk's lowest point, integer metres) + per-cell 0.1 m offsets (u16).
+// Mirrors the 32x32 chunk pattern in loft-libs-world/hex_world.loft (Chunk + chunk_idx_32),
+// adding the base+offset height encoding (@PLN2 I-HEIGHT / I-SEAM).
+//
+// height(cell) = dk_base + off * 0.1 m.  off in 0..65535 -> base+6553.5 m (far past any chunk's
+// relief).  Because the base is INTEGER metres, the 0.1 m grids of all chunks stay globally
+// aligned, so a shared height stored under any two chunk bases reconstructs the SAME absolute
+// value -> watertight seams (I-SEAM) by construction.
+
+use hex_grid;
+
+pub const CHUNK = 32;            // cells per axis (the libraries' chunk size)
+
+pub struct DetailChunk {
+  dk_cx:   integer not null,     // chunk coords (cell origin / 32)
+  dk_cz:   integer not null,
+  dk_base: integer not null,     // metres: the chunk's LOWEST point
+  dk_off:  vector<integer> not null,   // 1024 cells, row-major (hz*32+hx); 0.1 m offsets above base
+  dk_kind: vector<integer> not null,   // terrain kind (K_*) per cell
+}
+
+pub fn dk_cell_idx(hx: integer, hz: integer) -> integer { hz * CHUNK + hx }
+
+// Quantise an absolute height (m) onto the 0.1 m grid relative to `base`, then decode it back —
+// the value a chunk with this base would store + reconstruct. With integer-metre bases this is
+// base-INDEPENDENT to 0.1 m: the seam guarantee.
+pub fn chunk_quant(base: integer, h: float) -> float {
+  o = round((h - (base as float)) * 10.0);
+  if o < 0.0 { o = 0.0; }
+  if o > 65535.0 { o = 65535.0; }
+  (base as float) + o * 0.1
+}
+
+// Build a detail chunk from 1024 absolute heights (m) + per-cell terrain kinds.
+// base = floor(min height) (the lowest point).
+pub fn chunk_build(cx: integer, cz: integer, heights: vector<float>,
+                   kinds: vector<integer>) -> DetailChunk {
+  lo = 1.0e30;
+  for k in 0..len(heights) {
+    hk = heights[k] ?? 0.0;
+    if hk < lo { lo = hk; }
+  }
+  base = floor(lo) as integer;
+  off: vector<integer> = [];
+  for k in 0..len(heights) {
+    o = round(((heights[k] ?? 0.0) - (base as float)) * 10.0) as integer;
+    if o < 0 { o = 0; }
+    if o > 65535 { o = 65535; }
+    off += [o];
+  }
+  DetailChunk { dk_cx: cx, dk_cz: cz, dk_base: base, dk_off: off, dk_kind: kinds }
+}
+
+// Reconstruct cell i's absolute height (m).
+pub fn chunk_height(ch: DetailChunk, i: integer) -> float {
+  (ch.dk_base as float) + ((ch.dk_off[i] ?? 0) as float) * 0.1
+}
+
+// Cell i's terrain kind (K_*).
+pub fn chunk_kind(ch: DetailChunk, i: integer) -> integer { ch.dk_kind[i] ?? 0 }
+
+// ── S1: the two-tier coordinate mapping (overworld hexes <-> detail raster) ──────────────
+// Overworld = 1.5 km moros odd-r hexes (reuse hex_grid, the I-GEO single source). Detail =
+// a GLOBAL square raster: two 32x levels under one overworld hex, so a detail CHUNK spans
+// OV_TILE/32 m and a detail CELL spans OV_TILE/32/32 m (~1.5 m). One overworld hex covers
+// ~32 detail chunks across. Global tiling keeps the lattice aligned -> seams stay watertight.
+pub const OV_TILE_M      = 1500.0;             // overworld hex pitch (metres)
+pub const DETAIL_CHUNK_M = 46.875;             // = OV_TILE_M / CHUNK
+pub const DETAIL_CELL_M  = 1.46484375;         // = OV_TILE_M / (CHUNK*CHUNK)  (~1.5 m)
+const OV_SCALE = 866.0254037844386;            // OV_TILE_M / HEX_LEN: hex_grid px-units -> metres
+
+// overworld hex (q,r) -> its centre in world metres
+pub fn overworld_center(q: integer, r: integer) -> (float, float) {
+  (px, py) = hex_grid::hex_to_px(q, r);
+  (px * OV_SCALE, py * OV_SCALE)
+}
+// world metres -> the overworld hex containing it
+pub fn overworld_hex_of(x: float, y: float) -> (integer, integer) {
+  hex_grid::px_to_hex(x / OV_SCALE, y / OV_SCALE)
+}
+
+// world metres -> detail chunk coords (global)
+pub fn detail_chunk_of(x: float, y: float) -> (integer, integer) {
+  (floor(x / DETAIL_CHUNK_M) as integer, floor(y / DETAIL_CHUNK_M) as integer)
+}
+// world metres -> the within-chunk cell (hx,hz) in 0..31
+pub fn detail_local_of(x: float, y: float) -> (integer, integer) {
+  gcx = floor(x / DETAIL_CELL_M) as integer;
+  gcz = floor(y / DETAIL_CELL_M) as integer;
+  (((gcx % CHUNK) + CHUNK) % CHUNK, ((gcz % CHUNK) + CHUNK) % CHUNK)
+}
+// detail cell (chunk dcx,dcz + local hx,hz) -> its centre in world metres
+pub fn detail_cell_center(dcx: integer, dcz: integer, hx: integer, hz: integer) -> (float, float) {
+  ((((dcx * CHUNK + hx) as float) + 0.5) * DETAIL_CELL_M,
+   (((dcz * CHUNK + hz) as float) + 0.5) * DETAIL_CELL_M)
+}
+// the detail-chunk bbox covering an overworld hex's extent (~32 x ~37 chunks)
+pub fn overworld_detail_range(q: integer, r: integer) -> (integer, integer, integer, integer) {
+  (cx, cy) = overworld_center(q, r);
+  hw = OV_TILE_M * 0.5;            // half flat-to-flat width
+  hh = OV_SCALE;                   // circumradius = OV_TILE_M / sqrt(3)
+  (floor((cx - hw) / DETAIL_CHUNK_M) as integer, floor((cy - hh) / DETAIL_CHUNK_M) as integer,
+   floor((cx + hw) / DETAIL_CHUNK_M) as integer, floor((cy + hh) / DETAIL_CHUNK_M) as integer)
+}

@@ -1,0 +1,42 @@
+// chunkgen — @PLN2 S2: fill chunks from the loft overland engine. The engine already provides
+// towns/roads/sized rivers/fields/swamps via ov_sample, so an OVERWORLD chunk is just a faithful
+// 32x32 sample of it (height + kind), base+0.1 m encoded. Renderer-follows-data: this produces
+// chunk DATA from the engine; nothing is invented here.
+use chunk;
+use overland;
+
+// Fill a 32x32 overworld chunk (cells = 1.5 km hexes). Cell (hx,hz) is overworld hex
+// (cx*CHUNK+hx, cz*CHUNK+hz); its height + kind come from ov_sample at the hex centre.
+// Deterministic: a pure function of (the seeded overland, cx, cz).
+pub fn overworld_chunk(ov: Overland, cx: integer, cz: integer) -> DetailChunk {
+  hs: vector<float> = [];
+  ks: vector<integer> = [];
+  for hz in 0..CHUNK {
+    for hx in 0..CHUNK {
+      q = cx * CHUNK + hx;
+      r = cz * CHUNK + hz;
+      (x, y) = overworld_center(q, r);
+      (hh, kk) = ov_sample(ov, x, y);
+      hs += [hh];
+      ks += [kk];
+    }
+  }
+  chunk_build(cx, cz, hs, ks)
+}
+
+// Fill a 32x32 DETAIL chunk (the LOD tier): cells = ~1.5 m raster, sampled from the SAME engine
+// at the fine detail-cell positions (ov_sample's fbm gives the sub-hex detail). Same field as
+// the overworld tier -> consistent on zoom (I-LOD). Deterministic; base+0.1 m encoded.
+pub fn detail_chunk(ov: Overland, dcx: integer, dcz: integer) -> DetailChunk {
+  hs: vector<float> = [];
+  ks: vector<integer> = [];
+  for hz in 0..CHUNK {
+    for hx in 0..CHUNK {
+      (x, y) = detail_cell_center(dcx, dcz, hx, hz);
+      (hh, kk) = ov_sample(ov, x, y);
+      hs += [hh];
+      ks += [kk];
+    }
+  }
+  chunk_build(dcx, dcz, hs, ks)
+}

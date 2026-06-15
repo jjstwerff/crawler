@@ -1,0 +1,46 @@
+// chunktest — @PLN2 P0/P1 pin: the 32x32 detail chunk's base+0.1 m encoding round-trips
+// exactly (I-HEIGHT), is watertight across chunk bases (I-SEAM), base = lowest point, offsets
+// fit u16, and the 32x32 addressing is correct. Headless, deterministic.
+use chunk;
+
+fn main() {
+  println("=== story chunk test (32x32 detail chunk: base + 0.1 m, round-trip / seam) ===");
+
+  // I-HEIGHT: build from varied heights, reconstruct within the 0.05 m quantisation bound
+  hs: vector<float> = [];
+  ks: vector<integer> = [];
+  for k in 0..1024 { hs += [800.0 + (k as float) * 2.137]; ks += [k % 11]; }
+  ch = chunk_build(2, 1, hs, ks);
+  rt = true;
+  maxerr = 0.0;
+  for k in 0..1024 {
+    e = abs(chunk_height(ch, k) - (hs[k] ?? 0.0));
+    if e > maxerr { maxerr = e; }
+    if e > 0.051 { rt = false; }
+  }
+
+  base_ok = ch.dk_base == 800;          // base = lowest point = floor(min)
+  ufit = true;
+  for k in 0..1024 {
+    o = ch.dk_off[k] ?? -1;
+    if o < 0 || o > 65535 { ufit = false; }
+  }
+
+  // I-SEAM: a shared border height (>= both chunks' bases, since a base is the chunk MIN)
+  // stored under DIFFERENT chunk bases reconstructs identically (integer-metre base keeps the
+  // 0.1 m grid aligned -> no crack between adjacent chunks)
+  seam = true;
+  smax = 0.0;
+  for j in 0..7 {
+    hv = 1020.0 + (j as float) * 180.0;   // all >= 1000 (in range for both bases below)
+    d = abs(chunk_quant(800, hv) - chunk_quant(1000, hv));
+    if d > smax { smax = d; }
+    if d > 0.051 { seam = false; }
+  }
+
+  idx_ok = dk_cell_idx(5, 7) == 7 * 32 + 5;   // 32x32 addressing
+
+  println("round-trip={rt}(maxerr={maxerr}) base={base_ok} u16fit={ufit} seam={seam}(d={smax}) idx={idx_ok}");
+  ok = rt && base_ok && ufit && seam && idx_ok;
+  if ok { println("=== CHUNK OK ==="); } else { println("=== CHUNK FAIL ==="); }
+}

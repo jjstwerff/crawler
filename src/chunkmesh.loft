@@ -1,0 +1,87 @@
+// chunkmesh — @PLN2 S4: build a renderable heightfield surface mesh for a DETAIL chunk (square
+// ~1.5 m cells). 33x33 vertex grid: the chunk's 32x32 cells PLUS a shared right/bottom edge taken
+// from the east/south/south-east neighbours — so adjacent chunk meshes share their boundary
+// vertices exactly (watertight, I-SEAM in the rendered surface). Vertex stride = 6 floats
+// (x, height, z, r, g, b). The renderable VBO + the gridmesh dirty/group batching come at S5;
+// this step is the per-chunk mesh DATA, verifiable headlessly.
+use chunk;
+use overland;
+
+pub const MESH_STRIDE = 6;
+
+// terrain kind (K_*) -> a vertex colour
+fn kind_rgb(k: integer) -> (float, float, float) {
+  if k == K_SNOW  { return (0.93, 0.95, 0.98); }
+  if k == K_ICE   { return (0.80, 0.88, 0.95); }
+  if k == K_FACE  { return (0.50, 0.48, 0.46); }
+  if k == K_SCREE { return (0.62, 0.59, 0.55); }
+  if k == K_MEADOW { return (0.60, 0.72, 0.40); }
+  if k == K_FOREST { return (0.20, 0.45, 0.22); }
+  if k == K_GRASS { return (0.55, 0.68, 0.38); }
+  if k == K_FIELD { return (0.80, 0.74, 0.45); }
+  if k == K_SAND  { return (0.84, 0.78, 0.55); }
+  if k == K_RIVER || k == K_LAKE || k == K_SEA { return (0.25, 0.45, 0.65); }
+  if k == K_SWAMP { return (0.40, 0.50, 0.42); }
+  if k == K_ROAD  { return (0.45, 0.42, 0.40); }
+  (0.55, 0.55, 0.55)
+}
+
+// the heightfield vertex buffer for a detail chunk (+ its E / S / SE neighbours for the shared
+// edges). 33x33 vertices, row-major (j*33+i), stride MESH_STRIDE.
+pub fn chunk_mesh(ch: DetailChunk, ch_e: DetailChunk, ch_s: DetailChunk,
+                  ch_se: DetailChunk) -> vector<float> {
+  v: vector<float> = [];
+  for j in 0..33 {
+    for i in 0..33 {
+      src = ch;
+      if i == 32 && j < 32 { src = ch_e; }
+      if j == 32 && i < 32 { src = ch_s; }
+      if i == 32 && j == 32 { src = ch_se; }
+      ci = i;
+      if i == 32 { ci = 0; }
+      cj = j;
+      if j == 32 { cj = 0; }
+      idx = dk_cell_idx(ci, cj);
+      h = chunk_height(src, idx);
+      (r, g, b) = kind_rgb(chunk_kind(src, idx));
+      gx = ch.dk_cx * CHUNK + i;
+      gz = ch.dk_cz * CHUNK + j;
+      x = ((gx as float) + 0.5) * DETAIL_CELL_M;
+      z = ((gz as float) + 0.5) * DETAIL_CELL_M;
+      v += [x, h, z, r, g, b];
+    }
+  }
+  v
+}
+
+// the OVERWORLD-tier mesh (@PLN2 S5d): same 33x33 grid + shared-edge rule as chunk_mesh, but each
+// cell is a 1.5 km HEX, so the vertex world (x,z) comes from overworld_center(hex) — the coarse
+// LOD. Same field as the detail tier (both via ov_sample) -> heights agree at hex centres (I-LOD,
+// no pop on the tier switch). Not a wrapper around chunk_mesh (the spacing differs; loft#339).
+pub fn chunk_mesh_ov(ch: DetailChunk, ch_e: DetailChunk, ch_s: DetailChunk,
+                     ch_se: DetailChunk) -> vector<float> {
+  v: vector<float> = [];
+  for j in 0..33 {
+    for i in 0..33 {
+      src = ch;
+      if i == 32 && j < 32 { src = ch_e; }
+      if j == 32 && i < 32 { src = ch_s; }
+      if i == 32 && j == 32 { src = ch_se; }
+      ci = i;
+      if i == 32 { ci = 0; }
+      cj = j;
+      if j == 32 { cj = 0; }
+      idx = dk_cell_idx(ci, cj);
+      h = chunk_height(src, idx);
+      (r, g, b) = kind_rgb(chunk_kind(src, idx));
+      gx = ch.dk_cx * CHUNK + i;
+      gz = ch.dk_cz * CHUNK + j;
+      (wx, wz) = overworld_center(gx, gz);
+      v += [wx, h, wz, r, g, b];
+    }
+  }
+  v
+}
+
+// triangles in the 33x33 grid (two per cell quad)
+pub fn chunk_mesh_tris() -> integer { 32 * 32 * 2 }

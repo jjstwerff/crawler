@@ -1,0 +1,273 @@
+// viewer — @PLN2 S5: the chunked-LOD terrain viewer (native GL).
+//
+// S5e (this step): the DUAL split view. Left pane = the DETAIL tier (1.46 m cells, the flank
+// chunk close up); right pane = the OVERWORLD tier (1.5 km hex cells, the whole continent). Two
+// viewports (gl_viewport), two cameras, two dirty-streamed chunk sets — built on S5c/S5d. (The
+// original A=real-from-seed / B=model split reuses this exact machinery once @PLN1's real-height
+// seed is ported into loft; until then the panes show the two LODs of the model.) WASD/QE drive
+// the detail (left) camera; the overworld (right) pane is a fixed overview.
+// VIEWER_SMOKE=1 renders one dual frame -> /tmp/viewer_s5e.png (the `make viewer-gold` gate).
+// Design: plans/2-chunked-lod-world/s5-viewer-design.md
+use chunk;
+use chunkgen;
+use chunkmesh;
+use talus;
+use overland;
+use graphics;
+use math;
+
+const KEY_W = 119;
+const KEY_S = 115;
+const KEY_A = 97;
+const KEY_D = 100;
+const KEY_Q = 113;
+const KEY_E = 101;
+const KEY_ESC = 27;
+
+const MAXLOAD = 64;
+const DETAIL_RAD = 1;          // detail tier: 3x3 chunks around the focal
+const OVERWORLD_RAD = 0;       // overworld tier: one 32x32-hex chunk covers this 9x7 world
+
+const VERT = `
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aCol;
+uniform mat4 uMVP;
+out vec3 vCol;
+void main() {{
+    vCol = aCol;
+    gl_Position = uMVP * vec4(aPos, 1.0);
+}}
+`;
+
+const FRAG = `
+#version 330 core
+in vec3 vCol;
+out vec4 FragColor;
+void main() {{
+    FragColor = vec4(vCol, 1.0);
+}}
+`;
+
+struct ViewerCam {
+  focal_x: float not null,
+  focal_y: float not null,
+  focal_z: float not null,
+  zoom:    float not null,
+}
+
+fn build_indices() -> vector<integer> {
+  idx: vector<integer> = [];
+  for j in 0..32 {
+    for i in 0..32 {
+      v = j * 33 + i;
+      idx += [v, v + 1, v + 33];
+      idx += [v + 1, v + 34, v + 33];
+    }
+  }
+  idx
+}
+
+// bake ONE chunk of the given tier -> a VAO (vbuf built + uploaded INSIDE the fn — loft#392).
+// use_talus (detail tier only): apply the S6.2 angle-of-repose talus (bare faces + scree).
+fn bake_chunk(o: Overland, cx: integer, cz: integer, idx: vector<integer>, overworld: boolean,
+              use_talus: boolean) -> integer {
+  mraw: vector<float> = [];
+  if overworld {
+    ca = overworld_chunk(o, cx, cz);
+    ce = overworld_chunk(o, cx + 1, cz);
+    cs = overworld_chunk(o, cx, cz + 1);
+    cse = overworld_chunk(o, cx + 1, cz + 1);
+    mraw = chunk_mesh_ov(ca, ce, cs, cse);
+  } else {
+    if use_talus {
+      ca = talus_chunk(o, cx, cz);
+      ce = talus_chunk(o, cx + 1, cz);
+      cs = talus_chunk(o, cx, cz + 1);
+      cse = talus_chunk(o, cx + 1, cz + 1);
+      mraw = chunk_mesh(ca, ce, cs, cse);
+    } else {
+      ca = detail_chunk(o, cx, cz);
+      ce = detail_chunk(o, cx + 1, cz);
+      cs = detail_chunk(o, cx, cz + 1);
+      cse = detail_chunk(o, cx + 1, cz + 1);
+      mraw = chunk_mesh(ca, ce, cs, cse);
+    }
+  }
+  vbuf: vector<single> = [];
+  for q in 0..len(mraw) { vbuf += [(mraw[q] ?? 0.0) as single]; }
+  vao = graphics::gl_upload_vertices(vbuf, 6);
+  _e = graphics::gl_upload_indices(vao, idx);
+  vao
+}
+
+// stream a loaded set to the window centred on chunk (fcx,fcz) of the tier; returns bakes count.
+fn window_update(o: Overland, lcx: &vector<integer>, lcz: &vector<integer>, lvao: &vector<integer>,
+                 fcx: integer, fcz: integer, rad: integer, overworld: boolean,
+                 use_talus: boolean, idx: vector<integer>) -> integer {
+  for k in 0..MAXLOAD {
+    vv = lvao[k] ?? 0;
+    if vv != 0 {
+      ox = lcx[k] ?? 0;
+      oz = lcz[k] ?? 0;
+      if ox < fcx - rad || ox > fcx + rad || oz < fcz - rad || oz > fcz + rad {
+        graphics::gl_delete_vao(vv);
+        lvao[k] = 0;
+      }
+    }
+  }
+  bakes = 0;
+  dz = 0 - rad;
+  while dz <= rad {
+    dx = 0 - rad;
+    while dx <= rad {
+      cx = fcx + dx;
+      cz = fcz + dz;
+      present = false;
+      for k in 0..MAXLOAD {
+        if (lvao[k] ?? 0) != 0 && (lcx[k] ?? -9) == cx && (lcz[k] ?? -9) == cz { present = true; }
+      }
+      if !present {
+        slot = -1;
+        for k in 0..MAXLOAD {
+          if (lvao[k] ?? 1) == 0 && slot < 0 { slot = k; }
+        }
+        if slot >= 0 {
+          lvao[slot] = bake_chunk(o, cx, cz, idx, overworld, use_talus);
+          lcx[slot] = cx;
+          lcz[slot] = cz;
+          bakes += 1;
+        }
+      }
+      dx += 1;
+    }
+    dz += 1;
+  }
+  bakes
+}
+
+fn build_mvp(cam: ViewerCam, aspect: float) -> math::Mat4 {
+  d = cam.zoom;
+  eye = math::vec3(cam.focal_x + d * 0.38, cam.focal_y + d * 0.90, cam.focal_z + d * 0.38);
+  target = math::vec3(cam.focal_x, cam.focal_y, cam.focal_z);
+  up = math::vec3(0.0, 1.0, 0.0);
+  far = d * 4.0 + 8000.0;
+  proj = math::mat4_perspective(0.8, aspect, 0.5, far);
+  view = math::mat4_look_at(eye, target, up);
+  math::mat4_mul(proj, view)
+}
+
+// draw one pane's loaded set under its camera. Caller has already set the viewport + cleared.
+fn draw_pane(cam: ViewerCam, shader: integer, lvao: vector<integer>, nidx: integer, aspect: float) {
+  mvp = build_mvp(cam, aspect);
+  graphics::gl_use_shader(shader);
+  graphics::gl_set_uniform_mat4(shader, "uMVP", mvp.m);
+  for k in 0..MAXLOAD {
+    vv = lvao[k] ?? 0;
+    if vv != 0 { graphics::gl_draw_elements(vv, nidx, graphics::DRAW_TRIANGLES); }
+  }
+}
+
+fn main() {
+  println("=== crawler S5e viewer (dual split: detail | overworld; VIEWER_SMOKE=1 -> golden) ===");
+  o = overland_new();
+  idx = build_indices();
+  nidx = len(idx);
+
+  w = 800;
+  h = 600;
+  if !graphics::gl_create_window(w, h, "crawler S5e viewer") {
+    println("FAIL: gl_create_window");
+    return;
+  }
+  graphics::gl_enable(graphics::GL_DEPTH_TEST);
+  shader = graphics::gl_create_shader(VERT, FRAG);
+  hw = w / 2 ?? 400;
+  pane_aspect = (hw as float) / (h as float) ?? 0.667;
+
+  // LEFT (detail) camera: the varied flank chunk (143,83), framed to its footprint
+  ca0 = detail_chunk(o, 143, 83);
+  minh = 99999.0;
+  maxh = -99999.0;
+  for ci in 0..1024 {
+    hh = chunk_height(ca0, ci);
+    if hh < minh { minh = hh; }
+    if hh > maxh { maxh = hh; }
+  }
+  span = maxh - minh;
+  dcx0 = (((143 * 32 + 16) as float) + 0.5) * DETAIL_CELL_M;
+  dcz0 = (((83 * 32 + 16) as float) + 0.5) * DETAIL_CELL_M;
+  cam_d = ViewerCam { focal_x: dcx0, focal_y: minh + span * 0.35, focal_z: dcz0,
+                      zoom: DETAIL_CHUNK_M * 3.0 + 40.0 };
+
+  // RIGHT (overworld) camera: the whole continent, focal at world-centre hex (4,3)
+  (ocx0, ocz0) = overworld_center(4, 3);
+  cam_o = ViewerCam { focal_x: ocx0, focal_y: 1100.0, focal_z: ocz0, zoom: 16000.0 };
+
+  // two loaded sets (detail + overworld), each pre-allocated
+  ld_cx: vector<integer> = [];
+  ld_cz: vector<integer> = [];
+  ld_vao: vector<integer> = [];
+  lo_cx: vector<integer> = [];
+  lo_cz: vector<integer> = [];
+  lo_vao: vector<integer> = [];
+  for _k in 0..MAXLOAD {
+    ld_cx += [0];
+    ld_cz += [0];
+    ld_vao += [0];
+    lo_cx += [0];
+    lo_cz += [0];
+    lo_vao += [0];
+  }
+
+  use_talus = env_variable("VIEWER_TALUS") == "1";   // S6.2 angle-of-repose talus on the detail tier
+  (dfx, dfz) = detail_chunk_of(cam_d.focal_x, cam_d.focal_z);
+  _bd = window_update(o, ld_cx, ld_cz, ld_vao, dfx, dfz, DETAIL_RAD, false, use_talus, idx);
+  (oq, orr) = overworld_hex_of(cam_o.focal_x, cam_o.focal_z);
+  _bo = window_update(o, lo_cx, lo_cz, lo_vao, oq / CHUNK ?? 0, orr / CHUNK ?? 0, OVERWORLD_RAD, true, false, idx);
+  println("S5e: detail chunk ({dfx},{dfz}); overworld chunk ({oq / CHUNK ?? 0},{orr / CHUNK ?? 0}); talus={use_talus}");
+
+  smoke = env_variable("VIEWER_SMOKE");
+  if smoke == "1" {
+    graphics::gl_viewport(0, 0, w, h);
+    graphics::gl_clear(0x223344);
+    graphics::gl_viewport(0, 0, hw, h);
+    draw_pane(cam_d, shader, ld_vao, nidx, pane_aspect);
+    graphics::gl_viewport(hw, 0, hw, h);
+    draw_pane(cam_o, shader, lo_vao, nidx, pane_aspect);
+    _s = graphics::gl_screenshot(w, h, "/tmp/viewer_s5e.png");
+    graphics::gl_swap_buffers();
+    println("S5e smoke: dual frame -> /tmp/viewer_s5e.png (left detail | right overworld)");
+    return;
+  }
+
+  println("S5e: WASD pan / Q-E zoom the DETAIL (left) camera; right = overworld overview; Esc quit");
+  prev_fx = dfx;
+  prev_fz = dfz;
+  while graphics::gl_poll_events() {
+    if graphics::gl_key_pressed(KEY_ESC) { break; }
+    step = cam_d.zoom * 0.012;
+    if graphics::gl_key_pressed(KEY_W) { cam_d.focal_z = cam_d.focal_z - step; }
+    if graphics::gl_key_pressed(KEY_S) { cam_d.focal_z = cam_d.focal_z + step; }
+    if graphics::gl_key_pressed(KEY_A) { cam_d.focal_x = cam_d.focal_x - step; }
+    if graphics::gl_key_pressed(KEY_D) { cam_d.focal_x = cam_d.focal_x + step; }
+    if graphics::gl_key_pressed(KEY_Q) { cam_d.zoom = cam_d.zoom * 1.03; }
+    if graphics::gl_key_pressed(KEY_E) { cam_d.zoom = cam_d.zoom * 0.97; }
+    if cam_d.zoom < 40.0 { cam_d.zoom = 40.0; }
+    if cam_d.zoom > 2000.0 { cam_d.zoom = 2000.0; }
+    (nfx, nfz) = detail_chunk_of(cam_d.focal_x, cam_d.focal_z);
+    if nfx != prev_fx || nfz != prev_fz {
+      _bu = window_update(o, ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD, false, use_talus, idx);
+      prev_fx = nfx;
+      prev_fz = nfz;
+    }
+    graphics::gl_viewport(0, 0, w, h);
+    graphics::gl_clear(0x223344);
+    graphics::gl_viewport(0, 0, hw, h);
+    draw_pane(cam_d, shader, ld_vao, nidx, pane_aspect);
+    graphics::gl_viewport(hw, 0, hw, h);
+    draw_pane(cam_o, shader, lo_vao, nidx, pane_aspect);
+    graphics::gl_swap_buffers();
+  }
+  println("S5e: quit");
+}

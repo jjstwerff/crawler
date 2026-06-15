@@ -114,7 +114,7 @@ def fbm(xs, ys, wl0, octaves, ch):
 class Overland:
     """The coarse truth: per-cell record {material, height, water level+dir, acc}."""
 
-    def __init__(self, tile_m):
+    def __init__(self, tile_m, heights=None):
         self.hw = tile_m                      # horizontal pitch
         self.r = tile_m / SQ3                 # circumradius (pointy-top)
         self.vs = 1.5 * self.r                # vertical pitch
@@ -125,7 +125,7 @@ class Overland:
         self.moist = np.zeros((self.ny, self.nx))
         self.flow = np.full((self.ny, self.nx), -1, int)   # 0..5 neighbor index, -1 none
         self.acc = np.ones((self.ny, self.nx))
-        self._gen()
+        self._gen(heights)
 
     def center(self, c, r):
         return ((c + 0.5 * (r & 1)) * self.hw, r * self.vs)
@@ -137,29 +137,33 @@ class Overland:
             off = ((1, 0), (-1, 0), (0, -1), (-1, -1), (0, 1), (-1, 1))
         return [(c + dc, r + dr) for (dc, dr) in off]
 
-    def _gen(self):
+    def _gen(self, heights=None):
         # heights sampled IN WORLD METERS -> the same continent at every tile scale
         C, R = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
         X = (C + 0.5 * (R & 1)) * self.hw
         Y = R * self.vs
-        n = fbm(X, Y, 22500.0, 6, 7)
-        ridge = 1.0 - np.abs(fbm(X, Y, 33000.0, 3, 23))   # ridged noise
-        # broad continent, sea at the rim; DOMAIN-WARPED rim -> bays + peninsulas
-        dx = (X - WORLD_W * 0.42) / (WORLD_W * 0.50)
-        dy = (Y - WORLD_H * 0.48) / (WORLD_H * 0.58)
-        rad = np.maximum(0.0, np.sqrt(dx * dx + dy * dy) + 0.30 * fbm(X, Y, 18000.0, 3, 31))
-        # SEVERAL massifs (not one dome) -> basins between them CONVERGE drainage;
-        # positions hash-jittered by the seed so each world has its own bones
-        self.h = 380.0 * n + 170.0 - 1000.0 * rad ** 2.6
-        for k, (fx, fy, sx, sy, amp) in enumerate(((0.28, 0.30, 0.10, 0.16, 980.0),
-                                                   (0.40, 0.66, 0.11, 0.14, 920.0),
-                                                   (0.58, 0.26, 0.09, 0.13, 860.0),
-                                                   (0.52, 0.50, 0.05, 0.07, 420.0))):
-            fx = fx + (float(hash01(k, 1, 51)) - 0.5) * 0.16
-            fy = fy + (float(hash01(k, 2, 52)) - 0.5) * 0.16
-            g = np.exp(-((X - WORLD_W * fx) / (WORLD_W * sx)) ** 2
-                       - ((Y - WORLD_H * fy) / (WORLD_H * sy)) ** 2)
-            self.h = self.h + amp * ridge * g
+        if heights is None:
+            n = fbm(X, Y, 22500.0, 6, 7)
+            ridge = 1.0 - np.abs(fbm(X, Y, 33000.0, 3, 23))   # ridged noise
+            # broad continent, sea at the rim; DOMAIN-WARPED rim -> bays + peninsulas
+            dx = (X - WORLD_W * 0.42) / (WORLD_W * 0.50)
+            dy = (Y - WORLD_H * 0.48) / (WORLD_H * 0.58)
+            rad = np.maximum(0.0, np.sqrt(dx * dx + dy * dy) + 0.30 * fbm(X, Y, 18000.0, 3, 31))
+            # SEVERAL massifs (not one dome) -> basins between them CONVERGE drainage;
+            # positions hash-jittered by the seed so each world has its own bones
+            self.h = 380.0 * n + 170.0 - 1000.0 * rad ** 2.6
+            for k, (fx, fy, sx, sy, amp) in enumerate(((0.28, 0.30, 0.10, 0.16, 980.0),
+                                                       (0.40, 0.66, 0.11, 0.14, 920.0),
+                                                       (0.58, 0.26, 0.09, 0.13, 860.0),
+                                                       (0.52, 0.50, 0.05, 0.07, 420.0))):
+                fx = fx + (float(hash01(k, 1, 51)) - 0.5) * 0.16
+                fy = fy + (float(hash01(k, 2, 52)) - 0.5) * 0.16
+                g = np.exp(-((X - WORLD_W * fx) / (WORLD_W * sx)) ** 2
+                           - ((Y - WORLD_H * fy) / (WORLD_H * sy)) ** 2)
+                self.h = self.h + amp * ridge * g
+        else:
+            # INJECTED real heights (@PLN1): skip synthesis, keep the derive below
+            self.h = np.asarray(heights, dtype=float).copy()
         self.moist = 0.5 + 0.5 * fbm(X, Y, 15600.0, 3, 11)
         # PRIORITY-FLOOD pit fill: every land cell drains to the sea; cells the
         # flood raised noticeably sit in depressions -> true lakes.
@@ -631,7 +635,7 @@ def chamfer_dt(mask):
     return d.astype(np.float64) / 12.0
 
 # ------------------------------------------------ fine terrain of a window
-def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height=False):
+def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height=False, tint=None, real_height=False):
     """Pure function of (overland, rivers, window) -> RGB array.
     Computes with an APRON of APRON_M and crops -> window independence holds."""
     ap = int(math.ceil(APRON_M / px_m))
@@ -654,7 +658,10 @@ def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height
     # (bias by detail amplitude).  Heights stay continuous; only the material
     # claim is a winner-takes-it contest with fractally jittered scores.
     matcol, steep_eff, rise_eff = material_contest(f, xs, ys)
-    height = fine_height_of(f, steep_eff, rise_eff, detail, ridge_at(xs, ys))
+    # @PLN1 real_height: render the smooth blended REAL height directly — the procedural
+    # relief/detail enrichment (fine_height_of) is calibrated for ~100 m synthetic relief
+    # and explodes on real alpine relief (2.4 km), so skip it for real DEM data.
+    height = f["h"].copy() if real_height else fine_height_of(f, steep_eff, rise_eff, detail, ridge_at(xs, ys))
 
     # --- rivers: EXACT per-pixel distance to the nearest course segment.
     # No rasterization, no DT: per-pixel mins over floats that are identical in
@@ -723,7 +730,9 @@ def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height
     riparian = riparian * np.clip((wfield - 1.2) / 5.0, 0.12, 1.0)   # size-gated
 
     # --- coloring
-    col = matcol
+    # @PLN1 tint hook: an external classifier (e.g. OSM ground truth) may replace the
+    # material base color while keeping the SAME relief/water/hillshade routine.
+    col = matcol if tint is None else tint(xs, ys, matcol, f)
     green = np.array([72.0, 122.0, 58.0])
     g = np.clip(riparian * 0.45 + np.clip(f["moist"] - 0.5, 0, 1) * 0.15, 0, 1)
     g = g * (height > SEA_LEVEL)
@@ -763,8 +772,9 @@ def render_window(ov, rivers, x0, y0, wpx, hpx, px_m, borders=False, want_height
     rapids = river_water & (np.hypot(gx, gy) > 0.022) & (wfield < 8.0)
     col = np.where(rapids[..., None], np.array([208.0, 222.0, 238.0])[None, None, :], col)
 
-    dith = hash01(np.round(xs).astype(np.int64), np.round(ys).astype(np.int64), 91)
-    col = col * (0.84 + 0.32 * dith)[..., None]
+    if not real_height:                          # dither grain is enrichment too — skip it clean
+        dith = hash01(np.round(xs).astype(np.int64), np.round(ys).astype(np.int64), 91)
+        col = col * (0.84 + 0.32 * dith)[..., None]
     img = np.clip(col, 0, 255).astype(np.uint8)[ap:ap + hpx, ap:ap + wpx]
 
     if borders:
@@ -880,13 +890,15 @@ def panel_profile(ov, rivers, fname):
 
 def panel_view3d(ov, rivers, fname, wpx=1440, ck=0.55, hk=1.0 / 7.0,
                  caption="orthographic 3D miniature of the whole map "
-                         "(24x16 km, height exaggerated)"):
+                         "(24x16 km, height exaggerated)", tint=None, real_height=False):
     """Orthographic 3D relief model of the WHOLE map, viewed from the south
     (parallel projection, y-buffer painter). wpx/ck/hk size it: the default is
-    the miniature; the `orthofull` mode renders the full-detail version."""
+    the miniature; the `orthofull` mode renders the full-detail version.
+    `tint` is the @PLN1 classification override passed through to render_window."""
     pm = WORLD_W / float(wpx)
     Wg, Hg = wpx, int(WORLD_H / pm)
-    img2d, hgt = render_window(ov, rivers, 0.0, 0.0, Wg, Hg, pm, want_height=True)
+    img2d, hgt = render_window(ov, rivers, 0.0, 0.0, Wg, Hg, pm, want_height=True, tint=tint,
+                               real_height=real_height)
     im2 = Image.fromarray(img2d)             # bake the river overlay into the colors
     d2 = ImageDraw.Draw(im2)
     for fp, width, _, _, _, _ in rivers:
@@ -911,15 +923,22 @@ def panel_view3d(ov, rivers, fname, wpx=1440, ck=0.55, hk=1.0 / 7.0,
         if not (lens > 0).any():
             continue
         color = img2d[r, :, :]
+        face = (color.astype(np.float64) * 0.5).astype(np.uint8)   # shaded vertical sides
+        front = (r == Hg - 1)                                      # the front skirt to baseline
+        base = np.array([34, 38, 46], np.uint8)                    # uniform pedestal colour
         kmax = int(lens.max())
         for k in range(kmax):
             m = lens > k
-            out[sy[m] + k, cols[m]] = color[m]
+            if k == 0:
+                out[sy[m] + k, cols[m]] = color[m]                 # lit surface top
+            else:
+                out[sy[m] + k, cols[m]] = base if front else face[m]  # pedestal vs shaded cliff
         ybuf = np.minimum(ybuf, sy)
     im = Image.fromarray(out)
     ImageDraw.Draw(im).text((10, 8), caption, fill=(255, 255, 90))
     im.save(fname)
     print("wrote " + fname)
+    return im
 
 # --------------------------------------------------------------- panels
 def panel_overland(ov, fname):

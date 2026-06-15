@@ -44,7 +44,7 @@ fn main() {
     (lh, lkind) = ov_sample(o, lx, ly);
     if lkind == K_LAKE {
       lk = lk + 1;
-      if lh != 170.0 { i2 = false; }
+      if lh != 510.0 { i2 = false; }
     }
   }
   i2 = i2 && lk >= 2;

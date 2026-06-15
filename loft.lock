@@ -15,3 +15,17 @@ version = "0.1.0"
 url = "https://github.com/loft-lang/loft-libs-core/releases/download/random-v0.1.0/random-0.1.0.tar.gz"
 sha256 = "7599297598bfec378135c90868766ad23046d47c001690a42d79a48d4bb1acaa"
 source = "registry"
+
+[[package]]
+name = "hex_grid"
+version = "0.1.0"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_grid-v0.1.0/hex_grid-0.1.0.tar.gz"
+sha256 = "f7af3fa54141dcae920666f606c5932252f801d555dd63b0b654d5355f8c1fbd"
+source = "registry"
+
+[[package]]
+name = "hex_terrain"
+version = "0.1.0"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_terrain-v0.1.0/hex_terrain-0.1.0.tar.gz"
+sha256 = "98669010662c92b5d6a26a1d6829e96458fa79c2ed57929568d87f3b78c7249c"
+source = "registry"

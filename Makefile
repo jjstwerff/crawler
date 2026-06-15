@@ -99,7 +99,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe bundles fmt clean all loft-doctor
+.PHONY: help play game serve test check check-native shot probe viewer viewer-gold bundles fmt clean all loft-doctor
 
 # Default target: print the overview above.
 help:
@@ -238,6 +238,41 @@ probe:
 	    python3 tools/probe.py $$s || fail=1; done; \
 	    [ $$fail -eq 0 ] || { echo "  probe: FAILURES"; exit 1; }
 	@echo "  probe: all specs green"
+
+# ── @PLN2 chunked-LOD terrain viewer (S5) ─────────────────────────────────
+# `make viewer`      — interactive dual split (left detail | right overworld);
+#                      WASD pan, Q/E zoom the detail (left) camera, Esc quits.
+# `make viewer-gold` — headless: render the dual frame under Xvfb, diff vs the
+#                      golden (imagemagick `compare`, fuzz-tolerant). On first run
+#                      (no golden) it prints the copy command to adopt the frame.
+VIEWER_FLAGS := $(LIB_DEPS)
+VIEWER_GOLD  := tools/golden/viewer_s5e.png
+
+viewer:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  viewer: loft not found ($(LOFT))"; exit 1; }
+	@echo "  [viewer] dual split — WASD pan / Q-E zoom the detail (left) cam; Esc quits ..."
+	@$(LOFT) --interpret $(VIEWER_FLAGS) src/viewer.loft
+
+viewer-gold:
+	@command -v xvfb-run >/dev/null 2>&1 || { echo "  viewer-gold: missing xvfb-run"; exit 1; }
+	@command -v compare  >/dev/null 2>&1 || { echo "  viewer-gold: missing imagemagick 'compare'"; exit 1; }
+	@echo "  [viewer-gold] rendering dual frame under Xvfb ..."
+	@rm -f /tmp/viewer_s5e.png
+	@VIEWER_SMOKE=1 xvfb-run -a -s "-screen 0 800x600x24" \
+	    $(LOFT) --interpret $(VIEWER_FLAGS) src/viewer.loft >/dev/null 2>&1 || { \
+	    echo "  viewer-gold: render FAILED"; exit 1; }
+	@test -f /tmp/viewer_s5e.png || { echo "  viewer-gold: no frame produced"; exit 1; }
+	@if [ ! -f $(VIEWER_GOLD) ]; then \
+	    echo "  viewer-gold: no golden yet. Review /tmp/viewer_s5e.png; if good:"; \
+	    echo "      mkdir -p tools/golden && cp /tmp/viewer_s5e.png $(VIEWER_GOLD)"; \
+	    exit 1; \
+	  fi
+	@d=$$(compare -metric AE -fuzz 6% $(VIEWER_GOLD) /tmp/viewer_s5e.png /tmp/viewer_s5e_diff.png 2>&1 || true); \
+	  d=$${d%% *}; \
+	  echo "  viewer-gold: differing pixels (fuzz 6%) = $$d"; \
+	  case "$$d" in ''|*[!0-9]*) echo "  viewer-gold: compare error: $$d"; exit 1;; esac; \
+	  if [ "$$d" -gt 800 ]; then echo "  viewer-gold: GOLDEN MISMATCH (>800 px) — see /tmp/viewer_s5e_diff.png"; exit 1; fi; \
+	  echo "  viewer-gold: golden OK"
 
 # ── Housekeeping ──────────────────────────────────────────────────────────
 
