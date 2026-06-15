@@ -1,11 +1,10 @@
 // viewer — @PLN2 S5: the chunked-LOD terrain viewer (native GL).
 //
-// S5e (this step): the DUAL split view. Left pane = the DETAIL tier (1.46 m cells, the flank
-// chunk close up); right pane = the OVERWORLD tier (1.5 km hex cells, the whole continent). Two
-// viewports (gl_viewport), two cameras, two dirty-streamed chunk sets — built on S5c/S5d. (The
-// original A=real-from-seed / B=model split reuses this exact machinery once @PLN1's real-height
-// seed is ported into loft; until then the panes show the two LODs of the model.) WASD/QE drive
-// the detail (left) camera; the overworld (right) pane is a fixed overview.
+// S5e (this step): the DUAL split view with ONE SHARED camera — both panes show the same
+// DETAIL-tier view (gl_viewport split), so WASD/QE drives BOTH together; the panes differ only in
+// DATA (the A/B): LEFT = plain model, RIGHT = the S6 talus (VIEWER_TALUS=1) or identical to left.
+// (A single camera requires both panes at the same scale; the original A=real-from-seed / B=model
+// split reuses this exact machinery once @PLN1's real-height seed is ported into loft.)
 // VIEWER_SMOKE=1 renders one dual frame -> /tmp/viewer_s5e.png (the `make viewer-gold` gate).
 // Design: plans/2-chunked-lod-world/s5-viewer-design.md
 use chunk;
@@ -169,7 +168,7 @@ fn draw_pane(cam: ViewerCam, shader: integer, lvao: vector<integer>, nidx: integ
 }
 
 fn main() {
-  println("=== crawler S5e viewer (dual split: detail | overworld; VIEWER_SMOKE=1 -> golden) ===");
+  println("=== crawler S5e viewer (dual split, SHARED camera: model | talus; VIEWER_SMOKE=1 -> golden) ===");
   o = overland_new();
   idx = build_indices();
   nidx = len(idx);
@@ -185,7 +184,8 @@ fn main() {
   hw = w / 2 ?? 400;
   pane_aspect = (hw as float) / (h as float) ?? 0.667;
 
-  // LEFT (detail) camera: the varied flank chunk (143,83), framed to its footprint
+  // ONE shared camera on the DETAIL tier, framed to the flank chunk (143,83). BOTH panes use it,
+  // so WASD/QE drives both together — the panes differ only in DATA (the A/B), not the view.
   ca0 = detail_chunk(o, 143, 83);
   minh = 99999.0;
   maxh = -99999.0;
@@ -195,78 +195,88 @@ fn main() {
     if hh > maxh { maxh = hh; }
   }
   span = maxh - minh;
-  dcx0 = (((143 * 32 + 16) as float) + 0.5) * DETAIL_CELL_M;
-  dcz0 = (((83 * 32 + 16) as float) + 0.5) * DETAIL_CELL_M;
-  cam_d = ViewerCam { focal_x: dcx0, focal_y: minh + span * 0.35, focal_z: dcz0,
-                      zoom: DETAIL_CHUNK_M * 3.0 + 40.0 };
+  cfx = (((143 * 32 + 16) as float) + 0.5) * DETAIL_CELL_M;
+  cfz = (((83 * 32 + 16) as float) + 0.5) * DETAIL_CELL_M;
+  cam = ViewerCam { focal_x: cfx, focal_y: minh + span * 0.35, focal_z: cfz,
+                    zoom: DETAIL_CHUNK_M * 3.0 + 40.0 };
 
-  // RIGHT (overworld) camera: the whole continent, focal at world-centre hex (4,3)
-  (ocx0, ocz0) = overworld_center(4, 3);
-  cam_o = ViewerCam { focal_x: ocx0, focal_y: 1100.0, focal_z: ocz0, zoom: 16000.0 };
+  use_talus = env_variable("VIEWER_TALUS") == "1";
 
-  // two loaded sets (detail + overworld), each pre-allocated
+  // two detail sets at the SAME camera: LEFT = plain model, RIGHT = talus (S6 geomorphology) when
+  // VIEWER_TALUS=1, else identical to left (the A/B placeholder until real-from-seed lands).
   ld_cx: vector<integer> = [];
   ld_cz: vector<integer> = [];
   ld_vao: vector<integer> = [];
-  lo_cx: vector<integer> = [];
-  lo_cz: vector<integer> = [];
-  lo_vao: vector<integer> = [];
+  lt_cx: vector<integer> = [];
+  lt_cz: vector<integer> = [];
+  lt_vao: vector<integer> = [];
   for _k in 0..MAXLOAD {
     ld_cx += [0];
     ld_cz += [0];
     ld_vao += [0];
-    lo_cx += [0];
-    lo_cz += [0];
-    lo_vao += [0];
+    lt_cx += [0];
+    lt_cz += [0];
+    lt_vao += [0];
   }
 
-  use_talus = env_variable("VIEWER_TALUS") == "1";   // S6.2 angle-of-repose talus on the detail tier
-  (dfx, dfz) = detail_chunk_of(cam_d.focal_x, cam_d.focal_z);
-  _bd = window_update(o, ld_cx, ld_cz, ld_vao, dfx, dfz, DETAIL_RAD, false, use_talus, idx);
-  (oq, orr) = overworld_hex_of(cam_o.focal_x, cam_o.focal_z);
-  _bo = window_update(o, lo_cx, lo_cz, lo_vao, oq / CHUNK ?? 0, orr / CHUNK ?? 0, OVERWORLD_RAD, true, false, idx);
-  println("S5e: detail chunk ({dfx},{dfz}); overworld chunk ({oq / CHUNK ?? 0},{orr / CHUNK ?? 0}); talus={use_talus}");
+  (dfx, dfz) = detail_chunk_of(cam.focal_x, cam.focal_z);
+  _bl = window_update(o, ld_cx, ld_cz, ld_vao, dfx, dfz, DETAIL_RAD, false, false, idx);
+  if use_talus {
+    _br = window_update(o, lt_cx, lt_cz, lt_vao, dfx, dfz, DETAIL_RAD, false, true, idx);
+  }
+  println("S5e: detail chunk ({dfx},{dfz}); shared camera; right-pane talus={use_talus}");
 
   smoke = env_variable("VIEWER_SMOKE");
   if smoke == "1" {
     graphics::gl_viewport(0, 0, w, h);
     graphics::gl_clear(0x223344);
     graphics::gl_viewport(0, 0, hw, h);
-    draw_pane(cam_d, shader, ld_vao, nidx, pane_aspect);
+    draw_pane(cam, shader, ld_vao, nidx, pane_aspect);
     graphics::gl_viewport(hw, 0, hw, h);
-    draw_pane(cam_o, shader, lo_vao, nidx, pane_aspect);
+    if use_talus {
+      draw_pane(cam, shader, lt_vao, nidx, pane_aspect);
+    } else {
+      draw_pane(cam, shader, ld_vao, nidx, pane_aspect);
+    }
     _s = graphics::gl_screenshot(w, h, "/tmp/viewer_s5e.png");
     graphics::gl_swap_buffers();
-    println("S5e smoke: dual frame -> /tmp/viewer_s5e.png (left detail | right overworld)");
+    println("S5e smoke: dual frame -> /tmp/viewer_s5e.png (left model | right talus/model, shared camera)");
     return;
   }
 
-  println("S5e: WASD pan / Q-E zoom the DETAIL (left) camera; right = overworld overview; Esc quit");
+  println("S5e: WASD pan / Q-E zoom (drives BOTH panes); right = talus when VIEWER_TALUS=1; Esc quit");
   prev_fx = dfx;
   prev_fz = dfz;
   while graphics::gl_poll_events() {
     if graphics::gl_key_pressed(KEY_ESC) { break; }
-    step = cam_d.zoom * 0.012;
-    if graphics::gl_key_pressed(KEY_W) { cam_d.focal_z = cam_d.focal_z - step; }
-    if graphics::gl_key_pressed(KEY_S) { cam_d.focal_z = cam_d.focal_z + step; }
-    if graphics::gl_key_pressed(KEY_A) { cam_d.focal_x = cam_d.focal_x - step; }
-    if graphics::gl_key_pressed(KEY_D) { cam_d.focal_x = cam_d.focal_x + step; }
-    if graphics::gl_key_pressed(KEY_Q) { cam_d.zoom = cam_d.zoom * 1.03; }
-    if graphics::gl_key_pressed(KEY_E) { cam_d.zoom = cam_d.zoom * 0.97; }
-    if cam_d.zoom < 40.0 { cam_d.zoom = 40.0; }
-    if cam_d.zoom > 2000.0 { cam_d.zoom = 2000.0; }
-    (nfx, nfz) = detail_chunk_of(cam_d.focal_x, cam_d.focal_z);
+    step = cam.zoom * 0.012;
+    if graphics::gl_key_pressed(KEY_W) { cam.focal_z = cam.focal_z - step; }
+    if graphics::gl_key_pressed(KEY_S) { cam.focal_z = cam.focal_z + step; }
+    if graphics::gl_key_pressed(KEY_A) { cam.focal_x = cam.focal_x - step; }
+    if graphics::gl_key_pressed(KEY_D) { cam.focal_x = cam.focal_x + step; }
+    if graphics::gl_key_pressed(KEY_Q) { cam.zoom = cam.zoom * 1.03; }
+    if graphics::gl_key_pressed(KEY_E) { cam.zoom = cam.zoom * 0.97; }
+    if cam.zoom < 40.0 { cam.zoom = 40.0; }
+    if cam.zoom > 2000.0 { cam.zoom = 2000.0; }
+    (nfx, nfz) = detail_chunk_of(cam.focal_x, cam.focal_z);
     if nfx != prev_fx || nfz != prev_fz {
-      _bu = window_update(o, ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD, false, use_talus, idx);
+      _bu = window_update(o, ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD, false, false, idx);
+      if use_talus {
+        _bt = window_update(o, lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD, false, true, idx);
+      }
       prev_fx = nfx;
       prev_fz = nfz;
     }
     graphics::gl_viewport(0, 0, w, h);
     graphics::gl_clear(0x223344);
     graphics::gl_viewport(0, 0, hw, h);
-    draw_pane(cam_d, shader, ld_vao, nidx, pane_aspect);
+    draw_pane(cam, shader, ld_vao, nidx, pane_aspect);
     graphics::gl_viewport(hw, 0, hw, h);
-    draw_pane(cam_o, shader, lo_vao, nidx, pane_aspect);
+    if use_talus {
+      draw_pane(cam, shader, lt_vao, nidx, pane_aspect);
+    } else {
+      draw_pane(cam, shader, ld_vao, nidx, pane_aspect);
+    }
     graphics::gl_swap_buffers();
   }
   println("S5e: quit");
