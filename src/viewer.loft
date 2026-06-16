@@ -12,6 +12,8 @@ use chunkgen;
 use chunkmesh;
 use talus;
 use overland;
+use ortlerdata;
+use ortlergen;
 use graphics;
 use math;
 
@@ -56,6 +58,17 @@ struct ViewerCam {
   zoom:    float not null,
 }
 
+// free-fly ("airplane") camera: a position + heading (yaw) + pitch. Used by the Ortler view —
+// A/D yaw, W/S pitch, Q/E move forward/back along the heading. yaw 0 looks toward -z; pitch is
+// nose up(+)/down(-). Distinct from ViewerCam's fixed look-at-focal bird's-eye.
+struct FlyCam {
+  ex:    float not null,
+  ey:    float not null,
+  ez:    float not null,
+  yaw:   float not null,
+  pitch: float not null,
+}
+
 fn build_indices() -> vector<integer> {
   idx: vector<integer> = [];
   for j in 0..32 {
@@ -96,6 +109,33 @@ fn bake_chunk(o: Overland, cx: integer, cz: integer, idx: vector<integer>, overw
   }
   vbuf: vector<single> = [];
   for q in 0..len(mraw) { vbuf += [(mraw[q] ?? 0.0) as single]; }
+  vao = graphics::gl_upload_vertices(vbuf, 6);
+  _e = graphics::gl_upload_indices(vao, idx);
+  vao
+}
+
+// bake ONE Ortler chunk -> a VAO via the efficient overworld-tier mesh (chunk_mesh_ov). Mirrors
+// bake_chunk's overworld branch but sources DetailChunks from the real 80x80 data (ortler_chunk)
+// instead of ov_sample. real selects A (OSM landcover) vs B (model bands). vbuf built inline
+// (loft#392). The baked arrays (hd/od/rd) are passed in so they are not rebuilt per chunk.
+fn bake_ortler(hd: vector<integer>, od: vector<integer>, rd: vector<integer>,
+               cx: integer, cz: integer, real: boolean, exag: float, idx: vector<integer>) -> integer {
+  ca = ortler_chunk(hd, od, rd, cx, cz, real);
+  ce = ortler_chunk(hd, od, rd, cx + 1, cz, real);
+  cs = ortler_chunk(hd, od, rd, cx, cz + 1, real);
+  cse = ortler_chunk(hd, od, rd, cx + 1, cz + 1, real);
+  mraw = chunk_mesh_ov(ca, ce, cs, cse);
+  // vertical exaggeration: ~3.7 km of real relief over ~120 km reads flat from above, so scale
+  // the vertex height (stride 6, component 1) — done HERE, not in the shared mesh routine, and
+  // after the true-scale base+0.1 m encoding so nothing clips the 6553 m offset cap.
+  vbuf: vector<single> = [];
+  q = 0;
+  while q < len(mraw) {
+    v = mraw[q] ?? 0.0;
+    if q % 6 == 1 { v = v * exag; }
+    vbuf += [v as single];
+    q += 1;
+  }
   vao = graphics::gl_upload_vertices(vbuf, 6);
   _e = graphics::gl_upload_indices(vao, idx);
   vao
@@ -169,7 +209,7 @@ fn window_evict(lcx: const vector<integer>, lcz: const vector<integer>, lvao: &v
 // bake the FIRST not-yet-loaded chunk in the window into a free slot; return true if it baked one
 // (so the caller bakes a bounded count per frame), false when the window is already fully loaded.
 fn window_bake_one(o: Overland, lcx: &vector<integer>, lcz: &vector<integer>, lvao: &vector<integer>,
-                   fcx: integer, fcz: integer, rad: integer, use_talus: boolean,
+                   fcx: integer, fcz: integer, rad: integer, overworld: boolean, use_talus: boolean,
                    idx: vector<integer>) -> boolean {
   dz = 0 - rad;
   while dz <= rad {
@@ -187,7 +227,7 @@ fn window_bake_one(o: Overland, lcx: &vector<integer>, lcz: &vector<integer>, lv
           if (lvao[k] ?? 1) == 0 && slot < 0 { slot = k; }
         }
         if slot >= 0 && slot < lvao.len() {
-          lvao[slot] = bake_chunk(o, cx, cz, idx, false, use_talus);
+          lvao[slot] = bake_chunk(o, cx, cz, idx, overworld, use_talus);
           if slot < lcx.len() { lcx[slot] = cx; }
           if slot < lcz.len() { lcz[slot] = cz; }
           return true;
@@ -209,6 +249,34 @@ fn build_mvp(cam: ViewerCam, aspect: float) -> math::Mat4 {
   proj = math::mat4_perspective(0.8, aspect, 0.5, far);
   view = math::mat4_look_at(eye, target, up);
   math::mat4_mul(proj, view)
+}
+
+// the forward unit vector from a FlyCam's yaw/pitch (yaw 0 -> -z; pitch + = nose up).
+fn fly_forward(fc: FlyCam) -> (float, float, float) {
+  cp = cos(fc.pitch);
+  (cp * sin(fc.yaw), sin(fc.pitch), 0.0 - cp * cos(fc.yaw))
+}
+
+// MVP for the free-fly camera: eye at (ex,ey,ez) looking along the yaw/pitch forward vector. Far
+// plane large (the Ortler world is ~120 km across with exaggerated relief).
+fn build_mvp_fly(fc: FlyCam, aspect: float) -> math::Mat4 {
+  (fx, fy, fz) = fly_forward(fc);
+  eye = math::vec3(fc.ex, fc.ey, fc.ez);
+  target = math::vec3(fc.ex + fx, fc.ey + fy, fc.ez + fz);
+  up = math::vec3(0.0, 1.0, 0.0);
+  proj = math::mat4_perspective(0.8, aspect, 0.5, 600000.0);
+  view = math::mat4_look_at(eye, target, up);
+  math::mat4_mul(proj, view)
+}
+
+// draw a loaded set under a pre-built MVP (shared-camera dual panes compute the MVP once).
+fn draw_pane_mvp(mvp: math::Mat4, shader: integer, lvao: vector<integer>, nidx: integer) {
+  graphics::gl_use_shader(shader);
+  graphics::gl_set_uniform_mat4(shader, "uMVP", mvp.m);
+  for k in 0..MAXLOAD {
+    vv = lvao[k] ?? 0;
+    if vv != 0 { graphics::gl_draw_elements(vv, nidx, graphics::DRAW_TRIANGLES); }
+  }
 }
 
 // draw one pane's loaded set under its camera. Caller has already set the viewport + cleared.
@@ -244,6 +312,7 @@ fn main() {
   shader = graphics::gl_create_shader(VERT, FRAG);
   hw = w / 2 ?? 400;
   pane_aspect = (hw as float) / (h as float) ?? 0.667;
+  full_aspect = (w as float) / (h as float) ?? 1.333;
 
   // ONE shared camera on the DETAIL tier, framed to the flank chunk (143,83). BOTH panes use it,
   // so WASD/QE drives both together — the panes differ only in DATA (the A/B), not the view.
@@ -260,6 +329,29 @@ fn main() {
   cfz = (((83 * 32 + 16) as float) + 0.5) * DETAIL_CELL_M;
   cam = ViewerCam { focal_x: cfx, focal_y: minh + span * 0.35, focal_z: cfz,
                     zoom: DETAIL_CHUNK_M * 3.0 + 40.0 };
+
+  // OVERWORLD camera — frames the WHOLE 9x7 example world (the full landscape, the interactive
+  // default). The world spans overworld hexes 0..8 x 0..6; one 32x32-hex overworld chunk (0,0)
+  // covers it (+ a sea margin). Centre on the landmass; height span from that chunk's land cells.
+  (wx0, wz0) = overworld_center(0, 0);
+  (wx1, wz1) = overworld_center(8, 6);
+  owcx = (wx0 + wx1) * 0.5;
+  owcz = (wz0 + wz1) * 0.5;
+  oc0 = overworld_chunk(o, 0, 0);
+  ominh = 99999.0;
+  omaxh = -99999.0;
+  for ohz in 0..7 {
+    for ohx in 0..9 {
+      oh = chunk_height(oc0, dk_cell_idx(ohx, ohz));
+      if oh < ominh { ominh = oh; }
+      if oh > omaxh { omaxh = oh; }
+    }
+  }
+  // zoom 18000 frames the full ~12.7 km world with margin (no peak clipping) at build_mvp's fixed
+  // 3/4 bird's-eye angle; focal_y a quarter up the relief sits the land mid-frame. Headless-tuned
+  // via VIEWER_OVSHOT (gl_screenshot is reliable; CLAUDE.md / PLAN-RENDER P0).
+  ovcam = ViewerCam { focal_x: owcx, focal_y: ominh + (omaxh - ominh) * 0.25, focal_z: owcz,
+                      zoom: 18000.0 };
 
   use_talus = env_variable("VIEWER_TALUS") == "1";
 
@@ -306,47 +398,194 @@ fn main() {
     return;
   }
 
-  // INTERACTIVE: V3 incremental streaming — NO blocking pre-bake. Each frame: evict chunks that
-  // left the window, bake at most STREAM_PER_FRAME new ones, draw whatever's loaded so far. The
-  // loop polls + draws + swaps EVERY frame, so the window never freezes: terrain pops in over a few
-  // seconds and a pan re-streams the new column/row a chunk at a time. (A DetailChunk cache and the
-  // native build make each bake cheap; this fix makes the loop stay LIVE regardless — see
-  // plans/2-chunked-lod-world/s5-viewer-smooth.md V1/V3.)
-  println("S5e: WASD pan / Q-E zoom (drives BOTH panes); right = talus when VIEWER_TALUS=1; Esc quit");
-  while graphics::gl_poll_events() {
-    if graphics::gl_key_pressed(KEY_ESC) { break; }
-    step = cam.zoom * 0.012;
-    if graphics::gl_key_pressed(KEY_W) { cam.focal_z = cam.focal_z - step; }
-    if graphics::gl_key_pressed(KEY_S) { cam.focal_z = cam.focal_z + step; }
-    if graphics::gl_key_pressed(KEY_A) { cam.focal_x = cam.focal_x - step; }
-    if graphics::gl_key_pressed(KEY_D) { cam.focal_x = cam.focal_x + step; }
-    if graphics::gl_key_pressed(KEY_Q) { cam.zoom = cam.zoom * 1.03; }
-    if graphics::gl_key_pressed(KEY_E) { cam.zoom = cam.zoom * 0.97; }
-    if cam.zoom < 40.0 { cam.zoom = 40.0; }
-    if cam.zoom > 2000.0 { cam.zoom = 2000.0; }
-    (nfx, nfz) = detail_chunk_of(cam.focal_x, cam.focal_z);
-    window_evict(ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD);
-    nb = 0;
-    while nb < STREAM_PER_FRAME && window_bake_one(o, ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD, false, idx) {
-      nb += 1;
+  // ── ORTLER source (the DEFAULT view): the real 80x80 Ortler grid (@PLN1) as the dual screen ──
+  // LEFT = real OSM landcover (A, ground truth); RIGHT = our model's elevation bands (B) over the
+  // SAME real heights — the @PLN1 adequacy comparison. Built through the EFFICIENT overworld mesh
+  // routine (bake_ortler -> chunk_mesh_ov); framed to the VISUAL AREA (the summit-centred massif).
+  // This is what `make viewer` shows by default; the procedural views are opt-in (VIEWER_OVERWORLD=1
+  // full landscape, VIEWER_DETAIL=1 detail slice). VIEWER_ORTSHOT=1 = the headless dual shot.
+  ort_default = env_variable("VIEWER_OVSHOT") != "1" && env_variable("VIEWER_DETAIL") != "1"
+             && env_variable("VIEWER_OVERWORLD") != "1";
+  if env_variable("VIEWER_ORTSHOT") == "1" || env_variable("VIEWER_ORTLER") == "1" || ort_default {
+    hd = ort_h();
+    od = ort_osm();
+    rd = ort_river();
+    hmin = 99999.0;
+    hmax = -99999.0;
+    for gi in 0..(ORT_COLS * ORT_ROWS) {
+      hv = (hd[gi] ?? 0) as float;
+      if hv < hmin { hmin = hv; }
+      if hv > hmax { hmax = hv; }
     }
-    if use_talus {
-      window_evict(lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD);
-      nt = 0;
-      while nt < STREAM_PER_FRAME && window_bake_one(o, lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD, true, idx) {
-        nt += 1;
+    (sx, sz) = overworld_center(ORT_HC, ORT_HR);   // the visual area: centre on the summit cell
+    // exag 6 makes the real ~3.7 km relief read as mountains. The fly camera STARTS at the old
+    // 45 km bird's-eye pose over the summit (eye up + SE, looking back down: yaw -45 deg, pitch
+    // -59 deg), hovering until throttled — the framing tuned via VIEWER_ORTSHOT.
+    orexag = 6.0;
+    fbase = (hmin + (hmax - hmin) * 0.30) * orexag;
+    flycam = FlyCam { ex: sx + 45000.0 * 0.38, ey: fbase + 45000.0 * 0.90, ez: sz + 45000.0 * 0.38,
+                      yaw: 0.0 - 0.785398, pitch: 0.0 - 1.036 };
+
+    // pre-bake the data chunks (0..2 x 0..2 covers the 80x80) once, for BOTH panes (A + B). Baked
+    // data -> each bake is cheap; the loop is then pure draw (efficient, never re-bakes).
+    tb0 = ticks();
+    nbk = 0;
+    for ccz in 0..3 {
+      for ccx in 0..3 {
+        if nbk < MAXLOAD {
+          ld_vao[nbk] = bake_ortler(hd, od, rd, ccx, ccz, true, orexag, idx);
+          lt_vao[nbk] = bake_ortler(hd, od, rd, ccx, ccz, false, orexag, idx);
+          nbk += 1;
+        }
       }
     }
+    println("Ortler: {nbk} chunks x2 panes baked in {ticks() - tb0} us; h {hmin}..{hmax} m, summit ({sx},{sz})");
+
+    if env_variable("VIEWER_ORTSHOT") == "1" {
+      mvp = build_mvp_fly(flycam, pane_aspect);
+      graphics::gl_viewport(0, 0, w, h);
+      graphics::gl_clear(0x223344);
+      graphics::gl_viewport(0, 0, hw, h);
+      draw_pane_mvp(mvp, shader, ld_vao, nidx);
+      graphics::gl_viewport(hw, 0, hw, h);
+      draw_pane_mvp(mvp, shader, lt_vao, nidx);
+      _s = graphics::gl_screenshot(w, h, "/tmp/viewer_ortler.png");
+      graphics::gl_swap_buffers();
+      println("ortler shot: real OSM | model bands -> /tmp/viewer_ortler.png");
+      return;
+    }
+
+    println("Ortler 80x80: real OSM | model bands. AIRPLANE — A/D yaw, W/S pitch (nose down/up), Q/E move fwd/back; Esc quit");
+    while graphics::gl_poll_events() {
+      if graphics::gl_key_pressed(KEY_ESC) { break; }
+      // viewport follows the live window size (handles resize / fullscreen) — re-split each frame
+      cw = graphics::gl_window_width();
+      ch = graphics::gl_window_height();
+      if cw > 0 { w = cw; }
+      if ch > 0 { h = ch; }
+      hw = w / 2 ?? 400;
+      pane_aspect = (hw as float) / (h as float) ?? 0.667;
+      // airplane controls: A/D yaw (turn), W/S pitch (nose down/up); Q/E fly forward/back along the
+      // heading while held (no auto-motion — you move only when you press).
+      if graphics::gl_key_pressed(KEY_A) { flycam.yaw = flycam.yaw - 0.02; }
+      if graphics::gl_key_pressed(KEY_D) { flycam.yaw = flycam.yaw + 0.02; }
+      if graphics::gl_key_pressed(KEY_W) { flycam.pitch = flycam.pitch - 0.02; }
+      if graphics::gl_key_pressed(KEY_S) { flycam.pitch = flycam.pitch + 0.02; }
+      if flycam.pitch < 0.0 - 1.45 { flycam.pitch = 0.0 - 1.45; }
+      if flycam.pitch > 1.45 { flycam.pitch = 1.45; }
+      mstep = 600.0;   // world units moved per frame while Q/E held
+      (fwx, fwy, fwz) = fly_forward(flycam);
+      if graphics::gl_key_pressed(KEY_Q) {
+        flycam.ex = flycam.ex + fwx * mstep;
+        flycam.ey = flycam.ey + fwy * mstep;
+        flycam.ez = flycam.ez + fwz * mstep;
+      }
+      if graphics::gl_key_pressed(KEY_E) {
+        flycam.ex = flycam.ex - fwx * mstep;
+        flycam.ey = flycam.ey - fwy * mstep;
+        flycam.ez = flycam.ez - fwz * mstep;
+      }
+      mvp = build_mvp_fly(flycam, pane_aspect);
+      graphics::gl_viewport(0, 0, w, h);
+      graphics::gl_clear(0x223344);
+      graphics::gl_viewport(0, 0, hw, h);
+      draw_pane_mvp(mvp, shader, ld_vao, nidx);
+      graphics::gl_viewport(hw, 0, hw, h);
+      draw_pane_mvp(mvp, shader, lt_vao, nidx);
+      graphics::gl_swap_buffers();
+    }
+    println("S5e: quit");
+    return;
+  }
+
+  (ofx, ofz) = overworld_chunk_of(ovcam.focal_x, ovcam.focal_z);
+
+  // OVSHOT: headless full-landscape frame (the overworld-view gate, mirrors smoke). Bake the one
+  // overworld chunk, render the single full-window pane, screenshot, exit. Xvfb + gl_screenshot
+  // is reliable (CLAUDE.md / PLAN-RENDER P0), so the full-landscape framing is self-verifiable.
+  ovshot = env_variable("VIEWER_OVSHOT");
+  if ovshot == "1" {
+    _bo = window_update(o, ld_cx, ld_cz, ld_vao, ofx, ofz, OVERWORLD_RAD, true, false, idx);
+    println("overworld shot: chunk ({ofx},{ofz}); world height {ominh}..{omaxh} m");
     graphics::gl_viewport(0, 0, w, h);
     graphics::gl_clear(0x223344);
-    graphics::gl_viewport(0, 0, hw, h);
-    draw_pane(cam, shader, ld_vao, nidx, pane_aspect);
-    graphics::gl_viewport(hw, 0, hw, h);
-    if use_talus {
-      draw_pane(cam, shader, lt_vao, nidx, pane_aspect);
-    } else {
+    draw_pane(ovcam, shader, ld_vao, nidx, full_aspect);
+    _s = graphics::gl_screenshot(w, h, "/tmp/viewer_overworld.png");
+    graphics::gl_swap_buffers();
+    println("overworld shot: full-landscape frame -> /tmp/viewer_overworld.png");
+    return;
+  }
+
+  // INTERACTIVE detail slice (VIEWER_DETAIL=1): the close-up DUAL split (model | talus). V3
+  // incremental streaming — NO blocking pre-bake; each frame evicts chunks that left the window,
+  // bakes at most STREAM_PER_FRAME new ones, draws whatever's loaded. The loop polls + draws +
+  // swaps EVERY frame so it never freezes (s5-viewer-smooth.md V1/V3). A ~140 m slice at ~1.5 m
+  // cells — high detail, small area; for the whole map use the default full-landscape view below.
+  detail_view = env_variable("VIEWER_DETAIL") == "1";
+  if detail_view {
+    println("S5e detail: WASD pan / Q-E zoom (drives BOTH panes); right = talus when VIEWER_TALUS=1; Esc quit");
+    while graphics::gl_poll_events() {
+      if graphics::gl_key_pressed(KEY_ESC) { break; }
+      step = cam.zoom * 0.012;
+      if graphics::gl_key_pressed(KEY_W) { cam.focal_z = cam.focal_z - step; }
+      if graphics::gl_key_pressed(KEY_S) { cam.focal_z = cam.focal_z + step; }
+      if graphics::gl_key_pressed(KEY_A) { cam.focal_x = cam.focal_x - step; }
+      if graphics::gl_key_pressed(KEY_D) { cam.focal_x = cam.focal_x + step; }
+      if graphics::gl_key_pressed(KEY_Q) { cam.zoom = cam.zoom * 1.03; }
+      if graphics::gl_key_pressed(KEY_E) { cam.zoom = cam.zoom * 0.97; }
+      if cam.zoom < 40.0 { cam.zoom = 40.0; }
+      if cam.zoom > 2000.0 { cam.zoom = 2000.0; }
+      (nfx, nfz) = detail_chunk_of(cam.focal_x, cam.focal_z);
+      window_evict(ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD);
+      nb = 0;
+      while nb < STREAM_PER_FRAME && window_bake_one(o, ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD, false, false, idx) {
+        nb += 1;
+      }
+      if use_talus {
+        window_evict(lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD);
+        nt = 0;
+        while nt < STREAM_PER_FRAME && window_bake_one(o, lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD, false, true, idx) {
+          nt += 1;
+        }
+      }
+      graphics::gl_viewport(0, 0, w, h);
+      graphics::gl_clear(0x223344);
+      graphics::gl_viewport(0, 0, hw, h);
       draw_pane(cam, shader, ld_vao, nidx, pane_aspect);
+      graphics::gl_viewport(hw, 0, hw, h);
+      if use_talus {
+        draw_pane(cam, shader, lt_vao, nidx, pane_aspect);
+      } else {
+        draw_pane(cam, shader, ld_vao, nidx, pane_aspect);
+      }
+      graphics::gl_swap_buffers();
     }
+    println("S5e: quit");
+    return;
+  }
+
+  // INTERACTIVE full landscape (VIEWER_OVERWORLD=1): the procedural 9x7 example world in one coarse
+  // overworld chunk, baked ONCE (single full-window pane). After that first bake the loop is pure
+  // draw — instant, never freezes, WASD pan / Q-E zoom roam the whole map. (Reached only when
+  // VIEWER_OVERWORLD=1; the default is the Ortler dual screen above.)
+  println("S5e: full landscape (overworld tier) — WASD pan / Q-E zoom the whole map; Esc quit");
+  while graphics::gl_poll_events() {
+    if graphics::gl_key_pressed(KEY_ESC) { break; }
+    step = ovcam.zoom * 0.012;
+    if graphics::gl_key_pressed(KEY_W) { ovcam.focal_z = ovcam.focal_z - step; }
+    if graphics::gl_key_pressed(KEY_S) { ovcam.focal_z = ovcam.focal_z + step; }
+    if graphics::gl_key_pressed(KEY_A) { ovcam.focal_x = ovcam.focal_x - step; }
+    if graphics::gl_key_pressed(KEY_D) { ovcam.focal_x = ovcam.focal_x + step; }
+    if graphics::gl_key_pressed(KEY_Q) { ovcam.zoom = ovcam.zoom * 1.03; }
+    if graphics::gl_key_pressed(KEY_E) { ovcam.zoom = ovcam.zoom * 0.97; }
+    if ovcam.zoom < 2000.0 { ovcam.zoom = 2000.0; }
+    if ovcam.zoom > 40000.0 { ovcam.zoom = 40000.0; }
+    (nfx, nfz) = overworld_chunk_of(ovcam.focal_x, ovcam.focal_z);
+    window_evict(ld_cx, ld_cz, ld_vao, nfx, nfz, OVERWORLD_RAD);
+    _nb = window_bake_one(o, ld_cx, ld_cz, ld_vao, nfx, nfz, OVERWORLD_RAD, true, false, idx);
+    graphics::gl_viewport(0, 0, w, h);
+    graphics::gl_clear(0x223344);
+    draw_pane(ovcam, shader, ld_vao, nidx, full_aspect);
     graphics::gl_swap_buffers();
   }
   println("S5e: quit");

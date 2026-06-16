@@ -87,8 +87,41 @@ Smooth = lever 1 (each bake cheap) **×** lever 2 (no bake ever blocks the frame
   while the window stays live. *Gate:* a scripted pan never blocks the loop for more than one
   chunk-bake; loop keeps iterating; partial terrain renders mid-stream.
 
-*After Phase A the viewer is **usable** on the interpreter: instant window, no freeze, terrain
-streams in over a few seconds.*
+- [x] **V9 — full-landscape default view** (overworld tier). **DONE 2026-06-16 (verified headlessly:
+  `VIEWER_OVSHOT=1` → `/tmp/viewer_overworld.png`, the whole 9×7 world in frame; golden held at
+  459 px).** The interactive default was a ~140 m DETAIL slice (3×3 chunks) — high detail, tiny
+  area. Now the default renders the **overworld tier**: `chunk_mesh_ov` samples the whole world into
+  **one** coarse 32×32-hex chunk (1.5 km cells), framed at build_mvp's fixed 3/4 angle (zoom 18000,
+  focal a quarter up the relief). **One** bake, then the loop is **pure draw** — instant *and* never
+  re-bakes on pan/zoom (the chunk stays (0,0)), so it's both *quicker* and the *full view*. The old
+  detail slice is kept behind **`VIEWER_DETAIL=1`** (still the dual model|talus split, `VIEWER_TALUS=1`
+  for the B-pane); the golden smoke path is untouched (still the dual detail frame). New library fn
+  `overworld_chunk_of` (chunk.loft) parallels `detail_chunk_of`; new headless gate env `VIEWER_OVSHOT`.
+  Time-to-first-frame ~2.15 s on the interpreter (loft startup + GL init + the single bake). *Gate:*
+  `make viewer-gold` 459 px (unchanged); `VIEWER_OVSHOT` frame shows the full island landscape.
+  *Future:* zoom-driven LOD — swap to the detail tier as you zoom into a region (the real S5 LOD).
+
+- [x] **V10 — real Ortler source + fly camera + size-following viewport** (the DEFAULT view).
+  **DONE 2026-06-16 (verified headlessly: `VIEWER_ORTSHOT=1` → `/tmp/viewer_ortler.png`, the real
+  massif dual screen; golden held at 459 px).** `make viewer` now defaults to the real **80×80
+  Ortler** (@PLN1) as the dual screen: **LEFT = real OSM landcover** (A, ground truth) | **RIGHT =
+  our model's elevation bands** (B) over the SAME real DEM — the @PLN1 adequacy comparison, live in
+  3D. Pipeline: a Python exporter (`plans/1-ortler-worldgen-fixture/export_ortler_loft.py`) bakes
+  the npz into `src/ortlerdata.loft` (numeric literals, parse ~0.2 s — no file I/O); `src/ortlergen.loft`
+  builds DetailChunks (`ortler_chunk`, A/B classifiers) fed through the **efficient overworld mesh
+  routine** (`bake_ortler` → `chunk_mesh_ov`) since the Ortler shares the moros odd-r 1500 m
+  convention; framed to the **visual area** (summit-centred), **6× vertical exaggeration** at
+  mesh-build (so ~3.7 km of real relief reads as mountains; applied after the base+0.1 m encoding
+  to dodge the 6553 m offset cap). 9 chunks × 2 panes bake in **~420 ms** (interpreter), then pure
+  draw. **Airplane controls** (`FlyCam`): A/D yaw, W/S pitch, Q/E move forward/back along the
+  heading (while held — no auto-motion); the
+  **viewport follows the live window size** (`gl_window_width/height` each frame, re-splits the dual
+  panes — handles resize/fullscreen). Procedural views are now opt-in: **VIEWER_OVERWORLD=1** (full
+  landscape), **VIEWER_DETAIL=1** (detail slice). Smoke/golden untouched. *Next:* port the model's
+  `material_contest` (slope-aware) for a faithful B; re-export hook in `make`.
+
+*After Phase A the viewer is **usable** on the interpreter: instant window, no freeze, the full
+landscape is up in ~2 s (overworld default), and the detail slice streams in over a few seconds.*
 
 ### Phase B — native throughput (the 22×; resolves the upstream gap)
 

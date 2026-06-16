@@ -264,7 +264,10 @@ VIEWER_GOLD  := tools/golden/viewer_s5e.png
 
 viewer:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  viewer: loft not found ($(LOFT))"; exit 1; }
-	@echo "  [viewer] dual split — WASD pan / Q-E zoom the detail (left) cam; Esc quits ..."
+	@echo "  [viewer] DEFAULT: real 80x80 Ortler dual screen — left = real OSM landcover, right ="
+	@echo "           our model's elevation bands (@PLN1 adequacy comparison) over the real DEM."
+	@echo "           WASD pan / Q-E zoom; Esc quits. Opt-in: VIEWER_OVERWORLD=1 (procedural full"
+	@echo "           landscape), VIEWER_DETAIL=1 (detail slice, +VIEWER_TALUS=1 for the talus pane) ..."
 	@$(LOFT) --interpret $(VIEWER_FLAGS) src/viewer.loft
 
 # Native (rustc -O) viewer — NATIVE ONLY. Runs --native-release directly (the real build, which

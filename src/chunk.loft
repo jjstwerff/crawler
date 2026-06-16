@@ -84,6 +84,12 @@ pub fn overworld_hex_of(x: float, y: float) -> (integer, integer) {
 pub fn detail_chunk_of(x: float, y: float) -> (integer, integer) {
   (floor(x / DETAIL_CHUNK_M) as integer, floor(y / DETAIL_CHUNK_M) as integer)
 }
+// world metres -> overworld chunk coords (a 32x32-hex block; the 9x7 example world lies in (0,0))
+pub fn overworld_chunk_of(x: float, y: float) -> (integer, integer) {
+  (q, r) = overworld_hex_of(x, y);
+  (floor((q as float) / (CHUNK as float)) as integer,
+   floor((r as float) / (CHUNK as float)) as integer)
+}
 // world metres -> the within-chunk cell (hx,hz) in 0..31
 pub fn detail_local_of(x: float, y: float) -> (integer, integer) {
   gcx = floor(x / DETAIL_CELL_M) as integer;
