@@ -195,6 +195,9 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
 
 ## Filing loft bugs (crawler is a CONSUMER — we never fix loft here)
 
+**Full procedure + purpose (when/what/where/how, label taxonomy, worked examples): FILING.md.**
+Quick version below.
+
 When a loft bug bites: **minimal repro first** (verify on BOTH backends — `--interpret`
 and `--check`/`--native`; record expected vs observed; if it won't shrink standalone,
 file with the in-crawler recipe, as loft#303/#336 were). **Open a GitHub Issue** with

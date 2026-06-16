@@ -297,6 +297,9 @@ the same game; the cloned repo is the live source.
 
 ## See also
 
+- `s5-viewer-design.md` — the worked S5 viewer design; `s5-viewer-smooth.md` — the post-S5
+  smooth-running plan (native throughput + responsive loop; the 38 s-freeze diagnosis, native
+  22× measurement, the consumer `--native` gap, and gated steps V0–V8; audit 2026-06-16).
 - @PLN1 `../1-ortler-worldgen-fixture/` — the real-terrain pipeline, derived defaults, I-MESH.
 - `loft-libs-world/hex_world.loft`, moros `wall.loft` — the 32×32 chunk + height precedents.
 - `gridmesh` (loft-libs-graphics) + `loft/tools/audience-demo` (`crystal_render.loft`,

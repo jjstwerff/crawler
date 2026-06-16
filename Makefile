@@ -99,7 +99,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe viewer viewer-gold bundles fmt clean all loft-doctor
+.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold bundles fmt clean all loft-doctor
 
 # Default target: print the overview above.
 help:
@@ -245,6 +245,16 @@ probe:
 # `make viewer-gold` — headless: render the dual frame under Xvfb, diff vs the
 #                      golden (imagemagick `compare`, fuzz-tolerant). On first run
 #                      (no golden) it prints the copy command to adopt the frame.
+# `make viewer-release` — the NATIVE (rustc -O) viewer: ~22x the interpreter on the chunk hot
+#                      path (measured: per-chunk 1024ms -> 46ms; startup ~38s -> ~2s). loft
+#                      --native-release builds-if-needed (caches the compiled binary; recompiles
+#                      only when src changes) then runs. Native GL from a *consumer* project is
+#                      currently gated upstream (graphics P269 registration + a `cfg_if`
+#                      StableCrateId link collision — see plans/2-chunked-lod-world/
+#                      s5-viewer-smooth.md). This target is NATIVE-ONLY: it sets
+#                      LOFT_REQUIRE_NATIVE=1 (loft hard-errors instead of silently interpreting any
+#                      library) and never falls back to the interpreter — if native is unavailable
+#                      it reports why and exits non-zero. Use `make viewer` for the interpreter.
 # The viewer resolves entirely from installed libs: graphics/hex_grid/hex_terrain from the
 # registry (declared in loft.toml), math from the installed stdlib. No sibling --lib dirs — so
 # it doesn't depend on ../loft-libs-* checkouts and avoids the source-lib native-compile fallback.
@@ -256,6 +266,24 @@ viewer:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  viewer: loft not found ($(LOFT))"; exit 1; }
 	@echo "  [viewer] dual split — WASD pan / Q-E zoom the detail (left) cam; Esc quits ..."
 	@$(LOFT) --interpret $(VIEWER_FLAGS) src/viewer.loft
+
+# Native (rustc -O) viewer — NATIVE ONLY. Runs --native-release directly (the real build, which
+# `--check --native` does NOT fully exercise — it false-passes on P269), with LOFT_REQUIRE_NATIVE=1
+# so loft hard-errors instead of silently interpreting any library. NO interpreter fallback: on a
+# native failure it prints why and exits non-zero. Use `make viewer` for the interpreter.
+# Currently upstream-gated: registry graphics isn't registered for --native (loft#396), and a
+# coherent-tree build needs the graphics native cdylib rebuilt for the current rustc (E0514).
+viewer-release:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  viewer-release: loft not found ($(LOFT))"; exit 1; }
+	@echo "  [viewer-release] NATIVE (rustc -O) viewer — no interpreter fallback; WASD/QE pan-zoom, Esc quits ..."
+	@LOFT_REQUIRE_NATIVE=1 $(LOFT) --native-release $(VIEWER_FLAGS) src/viewer.loft || { \
+	    echo ""; \
+	    echo "  viewer-release: NATIVE build FAILED — not falling back to the interpreter (by design)."; \
+	    echo "    Native GL from a consumer is upstream-gated: graphics #native not registered for"; \
+	    echo "    --native (loft#396); a coherent-tree build needs the graphics native cdylib rebuilt"; \
+	    echo "    for the current rustc (E0514). See plans/2-chunked-lod-world/s5-viewer-smooth.md."; \
+	    exit 1; \
+	  }
 
 viewer-gold:
 	@command -v xvfb-run >/dev/null 2>&1 || { echo "  viewer-gold: missing xvfb-run"; exit 1; }

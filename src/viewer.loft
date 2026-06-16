@@ -26,6 +26,7 @@ const KEY_ESC = 27;
 const MAXLOAD = 64;
 const DETAIL_RAD = 1;          // detail tier: 3x3 chunks around the focal
 const OVERWORLD_RAD = 0;       // overworld tier: one 32x32-hex chunk covers this 9x7 world
+const STREAM_PER_FRAME = 1;    // V3: max chunk bakes per interactive frame (keeps the loop live)
 
 const VERT = `
 #version 330 core
@@ -145,6 +146,60 @@ fn window_update(o: Overland, lcx: &vector<integer>, lcz: &vector<integer>, lvao
   bakes
 }
 
+// V3 streaming: window_update's two halves split so the interactive loop runs them INCREMENTALLY —
+// evict cheaply every frame, bake at most a few chunks/frame — instead of one blocking full-window
+// bake. window_update itself stays for the SMOKE path (one-shot full bake before the screenshot).
+
+// evict every loaded slot that left the [fcx±rad, fcz±rad] window (frees its VAO). Cheap (no bakes).
+fn window_evict(lcx: const vector<integer>, lcz: const vector<integer>, lvao: &vector<integer>,
+                fcx: integer, fcz: integer, rad: integer) {
+  for k in 0..MAXLOAD {
+    vv = lvao[k] ?? 0;
+    if vv != 0 {
+      ox = lcx[k] ?? 0;
+      oz = lcz[k] ?? 0;
+      if ox < fcx - rad || ox > fcx + rad || oz < fcz - rad || oz > fcz + rad {
+        graphics::gl_delete_vao(vv);
+        lvao[k] = 0;
+      }
+    }
+  }
+}
+
+// bake the FIRST not-yet-loaded chunk in the window into a free slot; return true if it baked one
+// (so the caller bakes a bounded count per frame), false when the window is already fully loaded.
+fn window_bake_one(o: Overland, lcx: &vector<integer>, lcz: &vector<integer>, lvao: &vector<integer>,
+                   fcx: integer, fcz: integer, rad: integer, use_talus: boolean,
+                   idx: vector<integer>) -> boolean {
+  dz = 0 - rad;
+  while dz <= rad {
+    dx = 0 - rad;
+    while dx <= rad {
+      cx = fcx + dx;
+      cz = fcz + dz;
+      present = false;
+      for k in 0..MAXLOAD {
+        if (lvao[k] ?? 0) != 0 && (lcx[k] ?? -9) == cx && (lcz[k] ?? -9) == cz { present = true; }
+      }
+      if !present {
+        slot = -1;
+        for k in 0..MAXLOAD {
+          if (lvao[k] ?? 1) == 0 && slot < 0 { slot = k; }
+        }
+        if slot >= 0 && slot < lvao.len() {
+          lvao[slot] = bake_chunk(o, cx, cz, idx, false, use_talus);
+          if slot < lcx.len() { lcx[slot] = cx; }
+          if slot < lcz.len() { lcz[slot] = cz; }
+          return true;
+        }
+      }
+      dx += 1;
+    }
+    dz += 1;
+  }
+  false
+}
+
 fn build_mvp(cam: ViewerCam, aspect: float) -> math::Mat4 {
   d = cam.zoom;
   eye = math::vec3(cam.focal_x + d * 0.38, cam.focal_y + d * 0.90, cam.focal_z + d * 0.38);
@@ -180,6 +235,12 @@ fn main() {
     return;
   }
   graphics::gl_enable(graphics::GL_DEPTH_TEST);
+  // V1: paint one frame + pump events immediately so the window appears and the WM keeps it
+  // responsive (decorated) instead of a long black/frozen startup while terrain bakes.
+  graphics::gl_viewport(0, 0, w, h);
+  graphics::gl_clear(0x223344);
+  graphics::gl_swap_buffers();
+  _pe0 = graphics::gl_poll_events();
   shader = graphics::gl_create_shader(VERT, FRAG);
   hw = w / 2 ?? 400;
   pane_aspect = (hw as float) / (h as float) ?? 0.667;
@@ -220,14 +281,15 @@ fn main() {
   }
 
   (dfx, dfz) = detail_chunk_of(cam.focal_x, cam.focal_z);
-  _bl = window_update(o, ld_cx, ld_cz, ld_vao, dfx, dfz, DETAIL_RAD, false, false, idx);
-  if use_talus {
-    _br = window_update(o, lt_cx, lt_cz, lt_vao, dfx, dfz, DETAIL_RAD, false, true, idx);
-  }
-  println("S5e: detail chunk ({dfx},{dfz}); shared camera; right-pane talus={use_talus}");
 
   smoke = env_variable("VIEWER_SMOKE");
   if smoke == "1" {
+    // SMOKE: bake the FULL window up front (the golden needs the complete frame), render once, exit.
+    _bl = window_update(o, ld_cx, ld_cz, ld_vao, dfx, dfz, DETAIL_RAD, false, false, idx);
+    if use_talus {
+      _br = window_update(o, lt_cx, lt_cz, lt_vao, dfx, dfz, DETAIL_RAD, false, true, idx);
+    }
+    println("S5e smoke: detail chunk ({dfx},{dfz}); right-pane talus={use_talus}");
     graphics::gl_viewport(0, 0, w, h);
     graphics::gl_clear(0x223344);
     graphics::gl_viewport(0, 0, hw, h);
@@ -244,9 +306,13 @@ fn main() {
     return;
   }
 
+  // INTERACTIVE: V3 incremental streaming — NO blocking pre-bake. Each frame: evict chunks that
+  // left the window, bake at most STREAM_PER_FRAME new ones, draw whatever's loaded so far. The
+  // loop polls + draws + swaps EVERY frame, so the window never freezes: terrain pops in over a few
+  // seconds and a pan re-streams the new column/row a chunk at a time. (A DetailChunk cache and the
+  // native build make each bake cheap; this fix makes the loop stay LIVE regardless — see
+  // plans/2-chunked-lod-world/s5-viewer-smooth.md V1/V3.)
   println("S5e: WASD pan / Q-E zoom (drives BOTH panes); right = talus when VIEWER_TALUS=1; Esc quit");
-  prev_fx = dfx;
-  prev_fz = dfz;
   while graphics::gl_poll_events() {
     if graphics::gl_key_pressed(KEY_ESC) { break; }
     step = cam.zoom * 0.012;
@@ -259,13 +325,17 @@ fn main() {
     if cam.zoom < 40.0 { cam.zoom = 40.0; }
     if cam.zoom > 2000.0 { cam.zoom = 2000.0; }
     (nfx, nfz) = detail_chunk_of(cam.focal_x, cam.focal_z);
-    if nfx != prev_fx || nfz != prev_fz {
-      _bu = window_update(o, ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD, false, false, idx);
-      if use_talus {
-        _bt = window_update(o, lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD, false, true, idx);
+    window_evict(ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD);
+    nb = 0;
+    while nb < STREAM_PER_FRAME && window_bake_one(o, ld_cx, ld_cz, ld_vao, nfx, nfz, DETAIL_RAD, false, idx) {
+      nb += 1;
+    }
+    if use_talus {
+      window_evict(lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD);
+      nt = 0;
+      while nt < STREAM_PER_FRAME && window_bake_one(o, lt_cx, lt_cz, lt_vao, nfx, nfz, DETAIL_RAD, true, idx) {
+        nt += 1;
       }
-      prev_fx = nfx;
-      prev_fz = nfz;
     }
     graphics::gl_viewport(0, 0, w, h);
     graphics::gl_clear(0x223344);
