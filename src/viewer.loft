@@ -24,11 +24,27 @@ const KEY_D = 100;
 const KEY_Q = 113;
 const KEY_E = 101;
 const KEY_ESC = 27;
+const KEY_SPACE = 32;     // graphics KEY_SPACE
+const KEY_SHIFT = 132;    // graphics KEY_SHIFT
 
 const MAXLOAD = 64;
 const DETAIL_RAD = 1;          // detail tier: 3x3 chunks around the focal
 const OVERWORLD_RAD = 0;       // overworld tier: one 32x32-hex chunk covers this 9x7 world
 const STREAM_PER_FRAME = 1;    // V3: max chunk bakes per interactive frame (keeps the loop live)
+
+// mouse-flight tuning (the Ortler airplane camera). Speeds are world units/second (dt-scaled, so
+// the feel is frame-rate independent); angles in radians. Tune here.
+const FLY_CRUISE  = 6000.0;    // min airspeed — the plane always flies forward at least this fast
+const FLY_MAXSPD  = 60000.0;   // throttle ceiling
+const FLY_THR     = 22000.0;   // W/S throttle accel (units/s per second held)
+const FLY_WHEEL   = 3500.0;    // airspeed change per scroll-wheel notch
+const FLY_MAXBANK = 1.0;       // full mouse deflection -> this bank angle (~57 deg)
+const FLY_MAXPITCH = 0.5;      // full vertical deflection -> this pitch (~29 deg)
+const FLY_COORD   = 0.75;      // coordinated-turn gain: yaw rate (rad/s) at full bank
+const FLY_RUDDER  = 0.5;       // A/D rudder yaw rate (rad/s)
+const FLY_EASE    = 6.0;       // attitude smoothing rate (per second) toward the stick target
+const FLY_DEAD    = 0.08;      // mouse dead-zone (fraction of half-window) for hands-off level flight
+const FLY_CLEAR   = 3000.0;    // soft terrain floor: min clearance above the ground (exag units)
 
 const VERT = `
 #version 330 core
@@ -58,15 +74,18 @@ struct ViewerCam {
   zoom:    float not null,
 }
 
-// free-fly ("airplane") camera: a position + heading (yaw) + pitch. Used by the Ortler view —
-// A/D yaw, W/S pitch, Q/E move forward/back along the heading. yaw 0 looks toward -z; pitch is
-// nose up(+)/down(-). Distinct from ViewerCam's fixed look-at-focal bird's-eye.
+// free-fly ("airplane") camera: position (ex,ey,ez) + heading yaw + pitch + roll (bank) + speed
+// (forward airspeed, world units/second). yaw 0 looks toward -z; pitch nose up(+)/down(-); roll
+// banks the horizon. The mouse-flight loop drives roll/pitch (stick), banking auto-yaws (the
+// coordinated turn), and the plane always moves forward at `speed`. Distinct from ViewerCam.
 struct FlyCam {
   ex:    float not null,
   ey:    float not null,
   ez:    float not null,
   yaw:   float not null,
   pitch: float not null,
+  roll:  float not null,
+  speed: float not null,
 }
 
 fn build_indices() -> vector<integer> {
@@ -257,13 +276,37 @@ fn fly_forward(fc: FlyCam) -> (float, float, float) {
   (cp * sin(fc.yaw), sin(fc.pitch), 0.0 - cp * cos(fc.yaw))
 }
 
-// MVP for the free-fly camera: eye at (ex,ey,ez) looking along the yaw/pitch forward vector. Far
-// plane large (the Ortler world is ~120 km across with exaggerated relief).
+// rescale a normalized axis (-1..1) outside a dead-zone -> still -1..1, with 0 inside the zone.
+// Lets the mouse rest near screen-centre = wings-level without twitch.
+fn deadzone(v: float, dz: float) -> float {
+  if v > dz { return (v - dz) / (1.0 - dz); }
+  if v < 0.0 - dz { return (v + dz) / (1.0 - dz); }
+  0.0
+}
+
+// MVP for the free-fly camera. The up vector is BANKED by roll (rotated about the forward axis),
+// so the horizon tilts in a turn — the core "flying" cue. Far plane large (the Ortler world is
+// ~120 km across with exaggerated relief).
 fn build_mvp_fly(fc: FlyCam, aspect: float) -> math::Mat4 {
   (fx, fy, fz) = fly_forward(fc);
+  // right = normalize(forward x worldUp);  worldUp = (0,1,0) -> (-fz, 0, fx)
+  rxl = sqrt(fz * fz + fx * fx);
+  if rxl < 0.0001 { rxl = 0.0001; }
+  rx = (0.0 - fz) / rxl;
+  rz = fx / rxl;
+  // level up = right x forward  (orthonormal, no bank)
+  ux = 0.0 * fz - rz * fy;
+  uy = rz * fx - rx * fz;
+  uz = rx * fy - 0.0 * fx;
+  // bank: rotate the level-up toward `right` by roll -> up' = up*cos(roll) + right*sin(roll)
+  cr = cos(fc.roll);
+  sr = sin(fc.roll);
+  upx = ux * cr + rx * sr;
+  upy = uy * cr;
+  upz = uz * cr + rz * sr;
   eye = math::vec3(fc.ex, fc.ey, fc.ez);
   target = math::vec3(fc.ex + fx, fc.ey + fy, fc.ez + fz);
-  up = math::vec3(0.0, 1.0, 0.0);
+  up = math::vec3(upx, upy, upz);
   proj = math::mat4_perspective(0.8, aspect, 0.5, 600000.0);
   view = math::mat4_look_at(eye, target, up);
   math::mat4_mul(proj, view)
@@ -418,13 +461,13 @@ fn main() {
       if hv > hmax { hmax = hv; }
     }
     (sx, sz) = overworld_center(ORT_HC, ORT_HR);   // the visual area: centre on the summit cell
-    // exag 6 makes the real ~3.7 km relief read as mountains. The fly camera STARTS at the old
-    // 45 km bird's-eye pose over the summit (eye up + SE, looking back down: yaw -45 deg, pitch
-    // -59 deg), hovering until throttled — the framing tuned via VIEWER_ORTSHOT.
+    // exag 6 makes the real ~3.7 km relief read as mountains. The fly camera STARTS in level
+    // cruise: south of and above the massif, heading north (yaw 0 -> -z) into it, nosed slightly
+    // down, already moving at cruise — so you are flying the moment the window opens.
     orexag = 6.0;
-    fbase = (hmin + (hmax - hmin) * 0.30) * orexag;
-    flycam = FlyCam { ex: sx + 45000.0 * 0.38, ey: fbase + 45000.0 * 0.90, ez: sz + 45000.0 * 0.38,
-                      yaw: 0.0 - 0.785398, pitch: 0.0 - 1.036 };
+    peak = hmax * orexag;
+    flycam = FlyCam { ex: sx, ey: peak * 0.78 + 4000.0, ez: sz + 42000.0,
+                      yaw: 0.0, pitch: 0.0 - 0.20, roll: 0.0, speed: FLY_CRUISE };
 
     // pre-bake the data chunks (0..2 x 0..2 covers the 80x80) once, for BOTH panes (A + B). Baked
     // data -> each bake is cheap; the loop is then pure draw (efficient, never re-bakes).
@@ -455,35 +498,109 @@ fn main() {
       return;
     }
 
-    println("Ortler 80x80: real OSM | model bands. AIRPLANE — A/D yaw, W/S pitch (nose down/up), Q/E move fwd/back; Esc quit");
+    if env_variable("VIEWER_FLYKEYS") == "1" {
+      // KEYBOARD-ONLY fallback (no mouse): A/D yaw, W/S pitch, Q/E move fwd/back along the heading.
+      println("Ortler 80x80: real OSM | model bands. KEYBOARD fly — A/D yaw, W/S pitch, Q/E fwd/back; Esc quit");
+      while graphics::gl_poll_events() {
+        if graphics::gl_key_pressed(KEY_ESC) { break; }
+        cw = graphics::gl_window_width();
+        ch = graphics::gl_window_height();
+        if cw > 0 { w = cw; }
+        if ch > 0 { h = ch; }
+        hw = w / 2 ?? 400;
+        pane_aspect = (hw as float) / (h as float) ?? 0.667;
+        if graphics::gl_key_pressed(KEY_A) { flycam.yaw = flycam.yaw - 0.02; }
+        if graphics::gl_key_pressed(KEY_D) { flycam.yaw = flycam.yaw + 0.02; }
+        if graphics::gl_key_pressed(KEY_W) { flycam.pitch = flycam.pitch - 0.02; }
+        if graphics::gl_key_pressed(KEY_S) { flycam.pitch = flycam.pitch + 0.02; }
+        if flycam.pitch < 0.0 - 1.45 { flycam.pitch = 0.0 - 1.45; }
+        if flycam.pitch > 1.45 { flycam.pitch = 1.45; }
+        mstep = 600.0;
+        (fwx, fwy, fwz) = fly_forward(flycam);
+        if graphics::gl_key_pressed(KEY_Q) {
+          flycam.ex = flycam.ex + fwx * mstep;
+          flycam.ey = flycam.ey + fwy * mstep;
+          flycam.ez = flycam.ez + fwz * mstep;
+        }
+        if graphics::gl_key_pressed(KEY_E) {
+          flycam.ex = flycam.ex - fwx * mstep;
+          flycam.ey = flycam.ey - fwy * mstep;
+          flycam.ez = flycam.ez - fwz * mstep;
+        }
+        mvp = build_mvp_fly(flycam, pane_aspect);
+        graphics::gl_viewport(0, 0, w, h);
+        graphics::gl_clear(0x223344);
+        graphics::gl_viewport(0, 0, hw, h);
+        draw_pane_mvp(mvp, shader, ld_vao, nidx);
+        graphics::gl_viewport(hw, 0, hw, h);
+        draw_pane_mvp(mvp, shader, lt_vao, nidx);
+        graphics::gl_swap_buffers();
+      }
+      println("S5e: quit");
+      return;
+    }
+
+    // MOUSE FLIGHT (default): the cursor is a virtual flight stick — its offset from the window
+    // centre (dead-zoned) banks (X) and pitches (Y); banking auto-yaws (the coordinated turn) and
+    // the horizon tilts. The plane always flies forward; scroll wheel / W,S throttle, A,D rudder.
+    // Near-centre cursor = wings-level. A soft terrain floor keeps you above the peaks. dt-scaled
+    // (ticks) so the feel is frame-rate independent.
+    println("Ortler 80x80: real OSM | model bands. MOUSE FLIGHT — move mouse to bank/pitch (centre=level),");
+    println("  scroll or W/S = throttle, A/D = rudder, Shift = boost, Space = brake; Esc quit");
+    prevt = ticks();
     while graphics::gl_poll_events() {
       if graphics::gl_key_pressed(KEY_ESC) { break; }
-      // viewport follows the live window size (handles resize / fullscreen) — re-split each frame
+      // frame time (seconds), clamped so a long bake / stall doesn't lurch the camera
+      nowt = ticks();
+      dt = ((nowt - prevt) as float) / 1000000.0;
+      prevt = nowt;
+      if dt > 0.1 { dt = 0.1; }
+      if dt < 0.0 { dt = 0.0; }
+      // viewport follows the live window size (handles resize / fullscreen)
       cw = graphics::gl_window_width();
       ch = graphics::gl_window_height();
       if cw > 0 { w = cw; }
       if ch > 0 { h = ch; }
       hw = w / 2 ?? 400;
       pane_aspect = (hw as float) / (h as float) ?? 0.667;
-      // airplane controls: A/D yaw (turn), W/S pitch (nose down/up); Q/E fly forward/back along the
-      // heading while held (no auto-motion — you move only when you press).
-      if graphics::gl_key_pressed(KEY_A) { flycam.yaw = flycam.yaw - 0.02; }
-      if graphics::gl_key_pressed(KEY_D) { flycam.yaw = flycam.yaw + 0.02; }
-      if graphics::gl_key_pressed(KEY_W) { flycam.pitch = flycam.pitch - 0.02; }
-      if graphics::gl_key_pressed(KEY_S) { flycam.pitch = flycam.pitch + 0.02; }
-      if flycam.pitch < 0.0 - 1.45 { flycam.pitch = 0.0 - 1.45; }
-      if flycam.pitch > 1.45 { flycam.pitch = 1.45; }
-      mstep = 600.0;   // world units moved per frame while Q/E held
+      // mouse as a virtual stick: cursor offset from window centre, normalized to -1..1, dead-zoned
+      cxp = (w as float) * 0.5;
+      cyp = (h as float) * 0.5;
+      dxn = deadzone((graphics::gl_mouse_x() - cxp) / cxp, FLY_DEAD);
+      dyn = deadzone((graphics::gl_mouse_y() - cyp) / cyp, FLY_DEAD);
+      if dxn > 1.0 { dxn = 1.0; }
+      if dxn < 0.0 - 1.0 { dxn = 0.0 - 1.0; }
+      if dyn > 1.0 { dyn = 1.0; }
+      if dyn < 0.0 - 1.0 { dyn = 0.0 - 1.0; }
+      bank_t = dxn * FLY_MAXBANK;            // stick right -> bank right
+      pitch_t = (0.0 - dyn) * FLY_MAXPITCH;  // mouse up (smaller y) -> nose up
+      // ease attitude toward the stick target (inertia / self-levelling when centred)
+      e = FLY_EASE * dt;
+      if e > 1.0 { e = 1.0; }
+      flycam.roll = flycam.roll + (bank_t - flycam.roll) * e;
+      flycam.pitch = flycam.pitch + (pitch_t - flycam.pitch) * e;
+      // coordinated turn: bank yaws the heading; A/D add rudder trim
+      flycam.yaw = flycam.yaw + FLY_COORD * sin(flycam.roll) * dt;
+      if graphics::gl_key_pressed(KEY_A) { flycam.yaw = flycam.yaw - FLY_RUDDER * dt; }
+      if graphics::gl_key_pressed(KEY_D) { flycam.yaw = flycam.yaw + FLY_RUDDER * dt; }
+      // throttle: scroll wheel (per notch) + W/S (held); Shift boost, Space brake
+      flycam.speed = flycam.speed + (graphics::gl_mouse_wheel() as float) * FLY_WHEEL;
+      if graphics::gl_key_pressed(KEY_W) { flycam.speed = flycam.speed + FLY_THR * dt; }
+      if graphics::gl_key_pressed(KEY_S) { flycam.speed = flycam.speed - FLY_THR * dt; }
+      if graphics::gl_key_pressed(KEY_SHIFT) { flycam.speed = flycam.speed + FLY_THR * dt; }
+      if graphics::gl_key_pressed(KEY_SPACE) { flycam.speed = flycam.speed - FLY_THR * 2.0 * dt; }
+      if flycam.speed < FLY_CRUISE { flycam.speed = FLY_CRUISE; }
+      if flycam.speed > FLY_MAXSPD { flycam.speed = FLY_MAXSPD; }
+      // fly forward
       (fwx, fwy, fwz) = fly_forward(flycam);
-      if graphics::gl_key_pressed(KEY_Q) {
-        flycam.ex = flycam.ex + fwx * mstep;
-        flycam.ey = flycam.ey + fwy * mstep;
-        flycam.ez = flycam.ez + fwz * mstep;
-      }
-      if graphics::gl_key_pressed(KEY_E) {
-        flycam.ex = flycam.ex - fwx * mstep;
-        flycam.ey = flycam.ey - fwy * mstep;
-        flycam.ez = flycam.ez - fwz * mstep;
+      flycam.ex = flycam.ex + fwx * flycam.speed * dt;
+      flycam.ey = flycam.ey + fwy * flycam.speed * dt;
+      flycam.ez = flycam.ez + fwz * flycam.speed * dt;
+      // soft terrain floor: stay FLY_CLEAR above the ground under the eye (exaggerated heights)
+      (eq, er) = overworld_hex_of(flycam.ex, flycam.ez);
+      if eq >= 0 && eq < ORT_COLS && er >= 0 && er < ORT_ROWS {
+        gh = ((hd[er * ORT_COLS + eq] ?? 0) as float) * orexag;
+        if flycam.ey < gh + FLY_CLEAR { flycam.ey = gh + FLY_CLEAR; }
       }
       mvp = build_mvp_fly(flycam, pane_aspect);
       graphics::gl_viewport(0, 0, w, h);

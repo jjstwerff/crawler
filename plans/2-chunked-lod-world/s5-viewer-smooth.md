@@ -120,6 +120,29 @@ Smooth = lever 1 (each bake cheap) **×** lever 2 (no bake ever blocks the frame
   landscape), **VIEWER_DETAIL=1** (detail slice). Smoke/golden untouched. *Next:* port the model's
   `material_contest` (slope-aware) for a faithful B; re-export hook in `make`.
 
+- [x] **V11 — mouse-flight camera (airplane feel)**. **DONE 2026-06-17 (verified headlessly:
+  flying-start frame + a banked-horizon shot — the horizon tilts and the coordinated turn signs
+  match; golden held at 459 px).** The Ortler view flies like an aircraft. What sells the feel
+  (not the bindings): **bank-to-turn with a tilting horizon** (`build_mvp_fly` banks the up-vector
+  by `roll`; banking auto-yaws — `yaw += FLY_COORD·sin(roll)·dt`), **continuous airspeed** (always
+  moving forward at ≥ `FLY_CRUISE`, throttle-managed), and **inertia / self-levelling** (attitude
+  eases toward the stick target; centre = wings-level). dt-scaled via `ticks()` (frame-rate
+  independent). A **soft terrain floor** samples the Ortler height under the eye and keeps
+  `FLY_CLEAR` above it. Input (graphics gives absolute cursor only — no lock — so the cursor is a
+  **virtual joystick**: offset from window-centre, dead-zoned):
+
+  | input | action |
+  |---|---|
+  | mouse X / Y (offset from centre) | bank / pitch — the stick; centre = level |
+  | scroll wheel · W / S | throttle (airspeed) |
+  | A / D | rudder (fine flat yaw) |
+  | Shift · Space | boost · brake |
+  | Esc | quit |
+
+  Tuning constants (`FLY_*` in viewer.loft) are in one block. Keyboard-only fly kept behind
+  **`VIEWER_FLYKEYS=1`** (A/D yaw, W/S pitch, Q/E move). *Open:* mouse-look decouple (RMB free-look)
+  and a speed-coupled FOV are future polish; turn/throttle rates are first-pass, tune by feel.
+
 *After Phase A the viewer is **usable** on the interpreter: instant window, no freeze, the full
 landscape is up in ~2 s (overworld default), and the detail slice streams in over a few seconds.*
 

@@ -266,8 +266,10 @@ viewer:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  viewer: loft not found ($(LOFT))"; exit 1; }
 	@echo "  [viewer] DEFAULT: real 80x80 Ortler dual screen — left = real OSM landcover, right ="
 	@echo "           our model's elevation bands (@PLN1 adequacy comparison) over the real DEM."
-	@echo "           WASD pan / Q-E zoom; Esc quits. Opt-in: VIEWER_OVERWORLD=1 (procedural full"
-	@echo "           landscape), VIEWER_DETAIL=1 (detail slice, +VIEWER_TALUS=1 for the talus pane) ..."
+	@echo "           MOUSE FLIGHT: move mouse to bank/pitch (centre = wings-level), scroll or W/S ="
+	@echo "           throttle, A/D = rudder, Shift = boost, Space = brake; Esc quits."
+	@echo "           Opt-in: VIEWER_FLYKEYS=1 (keyboard-only fly), VIEWER_OVERWORLD=1 (procedural"
+	@echo "           full landscape), VIEWER_DETAIL=1 (detail slice, +VIEWER_TALUS=1 talus pane) ..."
 	@$(LOFT) --interpret $(VIEWER_FLAGS) src/viewer.loft
 
 # Native (rustc -O) viewer — NATIVE ONLY. Runs --native-release directly (the real build, which
