@@ -99,7 +99,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor
+.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test
 
 # Default target: print the overview above.
 help:
@@ -259,14 +259,16 @@ probe:
 # registry (declared in loft.toml), math from the installed stdlib. No sibling --lib dirs — so
 # it doesn't depend on ../loft-libs-* checkouts and avoids the source-lib native-compile fallback.
 # (story/test still need $(LIB_DEPS): engine_host is sibling-only, not registry-published.)
-VIEWER_FLAGS :=
+# Viewer-side libs added on top of LOFTFLAGS: src/realworld/ (region.loft, hydro.loft,
+# trimesh.loft) and src/regions/ (ortler.loft = the generated per-region data module).
+VIEWER_FLAGS := --lib src/realworld/ --lib src/regions/
 VIEWER_GOLD  := tools/golden/viewer_s5e.png
 VIEWER_GOLD_TALUS := tools/golden/viewer_s5e_talus.png
 
 viewer:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  viewer: loft not found ($(LOFT))"; exit 1; }
-	@echo "  [viewer] DEFAULT: real 80x80 Ortler dual screen — left = real OSM landcover, right ="
-	@echo "           our model's elevation bands (@PLN1 adequacy comparison) over the real DEM."
+	@echo "  [viewer] DEFAULT: real 80x80 Ortler dual screen — left = PER-TRIANGLE OSM landcover (18"
+	@echo "           tri/hex), right = PER-CELL elevation-band model (@PLN1 adequacy comparison)."
 	@echo "           FREE CAM: mouse = look around, WASD = pan, Shift = faster, Space = brake; Esc quits."
 	@echo "           Opt-in: VIEWER_FLYKEYS=1 (keyboard-only fly), VIEWER_OVERWORLD=1 (procedural"
 	@echo "           full landscape), VIEWER_DETAIL=1 (detail slice, +VIEWER_TALUS=1 talus pane) ..."
@@ -335,6 +337,50 @@ viewer-gold-talus:
 	  case "$$d" in ''|*[!0-9]*) echo "  viewer-gold-talus: compare error: $$d"; exit 1;; esac; \
 	  if [ "$$d" -gt 800 ]; then echo "  viewer-gold-talus: GOLDEN MISMATCH (>800 px) — see /tmp/viewer_s5e_talus_diff.png"; exit 1; fi; \
 	  echo "  viewer-gold-talus: golden OK"
+
+# ── Real-world region data (doc/viewer-design.md §9) ─────────────────────
+#
+# Pipeline: data/regions/<name>.bin (raw little-endian binary, packed by the
+# tiny Python step) → src/regions/<name>.loft (numeric-literal module, written
+# by src/realworld/build_region.loft in LOFT). Every consumer just
+#   use regions::<name>;
+# and loft's program cache mmaps the compiled image on every launch.
+#
+#   make region-bin   — one-time NPZ → .bin packing (the only remaining Python)
+#                       REGION=<name>, default ortler.
+#   make region       — runs the LOFT builder: read .bin, write the .loft.
+#                       REGION=<name>, default ortler.
+#
+# After both: data/regions/<name>.bin + src/regions/<name>.loft are committed
+# so a fresh clone needs neither step to run the viewer.
+#
+# Adding a new region (e.g. the Welsh sea-cliff coast):
+#   1. extend plans/1-ortler-worldgen-fixture/dump_region_bin.py with a
+#      `dump_wales()` per-region branch (or the next-gen loft fetcher).
+#   2. `make region-bin REGION=wales` writes data/regions/wales.bin.
+#   3. `make region     REGION=wales` writes src/regions/wales.loft.
+#   4. commit both.
+REGION ?= ortler
+
+region-bin:
+	@python3 plans/1-ortler-worldgen-fixture/dump_region_bin.py --region $(REGION)
+
+region:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  region: loft not found ($(LOFT))"; exit 1; }
+	@LOFT_REGION=$(REGION) $(LOFT) --interpret --lib src/realworld/ $(LOFTFLAGS) build_region.loft
+
+# Standalone hydrology smoke: pit-fill + flow + acc + I-FLOW validation on
+# the active region. The viewer will fold the same call into its startup once
+# wired (design doc §11 step 5).
+hydro-test:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  hydro-test: loft not found ($(LOFT))"; exit 1; }
+	@LOFT_REGION=$(REGION) $(LOFT) --interpret --lib src/realworld/ --lib src/regions/ $(LOFTFLAGS) hydro_test.loft
+
+# Standalone trimesh smoke: build the 18-tri-per-hex VBO for the active
+# region and print its size + a watertight spot-check.
+trimesh-test:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  trimesh-test: loft not found ($(LOFT))"; exit 1; }
+	@LOFT_REGION=$(REGION) $(LOFT) --interpret --lib src/realworld/ --lib src/regions/ $(LOFTFLAGS) trimesh_test.loft
 
 # ── Housekeeping ──────────────────────────────────────────────────────────
 

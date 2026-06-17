@@ -1,0 +1,35 @@
+// realworld::build_region — main(): generate src/regions/<name>.loft from
+// data/regions/<name>.bin. Run via `make region REGION=<name>`.
+//
+// This is the loft-side replacement for the deleted Python exporter; it owns
+// every byte that lands in src/regions/*. The binary is produced by the
+// thin one-shot Python step `dump_region_bin.py`, which only packs the
+// existing NPZ artefacts — no .loft output. (When loft HTTP fetch lands the
+// Python step disappears too, and this builder grows a fetcher.)
+//
+// The region name comes from the LOFT_REGION env var; default = "ortler".
+
+use region;
+use region_io;
+
+fn main() {
+  name = env_variable("LOFT_REGION");
+  if name == "" || name == null { name = "ortler"; }
+  bin_path = "data/regions/{name}.bin";
+  out_path = "src/regions/{name}.loft";
+  println("=== build_region({name}) ===");
+  println("  src: {bin_path}");
+  println("  dst: {out_path}");
+  t0 = ticks();
+  rgn = region_read_bin(name, bin_path);
+  if rgn.rgn_cols <= 0 {
+    println("  FAIL: could not read the binary; check `python3 plans/1-ortler-worldgen-fixture/dump_region_bin.py --region {name}`");
+    return;
+  }
+  dt_read = (ticks() - t0) / 1000;
+  println("  read OK: {rgn.rgn_cols}x{rgn.rgn_rows} hexes, {rgn.rgn_n_verts} trimesh verts ({dt_read} ms)");
+  t1 = ticks();
+  region_write_loft(rgn, out_path);
+  dt_write = (ticks() - t1) / 1000;
+  println("  wrote {out_path} ({dt_write} ms)");
+}

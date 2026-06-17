@@ -1,0 +1,223 @@
+// realworld::region_io — read data/regions/<name>.bin and write the
+// committed numeric-literal module src/regions/<name>.loft.
+//
+// Layout matches doc/viewer-design.md §9.1 exactly:
+//
+//     offset       size          field            type    notes
+//     ---------------------------------------------------------------------------
+//     0            4             magic            i32     'RGN1' = 0x314E_4752
+//     4            4             schema_version   i32     1
+//     8            4             cols             i32
+//     12           4             rows             i32
+//     16           4             v_cols           i32
+//     20           4             v_rows           i32
+//     24           4             n_verts          i32
+//     28           4             reserved         i32
+//
+//     32                         hex_h            i16 × cols·rows
+//                                hex_osm          i16 × cols·rows
+//                                hex_river        i16 × cols·rows
+//                                tri_osm          i16 × cols·rows·18
+//                                vert_x           f64 × n_verts
+//                                vert_y           f64 × n_verts
+//                                vert_h           i16 × n_verts
+//                                vert_tris        i32 × v_cols·v_rows·18·3
+
+use region;
+
+pub const REGION_MAGIC          = 0x314E4752;
+pub const REGION_SCHEMA_VERSION = 1;
+
+// ── reading the .bin ──────────────────────────────────────────────────────
+
+// Loft's parser treats `<expr>#<id>` inside a loop body as a loop attribute
+// (#index, #count, etc.), which collides with the binary file stream's
+// `f#read(n)`. Wrapping each read in its own leaf function dodges that — the
+// `#read` then lives at function top level where it parses cleanly.
+fn read_one_i16(bf: File) -> integer { bf#read(2) as i16 as integer }
+fn read_one_i32(bf: File) -> integer { bf#read(4) as i32 as integer }
+fn read_one_f64(bf: File) -> float   { bf#read(8) as float }
+
+// Read one little-endian array of `n` i16s into a vector<integer>.
+fn read_i16_vec(bf: File, n: integer) -> vector<integer> {
+  out: vector<integer> = [];
+  i = 0;
+  while i < n { out += [read_one_i16(bf)]; i = i + 1; }
+  out
+}
+
+// Read `n` i32s into a vector<integer>.
+fn read_i32_vec(bf: File, n: integer) -> vector<integer> {
+  out: vector<integer> = [];
+  i = 0;
+  while i < n { out += [read_one_i32(bf)]; i = i + 1; }
+  out
+}
+
+// Read `n` f64s into a vector<float>.
+fn read_f64_vec(bf: File, n: integer) -> vector<float> {
+  out: vector<float> = [];
+  i = 0;
+  while i < n { out += [read_one_f64(bf)]; i = i + 1; }
+  out
+}
+
+// Parse data/regions/<name>.bin into an in-memory Region. Returns a Region
+// with rgn_name = "" and rgn_cols = 0 on a magic / schema / file-missing
+// failure — callers gate the rest of the pipeline on rgn_cols > 0.
+pub fn region_read_bin(name: text, path: text) -> Region {
+  empty = Region {
+    rgn_name: "", rgn_cols: 0, rgn_rows: 0,
+    rgn_v_cols: 0, rgn_v_rows: 0, rgn_n_verts: 0,
+    hex_h: [], hex_osm: [], hex_river: [], tri_osm: [],
+    vert_x: [], vert_y: [], vert_h: [], vert_tris: [],
+  };
+  if !exists(path) {
+    println("region_read_bin: missing {path} — run dump_region_bin.py first");
+    return empty;
+  }
+  f = file(path);
+  f#format = LittleEndian;
+  magic = f#read(4) as i32 as integer;
+  if magic != REGION_MAGIC {
+    println("region_read_bin: bad magic 0x{magic:X} in {path} (want 0x{REGION_MAGIC:X})");
+    return empty;
+  }
+  sv = f#read(4) as i32 as integer;
+  if sv != REGION_SCHEMA_VERSION {
+    println("region_read_bin: schema_version {sv} in {path} (want {REGION_SCHEMA_VERSION})");
+    return empty;
+  }
+  cols    = f#read(4) as i32 as integer;
+  rows    = f#read(4) as i32 as integer;
+  v_cols  = f#read(4) as i32 as integer;
+  v_rows  = f#read(4) as i32 as integer;
+  n_verts = f#read(4) as i32 as integer;
+  _reserved = f#read(4) as i32 as integer;
+
+  n_cells = cols * rows;
+  hh   = read_i16_vec(f, n_cells);
+  ho   = read_i16_vec(f, n_cells);
+  hr   = read_i16_vec(f, n_cells);
+  tro  = read_i16_vec(f, n_cells * 18);
+  vx   = read_f64_vec(f, n_verts);
+  vy   = read_f64_vec(f, n_verts);
+  vh   = read_i16_vec(f, n_verts);
+  vt   = read_i32_vec(f, v_cols * v_rows * 18 * 3);
+
+  Region {
+    rgn_name:   name,
+    rgn_cols:   cols,
+    rgn_rows:   rows,
+    rgn_v_cols: v_cols,
+    rgn_v_rows: v_rows,
+    rgn_n_verts: n_verts,
+    hex_h:     hh,
+    hex_osm:   ho,
+    hex_river: hr,
+    tri_osm:   tro,
+    vert_x:    vx,
+    vert_y:    vy,
+    vert_h:    vh,
+    vert_tris: vt,
+  }
+}
+
+// ── writing the .loft (numeric literals) ──────────────────────────────────
+
+// Build one "[v0,v1,v2,...]" literal body for a vector<integer>. Built in a
+// local buffer with commas in one pass so the file write is a single call.
+fn lit_int_body(vs: vector<integer>) -> text {
+  out = "";
+  n = len(vs);
+  for i in 0..n {
+    if i > 0 { out = out + ","; }
+    out = out + "{vs[i] ?? 0}";
+  }
+  out
+}
+
+// Same for vector<float>; 9 sig figs is enough to round-trip an f64 through a
+// loft literal without drift on the moros odd-r 1500 m lattice.
+fn lit_float_body(vs: vector<float>) -> text {
+  out = "";
+  n = len(vs);
+  for i in 0..n {
+    if i > 0 { out = out + ","; }
+    out = out + "{vs[i] ?? 0.0:.9}";
+  }
+  out
+}
+
+fn write_int_fn(f: File, name: text, comment: text, vs: vector<integer>) {
+  f.write("// {comment}\n");
+  f.write("pub fn {name}() -> vector<integer> {{ [");
+  f.write(lit_int_body(vs));
+  f.write("] }}\n");
+}
+
+fn write_float_fn(f: File, name: text, comment: text, vs: vector<float>) {
+  f.write("// {comment}\n");
+  f.write("pub fn {name}() -> vector<float> {{ [");
+  f.write(lit_float_body(vs));
+  f.write("] }}\n");
+}
+
+// Write src/regions/<name>.loft from a populated Region. The literals are
+// region-prefixed (rgn_<name>_h(), …) so multi-region builds don't collide;
+// consumers usually access the data through region_io::region_load_<name>()
+// (or directly via the Region accessors) so they never name these helpers.
+pub fn region_write_loft(rgn: const Region, out_path: text) {
+  if rgn.rgn_cols <= 0 {
+    println("region_write_loft: empty region (read failed?); not writing {out_path}");
+    return;
+  }
+  f = file(out_path);
+  f.set_file_size(0);
+  nm = rgn.rgn_name;
+  // loft format strings don't have an uppercase spec; build it ourselves.
+  big: text = "";
+  for ch in nm {
+    code = ch as integer;
+    if code >= 97 && code <= 122 { code = code - 32; }
+    big = big + "{(code as character)}";
+  }
+  f.write("// regions::{nm} — GENERATED by src/realworld/build_region.loft.\n");
+  f.write("// Source: data/regions/{nm}.bin (schema {REGION_SCHEMA_VERSION}).\n");
+  f.write("// Do NOT hand-edit — re-run `make region REGION={nm}`.\n");
+  f.write("use region;\n");
+  f.write("pub const RGN_{big}_COLS   = {rgn.rgn_cols};\n");
+  f.write("pub const RGN_{big}_ROWS   = {rgn.rgn_rows};\n");
+  f.write("pub const RGN_{big}_V_COLS = {rgn.rgn_v_cols};\n");
+  f.write("pub const RGN_{big}_V_ROWS = {rgn.rgn_v_rows};\n");
+  f.write("pub const RGN_{big}_NVERTS = {rgn.rgn_n_verts};\n");
+  write_int_fn(f,   "rgn_{nm}_h",         "EU-DEM heights (m) per hex centre",         rgn.hex_h);
+  write_int_fn(f,   "rgn_{nm}_osm",       "OSM landcover code 0..10 per hex centre",    rgn.hex_osm);
+  write_int_fn(f,   "rgn_{nm}_river",     "OSM waterway hit-mask (0/1) per hex",       rgn.hex_river);
+  write_int_fn(f,   "rgn_{nm}_triosm",    "per-inner-triangle OSM, gid=(c*rows+r)*18+loc", rgn.tri_osm);
+  write_float_fn(f, "rgn_{nm}_vert_x",    "trimesh vertex x (world metres)",            rgn.vert_x);
+  write_float_fn(f, "rgn_{nm}_vert_y",    "trimesh vertex y (world metres)",            rgn.vert_y);
+  write_int_fn(f,   "rgn_{nm}_vert_h",    "trimesh vertex height (m, real EU-DEM)",     rgn.vert_h);
+  write_int_fn(f,   "rgn_{nm}_vert_tris", "trimesh tri vertex-ids, ((c*v_rows+r)*18+loc)*3+i", rgn.vert_tris);
+  // A region_load_<name>() helper so consumers can do
+  //   `use regions::ortler; r = region_load_ortler();`
+  // and analysis modules take `const Region` from there.
+  f.write("pub fn region_load_{nm}() -> Region {{\n");
+  f.write("  Region {{\n");
+  f.write("    rgn_name: \"{nm}\",\n");
+  f.write("    rgn_cols:    RGN_{big}_COLS,\n");
+  f.write("    rgn_rows:    RGN_{big}_ROWS,\n");
+  f.write("    rgn_v_cols:  RGN_{big}_V_COLS,\n");
+  f.write("    rgn_v_rows:  RGN_{big}_V_ROWS,\n");
+  f.write("    rgn_n_verts: RGN_{big}_NVERTS,\n");
+  f.write("    hex_h:       rgn_{nm}_h(),\n");
+  f.write("    hex_osm:     rgn_{nm}_osm(),\n");
+  f.write("    hex_river:   rgn_{nm}_river(),\n");
+  f.write("    tri_osm:     rgn_{nm}_triosm(),\n");
+  f.write("    vert_x:      rgn_{nm}_vert_x(),\n");
+  f.write("    vert_y:      rgn_{nm}_vert_y(),\n");
+  f.write("    vert_h:      rgn_{nm}_vert_h(),\n");
+  f.write("    vert_tris:   rgn_{nm}_vert_tris(),\n");
+  f.write("  }}\n");
+  f.write("}}\n");
+}

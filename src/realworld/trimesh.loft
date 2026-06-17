@@ -1,0 +1,337 @@
+// realworld::trimesh — the 18-tri-per-hex mesh builder, region-agnostic.
+//
+// Each hex contributes 18 fan triangles over 19 vertices (centre + 6 corners
+// + 12 edge-thirds at 1/3 and 2/3 of every side). Per @PLN1 trimesh.py /
+// ortler_render.py the fan order is:
+//
+//   loc = 3·k + 0 : (centre, corner_k,      edge_(k,1/3))   flank L of side k
+//   loc = 3·k + 1 : (centre, edge_(k,1/3),  edge_(k,2/3))   middle  of side k
+//   loc = 3·k + 2 : (centre, edge_(k,2/3),  corner_(k+1))   flank R of side k
+//
+// Corner numbering matches Python (corner 0 at 30°, going counter-clockwise),
+// NOT hex_grid::hex_corner_px (which puts corner 0 at the top). That keeps
+// every triangle's centroid in the same angular slot as the Python
+// _tri_gid → tri_osm lookup, so the per-triangle OSM class is right by
+// construction.
+//
+// Watertight (I-MESH):
+//   - Corner shared by 3 hexes: height = mean of the 3 hex centres.
+//   - Edge-third shared by 2 hexes: height = 2/3·home + 1/3·neighbour for
+//     the 1/3 slot, swapped for the 2/3 slot. (The two ends both compute to
+//     the same value from either side — commutative under (2/3, 1/3) ↔
+//     (1/3, 2/3) when sides reverse.)
+//   - Out-of-region neighbours fall back to the home hex height — gives a
+//     smooth boundary instead of a sudden cliff at the data edge.
+//
+// Output is stride-6 (x, h, z, r, g, b), the same format chunk_mesh_ov
+// emits, so the viewer's existing shader / upload path is unchanged.
+
+use region;
+use hex_grid;
+
+pub const SLOTS_PER_HEX = 19;          // 1 centre + 6 corners + 12 edge-thirds
+pub const FLOATS_PER_TRI = 18;         // 3 verts × 6 floats (stride 6)
+pub const FLOATS_PER_HEX = 324;        // 18 tris × FLOATS_PER_TRI
+pub const CHUNK = 32;                  // hex per chunk axis (matches chunk.loft::CHUNK)
+
+// Hex pitch + circumradius in world metres (the moros 1500m odd-r lattice).
+// SCALE = OV_TILE_M / hex_grid::HEX_LEN ; HEX_RC = OV_TILE_M / sqrt(3).
+const OV_TILE_M = 1500.0;
+const OV_SCALE  = 866.0254037844386;
+pub const HEX_RC = 866.0254037844386;
+
+// hex (c, r) → world-metres centre. Inlined from chunk::overworld_center so
+// this module stays in src/realworld/ without pulling in src/ as a lib dir.
+fn hex_centre_xz(c: integer, r: integer) -> (float, float) {
+  (px, pz) = hex_to_px(c, r);
+  (px * OV_SCALE, pz * OV_SCALE)
+}
+
+// world-metres → containing hex (c, r). The inverse of hex_centre_xz.
+fn xz_to_hex(x: float, z: float) -> (integer, integer) {
+  px_to_hex(x / OV_SCALE, z / OV_SCALE)
+}
+
+// One-time per-hex corner angles (degrees → radians). Corner k at 30° + k·60°.
+fn corner_angle(k: integer) -> float {
+  (0.5235987755982988) + (k as float) * 1.0471975511965976
+}
+
+// ── neighbour-direction map for the Python fan convention ────────────────
+//
+// In the Python convention (corner 0 at 30°), the side between corner k and
+// corner k+1 faces a specific hex_neighbor direction. hex_grid::hex_neighbor
+// uses dir 0 = E, 1/2 = upper diagonals, 3 = W, 4/5 = lower diagonals.
+// Mapping side k (between Python-corner k and Python-corner k+1) to that
+// neighbour direction:
+//
+//   side 0 (between corner 0 at 30°  and corner 1 at 90°)  → upper-right = dir 1 / 5 by parity
+//   side 1 (90°  → 150°)                                    → upper-left  = dir 2 / 4 by parity
+//   side 2 (150° → 210°)                                    → W           = dir 3
+//   side 3 (210° → 270°)                                    → lower-left  = dir 4 / 2 by parity
+//   side 4 (270° → 330°)                                    → lower-right = dir 5 / 1 by parity
+//   side 5 (330° → 30°)                                     → E           = dir 0
+//
+// Translating "upper" / "lower" to hex_grid's parity-driven direction:
+// for ROW parity 0 (even r), hex_grid's dirs 1/2 are upper (r-1), 4/5 lower (r+1).
+// for ROW parity 1 (odd r),  hex_grid's dirs 1/2 are upper (r-1), 4/5 lower (r+1).
+// Both parities agree on the upper/lower halves; the column shift differs.
+// We resolve the side→dir map by sampling hex_grid::hex_neighbor twice (one
+// even, one odd row) at module init.
+//
+// (Simpler at the call site: compute the side-midpoint world position from
+// our corner formula and call hex_grid::px_to_hex on it.)
+
+// World (x, z) of corner k (Python convention) of hex (c, r), in metres.
+pub fn tri_corner_xz(c: integer, r: integer, k: integer) -> (float, float) {
+  (cx, cz) = hex_centre_xz(c, r);
+  ang = corner_angle(k);
+  (cx + HEX_RC * cos(ang), cz + HEX_RC * sin(ang))
+}
+
+// World (x, z) of vertex slot ∈ 0..18 (0 = centre, 1..6 = corners, 7..18 =
+// edge-thirds). Edge-third 7+2·side is 1/3 of side `side`; 8+2·side is 2/3.
+pub fn tri_vertex_xz(c: integer, r: integer, slot: integer) -> (float, float) {
+  if slot == 0 { return hex_centre_xz(c, r); }
+  if slot >= 1 && slot <= 6 { return tri_corner_xz(c, r, slot - 1); }
+  // edge-third
+  rel = slot - 7;            // 0..11
+  side = rel / 2 ?? 0;       // 0..5
+  third = rel - side * 2;    // 0 → 1/3, 1 → 2/3
+  (ax, az) = tri_corner_xz(c, r, side);
+  (bx, bz) = tri_corner_xz(c, r, (side + 1) % 6 ?? 0);
+  // 1/3 along: 2/3·A + 1/3·B    2/3 along: 1/3·A + 2/3·B
+  wa = 2.0 / 3.0;
+  wb = 1.0 / 3.0;
+  if third == 1 { wa = 1.0 / 3.0; wb = 2.0 / 3.0; }
+  (ax * wa + bx * wb, az * wa + bz * wb)
+}
+
+// ── the 3 hexes meeting at corner k (Python convention) of hex (c, r) ────
+//
+// Corner k lies on the two sides (k-1)%6 and k%6 of the home hex, so it's
+// shared with the neighbours along those sides. We identify those neighbours
+// by calling hex_grid::px_to_hex on the corner's world position — that
+// rounds to whichever hex it falls in for arbitrary lattice orientation,
+// regardless of which side numbering convention we use. We get the home as
+// one of the three and pick the other two.
+fn corner_incident_hexes(c: integer, r: integer, k: integer) ->
+    (integer, integer, integer, integer, integer, integer) {
+  // The three world positions just barely INSIDE each of the 3 hexes at
+  // this corner: nudge from the corner point toward each candidate's centre.
+  (cx, cz) = tri_corner_xz(c, r, k);
+  // candidates: home plus the two hex_neighbor dirs whose sides touch corner k
+  // Side k uses neighbour dir computed from the side midpoint (below).
+  // Side (k-1)%6 likewise.
+  km1 = (k + 5) % 6 ?? 0;
+  // midpoint of side k = (corner k + corner k+1) / 2 — its hex_grid mapping
+  // gives the neighbour dir, but the SIMPLER path is to read off the two
+  // neighbours by their centre direction.
+  // For pointy-top + ODD-R the 6 hex_neighbor dirs are exactly the 6
+  // perpendiculars to the 6 sides. Side s's perpendicular bisector points to
+  // neighbour dir s_dir; we get s_dir by px_to_hex on the side midpoint.
+  (ax, az) = tri_corner_xz(c, r, k);                        // side (k-1) end + side k start
+  (b1x, b1z) = tri_corner_xz(c, r, (k + 1) % 6 ?? 0);       // side k end
+  (b2x, b2z) = tri_corner_xz(c, r, km1);                    // side (k-1) start
+  // midpoints
+  m_k_x = (ax + b1x) * 0.5;
+  m_k_z = (az + b1z) * 0.5;
+  m_km1_x = (ax + b2x) * 0.5;
+  m_km1_z = (az + b2z) * 0.5;
+  // step from midpoint outward (away from home centre) to land in the
+  // neighbour hex — half a hex-radius is enough.
+  (hcx, hcz) = hex_centre_xz(c, r);
+  dx = m_k_x - hcx;   dz = m_k_z - hcz;
+  ml = sqrt(dx * dx + dz * dz);
+  step = HEX_RC * 0.5;
+  k_nx = m_k_x + dx / ml * step ?? 0.0;
+  k_nz = m_k_z + dz / ml * step ?? 0.0;
+  (nq_k, nr_k) = xz_to_hex(k_nx, k_nz);
+  dx2 = m_km1_x - hcx; dz2 = m_km1_z - hcz;
+  ml2 = sqrt(dx2 * dx2 + dz2 * dz2);
+  km1_nx = m_km1_x + dx2 / ml2 * step ?? 0.0;
+  km1_nz = m_km1_z + dz2 / ml2 * step ?? 0.0;
+  (nq_km1, nr_km1) = xz_to_hex(km1_nx, km1_nz);
+  // suppress 'unused' warnings for the corner anchor reads
+  _ax = ax; _az = az;
+  (c, r, nq_k, nr_k, nq_km1, nr_km1)
+}
+
+// Neighbour hex (q, r) across side `side` of hex (c, r) — same trick: step
+// from the side midpoint half a hex-radius further out.
+fn side_neighbour(c: integer, r: integer, side: integer) -> (integer, integer) {
+  (ax, az) = tri_corner_xz(c, r, side);
+  (bx, bz) = tri_corner_xz(c, r, (side + 1) % 6 ?? 0);
+  mx = (ax + bx) * 0.5;
+  mz = (az + bz) * 0.5;
+  (hcx, hcz) = hex_centre_xz(c, r);
+  dx = mx - hcx; dz = mz - hcz;
+  ml = sqrt(dx * dx + dz * dz);
+  step = HEX_RC * 0.5;
+  nx = mx + dx / ml * step ?? 0.0;
+  nz = mz + dz / ml * step ?? 0.0;
+  xz_to_hex(nx, nz)
+}
+
+// ── per-vertex heights ───────────────────────────────────────────────────
+
+fn neighbour_h_or_self(rgn: const Region, nq: integer, nr: integer,
+                       self_h: integer) -> integer {
+  if nq < 0 || nq >= rgn.rgn_cols || nr < 0 || nr >= rgn.rgn_rows { return self_h; }
+  rgn.hex_h[nr * rgn.rgn_cols + nq] ?? self_h
+}
+
+// Height (m) at vertex slot of hex (c, r), watertight by I-MESH.
+pub fn tri_vertex_h(rgn: const Region, c: integer, r: integer, slot: integer) -> float {
+  self_h = region_height(rgn, c, r);
+  if slot == 0 { return self_h as float; }
+  if slot >= 1 && slot <= 6 {
+    k = slot - 1;
+    (_a_q, _a_r, b_q, b_r, c_q, c_r) = corner_incident_hexes(c, r, k);
+    h_b = neighbour_h_or_self(rgn, b_q, b_r, self_h);
+    h_c = neighbour_h_or_self(rgn, c_q, c_r, self_h);
+    return ((self_h + h_b + h_c) as float) / 3.0;
+  }
+  // edge-third
+  rel = slot - 7;
+  side = rel / 2 ?? 0;
+  third = rel - side * 2;
+  (nq, nr) = side_neighbour(c, r, side);
+  h_n = neighbour_h_or_self(rgn, nq, nr, self_h);
+  if third == 0 {
+    // 1/3 of side: 2/3·home + 1/3·neighbour
+    return ((2 * self_h + h_n) as float) / 3.0;
+  }
+  // 2/3 of side: 1/3·home + 2/3·neighbour
+  ((self_h + 2 * h_n) as float) / 3.0
+}
+
+// ── OSM → RGB palette (matches ortler_render.py OSM_PAL bit-for-bit) ─────
+
+pub fn osm_rgb(code: integer) -> (float, float, float) {
+  if code == 1  { return (60.0/255.0, 110.0/255.0, 165.0/255.0); }   // water
+  if code == 2  { return (236.0/255.0, 240.0/255.0, 250.0/255.0); }  // glacier
+  if code == 3  { return (138.0/255.0, 132.0/255.0, 126.0/255.0); }  // rock
+  if code == 4  { return (172.0/255.0, 162.0/255.0, 150.0/255.0); }  // scree
+  if code == 5  { return ( 56.0/255.0, 104.0/255.0,  52.0/255.0); }  // wood
+  if code == 6  { return (150.0/255.0, 176.0/255.0,  96.0/255.0); }  // grass
+  if code == 7  { return (201.0/255.0, 188.0/255.0, 120.0/255.0); }  // farmland
+  if code == 8  { return (170.0/255.0, 192.0/255.0, 110.0/255.0); }  // orchard
+  if code == 9  { return (150.0/255.0, 172.0/255.0,  96.0/255.0); }  // vineyard
+  if code == 10 { return (110.0/255.0, 140.0/255.0, 130.0/255.0); }  // wetland
+  (180.0/255.0, 175.0/255.0, 165.0/255.0)                            // 0 none
+}
+
+// ── elevation-band model RGB (the right-pane B in the viewer) ────────────
+//
+// Mirrors src/ortlergen.loft::ort_model_kind + chunkmesh::kind_rgb in one
+// height→RGB function. Same band thresholds (tuned-defaults.md): snowline
+// 3100, melt 2600, treeline 2150, montane forest floor 1100.
+pub fn model_rgb(h: integer) -> (float, float, float) {
+  if h > 3100 { return (0.93, 0.95, 0.98); }   // K_SNOW
+  if h > 2600 { return (0.62, 0.59, 0.55); }   // K_SCREE
+  if h > 2150 { return (0.60, 0.72, 0.40); }   // K_MEADOW
+  if h > 1100 { return (0.20, 0.45, 0.22); }   // K_FOREST
+  (0.55, 0.68, 0.38)                           // K_GRASS
+}
+
+// ── colour-mode tag (picks the per-triangle colour source) ───────────────
+pub const TRI_COLOR_OSM   = 0;     // per-inner-triangle OSM via region_triosm
+pub const TRI_COLOR_MODEL = 1;     // per-cell elevation-band model_rgb
+
+// ── the per-triangle vertex layout (slot triplets) ───────────────────────
+//
+// Index returned per (side, slot-in-side): (slot_a, slot_b, slot_c) into
+// the 0..18 vertex table. Matches the @PLN1 fan_triangles() layout.
+fn fan_slots(loc: integer) -> (integer, integer, integer) {
+  side = loc / 3 ?? 0;
+  inner = loc - side * 3;
+  c_k     = 1 + side;
+  c_k1    = 1 + ((side + 1) % 6 ?? 0);
+  e_third1 = 7 + 2 * side;
+  e_third2 = 8 + 2 * side;
+  if inner == 0 { return (0, c_k, e_third1); }     // flank L
+  if inner == 1 { return (0, e_third1, e_third2); } // middle
+  (0, e_third2, c_k1)                              // flank R
+}
+
+// ── emit one hex's 18 triangles into a stride-6 (x, h, z, r, g, b) buffer ─
+
+fn emit_hex_tris(rgn: const Region, c: integer, r: integer, mode: integer,
+                 buf: vector<single>) {
+  // Pre-compute the 19 vertex positions + heights for this hex.
+  vx: vector<float> = [for _ in 0..SLOTS_PER_HEX { 0.0 }];
+  vz: vector<float> = [for _ in 0..SLOTS_PER_HEX { 0.0 }];
+  vh: vector<float> = [for _ in 0..SLOTS_PER_HEX { 0.0 }];
+  for s in 0..SLOTS_PER_HEX {
+    (sx, sz) = tri_vertex_xz(c, r, s);
+    vx[s] = sx;
+    vz[s] = sz;
+    vh[s] = tri_vertex_h(rgn, c, r, s);
+  }
+  // Per-cell model colour (computed once, used for all 18 tris when mode=MODEL).
+  cell_h = region_height(rgn, c, r);
+  (mr, mg, mb) = model_rgb(cell_h);
+  // Emit each of the 18 triangles. Colour source per mode.
+  for loc in 0..18 {
+    rr = mr;
+    gg = mg;
+    bb = mb;
+    if mode == TRI_COLOR_OSM {
+      osm = region_triosm(rgn, c, r, loc);
+      (orr, ogg, obb) = osm_rgb(osm);
+      rr = orr; gg = ogg; bb = obb;
+    }
+    (sa, sb, sc) = fan_slots(loc);
+    // vertex A
+    buf += [(vx[sa] ?? 0.0) as single, (vh[sa] ?? 0.0) as single, (vz[sa] ?? 0.0) as single,
+            rr as single, gg as single, bb as single];
+    // vertex B
+    buf += [(vx[sb] ?? 0.0) as single, (vh[sb] ?? 0.0) as single, (vz[sb] ?? 0.0) as single,
+            rr as single, gg as single, bb as single];
+    // vertex C
+    buf += [(vx[sc] ?? 0.0) as single, (vh[sc] ?? 0.0) as single, (vz[sc] ?? 0.0) as single,
+            rr as single, gg as single, bb as single];
+  }
+}
+
+// ── public mesh builders ─────────────────────────────────────────────────
+
+// Build the per-triangle mesh for one chunk of the region.
+// Chunk (ccx, ccz) covers hexes c ∈ [ccx·CHUNK, (ccx+1)·CHUNK),
+// r ∈ [ccz·CHUNK, (ccz+1)·CHUNK), clipped to the region bounds.
+// mode = TRI_COLOR_OSM or TRI_COLOR_MODEL (see consts above).
+// Returns a stride-6 vector<single> ready for gl_upload_vertices.
+pub fn chunk_mesh_tri(rgn: const Region, ccx: integer, ccz: integer,
+                      mode: integer) -> vector<single> {
+  buf: vector<single> = [];
+  c0 = ccx * CHUNK;
+  r0 = ccz * CHUNK;
+  c1 = c0 + CHUNK;
+  r1 = r0 + CHUNK;
+  if c1 > rgn.rgn_cols { c1 = rgn.rgn_cols; }
+  if r1 > rgn.rgn_rows { r1 = rgn.rgn_rows; }
+  for r in r0..r1 {
+    for c in c0..c1 {
+      emit_hex_tris(rgn, c, r, mode, buf);
+    }
+  }
+  buf
+}
+
+// Build the per-triangle mesh for the WHOLE region. Useful for testing and
+// for small regions that comfortably fit in one VBO.
+pub fn region_mesh_tri(rgn: const Region, mode: integer) -> vector<single> {
+  buf: vector<single> = [];
+  for r in 0..rgn.rgn_rows {
+    for c in 0..rgn.rgn_cols {
+      emit_hex_tris(rgn, c, r, mode, buf);
+    }
+  }
+  buf
+}
+
+// Triangle count (used by the renderer to compute draw call size).
+pub fn region_tri_count(rgn: const Region) -> integer {
+  rgn.rgn_cols * rgn.rgn_rows * 18
+}
