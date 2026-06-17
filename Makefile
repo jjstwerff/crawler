@@ -99,7 +99,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold bundles fmt clean all loft-doctor
+.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor
 
 # Default target: print the overview above.
 help:
@@ -261,13 +261,13 @@ probe:
 # (story/test still need $(LIB_DEPS): engine_host is sibling-only, not registry-published.)
 VIEWER_FLAGS :=
 VIEWER_GOLD  := tools/golden/viewer_s5e.png
+VIEWER_GOLD_TALUS := tools/golden/viewer_s5e_talus.png
 
 viewer:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  viewer: loft not found ($(LOFT))"; exit 1; }
 	@echo "  [viewer] DEFAULT: real 80x80 Ortler dual screen — left = real OSM landcover, right ="
 	@echo "           our model's elevation bands (@PLN1 adequacy comparison) over the real DEM."
-	@echo "           MOUSE FLIGHT: move mouse to bank/pitch (centre = wings-level), scroll or W/S ="
-	@echo "           throttle, A/D = rudder, Shift = boost, Space = brake; Esc quits."
+	@echo "           FREE CAM: mouse = look around, WASD = pan, Shift = faster, Space = brake; Esc quits."
 	@echo "           Opt-in: VIEWER_FLYKEYS=1 (keyboard-only fly), VIEWER_OVERWORLD=1 (procedural"
 	@echo "           full landscape), VIEWER_DETAIL=1 (detail slice, +VIEWER_TALUS=1 talus pane) ..."
 	@$(LOFT) --interpret $(VIEWER_FLAGS) src/viewer.loft
@@ -310,6 +310,31 @@ viewer-gold:
 	  case "$$d" in ''|*[!0-9]*) echo "  viewer-gold: compare error: $$d"; exit 1;; esac; \
 	  if [ "$$d" -gt 800 ]; then echo "  viewer-gold: GOLDEN MISMATCH (>800 px) — see /tmp/viewer_s5e_diff.png"; exit 1; fi; \
 	  echo "  viewer-gold: golden OK"
+
+# `make viewer-gold-talus` — like viewer-gold but VIEWER_TALUS=1, so the RIGHT pane is the S6
+# talus model (talus_chunk: relax + flow_accumulate). Gates that geomorphology path against its
+# own golden; the model golden (viewer-gold) covers the plain pane.
+viewer-gold-talus:
+	@command -v xvfb-run >/dev/null 2>&1 || { echo "  viewer-gold-talus: missing xvfb-run"; exit 1; }
+	@command -v compare  >/dev/null 2>&1 || { echo "  viewer-gold-talus: missing imagemagick 'compare'"; exit 1; }
+	@echo "  [viewer-gold-talus] rendering dual frame (talus B-pane) under Xvfb ..."
+	@rm -f /tmp/viewer_s5e.png
+	@VIEWER_SMOKE=1 VIEWER_TALUS=1 xvfb-run -a -s "-screen 0 800x600x24" \
+	    $(LOFT) --interpret $(VIEWER_FLAGS) src/viewer.loft >/dev/null 2>&1 || { \
+	    echo "  viewer-gold-talus: render FAILED"; exit 1; }
+	@test -f /tmp/viewer_s5e.png || { echo "  viewer-gold-talus: no frame produced"; exit 1; }
+	@cp /tmp/viewer_s5e.png /tmp/viewer_s5e_talus.png
+	@if [ ! -f $(VIEWER_GOLD_TALUS) ]; then \
+	    echo "  viewer-gold-talus: no golden yet. Review /tmp/viewer_s5e_talus.png; if good:"; \
+	    echo "      mkdir -p tools/golden && cp /tmp/viewer_s5e_talus.png $(VIEWER_GOLD_TALUS)"; \
+	    exit 1; \
+	  fi
+	@d=$$(compare -metric AE -fuzz 6% $(VIEWER_GOLD_TALUS) /tmp/viewer_s5e_talus.png /tmp/viewer_s5e_talus_diff.png 2>&1 || true); \
+	  d=$${d%% *}; \
+	  echo "  viewer-gold-talus: differing pixels (fuzz 6%) = $$d"; \
+	  case "$$d" in ''|*[!0-9]*) echo "  viewer-gold-talus: compare error: $$d"; exit 1;; esac; \
+	  if [ "$$d" -gt 800 ]; then echo "  viewer-gold-talus: GOLDEN MISMATCH (>800 px) — see /tmp/viewer_s5e_talus_diff.png"; exit 1; fi; \
+	  echo "  viewer-gold-talus: golden OK"
 
 # ── Housekeeping ──────────────────────────────────────────────────────────
 

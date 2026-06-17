@@ -72,13 +72,17 @@ Smooth = lever 1 (each bake cheap) **×** lever 2 (no bake ever blocks the frame
   `gl_poll_events`, optionally a "loading" clear colour. *Gate (Xvfb):* first `gl_swap_buffers`
   at < 0.5 s, not 38 s; the window paints + the WM decorates immediately.
 
-- [ ] **V2 — `DetailChunk` cache** (was E1). A `(cx,cz) → DetailChunk` memo built once per coord,
-  reused across `bake_chunk`'s four-neighbour reads → 36 builds → 16. **Blueprint-first** (exact
-  invariant): pin **cached build == fresh build, byte-identical**, then port (mind loft#392 —
-  don't route `vector<single>` through a returning helper; keep the loft#320-safe slot index-write).
-  *Gate:* `make viewer-gold` golden **byte-identical**; build count 36 → 16; startup ~38 s → ~17 s
-  (interpret) / ~1.7 s → ~0.7 s (native). Also folds in **V2b** (was E3): drop the double build of
-  chunk (143,83) for camera framing (`viewer.loft:189`) by sourcing the height span from the cache.
+- [ ] **V2 — `DetailChunk` cache** (was E1). **DEPRIORITISED 2026-06-17 — premise largely
+  superseded.** The "startup 38 s → 17 s" prize is gone: V1/V3 removed the freeze, and the two
+  default views don't stream `ov_sample`-built chunks at all — the **Ortler** default (V10) reads
+  **baked-in arrays** (no `ov_sample`; 9 chunks ×2 panes in ~420 ms, then pure draw), and the
+  **overworld** default bakes **one** chunk once. The cache's remaining value is the **opt-in
+  detail-streaming path** (`VIEWER_DETAIL`, 4 `detail_chunk` builds/frame) and the **future
+  zoom-to-detail LOD** — real, but no longer on the default hot path. Keep the design for when the
+  LOD tier lands. If revived: **blueprint-first** (exact invariant — pin **cached build == fresh
+  build, byte-identical**), mind loft#392 (don't route `vector<single>` through a returning helper)
+  and the loft#320-safe slot index-write. **V2b** (drop the camera double-build) is similarly minor
+  now — only the opt-in overworld view rebuilds chunk (0,0) for its height span.
 
 - [x] **V3 — incremental streaming** (was R0b). **DONE 2026-06-16 (verified: interactive loop start
   38.2 s → 1.25 s; `window_evict`/`window_bake_one` split, ≤`STREAM_PER_FRAME` bakes/frame; smoke
@@ -113,35 +117,39 @@ Smooth = lever 1 (each bake cheap) **×** lever 2 (no bake ever blocks the frame
   convention; framed to the **visual area** (summit-centred), **6× vertical exaggeration** at
   mesh-build (so ~3.7 km of real relief reads as mountains; applied after the base+0.1 m encoding
   to dodge the 6553 m offset cap). 9 chunks × 2 panes bake in **~420 ms** (interpreter), then pure
-  draw. **Airplane controls** (`FlyCam`): A/D yaw, W/S pitch, Q/E move forward/back along the
-  heading (while held — no auto-motion); the
-  **viewport follows the live window size** (`gl_window_width/height` each frame, re-splits the dual
-  panes — handles resize/fullscreen). Procedural views are now opt-in: **VIEWER_OVERWORLD=1** (full
-  landscape), **VIEWER_DETAIL=1** (detail slice). Smoke/golden untouched. *Next:* port the model's
-  `material_contest` (slope-aware) for a faithful B; re-export hook in `make`.
+  draw. Introduced the `FlyCam` (interactive controls evolved → see **V11** for the current scheme);
+  the **viewport follows the live window size** (`gl_window_width/height` each frame, re-splits the
+  dual panes — handles resize/fullscreen). Procedural views are now opt-in: **VIEWER_OVERWORLD=1**
+  (full landscape), **VIEWER_DETAIL=1** (detail slice). Smoke/golden untouched. *Next:* port the
+  model's `material_contest` (slope-aware) for a faithful B; re-export hook in `make`.
 
-- [x] **V11 — mouse-flight camera (airplane feel)**. **DONE 2026-06-17 (verified headlessly:
-  flying-start frame + a banked-horizon shot — the horizon tilts and the coordinated turn signs
-  match; golden held at 459 px).** The Ortler view flies like an aircraft. What sells the feel
-  (not the bindings): **bank-to-turn with a tilting horizon** (`build_mvp_fly` banks the up-vector
-  by `roll`; banking auto-yaws — `yaw += FLY_COORD·sin(roll)·dt`), **continuous airspeed** (always
-  moving forward at ≥ `FLY_CRUISE`, throttle-managed), and **inertia / self-levelling** (attitude
-  eases toward the stick target; centre = wings-level). dt-scaled via `ticks()` (frame-rate
+- [x] **V11 — free-look camera** (the Ortler default). **DONE 2026-06-17 (verified headlessly:
+  initial-vista frame; golden held at 0 px).** A simple, **non-realistic free-fly** cam: the mouse
+  looks around, WASD pans, Shift/Space change speed. dt-scaled via `ticks()` (frame-rate
   independent). A **soft terrain floor** samples the Ortler height under the eye and keeps
-  `FLY_CLEAR` above it. Input (graphics gives absolute cursor only — no lock — so the cursor is a
-  **virtual joystick**: offset from window-centre, dead-zoned):
+  `FLY_CLEAR` above it. The camera **starts still** at a fixed vista — nothing moves until you press
+  WASD.
 
   | input | action |
   |---|---|
-  | mouse X / Y (offset from centre) | bank / pitch — the stick; centre = level |
-  | scroll wheel · W / S | throttle (airspeed) |
-  | A / D | rudder (fine flat yaw) |
-  | Shift · Space | boost · brake |
+  | mouse (relative motion) | look around — yaw + pitch, no roll/banking |
+  | W / S · A / D | pan forward-back · strafe left-right (look-relative) |
+  | Shift · Space | faster · brake (slower) |
   | Esc | quit |
 
-  Tuning constants (`FLY_*` in viewer.loft) are in one block. Keyboard-only fly kept behind
-  **`VIEWER_FLYKEYS=1`** (A/D yaw, W/S pitch, Q/E move). *Open:* mouse-look decouple (RMB free-look)
-  and a speed-coupled FOV are future polish; turn/throttle rates are first-pass, tune by feel.
+  Mouse-look is **delta-based** (`prev_mx/my`), not absolute — so there is no startup snap and
+  big cursor jumps (window re-entry) are ignored. Tuning (`FREE_SPEED/BOOST/BRAKE`, `LOOK_SENS`,
+  `FLY_CLEAR`) is one const block. Keyboard-only fly kept behind **`VIEWER_FLYKEYS=1`** (A/D yaw,
+  W/S pitch, Q/E move). The `FlyCam` keeps a `roll` field (held 0 here) so `build_mvp_fly`'s banked
+  horizon is available if a flight mode returns.
+
+  *Design note — why not the airplane model.* An earlier pass built a realistic flight cam
+  (bank-to-turn, tilting horizon, coordinated yaw, continuous airspeed). Two problems killed it:
+  (1) with no GL cursor-lock the absolute-cursor "stick" read the startup cursor position as full
+  deflection → it flew to the sky with no input; (2) the realism wasn't wanted for a terrain
+  *viewer*. Replaced by the free-look cam above. The banked-horizon math survives in `build_mvp_fly`
+  for later. *Open:* look sensitivity / pan speed are first-pass, tune by feel; cursor-lock (if the
+  graphics lib gains it) would remove the mouse-look edge limit.
 
 *After Phase A the viewer is **usable** on the interpreter: instant window, no freeze, the full
 landscape is up in ~2 s (overworld default), and the detail slice streams in over a few seconds.*
@@ -201,19 +209,22 @@ landscape is up in ~2 s (overworld default), and the detail slice streams in ove
 
 ### Phase C — robustness + test coverage (independent of native)
 
-- [ ] **V6 — guard `gl_create_shader`** (was R1). `viewer.loft:183` is unchecked while
-  `gl_create_window` is guarded; a failed compile → blank frame. Add `if shader == 0 {…return}`.
-  *Gate:* a broken shader exits non-zero with FAIL, not a blank render.
+- [x] **V6 — guard `gl_create_shader`** (was R1). **DONE 2026-06-17.** `gl_create_shader` is now
+  checked like `gl_create_window`: `if shader == 0 { println("FAIL: gl_create_shader …"); return; }`
+  — a failed compile/link exits with a loud FAIL instead of a blank render.
 
-- [ ] **V7 — fail loud on a failed VAO upload** (was R2). `gl_upload_vertices == 0` is stored as 0,
-  which `window_update` reads as an empty slot (`:108`,`:132`) → silent infinite re-bake. Use a
-  sentinel / hard log. *Gate:* a 0-return no longer loops; it's visible.
+- [x] **V7 — fail loud on a failed VAO upload** (was R2). **DONE 2026-06-17.** Both bake fns log a
+  loud `FAIL: gl_upload_vertices returned 0 (chunk …)` and return a **−1 sentinel** instead of 0.
+  The slot machinery reads −1 as *occupied* (no silent infinite re-bake — a 0 read as an empty
+  slot), and draw/delete now guard `vv > 0` so the sentinel is never drawn or `gl_delete_vao`'d.
+  *Gate met:* the 0-return no longer loops; it's visible. (golden held at 0 px.)
 
-- [ ] **V8 — cover the talus pane + re-baseline the golden** (was R3+R4). Add `viewer-gold-talus`
-  (`VIEWER_TALUS=1` + its own golden) so `talus_chunk` (relax + `flow_accumulate`) is gated; and
-  re-baseline `viewer_s5e.png` on this VM (audit saw 459 px vs the logged 0; the 800 threshold
-  absorbs it but is load-bearing). *Gate:* talus target green vs an adopted golden; model golden
-  diff documented.
+- [x] **V8 — cover the talus pane + re-baseline the golden** (was R3+R4). **DONE 2026-06-17.** New
+  `make viewer-gold-talus` (`VIEWER_SMOKE=1 VIEWER_TALUS=1`, own golden `viewer_s5e_talus.png`)
+  gates `talus_chunk` (relax + `flow_accumulate`) — adopted golden shows the bare-rock faces +
+  the `flow_accumulate` scree channels. Both goldens **re-baselined on this VM → 0 px** (was 459 px
+  for the model; the 800 px threshold is no longer load-bearing). *Gate met:* both targets green at
+  0 px.
 
 ## Ordering / dependencies
 
