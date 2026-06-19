@@ -23,6 +23,7 @@ use math;
 use region;
 use hydro;
 use trimesh;
+use rivers;
 use ortler;
 
 const KEY_W = 119;
@@ -181,6 +182,13 @@ fn draw_pane_tri(mvp: math::Mat4, shader: integer, lvao: vector<integer>,
       if vc > 0 { graphics::gl_draw(vv, vc); }
     }
   }
+}
+
+// Draw the river-ribbon overlay under the same MVP/shader as the terrain.
+// Assumes the terrain's draw_pane_tri has already set the shader + uMVP for
+// this frame; we just kick the single river VAO.
+fn draw_rivers(rvao: integer, rvc: integer) {
+  if rvao > 0 && rvc > 0 { graphics::gl_draw(rvao, rvc); }
 }
 
 // (The previous coarse Ortler bake — bake_ortler / chunk_mesh_ov via ortler_chunk — was
@@ -545,14 +553,34 @@ fn main() {
     }
     println("Ortler: {nbk} chunks × 2 panes (18-tri mesh) baked in {(ticks() - tb0) / 1000} ms; h {hmin}..{hmax} m, summit ({sx},{sz})");
 
+    // Build the river-ribbon overlay (stride-6 textured quads along every
+    // river-mask cell's flow direction, control_pt → edge_cross → control_pt,
+    // width ∝ √accumulation; lake/sea trim per ortler_render.py rules).
+    // Drawn AFTER terrain as one big VAO — ribbons sit LIFT_EPS above the
+    // 18-tri-per-hex floor and use the same VERT/FRAG as the terrain (the
+    // textured-strip upgrade is design doc §11 step 8).
+    tr0 = ticks();
+    rmesh = river_mesh(rgn, hyd, orexag);
+    river_vc = river_vertex_count(rmesh);
+    river_vao = 0;
+    if river_vc > 0 {
+      river_vao = graphics::gl_upload_vertices(rmesh, 6);
+      if river_vao == 0 {
+        println("WARN: river_vao upload failed ({len(rmesh)} floats); ribbons will be skipped");
+      }
+    }
+    println("Ortler rivers: {river_vc / 3 ?? 0} triangles baked in {(ticks() - tr0) / 1000} ms");
+
     if env_variable("VIEWER_ORTSHOT") == "1" {
       mvp = build_mvp_fly(flycam, pane_aspect);
       graphics::gl_viewport(0, 0, w, h);
       graphics::gl_clear(0x223344);
       graphics::gl_viewport(0, 0, hw, h);
       draw_pane_tri(mvp, shader, ld_vao, ld_vcount);
+      draw_rivers(river_vao, river_vc);
       graphics::gl_viewport(hw, 0, hw, h);
       draw_pane_tri(mvp, shader, lt_vao, lt_vcount);
+      draw_rivers(river_vao, river_vc);
       _s = graphics::gl_screenshot(w, h, "/tmp/viewer_ortler.png");
       graphics::gl_swap_buffers();
       println("ortler shot: per-triangle OSM | per-cell model bands -> /tmp/viewer_ortler.png");
@@ -593,8 +621,10 @@ fn main() {
         graphics::gl_clear(0x223344);
         graphics::gl_viewport(0, 0, hw, h);
         draw_pane_tri(mvp, shader, ld_vao, ld_vcount);
+        draw_rivers(river_vao, river_vc);
         graphics::gl_viewport(hw, 0, hw, h);
         draw_pane_tri(mvp, shader, lt_vao, lt_vcount);
+        draw_rivers(river_vao, river_vc);
         graphics::gl_swap_buffers();
       }
       println("S5e: quit");
@@ -682,8 +712,10 @@ fn main() {
       graphics::gl_clear(0x223344);
       graphics::gl_viewport(0, 0, hw, h);
       draw_pane_tri(mvp, shader, ld_vao, ld_vcount);
+      draw_rivers(river_vao, river_vc);
       graphics::gl_viewport(hw, 0, hw, h);
       draw_pane_tri(mvp, shader, lt_vao, lt_vcount);
+      draw_rivers(river_vao, river_vc);
       graphics::gl_swap_buffers();
     }
     println("S5e: quit");

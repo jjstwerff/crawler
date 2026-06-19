@@ -1,0 +1,257 @@
+// realworld::rivers — river polylines and the textured ribbon mesh.
+//
+// For each river-mask cell C with a downhill flow direction, build a polyline
+// across that hex toward its downstream neighbour N:
+//
+//   control_pt(C) → edge_cross(C, N) → control_pt(N)
+//
+// where:
+//   control_pt(c, r) — interior anchor of hex (c, r), hash-jittered off the
+//     centre. Matches overland.loft::ov_vertex exactly so adjacent loft code
+//     produces bit-identical rivers in either world.
+//   edge_cross(C, N) — canonical crossing on the shared side of hexes C and N
+//     (sorted-pair hash with ±0.30·R along-side offset). Both hexes hash the
+//     SAME sorted pair, so adjacent river segments meet seamlessly.
+//   acc / width — per-vertex width = base + scale · √accumulation; wider
+//     downstream by construction (acc(N) ≥ acc(C)).
+//
+// Lake-shore trim (the rule from ortler_render.py::clip_rivers_at_lakes):
+// flowing water never extends INTO a lake. If the downstream cell is water
+// but NOT river-mask (i.e. a lake) — or off-region (the sea) — the polyline
+// ends at the edge-crossing, NOT at control_pt(N).
+//
+// Output: stride-6 vector<single> (x, h, z, r, g, b) — same format the
+// terrain shader already consumes, so no new shader needed for the first
+// river overlay pass. The textured-strip upgrade (river_line.png + stride-8
+// with UVs) is the explicit follow-up (design doc §11 step 6/8).
+//
+// Each polyline emits a quad strip with side vertices ±width/2 perpendicular
+// to the local tangent; (n_vertices - 1) quads = 2·(n_vertices - 1) triangles.
+//
+// Heights ride just above the terrain mesh (region heights × exag + LIFT_EPS)
+// so the ribbon doesn't z-fight with the 18-tri terrain it overlays.
+
+use region;
+use hydro;
+use hex_grid;
+
+// World-metres circumradius of the 1500 m moros odd-r hex. Same constant as
+// trimesh.loft / overland.loft / chunk.loft — inlined here so this module
+// doesn't drag in src/ as a lib dir.
+const OV_TILE_M = 1500.0;
+const OV_SCALE  = 866.0254037844386;
+const HEX_RC    = 866.0254037844386;
+
+// Width of the ribbon (world metres BEFORE exag is applied).
+//   small headwater  ≈ WIDTH_BASE                  (acc = 1)
+//   trunk river      ≈ WIDTH_BASE + WIDTH_SCALE·√acc
+const WIDTH_BASE  = 35.0;
+const WIDTH_SCALE = 18.0;
+
+// Lift the ribbon this many metres above the terrain (post-exag) so it
+// doesn't z-fight with the 18-tri-per-hex floor. ~10 m on the visual scale
+// is invisible at the viewer's framing.
+const LIFT_EPS = 10.0;
+
+// Default flat-blue ribbon colour (the texture, once applied, will modulate
+// this). Hand-tuned to read as flowing water on the light-stone floor.
+const COL_R = 0.18;
+const COL_G = 0.38;
+const COL_B = 0.62;
+
+// ── geometry helpers (same lattice everyone else uses) ───────────────────
+
+fn hex_centre_xz(c: integer, r: integer) -> (float, float) {
+  (px, pz) = hex_to_px(c, r);
+  (px * OV_SCALE, pz * OV_SCALE)
+}
+
+// Canonical scalar hash over id parts (mirrors overland.loft::ov_chash,
+// trap-safe with 31-bit masks). Used to jitter control points + pick the
+// edge-crossing offset bit so adjacent hexes agree on a single point.
+fn riv_hash(a1: integer, a2: integer, a3: integer, a4: integer, ch: integer) -> float {
+  n = 7 * 1597334677 & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a1 * 73856093) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = (n ^ (n >> 11)) & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a2 * 19349663) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a3 * 83492791) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a4 * 1297357571) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = (n ^ (ch * 668265263)) & 0x7FFFFFFF;
+  n = (n ^ (n >> 13)) & 0x7FFFFFFF;
+  n = (n * 1274126177) & 0x7FFFFFFF;
+  ((n ^ (n >> 16)) & 0x7FFFFFFF) as float / 2147483648.0
+}
+
+// Interior control point of hex (c, r): centre + hash-jittered offset. Same
+// 0.55·R jitter as overland.loft::ov_vertex.
+fn control_pt_xz(c: integer, r: integer) -> (float, float) {
+  (cx, cz) = hex_centre_xz(c, r);
+  jx = (riv_hash(c, r, 0, 0, 6) - 0.5) * 0.55 * HEX_RC;
+  jz = (riv_hash(c, r, 0, 0, 7) - 0.5) * 0.55 * HEX_RC;
+  (cx + jx, cz + jz)
+}
+
+// Canonical edge-crossing on the shared side of hexes A=(ca, ra) and
+// B=(cb, rb). The sorted pair (A, B) is hashed so both hexes pick the SAME
+// point; offset along the side is ±0.30·R, bit chosen by hash.
+fn edge_cross_xz(ca: integer, ra: integer, cb: integer, rb: integer) -> (float, float) {
+  c1 = ca; r1 = ra; c2 = cb; r2 = rb;
+  if ca > cb || (ca == cb && ra > rb) {
+    c1 = cb; r1 = rb; c2 = ca; r2 = ra;
+  }
+  (x1, z1) = hex_centre_xz(c1, r1);
+  (x2, z2) = hex_centre_xz(c2, r2);
+  d = sqrt((x2 - x1) * (x2 - x1) + (z2 - z1) * (z2 - z1));
+  // perpendicular (along the shared side); guard d so the divide is null-safe
+  // (cells are never co-located, but loft's lint wants the ?? 0.0 anyway).
+  px = 0.0 - (((z2 - z1) / d) ?? 0.0);
+  pz = ((x2 - x1) / d) ?? 0.0;
+  off = 0.30 * HEX_RC;
+  if riv_hash(c1, r1, c2, r2, 5) < 0.5 { off = 0.0 - off; }
+  ((x1 + x2) * 0.5 + px * off, (z1 + z2) * 0.5 + pz * off)
+}
+
+// ── one river polyline + ribbon emission ─────────────────────────────────
+
+// Width (world metres before exag) for accumulation `acc`.
+fn ribbon_width(acc: integer) -> float {
+  af = acc as float;
+  if af < 1.0 { af = 1.0; }
+  WIDTH_BASE + WIDTH_SCALE * sqrt(af)
+}
+
+// Emit one quad (= two triangles) into `buf` between polyline-vertex A and
+// polyline-vertex B. Per polyline vertex we know (x, z, h, w). The 2 side
+// vertices at each polyline vertex are (x ± nx·w/2, z ± nz·w/2) where
+// (nx, nz) is the unit PERPENDICULAR to the local tangent.
+fn emit_ribbon_quad(buf: vector<single>,
+                    ax: float, az: float, ah: float, aw: float, anx: float, anz: float,
+                    bx: float, bz: float, bh: float, bw: float, bnx: float, bnz: float) {
+  ahs = ah as single;  bhs = bh as single;
+  rs = COL_R as single;  gs = COL_G as single;  bs = COL_B as single;
+  // left/right offsets per endpoint
+  alx = ax + anx * aw * 0.5;
+  alz = az + anz * aw * 0.5;
+  arx = ax - anx * aw * 0.5;
+  arz = az - anz * aw * 0.5;
+  blx = bx + bnx * bw * 0.5;
+  blz = bz + bnz * bw * 0.5;
+  brx = bx - bnx * bw * 0.5;
+  brz = bz - bnz * bw * 0.5;
+  // triangle 1: AL, AR, BR
+  buf += [alx as single, ahs, alz as single, rs, gs, bs];
+  buf += [arx as single, ahs, arz as single, rs, gs, bs];
+  buf += [brx as single, bhs, brz as single, rs, gs, bs];
+  // triangle 2: AL, BR, BL
+  buf += [alx as single, ahs, alz as single, rs, gs, bs];
+  buf += [brx as single, bhs, brz as single, rs, gs, bs];
+  buf += [blx as single, bhs, blz as single, rs, gs, bs];
+}
+
+// Tangent + perpendicular (unit vectors) for a polyline segment. The result
+// is the perpendicular (nx, nz); ml is the segment length (returned so the
+// caller can advance U).
+fn segment_perp(ax: float, az: float, bx: float, bz: float) -> (float, float, float) {
+  dx = bx - ax;  dz = bz - az;
+  ml = sqrt(dx * dx + dz * dz);
+  if ml < 0.0001 { ml = 0.0001; }
+  // perpendicular = rotate 90° CCW: (-dz/ml, dx/ml)
+  ( (0.0 - dz) / ml ?? 0.0, dx / ml ?? 0.0, ml )
+}
+
+// Emit ONE river polyline (3 polyline vertices: control_C → edge_cross → ?
+// → control_N if N is a river cell, else stop at edge_cross). Each vertex
+// carries its world (x, z), height (with exag + lift), width, U coord, and
+// the local perpendicular.
+fn emit_river_polyline(rgn: const Region, hyd: const Hydro, exag: float,
+                       c: integer, r: integer, nc: integer, nr: integer,
+                       buf: vector<single>) {
+  // World positions of the 3 anchors (control_C, edge_cross, control_N).
+  (cx, cz) = control_pt_xz(c, r);
+  (ex, ez) = edge_cross_xz(c, r, nc, nr);
+  (nx_, nz_) = control_pt_xz(nc, nr);
+
+  // Heights (sit just above the terrain — region heights × exag + LIFT_EPS).
+  // Use the PIT-FILLED height so the ribbon stays monotone-downhill (the
+  // raw DEM can locally pit; the pit-filled height is what the renderer
+  // actually shows).
+  c_idx = r  * rgn.rgn_cols + c;
+  n_idx = nr * rgn.rgn_cols + nc;
+  ch_ = (hyd.filled[c_idx] ?? 0) as float;
+  nh_ = (hyd.filled[n_idx] ?? 0) as float;
+  ch = ch_ * exag + LIFT_EPS;
+  nh = nh_ * exag + LIFT_EPS;
+  eh = (ch + nh) * 0.5;
+
+  // Widths from accumulation. The edge-cross point gets the mean of C/N's.
+  cw = ribbon_width(hyd.acc[c_idx] ?? 1);
+  nw = ribbon_width(hyd.acc[n_idx] ?? 1);
+  ew = (cw + nw) * 0.5;
+
+  // Decide whether to extend to control_pt(N). N is a "good" downstream
+  // anchor if it's a river-mask cell; otherwise (lake / sea / off-region)
+  // we end at edge_cross.
+  n_river = 0;
+  if nc >= 0 && nc < rgn.rgn_cols && nr >= 0 && nr < rgn.rgn_rows {
+    n_river = rgn.hex_river[n_idx] ?? 0;
+  }
+
+  // Segment 1: control_C → edge_cross. The perpendicular for the START
+  // vertex matches this segment's direction; at edge_cross we average the
+  // two segments' perpendiculars (smoother join).
+  (n1x, n1z, _l1) = segment_perp(cx, cz, ex, ez);
+  perp_e_x = n1x;
+  perp_e_z = n1z;
+  if n_river != 0 {
+    (n2x, n2z, _l2) = segment_perp(ex, ez, nx_, nz_);
+    perp_e_x = (n1x + n2x) * 0.5;
+    perp_e_z = (n1z + n2z) * 0.5;
+    // re-normalise (averaging two unit vectors loses unit length on bends)
+    mm = sqrt(perp_e_x * perp_e_x + perp_e_z * perp_e_z);
+    if mm < 0.0001 { mm = 0.0001; }
+    perp_e_x = perp_e_x / mm ?? 0.0;
+    perp_e_z = perp_e_z / mm ?? 0.0;
+  }
+
+  emit_ribbon_quad(buf,
+                   cx, cz, ch, cw, n1x, n1z,
+                   ex, ez, eh, ew, perp_e_x, perp_e_z);
+  if n_river != 0 {
+    (n2x, n2z, _l2b) = segment_perp(ex, ez, nx_, nz_);
+    emit_ribbon_quad(buf,
+                     ex, ez, eh, ew, perp_e_x, perp_e_z,
+                     nx_, nz_, nh, nw, n2x, n2z);
+  }
+}
+
+// ── public builder ───────────────────────────────────────────────────────
+
+// Build the full river-ribbon mesh for the region using the precomputed
+// hydrology. Returns a stride-6 vector<single>:
+//   (x, h, z, r, g, b)  — POSITION + COLOUR (same as the terrain mesh)
+// 2 triangles per polyline segment; a polyline has 1 segment when the
+// downstream cell is a lake/sea boundary and 2 segments otherwise.
+//
+// exag scales heights to match the terrain mesh's vertical exaggeration.
+pub fn river_mesh(rgn: const Region, hyd: const Hydro, exag: float) -> vector<single> {
+  buf: vector<single> = [];
+  cols = rgn.rgn_cols;
+  rows = rgn.rgn_rows;
+  for r in 0..rows {
+    for c in 0..cols {
+      i = r * cols + c;
+      if (rgn.hex_river[i] ?? 0) == 0 { continue; }
+      d = hyd.flow[i] ?? -1;
+      if d < 0 { continue; }   // boundary outlet — drains off-grid, no ribbon
+      (nc, nr) = hex_neighbor(c, r, d);
+      if nc < 0 || nc >= cols || nr < 0 || nr >= rows { continue; }
+      emit_river_polyline(rgn, hyd, exag, c, r, nc, nr, buf);
+    }
+  }
+  buf
+}
+
+// Number of vertices in the mesh (caller hands this to gl_draw — non-indexed).
+pub fn river_vertex_count(buf: const vector<single>) -> integer {
+  (len(buf) / 6) ?? 0
+}

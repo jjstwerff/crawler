@@ -99,7 +99,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test
+.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test
 
 # Default target: print the overview above.
 help:
@@ -381,6 +381,13 @@ hydro-test:
 trimesh-test:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  trimesh-test: loft not found ($(LOFT))"; exit 1; }
 	@LOFT_REGION=$(REGION) $(LOFT) --interpret --lib src/realworld/ --lib src/regions/ $(LOFTFLAGS) trimesh_test.loft
+
+# Standalone rivers smoke: build the river-ribbon mesh for the active region
+# (hydro + polyline + textured quad strip) and print its size + a width-check
+# against the max-accumulation cell.
+rivers-test:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  rivers-test: loft not found ($(LOFT))"; exit 1; }
+	@LOFT_REGION=$(REGION) $(LOFT) --interpret --lib src/realworld/ --lib src/regions/ $(LOFTFLAGS) rivers_test.loft
 
 # ── Housekeeping ──────────────────────────────────────────────────────────
 
