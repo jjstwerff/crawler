@@ -97,7 +97,13 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   extended: `Background transparent`, `--once` (render-and-exit; exit 1 on unparsed lines /
   failed checks — agent/CI use) + unparsed-line reporting, and the `Petals`/`Fronds` ARRAY
   primitives (radial + linear natural marks — non-uniform + construction-hiding by default;
-  designs pinned in `tools/{petal,fronds}_blueprint.py`); rotation/atlas next. Built to be extractable
+  designs pinned in `tools/{petal,fronds}_blueprint.py`); rotation/atlas + the old-masters rough
+  brush (16th-c. split-bristle hair/fur stroke that mixes with wet paint) & the modern
+  spray-paint/airbrush tool (translucent + adjustable-flow; skin/water/smoke — the fix for old
+  painters' flat unicolor skin) & a grime wash (depth-pooled weathering — dirt in the recesses,
+  wiped off the raised areas, for authentic figures/machines) next (paint-interacts-with-canvas;
+  the missing capability, EXTRACTION.md §3). Built to be
+  extractable
   as a **reusable 2D sprite library** — 3D/moros is the goal, but the 2D stack stands
   on its own for 2D-preferring devs): used to author the game's **simple 2D sprites** — the mob/item
   presentations (and other 2D art), upgrading the text-glyph placeholders. **2D only —

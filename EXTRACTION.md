@@ -245,6 +245,112 @@ rotation/atlas still named next. The skill's `sketch/draw.py` is the library lay
 - [ ] crawler keeps its copy only if it still carries unported experiments; else delete and
       call the skill's.
 
+**Missing capability — the rough brush, the spray-paint tool & the grime wash (paint that INTERACTS
+with the canvas; for fur/skin/water/smoke + weathered figures/machines, crawler's CURRENT sprites).** Today every `draw.py` mark deposits
+OPAQUELY over whatever is under it — a `stroke` ribbon overwrites, `grad=`/`radial=` are per-shape
+masks. That hard, self-contained deposition is the mechanism behind the recurring "fur lives
+*inside* a clean outline" problem (`assets/sprites/ref/README.md`) and the skin uncanny-valley
+ceiling (the draw skill's failure-taxonomy #5 + its "grow the tool first — colored strokes for hair
+*before* you can texture a beard"). Three techniques draw.py LACKS — an old-masters brush (mixes
+with the wet canvas), a *modern* spray (translucent soft falloff), and a grime wash (depth-pooled
+weathering) — close it:
+
+- [ ] **Rough brush — the 16th-c. hair / fur stroke (the HARDER of the two to mimic).** A coarse,
+      stiff, SPLIT-bristle brush (the worn hog-bristle the Renaissance "rough manner" painters —
+      late Titian — dragged for hair, beard, fur): its splayed bristles lay MULTIPLE broken parallel
+      streaks in one pass and, pulled through the *not-yet-dry* paint beneath, pick up and smear that
+      pigment — leaving the streaky value/colour lines that read as individual hairs *within* a mass.
+      The stroke's **END is also ragged** — the bristle channels run out at slightly different
+      lengths, so the terminus frays into separate tapering tips, and that raggedness is a big part
+      of what sells the read of hair *bundles* (cf. `Fronds`' `fray=` and the README "fray the
+      boundaries" rule). The best practitioners also **double-load** the brush — one side of the
+      bristle bundle a slightly different colour/value than the other — so a single drag lays light
+      on one side and shadow on the other: **instant form/shadow on the hair/fur in one stroke**.
+      Exactly the interior texture our smooth-outline fur is missing (the README
+      "texture lives in the silhouette edge + value gradient, not strokes floating inside a smooth
+      outline" lesson, made a TOOL, not just a discipline). **You can't fake this from the look** — a
+      faithful routine has to MODEL how the brush physically works (split channels + wet-paint pickup
+      + uneven-length ragged tips); blueprint the mechanism in a cheap Python probe FIRST (the
+      engineering-rigor / design-protocol way), then port. Needs a multi-channel (split-bristle)
+      footprint + wet-paint pickup/drag + frayed (uneven-length) stroke ENDS + a transverse
+      (across-the-width) value/colour gradient on the footprint (the double-load — instant hair
+      shadow). (`Fronds` *places*
+      single strokes; this makes ONE drag deposit a grown, mixed hair texture.) **Concrete evidence
+      (the live diagnosis):** crawler's recent animal fur — the spine-ridge + flank striations laid
+      as opaque `Fronds`/lines — reads as a *strange web on the back*; the line PLACEMENT is right,
+      but enumerated opaque strokes simply can't read as fur, whereas the SAME lines laid by a rough
+      brush would. So it's failure-taxonomy #2 (tool-can't-express-it), NOT #1 (drew-it-wrong) —
+      stop re-placing the lines (symptom-chasing the web); the fix is the brush.
+- [ ] **Spray-paint (airbrush) tool — skin / water / smoke.** A *modern* tool, NOT an old-masters
+      one: the airbrush is a relatively recent invention, today the workhorse for cosplay,
+      clothing/textile, and character painting — and the established answer to a problem the old
+      masters never solved by hand: **skin that goes flat, unicolor and unnatural**. *Their* method
+      was to mix a precise colour to match each skin region, then lay it on with a perfectly EVEN
+      ("egal"/egaal) brush, region by region — matching one patch could take DAYS, and those even
+      flat patches are *why* the skin reads unicolor. The airbrush sidesteps all of it: you dial the
+      POWER and build the gradient up in light passes, so a natural skin transition is *easy* instead
+      of days of colour-matching. Three properties draw.py can't express: (1) **translucent
+      layering** — lower layers painted first, the spray TINTS rather than fully recolouring them, so
+      the underlayer shows through and mixes optically (form modelled *without flattening the
+      underpainting*; the "value first" build); (2) **perpendicular falloff** — intensity highest
+      along the stroke's CENTRELINE, tapering to NOTHING toward its outer edges (the soft
+      airbrush-cone cross-section), unlike today's `@`-taper which varies width along the stroke's
+      LENGTH, never across it; and (3) **adjustable power / flow** — deposition strength is a tunable
+      dial built up over light passes, NOT a fixed stamp, so the gradient is tuned by eye instead of
+      pre-mixing an exact colour (this is the property that makes natural skin *easy*). In draw.py
+      terms power maps to a **higher per-pass ALPHA** (stronger tint) and probably a **wider line**.
+      Together: soft translucent tonal gradients that build natural skin (the uncanny-ceiling fix),
+      overlapping water ripples/highlights that tint without obscuring, and soft-edged smoke/haze.
+      **Skin specifically is built in SEVERAL translucent passes of DIFFERENT colours, never one** —
+      e.g. a light grey, then red, then yellow, then pink (laid in lines or areas), each a thin tint
+      that shows through the others; the EARLIER passes read as the deeper skin layers, the LATER
+      passes as the upper ones, and that optical stack is what makes skin look alive (one flat colour
+      reads dead). This is why translucent layering (property 1) is load-bearing here — the passes
+      MUST show through each other. Needs per-pixel alpha accumulation + a width-wise (perpendicular)
+      intensity profile + a settable flow/strength (power = per-pass alpha, likely also stroke
+      width).
+- [ ] **Grime wash + wipe-back (weathering — realism on figures / machines).** Not a brush — the
+      realism FINISH: leave DIRT on the top surface, pooled MORE in the deeper/recessed spots. Method
+      (the model-maker's / miniature-painter's shading wash): flood a thin, very watery dark tint
+      (brown / dark-green / grey) over the area with a cloth, let it DRY in the lower areas (it pools
+      and sets in the recesses), then WIPE it back with a slightly-wet sponge — the raised/high layers
+      clean up almost totally, the deep spots stay quite dark. Net effect: depth-driven darkening that
+      reads as accumulated grime AND enhances the 3D form (a cavity / ambient-occlusion shade you get
+      *for free* from the dirt) — the pass that makes figures, armour, machines, props read as real
+      and used rather than clean-CG. For draw.py it needs a notion of surface DEPTH/cavity (where the
+      wash collects) — either the existing value (darker = deeper) or an explicit recess map — then a
+      translucent dark tint scaled by depth + a wipe that clears the raised areas. Distinct from the
+      airbrush (that builds the base form/skin; this *dirties the finished surface* to sell realism).
+      **Why it works:** almost everything gets dirty in real use, so grime pooled in the recesses
+      reads as AUTHENTIC and used while a spotless surface reads as artificial CG — and the wash
+      throws ACCENTS (local dark punctuation / contrast) across the result, lifting it out of flatness.
+      **This is also why CEL-SHADING reads as natural rather than artificial:** its dark lines land on
+      the SAME recesses, creases and under-edges where dirt and shadow accumulate on a real figure —
+      a partial match to everyday reality that *licenses* the stylization. So the rule generalises
+      past a literal wash: **put the darks where dirt/shadow would collect** (the recesses) and even a
+      hard-edged, stylised sprite reads right — directly crawler's case (our sprites are stylised, not
+      photoreal). The grime wash and the cel-shade line are the same move at different fidelities.
+
+**The two brushes exist to produce the ILLUSION of detail in ONE gesture, never to enumerate it.** The old
+masters almost never drew individual hairs, or leaf-by-leaf detail on plants/bushes — a few clever
+strokes (the ragged split-bristle drag, the soft spray) IMPLY the hundreds. That is the whole point
+of these tools, and the standing rule: *imply* detail with the brush, don't draw it strand-by-strand
+or leaf-by-leaf (the draw skill's "minimal ≠ symbolic" + "clarity has an optimum", made mechanical —
+the brush is what makes implied detail cheap, where enumerating it is both expensive and reads worse).
+
+**Design shape — a rich per-stroke routine, far fewer strokes.** This concentrates the complexity in
+ONE op: a single drawn "line" carries many parameters — thickness, direction, multiple colours (the
+double-load), brush/footprint form, fray, wetness/flow, power. That op is complex to write, but it's
+the right trade — each loaded stroke does the work of dozens of thin uniform lines, so a finished
+sprite needs FAR fewer marks (the master's economy: a few expressive strokes, not many timid ones).
+Built once and extracted to the library, then every sprite spends fewer, richer marks — and "every
+mark earns its place" becomes "make each mark earn MORE".
+
+All three are failure-taxonomy #2 ("tool-can't-express-it → grow the tool"): record now, build when a
+sprite needs them; until then *withhold* (don't fake hair with enumerated opaque strands). Ordered
+BEFORE the decorative block below — these serve crawler's current mob/skin/water/smoke + weathered
+figure/machine sprites; that block is for later games. (Pointer memory: `draw-tool-wet-brushes`.)
+
 **Future capability — complex decorative patterns (library-tier, for LATER games not crawler;
 a "nice addition").** The user wants the tool to eventually do **decorative surface patterns**
 — wall/wallpaper damask, curtain/cloth prints, engraved/inlaid motifs on cutlery and objects.

@@ -18,7 +18,23 @@ most transferable lesson across all of them: **texture lives in the silhouette e
 and the tonal breaks, not as marks floating inside a smooth outline.** Our fur
 currently lives *inside* a clean circle outline; real fur breaks the outline (a few
 stray tufts past the edge) and is carried by a light→shadow value gradient with
-strokes only as a finishing accent.
+strokes only as a finishing accent. Drawn as enumerated lines, our recent animal fur
+reads as a **strange web on the back** — the line *placement* is right, the *deposition*
+is wrong; the SAME lines laid by a rough brush would read as fur (failure-taxonomy #2,
+not #1 — don't keep re-placing the lines, grow the brush).
+
+> **Tool gap behind this:** `tools/draw.py` deposits paint OPAQUELY, so an interior
+> hair stroke floats instead of mixing with the mass under it. The two brushes that
+> would close it — a **rough brush** (the old-masters 16th-c. split-bristle drag that
+> mixes with the not-yet-dry paint, leaving streaks that read as hairs *within* the
+> mass) and a **modern spray-paint / airbrush tool** (translucent layering + a
+> centre-strong, edge-zero cross-section + adjustable flow — for skin / water / smoke;
+> the established fix for skin going flat & unicolor, which the old masters never solved
+> by hand without days of colour-matching) — are recorded as missing capabilities in
+> **EXTRACTION.md §3**. The whole point of both is the **illusion of detail in one
+> gesture** — the masters almost never drew hairs or leaves one by one; a few clever
+> strokes imply the hundreds. Until the brushes exist, *withhold* (don't fake fur with
+> enumerated opaque strands — imply it, don't enumerate it).
 
 **Licensing:** the bundled samples are public-domain (pre-1900 works / faithful
 photographic reproductions) — **except** `flora/leaf_pinnate_venation_pecan.jpg`, which is
