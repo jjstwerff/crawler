@@ -1,0 +1,291 @@
+// sprite_draw — the draw.py sprite primitives as pure-loft rasterization onto a BARE
+// `vector<integer>` pixel buffer (row-major, 0xAARRGGBB), authored in-loft → a runtime
+// texture via `graphics::gl_upload_canvas(buf, w, h)` or a dev PNG.
+//
+// WHY a bare buffer, not graphics::Canvas: graphics' Canvas mutation methods
+// (set_pixel/fill_rect/hline) are passed the Canvas struct BY VALUE across the native
+// cdylib boundary, so in `--native` (the game's default mode) their mutations are lost —
+// the canvas never changes (verified; filed upstream). A bare `vector<integer>` argument
+// is passed by reference and mutates correctly in BOTH native and interpreted modes, and
+// scalar colour helpers (graphics::rgba/blend/color_*) are scalar-in/scalar-out so they're
+// native-safe too. So everything here stays native — only the final one-shot
+// gl_upload_canvas(buf, w, h) touches the cdylib, passing data IN (no mutate-back).
+//
+// Coordinates are PIXEL-space floats; geometry front-ends (smoothing/circle/petals/fronds)
+// produce them. Parity invariant vs draw.py: interior pixel-exact, judged on MEAN (the
+// box-vs-LANCZOS kernel gap forbids a tight max gate — see sprite_drawtest).
+
+use graphics;
+
+// ---- buffer + pixel helpers (all native-safe: bare vector mutation, scalar colour ops) ----
+
+fn new_buffer(w: integer, h: integer, fill: integer) -> vector<integer> {
+  [for _i in 0..w * h { fill }]
+}
+
+fn px_get(buf: vector<integer>, w: integer, x: integer, y: integer) -> integer {
+  i = y * w + x;
+  if i >= 0 and i < len(buf) { buf[i] ?? 0 } else { 0 }
+}
+
+// Opaque set, bounds-clipped.
+fn px_set(buf: vector<integer>, w: integer, h: integer, x: integer, y: integer, color: integer) {
+  if x >= 0 and x < w and y >= 0 and y < h {
+    i = y * w + x;
+    if i < len(buf) { buf[i] = color; }
+  }
+}
+
+// Alpha-over composite (graphics::blend is scalar-in/out → native-safe).
+fn px_blend(buf: vector<integer>, w: integer, h: integer, x: integer, y: integer, color: integer) {
+  if x >= 0 and x < w and y >= 0 and y < h {
+    i = y * w + x;
+    if i < len(buf) { buf[i] = graphics::blend(buf[i] ?? 0, color); }
+  }
+}
+
+// Horizontal opaque span [x0, xend), clipped to the row.
+fn span_set(buf: vector<integer>, w: integer, h: integer, x0: integer, xend: integer,
+            y: integer, color: integer) {
+  if y < 0 or y >= h { return; }
+  lo = if x0 < 0 { 0 } else { x0 };
+  hi = if xend > w { w } else { xend };
+  base = y * w;
+  for x in lo..hi {
+    i = base + x;
+    if i < len(buf) { buf[i] = color; }
+  }
+}
+
+// ---- geometry: scanline crossings (the shared core of every fill) ----
+
+// Selection sort into a FRESH vector (never swap in place — loft#338).
+fn sort_floats(v: vector<float>) -> vector<float> {
+  n = len(v);
+  out: vector<float> = [];
+  used: vector<boolean> = [];
+  for _i in 0..n { used += [false]; }
+  for _k in 0..n {
+    best = -1;
+    bestv = 0.0;
+    for i in 0..n {
+      if (used[i] ?? true) == false {
+        vi = v[i] ?? 0.0;
+        if best < 0 or vi < bestv { best = i; bestv = vi; }
+      }
+    }
+    if best >= 0 and best < len(used) {
+      out += [bestv];
+      used[best] = true;
+    }
+  }
+  out
+}
+
+// Sorted x-crossings of the polygon edges with scanline centre y=yc (even-odd, half-open
+// vertex test so a shared vertex counts once).
+fn row_crossings(xs: vector<float>, ys: vector<float>, yc: float) -> vector<float> {
+  n = len(xs);
+  xcs: vector<float> = [];
+  j = n - 1;
+  for i in 0..n {
+    ax = xs[i] ?? 0.0; ay = ys[i] ?? 0.0;
+    bx = xs[j] ?? 0.0; by = ys[j] ?? 0.0;
+    if (ay <= yc and by > yc) or (by <= yc and ay > yc) {
+      t = ((yc - ay) / (by - ay)) ?? 0.0;   // straddle test guarantees by != ay
+      xcs += [ax + t * (bx - ax)];
+    }
+    j = i;
+  }
+  sort_floats(xcs)
+}
+
+// [ymin, ymax) pixel rows a polygon touches.
+fn poly_yrange(ys: vector<float>) -> vector<integer> {
+  n = len(ys);
+  ymin = ys[0] ?? 0.0;
+  ymax = ymin;
+  for i in 1..n {
+    yi = ys[i] ?? 0.0;
+    if yi < ymin { ymin = yi; }
+    if yi > ymax { ymax = yi; }
+  }
+  [ymin as integer, (ymax as integer) + 1]
+}
+
+// ---- fills ----
+
+// Even-odd scanline fill (implicitly closes last→first). Hard-edged; AA comes from the
+// supersample+downscale pass. Pixel x is inside when its centre (x+0.5) is in an odd span —
+// round(xa)..round(xb) exclusive, pixel-exact for axis-aligned integer rects.
+fn fill_polygon(buf: vector<integer>, w: integer, h: integer,
+                xs: vector<float>, ys: vector<float>, color: integer) {
+  if len(xs) < 3 { return; }
+  yr = poly_yrange(ys);
+  py0 = yr[0] ?? 0;
+  py1 = yr[1] ?? 0;
+  for py in py0..py1 {
+    sorted = row_crossings(xs, ys, (py as float) + 0.5);
+    m = len(sorted);
+    k = 0;
+    while k + 1 < m {
+      sx0 = ((sorted[k] ?? 0.0) + 0.5) as integer;       // round(xa)
+      sxe = ((sorted[k + 1] ?? 0.0) + 0.5) as integer;   // round(xb), exclusive
+      if sxe > sx0 { span_set(buf, w, h, sx0, sxe, py, color); }
+      k = k + 2;
+    }
+  }
+}
+
+fn lerp_color(c1: integer, c2: integer, t: float) -> integer {
+  r1 = graphics::color_r(c1); g1 = graphics::color_g(c1);
+  b1 = graphics::color_b(c1); a1 = graphics::color_a(c1);
+  r = r1 + (((graphics::color_r(c2) - r1) as float) * t) as integer;
+  g = g1 + (((graphics::color_g(c2) - g1) as float) * t) as integer;
+  b = b1 + (((graphics::color_b(c2) - b1) as float) * t) as integer;
+  a = a1 + (((graphics::color_a(c2) - a1) as float) * t) as integer;
+  graphics::rgba(r, g, b, a)
+}
+
+fn clamp01(v: float) -> float {
+  if v < 0.0 { 0.0 } else if v > 1.0 { 1.0 } else { v }
+}
+
+// Gradient-filled polygon (draw.py's _make_gradient + mask, fused — no resize). LINEAR:
+// t projects each inside-pixel onto axis (ax,ay)→(bx,by). Pixels composite with px_blend.
+fn fill_polygon_linear(buf: vector<integer>, w: integer, h: integer,
+                       xs: vector<float>, ys: vector<float>, c1: integer, c2: integer,
+                       ax: float, ay: float, bx: float, by: float) {
+  if len(xs) < 3 { return; }
+  dx = bx - ax; dy = by - ay;
+  denom = dx * dx + dy * dy;
+  if denom < 0.000001 { denom = 0.000001; }
+  yr = poly_yrange(ys);
+  py0 = yr[0] ?? 0; py1 = yr[1] ?? 0;
+  for py in py0..py1 {
+    fy = (py as float) + 0.5;
+    sorted = row_crossings(xs, ys, fy);
+    m = len(sorted);
+    k = 0;
+    while k + 1 < m {
+      sx0 = ((sorted[k] ?? 0.0) + 0.5) as integer;
+      sxe = ((sorted[k + 1] ?? 0.0) + 0.5) as integer;
+      for px in sx0..sxe {
+        fx = (px as float) + 0.5;
+        t = clamp01((((fx - ax) * dx + (fy - ay) * dy) / denom) ?? 0.0);
+        px_blend(buf, w, h, px, py, lerp_color(c1, c2, t));
+      }
+      k = k + 2;
+    }
+  }
+}
+
+// RADIAL: t = distance to (cx,cy) / r.
+fn fill_polygon_radial(buf: vector<integer>, w: integer, h: integer,
+                       xs: vector<float>, ys: vector<float>, c1: integer, c2: integer,
+                       cx: float, cy: float, r: float) {
+  if len(xs) < 3 { return; }
+  rr = r;
+  if rr < 0.000001 { rr = 0.000001; }
+  yr = poly_yrange(ys);
+  py0 = yr[0] ?? 0; py1 = yr[1] ?? 0;
+  for py in py0..py1 {
+    fy = (py as float) + 0.5;
+    sorted = row_crossings(xs, ys, fy);
+    m = len(sorted);
+    k = 0;
+    while k + 1 < m {
+      sx0 = ((sorted[k] ?? 0.0) + 0.5) as integer;
+      sxe = ((sorted[k + 1] ?? 0.0) + 0.5) as integer;
+      for px in sx0..sxe {
+        fx = (px as float) + 0.5;
+        dxp = fx - cx; dyp = fy - cy;
+        t = clamp01(((sqrt(dxp * dxp + dyp * dyp) ?? 0.0) / rr) ?? 0.0);
+        px_blend(buf, w, h, px, py, lerp_color(c1, c2, t));
+      }
+      k = k + 2;
+    }
+  }
+}
+
+// ---- strokes ----
+
+// Variable-width stroke as a filled ribbon (draw.py's _ribbon): offset each path point
+// along its local normal by half the per-point width, fill the left-fwd + right-back band.
+// Butt caps; `widths` is per-point (pass a uniform vector for constant width).
+fn stroke_path(buf: vector<integer>, w: integer, h: integer,
+               xs: vector<float>, ys: vector<float>, widths: vector<float>, color: integer) {
+  n = len(xs);
+  if n < 2 { return; }
+  ox: vector<float> = [];
+  oy: vector<float> = [];
+  rx: vector<float> = [];
+  ry: vector<float> = [];
+  for i in 0..n {
+    cxp = xs[i] ?? 0.0;
+    cyp = ys[i] ?? 0.0;
+    tx = 0.0;
+    ty = 0.0;
+    if i == 0 {
+      tx = (xs[1] ?? cxp) - cxp;
+      ty = (ys[1] ?? cyp) - cyp;
+    } else if i == n - 1 {
+      tx = cxp - (xs[i - 1] ?? cxp);
+      ty = cyp - (ys[i - 1] ?? cyp);
+    } else {
+      tx = (xs[i + 1] ?? cxp) - (xs[i - 1] ?? cxp);
+      ty = (ys[i + 1] ?? cyp) - (ys[i - 1] ?? cyp);
+    }
+    ln = sqrt(tx * tx + ty * ty) ?? 0.0;
+    if ln < 0.0001 { ln = 1.0; }
+    nx = (-ty / ln) ?? 0.0;
+    ny = (tx / ln) ?? 0.0;
+    hw = ((widths[i] ?? 1.0) / 2.0) ?? 0.5;
+    if hw < 0.5 { hw = 0.5; }
+    ox += [cxp + nx * hw];
+    oy += [cyp + ny * hw];
+    rx += [cxp - nx * hw];
+    ry += [cyp - ny * hw];
+  }
+  k = n - 1;
+  while k >= 0 {
+    ox += [rx[k] ?? 0.0];
+    oy += [ry[k] ?? 0.0];
+    k = k - 1;
+  }
+  fill_polygon(buf, w, h, ox, oy, color);
+}
+
+// ---- AA resolve ----
+
+// Box-filter downscale by an integer factor: render onto a factor× buffer, then average
+// each factor×factor block. Fills the caller-provided `dst` (size ow*oh, ow=sw/factor) —
+// NOT a returned vector, so the result can be handed straight to gl_upload_canvas without
+// the return-vector-to-FFI silent-abort trap (loft#392). Verified == PIL BOX (max=1).
+fn downscale(src: vector<integer>, sw: integer, factor: integer,
+             dst: vector<integer>, ow: integer, oh: integer) {
+  if factor < 1 { return; }
+  area = factor * factor;
+  for oy in 0..oh {
+    for ox in 0..ow {
+      sr = 0; sg = 0; sb = 0; sa = 0;
+      bx = ox * factor;
+      by = oy * factor;
+      for dy in 0..factor {
+        for dx in 0..factor {
+          si = (by + dy) * sw + (bx + dx);
+          c = if si >= 0 and si < len(src) { src[si] ?? 0 } else { 0 };
+          sr = sr + graphics::color_r(c);
+          sg = sg + graphics::color_g(c);
+          sb = sb + graphics::color_b(c);
+          sa = sa + graphics::color_a(c);
+        }
+      }
+      di = oy * ow + ox;
+      if di < len(dst) {
+        dst[di] = graphics::rgba((sr / area) ?? 0, (sg / area) ?? 0,
+                                 (sb / area) ?? 0, (sa / area) ?? 0);
+      }
+    }
+  }
+}

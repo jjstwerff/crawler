@@ -301,6 +301,17 @@ weathering) — close it:
       terms power maps to a **higher per-pass ALPHA** (stronger tint) and probably a **wider line**.
       Together: soft translucent tonal gradients that build natural skin (the uncanny-ceiling fix),
       overlapping water ripples/highlights that tint without obscuring, and soft-edged smoke/haze.
+      **Achievable NOW (approximation) vs. the real mechanism — the two-pass brush.** A *spray* shape
+      alone can be approximated with the CURRENT primitives: a soft circle stepped along a line, or a
+      radial-falloff area filled inside a form — that gets you the cone footprint without new code. But
+      a real PAINT brush (this airbrush, and the rough brush above) needs a **second pass**, because the
+      footprint isn't a fixed primitive — it's an arbitrary authored shape that must be STAMPED along
+      the stroke: **pass 1 — draw what the brush IS** (its footprint as a small image: shape + colours +
+      per-pixel alpha channel — e.g. the airbrush's centre-bright / edge-to-zero cone, or the split-
+      bristle's multi-channel streaks); **pass 2 — the line pass draws THAT shape onto the canvas**,
+      stamping/dragging the pass-1 footprint along the stroke and accumulating its alpha into the
+      target. So "draw a line" becomes "drag this brush-shape along a line" — the footprint is data, not
+      a hardcoded mask, which is exactly what lets one op carry the rich per-stroke parameters below.
       **Skin specifically is built in SEVERAL translucent passes of DIFFERENT colours, never one** —
       e.g. a light grey, then red, then yellow, then pink (laid in lines or areas), each a thin tint
       that shows through the others; the EARLIER passes read as the deeper skin layers, the LATER
@@ -504,6 +515,123 @@ NanoVG-class architecture; full spec: RENDER.md → "The API layer"):
       by the rotated sprite verb. The general path layer is lib-side scope (crawler
       itself needs lines/circles/rects/sprites/text) — it lands with its own tests +
       a vector-graphics demo as the second consumer.
+
+**(b-map) Port EVERY draw.py primitive onto a BARE `vector<integer>` pixel buffer (native-
+safe), uploaded via `graphics::gl_upload_canvas`.** Landed in `src/sprite_draw.loft` +
+`src/sprite_drawtest.loft` (gate **[13/14] SPRITE OK**, passes BOTH interpreted and native).
+
+> **NATIVE GOTCHA (pinned 2026-06-25, the load-bearing reason this is bare-buffer, not
+> `graphics::Canvas`).** graphics' `Canvas` mutation methods (`set_pixel`/`fill_rect`/`hline`/
+> `fill_circle` — all using the `d = self.data; d[i] = color` capture-then-index-write idiom)
+> **work when graphics runs INTERPRETED but silently NO-OP when graphics is loaded as a native
+> cdylib** (the default `--native` mode the game runs in); `save_png` additionally panics with
+> "loft_save_png has no marshal bridge". Verified via `canvas()→fill_rect→get_pixel`: correct
+> `--interpret`, unchanged pixel `--native` (exit 0, no error). This also silently breaks
+> `view.loft`'s disc/panel texture baking under native — a separate fix needed there. Root
+> cause is loft-side (the cdylib struct/vector marshalling, not graphics' code, which is
+> correct interpreted) — FILE upstream with the in-crawler recipe. **Workaround = the design
+> below:** a bare `vector<integer>` argument is passed by REFERENCE and mutates correctly in
+> BOTH modes (verified), and `graphics::rgba/blend/color_*` are scalar-in/out so they're
+> native-safe; only the one-shot `gl_upload_canvas(buf, w, h)` touches the cdylib, passing data
+> IN (no mutate-back). So sprite_draw owns its buffer; graphics::Canvas is used for nothing.
+
+The earlier plan to build on `graphics::Canvas` directly is superseded by the bare buffer for
+exactly this reason. Reference (what the shipped Canvas API offered): graphics-0.2.1
+`canvas(w,h,fill)` → a `{width,height,data}` RGBA
+(`0xAARRGGBB`) pixel buffer with `set_pixel`/`get_pixel`, `blend`/`blend_pixel` src-over
+compositing, `fill_rect`/`hline`/`vline`/`draw_rect`, `draw_line`/`draw_aa_line`,
+`draw_circle`/`fill_circle`/`draw_ellipse`/`fill_ellipse`, `draw_bezier`, **`fill_triangle`**,
+`draw_text`, `save_png`). **In-world drawing on textures already works through this path** and
+crawler already uses it: `view.loft` builds the token disc by `canvas(64,64,0)` →
+`fill_circle` → `gl_upload_canvas(c.data,64,64)` → a GPU texture (and the panel the same way);
+`ovshot.loft` paints the whole world map with `set_pixel`/`fill_circle`/`fill_rect` then
+`save_png`. So the surface is decided: **a `graphics::Canvas`, finished either to a runtime
+texture (`gl_upload_canvas` → `draw_texture_at`) or to a PNG (`save_png`)** — same buffer,
+two sinks. The job is to make that canvas do everything `tools/draw.py` does.
+
+The whole `draw.py` program collapses to THREE rasterization ops over generated point sets —
+`grad` (full-surface gradient), `fill` (closed polygon; solid/linear/radial), `stroke`
+(polyline; constant or per-point width) — plus a supersample+downscale AA pass and an
+optional transparent base (the op loop in `render()`). Everything else is pure-geometry
+*front-end* compiling to those three. Mapping each onto the real Canvas:
+
+- **`grad` background** → loop rows writing per-row colour with `hline` (ovshot already does
+  the per-pixel version). FREE today.
+- **`fill` solid** → needs `fill_polygon(pts, color)`. `fill_triangle` exists but draw.py
+  polygons (smoothed outlines, petals) are CONCAVE → add a **scanline** polygon fill (active
+  edges per row → `hline` spans), the load-bearing new method.
+- **`fill` linear/radial** → `fill_polygon_gradient`: the SAME scanline, but per span-pixel
+  compute the gradient `t` with `_make_gradient`'s exact formula and `set_pixel`/`blend_pixel`.
+  This SUBSUMES draw.py's small-image-resize + mask-paste hack (no 100×100 resize).
+- **`stroke` constant width** → w≈1 is `draw_aa_line` (exists); thick is the band below.
+- **`stroke` variable width (`_ribbon`)** → `stroke_path(pts, widths, color)`: port `_ribbon`'s
+  half-width normal-offset (left + reversed-right → one band) and hand it to `fill_polygon`.
+- **`_smooth_pts` Catmull-Rom**, `circle_pts`, `petal_polys`, `fronds` (+ `_hash01`/`_lowfreq`
+  + fractal recursion), `Poly`/`Line` point lists → **pure-loft geometry**, port VERBATIM
+  (they only produce coordinates; Petals/Fronds are already half-ported into the skill, §3).
+- **Supersample AA** → draw.py renders ×S=3 then LANCZOS-downscales. Match it by drawing onto
+  an S× Canvas then a new `downscale(factor)` (box-filter over `data`) before upload/save.
+- **Transparent base** → already works: `canvas(w,h,0)` (alpha-0 fill) + `blend_pixel`
+  compositing IS the re-compositable RGBA sprite. Replay ops in authored order (alpha is
+  order-dependent).
+
+**The new Canvas methods this needs (the whole build list): `fill_polygon` (scanline) ✅ ·
+`fill_polygon_gradient` · `stroke_path` (ribbon) · `downscale` ✅** — plus the pure-loft geometry
+helpers (`smooth_pts`/`circle_pts`/`petal_polys`/`fronds`), which live crawler-side in
+`src/sprite_draw.loft` first and extract to the lib once proven. Everything else already
+ships. **No GPU/FBO/shader work is required for this route** — that is the Painter2D v2 (b)
+upgrade for batching/SDF-AA later, not a gate.
+
+**The verifiable invariant + concrete steps (design-protocol Step 1 = a concrete plotted
+end-result, then pin each step).** Invariant: **the loft-Canvas render of a `.draw` program is
+STRUCTURALLY identical to draw.py's PNG of the same program — interior pixels exact, parity
+judged on MEAN (≪1).** Note (pinned by probe, Steps 1–2/7): a tight *max* gate vs draw.py's
+PNG is NOT achievable, because draw.py resolves AA with **LANCZOS** while the Canvas resolves
+with a **box** filter — two valid kernels that differ by ~max-14 on *identical* pixels, plus a
+sub-pixel boundary difference between the even-odd scanline and PIL's polygon fill. So:
+**parity vs draw.py = mean-based** (the dev probe), and the committed gate uses **deterministic
+`get_pixel` assertions on the hard-edged fill** (exact, no PIL) — a frozen *loft* golden is the
+route to a max gate if one is ever wanted. Build bottom-up, each step its own headless test:
+
+1. ✅ **Surface parity** (no new code): a loft test draws solid `fill_rect`s, `save_png`, diff
+   vs draw.py's PNG of the equivalent `.draw`. DONE — colour packing, y-orientation and
+   coordinate→pixel mapping agree (interior pixel-exact). **Calibration found:** hard-edged
+   Canvas vs draw.py's supersample+LANCZOS differ only on a 1px AA rim — **max=43 / mean=0.51**
+   on 120×80. ⇒ the *max-16* gate is reachable only AFTER step 7 (downscale); earlier steps
+   judge parity on **mean**.
+2. ✅ **`fill_polygon`** (even-odd scanline; `src/sprite_draw.loft`) → verified on a CONCAVE
+   arrow: interior pixel-exact, **0 interior holes, 0 over-fill** (characterized), parity
+   **max=82 / mean=0.40** (pure AA rim). Permanent headless test `src/sprite_drawtest.loft`
+   (`get_pixel` equality, no PIL) wired into `make test` as **[13/14] SPRITE OK**; the draw.py
+   golden-diff harness is a dev probe (scratchpad), kept out of the gate.
+3. **`smooth_pts`** (Catmull-Rom) → verify a `~`-flagged smoothed `Poly` matches.
+4. **`stroke_path`** ribbon → verify a tapered `Line`/`Poly` stroke matches `_ribbon`.
+5. **`fill_polygon_gradient`** → verify a `radial=`/`grad=` circle matches `_make_gradient`.
+6. **`circle_pts`/`petal_polys`/`fronds`** → verify a `Petals` and a `Fronds` sprite match.
+7. ✅ **`downscale`** (box-filter resolve; `src/sprite_draw.loft`) → render ×S then collapse
+   S×S blocks. VERIFIED **byte-identical to PIL's BOX filter (max=1, mean=0.005)**; box-vs-
+   LANCZOS on identical pixels is max-14/mean-0.19 (the irreducible kernel gap). Supersampled
+   arrow parity vs the draw.py golden: **mean=0.33** (max≈47 = scanline-vs-PIL boundary + kernel,
+   not error — confirmed flat across S=3→8). Deterministic block-average assertion in the gate.
+8. **In-world seam**: `gl_upload_canvas(c.data,w,h)` the result and draw it with
+   `draw_texture_at`; gate via `make probe` (the Xvfb pixel test). Then flip ONE monster's
+   `view.loft` by-name loader from "load `<key>.png` via `gl_load_texture`" to "run
+   `<key>.draw` → Canvas → `gl_upload_canvas`" — proving runtime/procedural sprite generation
+   (recolour, per-instance variation) with no PNG round-trip. The by-name resolver is the
+   single integration seam; the PNG path stays as fallback.
+
+- [ ] **The two-pass wet brush (§3 airbrush/rough-brush spec) on THIS canvas.** Pass 1 —
+      render the brush footprint (shape + colour + per-pixel alpha) once into a small
+      `Canvas`. Pass 2 — the "line pass" walks the stroke path and stamps that footprint
+      along it with `blend_pixel` (arc-length spacing so density is speed-independent). That
+      is "blit a small canvas repeatedly along a path" — `blend_pixel` already gives the
+      src-over accumulation, so the airbrush cone and split-bristle drag are DATA (the
+      footprint canvas), not engine code; the grime wash is the same stamp modulated by a
+      depth/recess channel. **The ONE genuinely new capability** is the rough brush's
+      wet-paint PICKUP — it smears pigment already laid down, so the stamp must READ the
+      target under the footprint (`get_pixel`), mix, and write back: a read-modify-write, not
+      pure deposition. `get_pixel` already exists, so even this is expressible on the current
+      Canvas — flag it as the only non-deposit-only op.
 
 **(c) The library landing ladder** (evaluated 2026-06-12 — what "fully reusable"
 adds beyond the crawler proofs: de-crawlering, a non-crawler consumer, lib-side
