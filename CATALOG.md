@@ -398,6 +398,12 @@ not from a decoded machine.**)
 > and an environmental calamity (spirit domain) are two expressions of the same
 > mechanic**, coupled across domains and across **local/country/world** scales. The
 > world is **one reactive web of forces.** Full treatment: **PARTY.md §5j.**
+>
+> **And no actor is static — relocation is itself a reaction.** Pushed hard/long
+> enough, any node **moves slowly**: spirits **migrate** (chaos spirits → the
+> spreading desert; an elemental leaving for the mountains; the *moved* towers),
+> economies and settlements **shift**, **cities relocate** (Laurent's flying city).
+> The map is **dynamic** over a campaign — a threat *and* a player lever (§5j).
 
 Consequence for play: the **everyday layer is martial / capability** (chip,
 windows, mitigation, coordination, perception); **magic is the *punctuation*** — the
