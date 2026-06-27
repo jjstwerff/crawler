@@ -8,6 +8,64 @@ invariants → cheapest-medium verify → phasing). It extends DESIGN.md §10
 (actors), §10a (flow-field AI + `MF_FRIENDS`), §11a (locality clock under MP),
 §11b (the MP-shaped per-player seam), and the `gameflow.loft` intent wire.
 
+## 0. Read-first — design index, through-lines, decisions, open items
+
+> **What this is.** A design exploration (2026-06-27) of adopting moros's *character
+> rules + world model* onto crawler's Angband engine. **Design only — no code yet.**
+> The corpus: **PARTY.md** (co-op party · Tension · cards · Slay-the-Spire combat
+> undercurrent · Broken-spirit death · companions · missions · campaign · emergent
+> threads · the reactive-web world) · **RESOLUTION.md** (resolution + progression
+> core) · **CATALOG.md** (capability/race/quest catalog + the spirit cosmology) ·
+> **DESIGN.md §3a/§12a amendments** + a **BUNDLE.md** cross-ref (charter + quest seam).
+
+**The through-lines (the unifying ideas — read these and the rest follows):**
+1. **One reactive web of forces — *spirits + economy + factions*.** *One* mechanic
+   (activity → reaction → consequence → propagation), several **domains**
+   (spirit/ecology · economy · faction/political), nested **scales** (local · country
+   · world). **A war and an environmental calamity are the same mechanic in different
+   domains.** One data structure; only the **actor (node) type** differs by domain
+   (§5j; CATALOG §6.5).
+2. **Opacity = agency.** The forces' relationships are **never stable or fully
+   understood, *by design*** — a solved system is mere optimisation; an unstable,
+   read-not-metered one gives real agency. *Agency from play, not a decoded machine.*
+   (Echoed by §5a qualitative tints, §6.6 uncontrollable magic, RESOLUTION §2a.)
+3. **Persons behind everything.** Missions, economy, companions, contacts = **one
+   graph of people**; every mission is **face-first** (person-anchored); **genealogy
+   (parents/children) is the backbone** (§5h–§5j, §5e–§5g).
+4. **Spirit-strength is one axis** behind *both* magical uncontrollability (stronger
+   spirit ⇒ less control) *and* mortality (strong spirits Break, weak ones die)
+   (CATALOG §6.5–§6.6; §5d).
+5. **Front / coordination-load** is what Tension measures (§2b); **Tension = the cost
+   of group-shaped action**.
+6. **Combat:** two-channel — damage always **≥1** (no whiff; the no-gate floor),
+   to-hit **repurposed as a crit engine** (crit strips foe mitigation / fumble exposes
+   self); **Dark-Souls "no number is a gate"**; **breadth-over-height** progression
+   (RESOLUTION §2a/§5a).
+7. **The recurring hybrid:** *procedural baseline + authored standouts* — used for
+   companions, missions, campaigns, and the history layer.
+
+**Settled decisions (dated 2026-06-27):** adopt moros's **8 stats** (CATALOG §0);
+breadth-over-height capability tree; Dark-Souls no-gate; two-channel combat with
+crit-strips-mitigation / fumble-exposes-self; gear = ceilings not flat; **Broken-spirit
+death** (no attrition-death; execute-to-kill; spirit-strength gates Break-vs-die);
+persistent named companions (grow on the same tree; no permadeath; trust/grudge/
+departure; sports-squad anchor; economic engine); **drop money — adopt moros's
+barter/goods/contacts economy**; magic = the spirit world (effective/sparse/
+unpredictable; passive-aid items; deniable); the reactive-web world model + opacity=
+agency. Charter departures recorded in DESIGN §3a/§12a.
+
+**Open / verify-first (the next work — all flagged in-doc):** the **history-generation
+layer is the foundational prerequisite** (§5j — DF-style legends, *recent + detailed*;
+build it *before* the emergent-thread generator). Verify-first prototypes (cheapest
+medium, before loft) for the load-bearing generative pieces: the **resolution curve**
+(RESOLUTION §3), the **Tension curve** (§7), the **magic-control / unpredictability
+curve** (CATALOG §6.6), and the **history→thread-web** generator (§5j). Plus tuning:
+stack vocabulary, mitigation/gear ceilings, crit/fumble magnitudes, per-archetype
+completion-checks (CATALOG §7).
+
+> *Note: detailed working notes were also kept in agent memory, which is **machine-
+> local** — this §0 is the portable record. The repo docs are the source of truth.*
+
 ## 1. What we are taking from moros — and what we are NOT
 
 moros (DESIGN §2 — *same world, generated not authored*) is a **card-based
