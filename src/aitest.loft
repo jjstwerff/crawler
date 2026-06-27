@@ -22,7 +22,7 @@ fn main() {
 
   // (2) Asleep + player far (dist 14 > vision 6): stays asleep, does not move.
   s = sim_new();
-  es = s.enemies; e = es[0]; e.awake = false; e.vision = 6; e.flags = 0; es[0] = e;
+  e = s.enemies[0]; e.awake = false; e.vision = 6; e.flags = 0; s.enemies[0] = e;
   (cq, cr) = sim_enemy_cur(s, 0);
   (fpx, fpy) = hex_to_px(10, 2);
   s.px = fpx; s.py = fpy;
@@ -32,7 +32,7 @@ fn main() {
 
   // (3) Asleep + player adjacent (dist 1, LOS): wakes.
   s2 = sim_new();
-  es2 = s2.enemies; e2 = es2[0]; e2.awake = false; e2.vision = 6; es2[0] = e2;
+  e2 = s2.enemies[0]; e2.awake = false; e2.vision = 6; s2.enemies[0] = e2;
   (npx, npy) = hex_to_px(10, 15);
   s2.px = npx; s2.py = npy;
   sim_tick(s2);
@@ -40,7 +40,7 @@ fn main() {
 
   // (4) NEVER_MOVE awake + player visible at range 2: never steps.
   s3 = sim_new();
-  es3 = s3.enemies; e3 = es3[0]; e3.awake = true; e3.flags = MF_NEVER_MOVE; es3[0] = e3;
+  e3 = s3.enemies[0]; e3.awake = true; e3.flags = MF_NEVER_MOVE; s3.enemies[0] = e3;
   (mq, mr) = sim_enemy_cur(s3, 0);
   (mpx, mpy) = hex_to_px(10, 14);
   s3.px = mpx; s3.py = mpy;
@@ -53,10 +53,10 @@ fn main() {
   //     flow field must route the monster AROUND (north, over the wall's end) to
   //     the west side. We assert it crosses to q <= 6.
   s4 = sim_new();
-  es4 = s4.enemies; e4 = es4[0];
+  e4 = s4.enemies[0];
   e4.cur_q = 10; e4.cur_r = 8; e4.tgt_q = 10; e4.tgt_r = 8;
   e4.awake = true; e4.flags = 0; e4.vision = 40;
-  es4[0] = e4;
+  s4.enemies[0] = e4;
   (ppx4, ppy4) = hex_to_px(5, 8);
   s4.px = ppx4; s4.py = ppy4;
   crossed = false;

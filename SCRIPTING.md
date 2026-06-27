@@ -134,6 +134,216 @@ determinism + MP), plus the **primitive set** itself — new primitives remain e
       runs interpreted with no compiler, auto-optimizes to WASM where one exists, and a player
       can opt-in to compile their assembled set to full speed.
 
+## Plan — run bundles under @PLN86 sandboxing (the crawler dogfood)
+
+loft's **@PLN86 sandbox** (loft2 branch `tuxedo-work`, v1 safety model COMPLETE, landing via a
+PR soon) is the concrete mechanism for Stage 5's "capability-limited API surface". It is built
+*for crawler to dogfood*: the @PLN86 README hands the consuming role to "the crawler agent" —
+crawler switches a `[sandbox]` policy on over its bundle surface, finds where it is **too tight**
+to express a mod, and **adversarially tries to break out**; findings route back as loft language
+work. This is the execution plan for that.
+
+### Is this worth doing? — evaluation for games
+
+**Verdict: yes, and games are arguably its best domain.** Games are the canonical "a stranger
+ships code that runs on my machine" case, they are perf-critical, and many are deterministic /
+multiplayer — and this sandbox is unusually well-matched to all three. The value hinges on one
+tunable (expressiveness vs. strictness) and one precondition (a real mod ecosystem + the loft
+runtime); it is a strong feature for a specific, valuable niche, not a universal win.
+
+**What makes it better than what games ship today** — not "a sandbox" (everyone has one) but
+*which*:
+- **Same-process, full-speed.** Sandboxed content runs in-process at native `DbRef` speed, host
+  code unrestricted. Almost every game sandbox today (a separate Lua/JS/WASM VM with marshalling)
+  pays a boundary tax that is the reason mods stay shallow. Removing it is the standout property.
+- **Load-time admission, not runtime trapping.** A mod is *proven* safe at load — no per-call
+  permission checks in the hot loop, and you know before running whether it is safe.
+- **Totality — can't hang, can't fault, bounded cost.** Kills the two worst modding-support
+  nightmares ("a mod froze my game", "a mod crashed the client") by construction.
+- **Determinism preserved by construction.** The `clock`/`rng` fences mean untrusted content
+  *cannot* desync a lockstep multiplayer game — a mostly-unsolved problem (it is *why* RTS/lockstep
+  titles usually ban code mods). Close to novel.
+
+The closest real comparables — Roblox's Luau (years of work to lock Lua down for UGC) and
+Factorio's restricted-Lua API — are hand-built, game-specific versions of exactly this; a
+language-level, capability-based, load-proven, same-process sandbox is a stronger, more general
+form. The common bad path — native/Java mods (Skyrim, Minecraft) = full RCE — bites in practice
+(the 2023 "fractureiser" Minecraft-mod malware; data-stealing WoW addons).
+
+**An underrated second use:** even with *no* public modding, "this content module provably can't
+crash, hang, or desync the engine" is valuable for **large teams** (a designer's script can't take
+down the build) and **live-ops hot-loading** (with loft dynamic compilation: ship content that
+can't break the running game).
+
+**The honest costs / risks:**
+- **The expressiveness ceiling is the decisive risk.** v1 totality is acyclic (no recursion,
+  bounded loops). Lua's *looseness* is why it won modding — a too-strict sandbox doesn't get safer
+  mods, it gets *no* mods (or modders routing around it into an unsafe tier). This is make-or-break,
+  and it is exactly what Step 5's dogfood is built to find — a point in the feature's favour
+  (validated against a real consumer, not designed in a vacuum).
+- **The fences cut off whole categories** (no I/O / clock ⇒ no live-API / own-timing mods); those
+  need a separate trusted tier — the sandbox is the wrong tool for them, by design.
+- **Host-side burden:** the engine must carve + capability-tag its API (the design below), and
+  mis-tuned granularity is unsafe (too coarse) or annoying (too fine).
+- **Preconditions:** value ≈ (untrusted-content surface) × (perf sensitivity), and it applies only
+  to engines on the loft runtime — a language feature, not drop-in middleware.
+
+**For crawler specifically: near-ideal fit** — the whole premise is "a stranger drops a bundle in
+and plays", it is deterministic + MP-aspirational + loft-native, and its current bundles admit
+almost trivially (tiny call surface, no loops, no raw writes — verified). About as clean a dogfood
+target as exists, which is why @PLN86 routes its consumer role here.
+
+**Bottom line:** genuinely useful and differentiated where it counts (same-process speed; the
+determinism / no-hang guarantees the mainstream Lua/Workshop/native-mod paths don't give). What
+decides *adoption* over mere *soundness* is whether loft can relax totality to "bounded but
+expressive" without losing the guarantees. If it can, it is a real competitive advantage for any
+moddable, deterministic, perf-sensitive game; if it stays too strict, it is a correct safety
+feature for a mod ecosystem that never forms.
+
+**The model (from loft2 `doc/claude/SANDBOX.md` + `plans/86-sandbox-subset-flag/README.md`).** The
+HOST designates subsets (a script can't opt itself out); designated defs run under prove-it-safe-
+at-load admission — **deny-by-default**, **interpret-only** (refuses `--native`), **total**
+(acyclic — v1 rejects recursion), **no raw writes to host data**, **no fs/net/env/FFI**, with a
+space/complexity budget — all checked at load via `Parser::sandbox_admission_errors`. Same process,
+shares the store at full `DbRef` speed. Config in `loft.toml`: `[sandbox]` maps file/function globs
+to a `[profile.<name>]`; a reachable trusted symbol admits iff its **library ∈ `allow_libs`**
+(wholesale) OR its declared `group#right` capability ∈ `allow` — else a compile error naming the
+offender. Library-first: vet a whole module in as a unit; use capabilities only to split one.
+
+**Why crawler is a clean fit (verified 2026-06-25).** Bundles are exactly the "stranger drops it
+in" surface BUNDLE.md describes — the untrusted code the sandbox is for. And today's bundle
+routines admit almost trivially: the **entire engine call-surface from `bundles/*/*.loft` is
+`sim_log`, `sim_bolt`, `sim_blink`** (3 symbols); **no `while` loops** (totality-clean under v1's
+acyclic rule); **no raw `s.field =`/`p.field =` host writes** (all mutation goes through kernel
+APIs). So v1 admission should pass with a tiny allow-list — the dogfood starts from green, then
+probes the edges.
+
+### Gating dependency
+The sandbox lives in **loft2**, not the installed loft (which tracks the `../loft` @PLN85 line).
+Steps 1–4 are buildable now (inventory + policy authoring); **run-verification (5–6) waits on the
+loft2 sandbox PR landing + `make install` from loft2**. Note the sandbox forces **interpret-only**
+— already crawler's `make test` mode — so it sidesteps the native-cdylib path (loft#460); but the
+gate still needs the store-lifetime SIGSEGV (loft#462) resolved to reach `questtest`.
+
+### Steps (each a verifiable move)
+1. [ ] **Pin the allow-list (the load-bearing invariant).** Enumerate EVERY engine symbol the
+   bundle-**reachable** set calls — across all routine kinds (spell/item effects, placement,
+   stencils, quest hooks), not just today's three. Classify each: pure-query · world-mutate ·
+   log/UI. *This set IS the capability surface.* **Verify:** the admission walk reports exactly
+   these as the trusted leaves (`loft introspect` / the admission error list names no surprises).
+2. [ ] **Designate the subset.** `loft.toml` `[sandbox]` glob over `bundles/**/*.loft` →
+   `profile = "bundle"`. **Pin the one design risk first:** `genbundles` generates registries
+   (`spell_defs_gen`, `rooms_gen`, …) that *embed/dispatch* bundle routines — confirm the glob
+   tags the defs where they actually compile (bundle source vs the generated dispatch). Verify the
+   intended defs are tagged before writing the profile; if the indirection drops the tag, designate
+   the generated files (or add `#sandbox("bundle")` at the routine sites).
+3. [ ] **Define `[profile.bundle]`.** `native_ffi = false`; `allow_libs` = the bundle-facing kernel
+   API module(s) wholesale (library-first), nothing else. Deny fs/net/env/raw-store/other-bundle
+   internals by omission. **Verify:** a bundle calling only allow-listed APIs admits; a probe
+   bundle calling `files`/`env` is rejected at load naming the group.
+4. [ ] **Declare crawler's OWN bundle-API capabilities** (§3 "projects declare+link their own
+   code") — only where wholesale is too broad. Carve the seam: e.g. `capability world` with
+   `world#mutate` on `sim_bolt`/`sim_blink`, `log#write` on `sim_log`, so a bundle's grant is
+   explicit + minimal. Start wholesale (step 3), refine to caps as the dogfood shows what to gate.
+5. [ ] **Adversarial dogfood (the @PLN86 ask).** (a) *Too-tight:* find a legitimate mod the
+   allow-list or totality rejects — a routine needing an un-allowed API, or the loops/recursion a
+   richer mod wants but v1's acyclic rule bans — and route it back to @PLN86 as language work.
+   (b) *Break-out:* author a hostile bundle that tries to read a file, reach env/net, call native
+   FFI, raw-mutate host state, reach another bundle's data, or infinite-loop / deep-recurse / blow
+   the space budget — confirm each is **rejected at load or bounded**. Report both streams upstream.
+6. [ ] **Make it the standing guarantee.** Once the policy holds and break-out is clean, commit the
+   `[sandbox]` policy into `loft.toml` so `make test`/`make play` always run bundles sandboxed —
+   turning BUNDLE.md's "a stranger drops a bundle in and plays" from aspiration into an enforced
+   property. Update BUNDLE.md's **standing check** ("bundles run sandboxed") and this Stage 5.
+
+### Known tensions to carry
+- **Totality v1 = acyclic only.** Fine today (no bundle loops/recursion), but the richer-mod
+  ambition above (event handlers, general API) will want bounded loops — that relaxation is exactly
+  the kind of dogfood finding @PLN86 wants pushed back.
+- **The capability surface grows with the mod vocabulary.** As Stages 1–4 broaden the bundle API,
+  each new bundle-callable verb is a new allow-list/capability decision — keep the seam's
+  capability declarations co-located with the API (BUNDLE.md standing check territory).
+
+### The bundle API surface — the allow-list, by capability (Step 1 design)
+
+The detailed design of *what a bundle is allowed to call*. It has **two faces**: a **data-
+definition** API (pure — bundles return typed records; no host effect, always admits) and a
+**behavior** API (the functions routines call to read/affect the world — the part the sandbox
+gates). Capability names below are the proposed `group#right` links crawler would **declare on its
+own seam** (§3 of the plan); the engine ships them, a `[profile.bundle]` grants a subset.
+
+**A. Data-definition API (pure — no capability).** A bundle provides content as `pub fn`
+routines returning typed vectors; the scanner (`genbundles`) merges them. These call no engine
+verbs — they construct records and return them, which the sandbox treats as a pure leaf. The
+record **types** and the **constants** their fields use are a wholesale-allowed, declaration-only
+module (no behavior to gate):
+
+| Provider routine | Returns | Notes |
+|---|---|---|
+| `item_defs()` | `vector<ItemDef>` | items: category, effect-id, flags (`IF_*`) |
+| `monster_defs()` | `vector<MonsterDef>` | stats, `MF_*`/`RF_*` flags, tags, glyph/colour |
+| `<x>_class_defs()` / `<x>_race_defs()` | `vector<ClassDef>`/`vector<RaceDef>` | stat blocks, hit-die, skills, realm |
+| `<x>_spells_defs()` | `vector<SpellDef>` | name, SP cost, **effect-id** → a routine (face B) |
+| `room_stencils()` | `vector<Stencil>` | room paint masks |
+| `place_rules()` | `Placement` | budget / weighting / start-safe |
+| (world) | `RoomDef` + `room_connect_*` | `world`-kind registry |
+
+Allow wholesale: a `kerneldefs` surface = the `*Def`/`Stencil`/`Placement`/`RoomDef` **types** +
+the `MF_*`/`RF_*`/`IF_*`/`TAG_*`/`K_*` (tile-kind) **constants**. Declaration-only ⇒ no risk.
+
+**B. Behavior API (capability-gated).** Behavior routines receive a fixed **dispatch context** and
+return a result the engine acts on — they never hold the loop:
+
+| Routine kind | Signature | Returns |
+|---|---|---|
+| class/race onboarding | `activate(s: &Sim, p: Player)` | — |
+| spell / item effect | `fx_<name>(s: &Sim, p: Player, power: integer) -> boolean` | did-fire |
+| quest hook | `on_<event>(s: &Sim, …)` | per-event |
+
+Within those, the callable engine surface (today ~165 `sim_*` + the `Player` method sugar +
+`random`) splits into capability groups. **The split is by EFFECT, and it encodes crawler's two
+hard fences (MP-safe clock, no raw host writes) as deny-by-default capability gaps:**
+
+| Group | Right | Representative members | Profile default |
+|---|---|---|---|
+| `query` | read | `sim_player_*`, `sim_stat*`, `sim_enemy_*`, `sim_floor_*`, `sim_inv_*`/`sim_item_*`, `sim_tile_kind`, `sim_hex_state*`, `sim_los_to`, `sim_compute_fov`, `sim_depth`, `sim_gold`, `sim_window` (the ~126 read accessors) | **allow** (no mutation, safe-broad) |
+| `rng` | — | the seeded `random` package, `sim_roll`, `sim_frac` | **allow** (deterministic — MP-safe) |
+| `ui` | log | `sim_log`, `sim_msg_at` | **allow** (player-visible text only) |
+| `player` | mutate | `sim_heal`, `sim_blink`, `sim_buff_stat`/`drain_stat`/`grant_stat`/`raise_stat`/`restore_stat`, `sim_cure_venom`, `sim_award_xp`, `sim_grant_gold`/`skill`/`save`, `sim_give_item`, `sim_equip`/`equip_by_key`/`unequip`, `sim_consume_inv`, `sim_spend_sp`, `sim_identify*` — and the `Player` sugar (`p.equip`/`give_item`/`heal`/`buff_stat`/`grant_gold`/`grant_stat`/`reveal_monsters`) | **grant** (gated — a self/loadout-affecting mod opts in) |
+| `world` | mutate | `sim_bolt`, `sim_damage`, `sim_afflict_enemy`, `sim_make_gaze`/`make_glow`, `sim_set_awake`/`set_speed`, `sim_teleport`, `sim_respawn` | **grant** (gated — combat/world-affecting effects) |
+| `detect` | reveal | `sim_reveal_map`/`reveal_monsters`, `sim_monster_sense`, `sim_detect_active` | **grant** (gated — info-reveal effects) |
+| `clock` | — | `sim_tick`, `sim_step`, `sim_wait`, `sim_travel`, `sim_descend` | **DENY (never grantable to a bundle)** — advancing the clock from a routine breaks the distance-driven, MP-safe clock (the §"Non-negotiable" fence). The engine drives the clock; routines only react. |
+| `lifecycle` | — | `sim_new`/`new_gen*`, `sim_set_class`/`set_race`, `sim_starting_loadout`, `sim_shrine_*` | **DENY** — world/character construction is engine-only. |
+| (host fs/net/env, native FFI) | — | loft `files`/`env`, any cdylib bridge | **DENY** — `native_ffi = false`; never in a bundle profile. |
+
+So a typical `[profile.bundle]` is: `allow_libs = ["kerneldefs", "random"]` (the pure data
+surface + deterministic RNG) **+** `allow = ["query#read", "ui#log"]` always, **+** whichever of
+`player#mutate` / `world#mutate` / `detect#reveal` the bundle's declared kind needs — and
+**nothing reaches `clock`/`lifecycle`/fs/net/FFI**, by omission. A spell bundle grants
+`world#mutate`; a class-onboarding bundle grants `player#mutate`; a pure content pack (just the
+data-def routines) needs only the wholesale `kerneldefs`.
+
+**Why this shape is right (not just expedient):** the deny-by-default gaps are crawler's existing
+*acceptance fences* made mechanical — `clock` denied = the MP-safe-clock fence; fs/net/FFI denied =
+the "no FS/net" fence; `query` open / `*mutate` gated = "read freely, change deliberately." The
+sandbox doesn't add a new policy; it *enforces the one SCRIPTING.md already states* at load time.
+
+**The one structural requirement this puts on the engine seam:** every bundle-callable verb must
+be reachable **only** through these declared-capability functions — a routine must not be handed a
+raw `&Sim`/`Player` it can mutate fields on directly (that is a "raw write to host data" the
+sandbox forbids, and rightly: it would bypass the capability split). Today's routines already obey
+this (no raw `s.field =` in any bundle — verified), because they go through `sim_*`/`Player`
+methods. Keeping it true as the API grows is the BUNDLE.md standing-check item for this seam: **new
+bundle-facing state changes ship as a capability-tagged verb, never as a mutable field handed to a
+routine.**
+
+**Gaps for the richer-mod stages (1–4).** The event bus (Stage 1) adds a new routine kind —
+`on_<event>(ctx: EventCtx)` — whose `EventCtx` is the *only* capability handle (no bare `&Sim`);
+its methods carry the same `query`/`*mutate` groups. Extensible state (Stage 4) needs a
+`state#read`/`state#write` capability over a bundle's own namespaced store. Each new verb from
+Stages 2–3 is one capability-tag decision at the seam — the table above is the v1 baseline the
+dogfood (Step 5) stress-tests and grows.
+
 ## Verdict
 
 The limit is mitigable, and cheaply — the seeds exist (routine pool, a 16-verb API, 126 read
