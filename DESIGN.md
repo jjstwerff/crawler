@@ -140,9 +140,13 @@ Souls-grade fair challenge, no permadeath.**
    gen — a checkpoint stores `{depth, position, stats, inventory, seed}` and re-derives
    the level. Save points double as goals (quest nodes later). A permadeath *mode*
    could return; the default is friendly.
-   - **Souls-style stake — gold only (the one thing you can lose).** On death a
-     percentage of your **gold** (`GRAVE_PCT`, start 50%) is left as a **grave marker at
-     the death spot**; respawn at the checkpoint, then make the risky trip back to
+   - **Souls-style stake.** *(Amended 2026-06-27 — money is **dropped** (§3a
+     amendment): read every "gold" below as the **hauled goods/cargo** you drop at the
+     death spot; the stake is concrete *stuff* from this dive, not a coin total, and
+     your contact network persists. The grave/reclaim/group-up logic is unchanged.)*
+     On death a percentage of your **gold** (`GRAVE_PCT`, start 50%) is left as a
+     **grave marker at the death spot**; respawn at the checkpoint, then make the
+     risky trip back to
      reclaim it. In **single-player**, **die again first and it's forfeit** (one grave at
      a time — the bloodstain tension). In **multiplayer** the rule softens: graves
      **persist** (lose half, it stays even if you die again — graves accumulate, any
@@ -210,6 +214,85 @@ permadeath + home/save-point respawn (persistent characters, long sessions); a s
 cheap sync); a flat curve (different-skill players co-op without trivializing); and a
 renderer-agnostic, data-only kernel that can run **server-authoritative** over the
 existing `loft-libs-net` (server / game_protocol). Not built now; not designed against.
+
+### Amendment (2026-06-27) — co-op party, Tension & the combat model → PARTY.md / RESOLUTION.md
+
+A design direction explored after this section was written, specified in full in
+**PARTY.md** (goal-directed AI party, moros-style **Tension**, **cards** as the
+coordination UI, a Slay-the-Spire combat *undercurrent*) and **RESOLUTION.md**
+(pluggable resolution backend + the progression/difficulty model). It is mostly a
+*concretisation* of the pillars above, plus a few **deliberate structural
+departures** recorded here so the charter is not silently contradicted.
+
+**Consistent with / concretises the pillars** (no conflict): the power-ratio cap
+(#2 — nothing walled by under-levelling, nothing goes trivial), lateral
+capabilities-not-a-+N-ladder (#3), class = soft start (#4), skill-gated not
+stat-gated harsh zones (#9), and the "Accessible ≠ easy / Dark Souls" framing all
+*already* point here. RESOLUTION.md's **Dark-Souls "no number is a gate"** and
+**breadth-over-height** are these pillars made exact.
+
+**Deliberate departures (beyond "Angband bones, friendly tuning" #10 — these are
+*mechanism* changes, not just numbers):**
+- **Co-op party + an ally faction** — relaxes pillar **#6 ("No factions / NPCs")**:
+  a *friendly* faction (goal-directed party allies, AI now / human drop-in later)
+  now exists. This is still **not a social sim** — allies are combat/coordination
+  actors, the entity model just gains a friendly side. It also **updates the
+  multiplayer note above**: the co-op axis is now *actively designed for* (specified
+  in PARTY.md, built incrementally — allies first, human takeover later via the
+  `gameflow` intent seam), not merely "not designed against."
+- **Combat-resolution model** — extends #10's "keep combat resolution": the Angband
+  to-hit math is **kept but repurposed as a two-tailed *crit engine*** (no hit/miss
+  whiff; **damage always ≥1**; a crit strips the foe's mitigation / a fumble exposes
+  the actor), with a **Slay-the-Spire mitigation/stacking/window undercurrent** (the
+  two mitigation axes — *ward* and *intercept*; gear as a mitigation **ceiling**, not
+  flat AC) and a **pluggable resolution distribution** (bell-curve option). The
+  Angband rolls/HP/AC math are *kept and repurposed* (AC → crit input), not
+  discarded. **And no death-by-attrition: HP bottoming out *Breaks the spirit***
+  (out of action, recoverable) — **#5's death stake fires only on an enemy's
+  deliberate *execute* of a Broken character**, never on chip damage (PARTY.md §5d).
+- **Progression model** — the §12a Angband clevel stat-ladder is **superseded** by a
+  moros-style **breadth-over-height capability tree** (powers/backgrounds/
+  specializations = the card deck; raw stat height soft-capped). See RESOLUTION.md §5a.
+  **And the stat set changes — DECIDED 2026-06-27: Angband's 6 stats are replaced by
+  moros's 8** (Char/Dex/Endu/Hand/Might/Perc/Speed/Will), which the capability
+  catalog is authored against and which map onto the combat model (CATALOG.md §0;
+  §12a amendment).
+  - **Race deepens beyond pillar #4's "tilt + kit."** A race is no longer (just) a
+    stat tilt — it grants a **distinctive set of innate powers/capabilities that
+    change *how you play*** (flight, digging, smell, night-sight…), the **single
+    richest thing crawler takes from moros** (RESOLUTION.md §5a). This is *playstyle*
+    depth, not engine depth: each race is a different selection from the shared
+    capability pool, **authored bundle-side** — so #4's "no deep per-class/race
+    *engine* mechanics" still holds (no bespoke per-race code), while the *feel* per
+    race becomes deep.
+
+- **Economy — adopt moros's; DROP money (DECIDED 2026-06-27).** Crawler abandons
+  **gold/currency entirely** for moros's **barter-goods-contacts** economy. Wealth =
+  **goods** (held in **item slots**, bulk-limited) **+ leveled contact relationships**
+  (a contact's level rises with repeated meaningful interaction — lodging → local
+  knowledge → introductions → goods/refuge) **+ craft/forage capacity** — *not* a coin
+  total. Items come via **backgrounds** (kit + slots), **contacts** (barter / earn /
+  introductions — relationships, never coin), **crafting** (Handiness — make/convert),
+  rare **finds**, and **forage/gather/hunt**. Ripples:
+  - **#5's death stake re-bases from gold to *goods*.** On death you **drop the goods
+    you were hauling** (slot cargo + the vehicle's bulk cargo, §5) at the death spot —
+    reclaim by trekking back; your **person + your contact network persist**
+    (relationships aren't carried goods, so death never costs your network). The
+    "graves pile up at deadly spots → reason to group up" loop becomes **goods-rich**
+    death spots. *Strengthens* #5: the stake is concrete *stuff* from this dive, not
+    abstract money — and it makes **carry-capacity the core economic constraint**
+    (goods are wealth; they can't be abstracted into weightless coin).
+  - **Selling → bartering.** "Sell loot to a merchant for gold" becomes **barter goods
+    through leveled contacts** (or craft them up / use them). Merchants are **contacts**.
+  - **§12b item `i_cost` → barter-value + bulk** (what a contact will trade for it +
+    what it occupies), not a gold price.
+  - Companions are the **economic engine** (PARTY.md §5g): they bring backgrounds'
+    **contacts + slots + crafting**; "fair *loot* split" (not gold) is a trust lever.
+
+**The line we hold:** Angband **combat *systems*** (the rolls, HP, AC math, monster/
+item rules, FOV, AI) are kept and repurposed; the **advancement model, the no-gate
+difficulty philosophy, the co-op axis, and the economy (moros barter, no money)** are
+where crawler intentionally diverges. Names/lore stay clean-room (§4) throughout.
 
 > Stencils / bundles / castles / quests / motifs (BUNDLE.md, STENCILS.md) are the
 > *authored* content architecture — moros-side / future. crawler's near-term is
@@ -742,6 +825,25 @@ monster `m_xp`.
 - The kernel's current `Sim.php/phpmax` are **subsumed** into `Hero.hp/maxhp`.
 
 ### Levelling (Angband formulas)
+> **Amendment (2026-06-27):** this Angband clevel stat-ladder is **superseded** as
+> the *primary* progression model by RESOLUTION.md §5a's **breadth-over-height
+> capability tree** (powers/backgrounds/specializations; raw stat height
+> soft-capped) — see §3a's amendment. The XP/threshold/derived-stat machinery below
+> is **kept** (capabilities and the soft-capped stats still need XP, thresholds,
+> and recompute-on-change), but "level-up = +clevel and a hit-die HP roll" is no
+> longer the spine — most growth is a *new capability*, not a bigger number. Read
+> this section as the baseline mechanics RESOLUTION.md §5a reshapes, not the final
+> progression design.
+>
+> **Stat set (DECIDED 2026-06-27):** the **6 Angband stats below
+> (STR/INT/WIS/DEX/CON/CHR) are replaced by moros's 8** — Charisma, Dexterity,
+> Endurance, Handiness, Might, Perception, Speed, Willpower — which the capability
+> catalog is authored against and which map onto the combat model (Might→damage,
+> Endurance→mitigation/HP, Dexterity→crit, Perception→the perception action, Speed→
+> the clock, Will→Tension-resistance, Charisma→leadership, Handiness→craft/device).
+> See CATALOG.md §0. So the `Hero`/`races`/`classes` stat fields below grow 6→8 and
+> re-key; the sidebar lists 8. Treat every "the 6 stats" reference below as "the 8."
+
 - **XP needed:** `player_exp[clevel]` base table × **total exp factor**
   `(r_xp × c_xp)/100` ⇒ next-level threshold (warrior cheap, mage dear).
 - **XP per kill:** `gained = m_xp × monster_level ÷ clevel` (scaled down as you

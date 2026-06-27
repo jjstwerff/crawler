@@ -278,6 +278,12 @@ a **place**, and it makes **other places link to it logically** — seeding the 
 as a lock-and-key graph. (Original / clean-room content, a tier above the
 Angband-faithful core.)
 
+> **Quests = "missions" in the co-op design.** Every mission ties to a **person**
+> (giver / stakeholder / target), wiring quests into the contact/companion/economy
+> web; the **campaign tier** (authored mission packs) follows the **moros campaign
+> template** — Background + thread-web + person-anchored *tension-moment* setpieces +
+> NPC-signpost map + branching resolutions. Full design: **PARTY.md §5h–§5i.**
+
 ### `QuestDef` (pooled; refs the other pools by key)
 - `q_key`, `q_name`
 - `q_kind` → picks the objective routine: SLAY / RETRIEVE / REACH / CLEAR / RESCUE
