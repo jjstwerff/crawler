@@ -169,7 +169,7 @@ No single trick; they reinforce:
    directly; recorded as the far end of this axis, but we keep HP.)*
 6. **Gear buys ceiling, not flat power (the anti-gate gear model).** Armor/weapons
    raise the **soft ceiling** of the Slay-the-Spire mitigation/stacking pools
-   (PARTY.md §5a) — how much Block you can hold, how high you can stack damage —
+   (PARTY.md §5a) — how much mitigation you can hold, how high you can stack damage —
    **not** a flat reduction or bonus. *Gear widens headroom; skilled play fills
    it.* So gear is never a gate (R3): poor gear + great play is capped-but-viable,
    great gear + bad play stays empty. Same anti-treadmill shape as breadth-over-

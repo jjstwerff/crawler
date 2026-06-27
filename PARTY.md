@@ -16,7 +16,9 @@ invariants → cheapest-medium verify → phasing). It extends DESIGN.md §10
 > undercurrent · Broken-spirit death · companions · missions · campaign · emergent
 > threads · the reactive-web world) · **RESOLUTION.md** (resolution + progression
 > core) · **CATALOG.md** (capability/race/quest catalog + the spirit cosmology) ·
-> **DESIGN.md §3a/§12a amendments** + a **BUNDLE.md** cross-ref (charter + quest seam).
+> **DATA.md** (world-state & world-data model: current crawler structs → what this
+> needs — the build-blueprint) · **DESIGN.md §3a/§12a amendments** + a **BUNDLE.md**
+> cross-ref (charter + quest seam).
 
 **The through-lines (the unifying ideas — read these and the rest follows):**
 1. **One reactive web of forces — *spirits + economy + factions*.** *One* mechanic
@@ -25,8 +27,10 @@ invariants → cheapest-medium verify → phasing). It extends DESIGN.md §10
    · world). **A war and an environmental calamity are the same mechanic in different
    domains.** One data structure; only the **actor (node) type** differs by domain.
    **No actor is static** — pushed hard/long enough any node (a spirit, an economy,
-   even a *city*) **relocates slowly**, so the **map is dynamic** over a campaign
-   (§5j; CATALOG §6.5).
+   even a *city*) **relocates slowly**, so the **map is dynamic** over a campaign;
+   and that mobility **grinds at the edges → friction concentrates at the boundaries /
+   frontiers**, which are where threads, setpieces, and agency live (*"the map's seams
+   are the game"*) (§5j; CATALOG §6.5).
 2. **Opacity = agency.** The forces' relationships are **never stable or fully
    understood, *by design*** — a solved system is mere optimisation; an unstable,
    read-not-metered one gives real agency. *Agency from play, not a decoded machine.*
@@ -149,7 +153,7 @@ levers that keeps the end boss beatable by a fresh group.
 ## 2b. Solo is a party of one — and Tension is the cost of *group-shaped action*
 
 **Solo play uses the *same* system — no separate mode.** A lone player is a
-**party of one** (the actor-symmetry invariant #3 — every actor is the same Actor;
+**party of one** (the actor-symmetry invariant #2 — every actor is the same Actor;
 the player just fields N≥1 of them). Without NPC mates you are **structurally
 weaker**: fewer cards in play, no **intercept** (no one to step in for you), no
 **group-stack burst**, and you must **self-cover** your fumbles by repositioning.
@@ -401,7 +405,7 @@ hit/miss). Two pillars:
   input survives alongside is open, §5a open list / RESOLUTION.md §6.)*
 
 - **The model is symmetric — monsters run it too, which is what creates *attack
-  windows*.** Monsters carry **Block, stacks, and gear-style ceilings exactly like
+  windows*.** Monsters carry **mitigation, stacks, and gear-style ceilings exactly like
   players/allies** — one combat model for every faction (reinforces invariant #1
   *one kernel* and extends invariant #2's symmetry from *control* to the *combat
   model*). Because a monster carries the same behind-the-scenes mitigation, the
@@ -523,7 +527,7 @@ tips, hotbar-swapping for the situation — **not twitch-dodging.** The turn/rol
 twitch axis but *deep* on the tactical axis — the spectrum question is resolved.)
 
 *Open:* the exact stack vocabulary + caps (bounded by color-shift legibility —
-above); Block decay rate; whether stacks are per-target counters (likely); the
+above); mitigation decay rate; whether stacks are per-target counters (likely); the
 **state→tint palette + intensity curve + overlap-priority** (view-side: which
 state wins the tint when several stack, the magnitude→saturation mapping); how
 `margin` from
@@ -745,6 +749,86 @@ hero's** story, not managing a cast that eclipses you.
   learned capabilities + passive aids), *yours*, named, not a generic merc. That
   identity is what makes the co-op drama land (covering *their* Broken body, reviving
   *them*). They are full `Hero`-grade actors (actor-symmetry invariant #2).
+- **Who makes a good companion — *near power, but not in power*.** **The grounding:
+  adventuring is *abnormal*.** In a believable society a **settled, normal person —
+  home, family, a place — has no rational reason to abandon it for the dangerous
+  roads**; that would be folly. So the people who *do* walk them are the
+  **displaced** — and "near power, not in power" is the richest displacement:
+  **second/third sons** (no inheritance), **children of heroes** (in a shadow),
+  **people pushed out of an organisation for their opinions** (exiles, dissenters).
+  **Displacement is the *push* that makes the road rational** — less to lose at home,
+  something to seek out there. (So it isn't just *interesting*, it's the believable
+  **reason they're on the road at all** — and it explains the **player**, too: a hero
+  is someone for whom the road makes sense.)
+  **The psychological core — they *feel the expectations* but feel they *cannot
+  deliver* on them.** Displacement isn't only structural; at heart it's a **gap
+  between the expectation laid on them and their felt capacity to meet it** — the
+  second son weighed by a line he can't inherit, the hero's child who can't fill the
+  shadow, the exile who couldn't conform, Ron carrying a martial prophecy that was
+  never his. **That gap is the engine:** the road is where they go to **close it, grow
+  into it, reframe it, or escape it** — which *is* their arc (and *resolving* it ends
+  the road — corollary below). It hooks straight into the systems: the leader's job is
+  to **deploy them to their strengths so they prove they *can*** (§5e want · trust =
+  deployment · the sports anchor — *benching confirms the doubt; using them well
+  closes the gap*); their **growth on the capability tree mirrors the emotional arc**
+  (real capacity built); and — **no-gate** (RESOLUTION §2a) — the gap is **closable
+  through play**, never a fixed inadequacy. The **player** feels it too.
+  The displaced status does a lot at once:
+  - **Connection + stake + history** — they're *embedded* in the power structures (a
+    lineage, a former membership, a proximity), so they carry the **links** (§5j
+    connects-to), the **genealogy / faction-residue** (history), and a **personal
+    stake** in the big threads — but at the **edge** of those structures.
+  - **Motivation / arc** — displacement *gives them a want* (prove themselves, step
+    out of the shadow, vindicate the opinion they were exiled for, reclaim or escape a
+    legacy) → feeds the §5e wants & the authored arc.
+  - **Recruitable *because* displaced** — the **in-power are fixed** (a sitting king
+    can't join you); the **near-power are free** to adventure. "Not in power" is *why*
+    they can be a companion at all.
+  - **Keeps the hero spot for the player** (§5e stance) — they **orbit** power, they
+    don't *hold* it; connected-but-displaced supporting cast, the player the protagonist.
+  This is the **person-level form of "friction lives at the edges" (§5j)** — the
+  interesting *persons* sit at the **edges of power** (the social ecotone), just as the
+  interesting *places* sit at the boundaries between forces.
+  - **Corollary — resolving the displacement *ends* the road.** If a companion fills
+    the gap (finds a place/home, reconciles, completes their arc), the road's *reason*
+    is gone — they may **go home** (§5e departure: home is what the displaced lacked,
+    so finding it ends the wandering).
+  - **The world is *stayers*, not adventurers — and staying has a *cost*.** A
+    believable world is **not filled with adventurers**; it's filled with the people
+    who **stayed**: who **stay home** with family, who **stay at court near the
+    power**, who **hold on to their organisations by swallowing their opinions
+    inside.** The adventurer/companion is the **exception** — the one who *didn't*
+    stay. And the stayers are believable precisely because **staying was a choice with
+    a cost** (the swallowed dissent, the shadow accepted, the role held against your
+    grain) — so every settled NPC has an **interior life and a latent stake**, not
+    just a quest to hand out (the §5h/§5j persons-behind-missions are *people
+    holding*, not scenery). This makes the stayers the **reservoir of the displaced**:
+    the same expectation-gap pressure (above) sits in *them too*, swallowed — and
+    **pressure builds** (the reactive web, §5j: held long enough, it gives) → a
+    courtier who can no longer swallow it, an org-member finally pushed out, a home
+    lost → a stayer **becomes displaced → recruitable**; a returning companion
+    (corollary) rejoins the stayers. *The displaced and the settled are the **same
+    people at different points of the same pressure**.*
+  - **Broader rule (validated vs moros — ~¾ of its key NPCs fit).** "Near power, not
+    in power" is the richest *social* variant; the **deeper rule** is that **the
+    normal stasis of settlement has *already broken*** — *displacement has already
+    happened* (the party doesn't displace them; they're already on the road, or
+    positioned where the party is going). moros uses **registers** beyond the three
+    social ones: **metaphysical** (chaos-broken · *became* a great spirit · bound by a
+    curse — the Storm Mage, Felicia, Laurent), **identity** (an orphan · a refugee who
+    chose not to return · a concealed self — Hank, Farmer Joseph), **generational /
+    aging-out** (a post with no successor — Willow, Wilder, Diederik), **debt /
+    obligation** (a burden not chosen, not yet put down — Ron's mis-read proclamation,
+    Hank's unowned coin), and **retired / abdicated with unfinished business** (Father
+    Elliot, who renounced the crown). Same logic, different registers: *nobody at rest
+    in a settled life walks the dangerous roads unless something has already displaced
+    them.*
+  - **Counter-example confirms it — the *in-power* are *anchors*, not companions.**
+    Actual power-holders (a king, a queen, an institution) are **fixed points the
+    party returns to**, never recruitables — they don't move with you (moros: King
+    Hannes is an antagonist-without-enmity you *petition*, not a party member). So the
+    power structures are the **anchors / persons-behind-missions**; the **displaced**
+    are who walks the road with you.
 - **They grow on the same tree.** Companions **progress on the same breadth
   capability tree as the player** (RESOLUTION.md §5a — learn powers/backgrounds/
   specializations, +1 linked stat, soft-capped height; find/craft passive aids,
@@ -1146,6 +1230,69 @@ random — the deep substrate; pin it on a plot before building.
     settlement against the desert) — relocation is both a **threat and a lever**. *(The
     spatial form of the reactive coupling — slow + pressure-driven, on the strategic
     timescale, distinct from the fast tactical layer.)*
+  - **Friction lives at the *edges* — the boundaries are the *interesting* places.**
+    Because actors move and the couplings are unstable, **mobility always grinds at
+    the *sides*** — the **boundaries / frontiers** where two forces meet (different
+    conditions, owners, or spirit-states). A boundary is where the **gradient is
+    steepest and the coupling most active**, so it is **where friction, threads,
+    setpieces, and the player's agency concentrate** — the quiet interior is dull, the
+    **contested edge is alive** (the *ecotone* principle). moros's setpieces are *all*
+    edges: the **town gate** (settled / wild), the **Brumal border** & the **desert
+    frontier** (where the spreading desert ate Steadington), **Linar harbour** (past
+    which colleagues vanish → pirates), the **blasted-lands fringe** (Wilder's
+    edge-hilltop, the forbidden-woods fringe), the **shackle-tower ring** (the edge of
+    the elemental's containment). **Design consequence — *site* the content at the
+    seams:** the §5j generator places threads/setpieces at the **contact-zones between
+    moving forces / conditions / factions / spirit-states** (enriching §10a — the
+    **boundary *between* zones** is the focal band, not the interior), and the
+    player's agency is at the **frontier** — *hold* it, *push* it, or *cross* it. **The
+    map's *seams* are the game.**
+  - **Representation — *faces* get entries; the *stayer mass* is aggregate (LOD) —
+    and stayers are *drawn & opinionated* but NOT recruitable by fiat.** Only
+    **significant** persons get their own **data-structure entry** (a full person-node:
+    wants · intents · lineage · trust · relationships) — the **faces** (companions,
+    key NPCs, mission givers/stakeholders, faction-leaders-as-faces, the displaced
+    near-power). The **stayer majority** (§5e) is **ambient / aggregate** — a
+    settlement's **population**, a faction's **membership**, the **families** — *not*
+    N tracked nodes. **But aggregate ≠ invisible:** stayers are still **drawn**
+    (rendered population) and they **give their opinions** — and those opinions are
+    **information**: signposts to the conditions/threads, the read-not-metered world
+    *voiced through people* (a courtier's grumble = swallowed-opinion pressure; a
+    farmer's complaint = the local condition). **Their function is bounded to exactly
+    that** — they **give the backdrop**, **voice the *economy*** (prices · scarcity ·
+    availability — the §5g goods-state made *audible*), and **voice *local rumours /
+    opinions*** (signposts to threads · faces · conditions — the rumour-mill / "who
+    leads to what", §5i) — **and that is *it*.** Arcs, trust, recruitment,
+    relationships, and threads all live on the **faces**. Both stayer-voices are the
+    **read-not-metered information channels**: you *infer* the economy and the
+    thread-hooks from what the population *says*, never from a dashboard (opacity =
+    agency, §6.5). **What a stayer will *not* do is break out of the system for the
+    player** — a settled person won't abandon home / court /
+    org on your say-so; **there is no recruit-anyone-by-charm button.** So
+    **recruitment is the *already-displaced* (or the *systemically*-displaced), not
+    persuasion**: companions come from those already on the road, or from stayers the
+    **reactive web breaks** (§5e reservoir: pressure → displacement → *then*
+    available). The player's lever on recruitment is **indirect** — shift conditions,
+    resolve threads, apply pressure — *not* fiat (**agency from influence, not a
+    recruit button**; and it's *why* the displaced near-power are the companions —
+    they're the ones already broken loose). **Promotion on significance:** the web
+    **instantiates** a stayer into a person-node when they become a face (displaced /
+    entering a thread) and **folds** a settled-back companion into the aggregate
+    again. So you get a **believable *full* world without modelling millions of
+    nodes** — track the faces, instantiate more as they matter; the **entries cluster
+    at the edges** (friction-at-edges in data terms), the settled interior stays
+    aggregate.
+  - **The town-visit loop (the player-facing form of the above).** Entering a town,
+    it's **worth talking to the backdrop folk for *local gossip*** — the **economy**
+    (prices · scarcity) and the **rumours** (thread / face / condition signposts);
+    gathering it is a **rewarded, read-not-metered activity** — the main way you learn
+    what's stirring and where to go. **Finding a new companion is *possible* there
+    too — but never *automatically granted*:** a displaced person *might* be present,
+    or **surface *through* the gossip/threads** (a rumour points to someone the system
+    has broken loose), but it's a **discovery you earn** — conditional on the right
+    person + circumstances, *not* a recruit-on-arrival reward. So **gossip-gathering
+    and companion-finding are the *same thread*:** you find companions *through* the
+    rumour/condition layer, never via a button.
 
 **The generator — matching.** A thread (`QuestDef`) is generated by matching a
 **(person + their want/intent)** against a **(world condition + place)**: want × a

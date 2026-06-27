@@ -59,13 +59,13 @@ adds the card + a +1 to one linked stat (RESOLUTION.md §5a). Format: **Name**
 - **Charge** (Speed·Might) — blunt rush that **knocks slower targets prone** (lose
   next action) → opener/control.
 
-### Mitigation (the *ward* / damage-bias axis, §5a)
+### Mitigation (the *ward* / damage-bias axis, PARTY.md §5a)
 - **Fur** (Endu·Dex) — reduces incoming **blunt/fire/cold** → elemental mitigation.
 - **Hide** (Endu·Will) — reduces incoming **cutting/impaling** → armor mitigation.
 - **Balance** (Dex·Will) — attackers need a **higher roll to hit you** → evasion-mitigation.
 - **Control** (Endu·Perc) — **+1 one stat / −1 another**, reallocable → flex buff/defense.
 
-### Debuff / stack (the offensive *stacking* axis, §5a)
+### Debuff / stack (the offensive *stacking* axis, PARTY.md §5a)
 - **Magic** (Will·Hand) — ranged **elemental** hit; element sets damage type **+ a
   −1 stack** on a matching target stat (the element table) → caster stack.
 - **Shamanic** (Will·Endu) — bind a spirit for a **sustained −1 Will** on a target
@@ -74,12 +74,12 @@ adds the card + a +1 to one linked stat (RESOLUTION.md §5a). Format: **Name**
   coordination-setup stack (raises Tension when the ally joins).
 - **Blood** (Will·Might) — **drain** an enemy (−1) **or restore** an ally's lost stat → drain/heal.
 
-### Window / crit (the to-hit/crit channel, §2a)
+### Window / crit (the to-hit/crit channel, RESOLUTION.md §2a)
 - **Claw** (above) is the prime window tool (mitigation-strip on the exposed).
 - **Night** (Perc·Dex) — first strike **from darkness** gains an edge → an opener that
   manufactures a window.
 
-### Front-control: taunt / redirect (defensive coordination + attention, §5b/§2b)
+### Front-control: taunt / redirect (defensive coordination + attention, PARTY.md §5b/§2b)
 - **Scolding** (Might·Will) — **taunt: redirect enemy focus onto you** (they can't
   switch without cost) → *pull a front off a mate* (the deliberate attention-draw;
   the defensive counterpart to focus-fire).
@@ -90,11 +90,11 @@ adds the card + a +1 to one linked stat (RESOLUTION.md §5a). Format: **Name**
 - **Camp** (Char·Endu) — set up rest; **allies +1 to the first combat action** → setup/rest (Tension sink).
 - **Relaxed** (Endu·Char) — radiate calm; **eases Tension** → a Tension-sink support aura.
 
-### Revive / stabilize (the downed-cover aid, PARTY.md §7 downed model)
+### Revive / stabilize (the downed-cover aid, PARTY.md §5d Broken-spirit model)
 - **Clan** (Char·Will) — when an ally falls, **move to them as a free action and
   stabilise** → the canonical downed-cover/revive.
 
-### Perception (the *perception action*, §5c — read the field, Tension-neutral)
+### Perception (the *perception action*, PARTY.md §5c — read the field, Tension-neutral)
 - **Lookout** (Perc·Endu) — spot threats / **can't be surprised** → the canonical Observe.
 - **Smell** (Perc·Endu) — track by scent; detect approach a round early.
 - **Hearing** (Perc·Char) — detect approach; group not surprised.
