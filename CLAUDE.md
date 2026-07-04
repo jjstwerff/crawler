@@ -216,7 +216,28 @@ claim), one+ `area:*`, plus `hit-by:crawler`.** Then work around it (a loft-safe
 below) and keep moving — never block crawler on a loft fix. The historical C-id map
 lived in LOFT_ISSUES.md (removed 2026-06-10; all survivors are now filed upstream).
 
-## loft survival guide (updated 2026-06-11 — repros live in the filed issues)
+## loft survival guide (updated 2026-07-04 — repros live in the filed issues)
+
+**Toolchain 2026.6.0 (loft main @ 49baf726, installed 2026-07-04) = the @PLN25
+null/dense value model.** Two INTENDED breaking changes + two fresh regressions:
+- **INTENDED: `v[i]` types as `T?` unless the index is provably in-bounds** (a literal
+  into a known-length vector, or a `for i in 0..len(v)` loop var — the checker is
+  flow-based, an `if i < len(v)` guard also proves it). Any other variable index needs
+  `?? d`, a fresh optional variable + null check, or `as T`. (Bit overland.loft twice.)
+- **INTENDED: `return null` from a `-> integer` fn is an error** — declare `-> integer?`.
+  Broke the `random` lib upstream (filed loft-libs-core#14); our
+  `../loft-libs-core-main` worktree carries the one-line `get() -> integer?` patch
+  until it lands.
+- **REGRESSION loft#496 — struct temp reassign clobbers the first source SILENTLY:**
+  `md = sa; if c { md = sb; }` leaves `sa` null/mixed-fielded after the `md = sb` path
+  (copy elided to borrow, overwrite frees it). Context-dependent (big fn + store
+  pressure); standalone shrinks pass. Workaround (clean): no temp — branch and pass
+  `sa`/`sb` straight to the callee (the infestation loop fix).
+- **REGRESSION loft#497 — interpreter SIGSEGV (`len` on a freed vector) consuming a
+  generated Sim in a hot by-value query loop:** `build_walls(sim_new_gen(...))` dies
+  (the #462 shape back under the new model). **`make play` and `make probe` are DOWN
+  on 2026.6.0** (`walltest.loft` = the repro; `make test` avoids it — selftest walls
+  a `sim_new()` world only). `wa:none`; wait for the upstream fix.
 
 The old C-series minefield is FIXED and re-verified (struct returns, text handling,
 cross-module `&`, casts, store pressure, struct-literal comprehensions). What still bites:

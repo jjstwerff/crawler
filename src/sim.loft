@@ -1308,7 +1308,7 @@ pub fn sim_can_raise_stat(s: Sim, stat: text) -> boolean {
 pub fn sim_roll(s: &Sim, lo: integer, hi: integer) -> integer {   // pub: castfx rolls spell failure
   if hi <= lo { return lo; }
   r = random::RandStream { s1: s.rs1, s2: s.rs2 };
-  v = r.get(lo, hi);
+  v = r.get(lo, hi) ?? lo;
   s.rs1 = r.s1;
   s.rs2 = r.s2;
   v
@@ -3974,9 +3974,13 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           sq2 = candq[kk] ?? 1;
           sr2 = candr[kk] ?? 1;
           if !occupied_hex(enemies, sq2, sr2) {
-            md2 = sa;
-            if (iplaced % 2 ?? 0) == 1 { md2 = sb; }
-            if md2.m_hp > 0 { enemies += [mk_enemy(md2, sq2, sr2)]; iplaced += 1; }
+            // no md2 = sa/sb temp: a struct reassign-from-variable borrows instead of
+            // copying on the 2026.6 toolchain, and the overwrite clobbers the source
+            if (iplaced % 2 ?? 0) == 1 {
+              if sb.m_hp > 0 { enemies += [mk_enemy(sb, sq2, sr2)]; iplaced += 1; }
+            } else {
+              if sa.m_hp > 0 { enemies += [mk_enemy(sa, sq2, sr2)]; iplaced += 1; }
+            }
           }
         }
       }

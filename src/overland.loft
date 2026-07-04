@@ -791,8 +791,9 @@ pub fn overland_new() -> Overland {
         if dd < bd { bd = dd; bj = tj; }
       }
     }
-    tb = towns[bj ?? 0];
-    if tb == null { continue; }
+    tbn = towns[bj ?? 0];
+    if tbn == null { continue; }
+    tb = tbn as OvTown;
     // Dijkstra over the 63 cells (selection-based; the map is tiny)
     sr2 = round(((ta.ot_y / OV_VS) ?? 0.0)) as integer;
     sc2 = round(((ta.ot_x / OV_TILE) ?? 0.0) - 0.5 * ((sr2 & 1) as float)) as integer;
@@ -889,8 +890,9 @@ pub fn overland_new() -> Overland {
           if dd2 < bd2 { bd2 = dd2; bj2 = tj2; }
         }
       }
-      tb2 = towns[bj2 ?? 0];
-      if tb2 != null {
+      tbn2 = towns[bj2 ?? 0];
+      if tbn2 != null {
+        tb2 = tbn2 as OvTown;
         fxs: vector<float> = [ru.ru_x, (ru.ru_x + tb2.ot_x) * 0.5, tb2.ot_x];
         fys: vector<float> = [ru.ru_y, (ru.ru_y + tb2.ot_y) * 0.5, tb2.ot_y];
         gxs: vector<float> = [];
