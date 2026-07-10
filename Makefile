@@ -99,7 +99,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test
+.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test near-test
 
 # Default target: print the overview above.
 help:
@@ -388,6 +388,13 @@ trimesh-test:
 rivers-test:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  rivers-test: loft not found ($(LOFT))"; exit 1; }
 	@LOFT_REGION=$(REGION) $(LOFT) --interpret --lib src/realworld/ --lib src/regions/ $(LOFTFLAGS) rivers_test.loft
+
+# near_mobs_test — @PLN48 spacial<Mob[q,r]> proximity vs the brute-force scan
+# (loft-lang/plans #48). REQUIRES a spacial-capable loft; until it ships in the
+# installed toolchain, run: LOFT_REPO=../loft2 make near-test
+near-test:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  near-test: loft not found ($(LOFT))"; exit 1; }
+	@$(LOFT) --interpret $(LOFTFLAGS) near_mobs_test.loft
 
 # ── Housekeeping ──────────────────────────────────────────────────────────
 
