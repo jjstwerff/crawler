@@ -96,17 +96,27 @@ twice, no cell unowned. Assigning the trees in any order gives the identical par
 (The same property gated for surfaces in §P3 — and it comes free if the rule is an
 `argmax`, because `max` is commutative.)
 
-### I-CROWN — the canopy surface is a max of crown profiles
+### I-CROWN — the canopy is a max of crown profiles
 ```
-   height(cell) = max over trees of  crown_t(cell)
+   top(cell)    = max over trees of  crown_t(cell)
    owner(cell)  = argmax over trees of  crown_t(cell)
 ```
 This is **exactly the groin-vault operator** (§15) with N inputs instead of 2. The canopy
-is a max-combination of profiles; the partition is its argmax. So the surface inherits
-every property already gated — determinism, order-independence, and drainage.
+is a max-combination of profiles; the partition is its argmax. So it inherits every
+property already gated — determinism, order-independence, and drainage.
 
 `crown_t` is one of the profiles already built: a dome, a cone, or a paraboloid, centred on
 the trunk, scaled by vigour. **No new geometry.**
+
+### I-VOLUME — a canopy is an INTERVAL, not a surface
+A roof is a surface: one z per cell. A canopy is **occupied space** — it has a base as well
+as a top, and it is rendered by filling that space (§6). So a canopy cell carries
+`(crown_base, crown_top)`, not a single height.
+
+That needs no new structure: it is two `Heights` fields, exactly the floor/soffit pair the
+arch work already used (§13). But it does mean **`roof_ponds` and the drainage invariant do
+not apply** — they are statements about a surface. The canopy's equivalent invariant is
+I-OPACITY below.
 
 ### I-PIPE — structure is derived, not chosen
 Shinozaki's pipe model: the cross-sectional area of a stem is proportional to the leaf area
@@ -130,6 +140,21 @@ The strong form of I-REACH, and the one that makes crowded forests look right. I
 what forces branches to route *around* competitors, which is where the characteristic
 asymmetry of a crowded tree comes from.
 
+### I-OPACITY — what you see is what the field reports
+The canopy is drawn as semi-filled cards (§6) and *also* queried by `sight_clear`, which
+reads a material opacity. Those two must agree:
+
+```
+   rendered card coverage along a ray  ==  the opacity the L2 field reports for that ray
+```
+
+Verifiable by ray-marching the cards and comparing against `sight_clear` on the same
+segment. Without it a canopy looks solid but does not block sight, or blocks sight while
+looking sparse — and the bug is invisible in either layer alone, which is exactly the class
+of failure this plan has been catching all along (§10's bridge, §14's silent eave).
+
+This replaces drainage as the canopy's correctness invariant.
+
 ### I-LEAN — the lean is the centroid offset, and it is bounded
 ```
    lean_t = centroid(C_t) − trunk_t
@@ -143,7 +168,7 @@ Most of it is reuse. That is the point of having built the rest first.
 
 | need | already exists |
 |---|---|
-| per-cell canopy height | `Heights` (§11) |
+| canopy top AND base | two `Heights` fields — the floor/soffit pair from arches (§13) |
 | crown profiles | `dome` / `roof_cone` / the profile×distance table (§15) |
 | max-combination + argmax | the groin-vault operator (§15) |
 | multi-source competition | the boundary BFS in `roof_hip` (§13), with trunks as sources |
@@ -151,6 +176,7 @@ Most of it is reuse. That is the point of having built the rest first.
 | canopy vs understory | **levels** (§10) — canopy at level 1, understory at level 0 |
 | region caching | `FieldCache`, already keyed by level (§10) |
 | "too small to be a field" | the resolution floor (§12) — a sapling is an OBJECT |
+| card art (branch sprays) | `tools/draw.py` + the `draw` skill, transparent ground |
 
 **Genuinely new, and the whole cost of this work:**
 
@@ -163,7 +189,80 @@ Most of it is reuse. That is the point of having built the rest first.
 4. **Relaxation** — crown extent affects height affects competition. This is iterative and
    needs a convergence criterion. **The main open risk in this design.**
 
-## 5. Phases
+## 5. How it is drawn — and why that changes the design
+
+Trees are **not** rendered like houses. A house is surfaces all the way down: recover the
+form, emit geometry. A tree is two representations at once:
+
+```
+   trunk + major branches   ->  MESH        (few, thick, load-bearing)
+   everything above them    ->  semi-filled CARDS with pre-drawn branches and leaves
+```
+
+This is not a rendering detail bolted on at the end. It reaches back into the design in
+three ways.
+
+### The mesh/card threshold is derived, not chosen
+
+The temptation is to pick "mesh the first three orders of branching" by eye. I-PIPE makes
+it computable instead: a branch's diameter is `∝ √(cells supported)`, so
+
+```
+   mesh while   cells_supported ≥ N      card below it
+```
+
+and `N` follows from the pixel size a branch would occupy — mesh it while it is thick
+enough to read as a solid, card it once it is not. **The artist picks a visual threshold;
+the geometry picks which branches meet it.**
+
+That makes this the third derived representation change in the plan, and they are worth
+seeing together — none of them is a tuning knob:
+
+| threshold | where | rule |
+|---|---|---|
+| resolution floor | spiral stairs (§12) | `r_inner < √3/2π` → an object, not a field |
+| slope ceiling | domes (§15) | `|dz/dr| > 1` → a wall, not a roof |
+| **pipe threshold** | trees (here) | `cells_supported < N` → a card, not a mesh |
+
+### Cards are branch-aligned, not camera-facing
+
+A card carries a *pre-drawn branch* with its leaves, so it cannot spin to face the camera —
+the branch on it would swing with it. Each card is anchored to a terminal skeleton node and
+**oriented by that node's branch direction**, which T4 already produces. Camera-facing is
+only admissible for the most distant LOD, where the card no longer depicts a branch but a
+blob of foliage.
+
+This is a real constraint on T4: the skeleton must yield usable *directions* at its
+terminals, not merely connectivity. A shortest-path tree that zig-zags cell-to-cell would
+give jittering cards, so terminal runs must be contracted and smoothed — the same
+recover-runs-don't-emit-per-cell discipline as the 2D matcher (§P2).
+
+### Card fill is calibrated against the opacity the physics already uses
+
+How many cards, and how transparent? Not by eye: I-OPACITY fixes it. Fill the crown volume
+until ray-marched coverage matches the opacity `sight_clear` reports for the same ray.
+Then a canopy that *looks* dense *is* dense to sight, sound and light — which matters
+because `sight_clear` is what decides suppression of understory trees (T7), so a
+miscalibrated canopy would feed a wrong answer back into the simulation.
+
+### The cards inherit the partition for free
+
+A card hangs off a branch; a branch may not trespass into a rival's canopy (I-NOTRESPASS);
+therefore no tree's foliage strays into its neighbour's crown. **The crowded-tree asymmetry
+appears in the foliage automatically**, without any card-level rule — which is the whole
+argument for deriving structure before drawing it.
+
+### Where the card art comes from
+
+The cards are 2D sprites: a branch spray with leaves, on transparent ground. That is
+exactly what `tools/draw.py` and the `draw` skill already produce (`Background
+transparent`, the `Fronds` primitive for linear natural marks). So the canopy texture set is
+authored through the existing sprite pipeline, not a new one — and the sprite QA rules
+(cold-read recognisability, `.draw` sources kept in-repo as a technique library) apply
+unchanged. Worth confirming: a handful of species-typical sprays, or a generic set tinted
+per species?
+
+## 6. Phases
 
 | phase | deliverable | gate |
 |---|---|---|
@@ -171,14 +270,20 @@ Most of it is reuse. That is the point of having built the rest first.
 | **T2** | crown profiles + canopy height | canopy = max of profiles; pond-free; drainage as for roofs |
 | **T3** | lean + trunk placement | Case B: signs and ordering of the lean vectors; lean bounded by crown radius |
 | **T4** | `Skeleton` + shortest-path derivation | I-REACH on every cell; I-NOTRESPASS with a negative control (a deliberately trespassing route must be caught) |
-| **T5** | pipe-model radii | `d ∝ √cells` at the trunk; `Σ child² = parent²` at every node to float tolerance |
+| **T5** | pipe-model radii + the mesh/card split | `d ∝ √cells` at the trunk; `Σ child² = parent²` at every node to float tolerance; the split falls out of `cells_supported ≥ N` |
 | **T6** | relaxation to convergence | fixed point reached; identical from two different starting states |
 | **T7** | levels: canopy over understory | an understory tree is a distinct level; `sight_clear` to the sky decides suppression |
 | **T8** | object/field split | a crown below the resolution floor is emitted as an object, not a field |
+| **T9** | branch-aligned cards | terminal directions are smooth (no per-cell jitter); no card leaves its own crown, by I-NOTRESPASS |
+| **T10** | opacity calibration | I-OPACITY: ray-marched card coverage matches `sight_clear` on the same segment, with a negative control (a deliberately sparse canopy must fail it) |
 
-T1–T2 are cheap and reuse almost everything. T4 and T6 are the real work.
+T1–T2 are cheap and reuse almost everything. **T4, T6 and T10 are the real work** — the
+skeleton derivation, the relaxation loop, and making the drawn density agree with the
+simulated one. T9 depends on T4 producing smooth terminal directions, which is a
+requirement on T4 that only the rendering model reveals — worth knowing before T4 is
+written rather than after.
 
-## 6. Open questions
+## 7. Open questions
 
 1. **The concrete end-result for Case B** — plot it, or have the first run print it for
    correction? (§2)
@@ -191,5 +296,11 @@ T1–T2 are cheap and reuse almost everything. T4 and T6 are the real work.
 4. **Species**: is one parameter set enough for now, or do you want species from the start
    (they change crown profile, shade tolerance and branching angle — and shade tolerance is
    what makes mixed forests interesting)?
-5. **Scope**: is this plan #5's, or its own plan? It is a different order of thing, as you
-   say — it may deserve its own issue and directory.
+5. **Card art**: a handful of species-typical branch sprays, or one generic set tinted per
+   species? (§5)
+6. **Mesh threshold `N`**: pick it from a target on-screen branch thickness, or fix it as a
+   crown-cell count and let apparent thickness follow? The first is more directly about how
+   it looks; the second is resolution-independent.
+7. **Scope**: is this plan #5's, or its own plan? It is a different order of thing, as you
+   say — and now that it carries its own rendering model as well as its own derivation
+   direction, it looks more like its own issue and directory than a phase of this one.
