@@ -266,7 +266,9 @@ would turn an abort into a diagnostic.
 
 ## H3 — narrow-width vectors: `u16`/`i16` reject index assignment, and `u32` LOSES IT SILENTLY
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status: the loft side is already working on this (2026-07-21) — do NOT file, it would
+duplicate.** Kept here for the reproducer and for the re-verify trigger below.
+· **Repo:** `loft-lang/loft`
 **Labels:** `sev:high`, `wa:clean`, `area:codegen`, `hit-by:crawler`, `bug`
 **Suggested title:** `vector<u32> element write through a struct parameter is silently discarded; vector<u16>/<i16> reject index assignment outright`
 
@@ -332,11 +334,19 @@ grid/field layer uses: a struct holding a vector, mutated by helper functions. c
 it in the collision field, where every wall silently became passable — the flood test
 reported *every* heading leaking, which is the only reason it was noticed.
 
-### Workaround (clean)
+### Workaround (clean, in place)
 
 Use `i32` where you wanted `u32`, and `i32`/`integer` where you wanted `u16`. crawler
 stores a 32-bit surface id (`i32`) and an 8-bit material (`u8`) — 5 bytes a slot where
 `u16`+`u8` would have been 3.
+
+### Re-verify when the fix lands
+
+Run the type matrix again (`u8 / u16 / i16 / u32 / i32 / integer / single`, each written
+directly *and* through a struct parameter). If `u16` becomes index-assignable, narrow
+`EdgeSet.ee_surf` from `i32` to `u16`: **17 340 B → 10 404 B** per 32×32 chunk, the last
+1.7× of the P6 minimisation. `src/edgetest.loft` already asserts the footprint, so the
+gain shows up as a gate change rather than a claim.
 
 ## Filed
 

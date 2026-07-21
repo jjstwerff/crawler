@@ -1,0 +1,91 @@
+// cachetest — P6 gate: the L2 region cache.
+//
+// The claim that has to hold: a CACHED region equals a FRESHLY DERIVED one, edge for
+// edge. Everything else the cache does (versioning, eviction) is only safe because of
+// that — and because the derivation is a pure function of an L1 region, already proven
+// order-independent (P3/P4) and chunk-local (formtest).
+use hexform;
+use hexedge;
+use hexway;
+use hexcache;
+
+// Derive the field for chunk (cx,cy) at a given world version. The version changes the
+// content, so a stale entry is detectably wrong rather than merely old.
+fn derive(cx: integer, cy: integer, ver: integer, e: EdgeSet, sf: Surfaces, mat: integer) {
+  hs = hexset_chunk(cx * 16 - 8, cy * 16 - 8, 17, 17);
+  t = track_new();
+  ox = (cx as float) * 8.0;
+  oy = (cy as float) * 8.0 + (ver as float);      // version shifts the wall
+  track_straight(t, ox - 9.0, oy, ox + 9.0, oy);
+  first = way_surfaces(t, sf);
+  way_mark(t, 1.1, hs);
+  cut_arb(hs, e, sf, sf.sf_n, mat);
+}
+
+fn main() {
+  println("=== story field-cache test (L2 region cache) ===");
+  ok = true;
+  c = cache_new(3);
+  sf = surfaces_new();
+  mt = materials_new();
+  stone = material_add(mt, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+
+  // ── 1: cached == freshly derived, edge for edge ───────────────────────────
+  s0 = cache_find(c, 0, 0, 1);
+  if s0 < 0 {
+    s0 = cache_claim(c, 0, 0, 1);
+    e0 = edgeset_new(-8, -8, 17, 17);
+    derive(0, 0, 1, e0, sf, stone);
+    cache_set_edges(c, s0, e0);
+  }
+  cached = cache_edges(c, s0);
+  fresh = edgeset_new(-8, -8, 17, 17);
+  sf2 = surfaces_new();
+  mt2 = materials_new();
+  stone2 = material_add(mt2, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+  derive(0, 0, 1, fresh, sf2, stone2);
+  ident = edgeset_equal(cached, fresh);
+  println("cached == freshly derived: {ident}  ({edge_count(cached)} vs {edge_count(fresh)} edges)");
+  if !ident || edge_count(cached) == 0 { ok = false; }
+
+  // ── 2: a second lookup is a HIT, and does not rebuild ─────────────────────
+  before = cache_builds(c);
+  again = cache_find(c, 0, 0, 1);
+  println("second lookup: slot {again}, builds {before} -> {cache_builds(c)} (no rebuild)");
+  if again != s0 || cache_builds(c) != before { ok = false; }
+
+  // ── 3: a VERSION BUMP must MISS — that is the whole invalidation ──────────
+  stale = cache_find(c, 0, 0, 2);
+  println("same chunk at version 2: {stale} (expect -1 — the v1 entry is stale)");
+  if stale >= 0 { ok = false; }
+
+  // and re-deriving at v2 must differ from v1 (so staleness is detectable, not cosmetic)
+  s2 = cache_claim(c, 0, 0, 2);
+  e2 = edgeset_new(-8, -8, 17, 17);
+  derive(0, 0, 2, e2, sf, stone);
+  cache_set_edges(c, s2, e2);
+  differs = !edgeset_equal(cache_edges(c, s2), fresh);
+  println("v2 field differs from v1: {differs}  (reused slot {s2} for the same chunk)");
+  if !differs || s2 != s0 { ok = false; }
+
+  // ── 4: capacity + LRU eviction ────────────────────────────────────────────
+  for k in 1..4 {
+    sk = cache_find(c, k, 0, 2);
+    if sk < 0 {
+      sk = cache_claim(c, k, 0, 2);
+      ek = edgeset_new(k * 16 - 8, -8, 17, 17);
+      derive(k, 0, 2, ek, sf, stone);
+      cache_set_edges(c, sk, ek);
+    }
+  }
+  println("after 4 distinct chunks in a cap-3 cache: live {cache_live(c)}, evictions {cache_evictions(c)}");
+  if cache_live(c) > 3 || cache_evictions(c) < 1 { ok = false; }
+
+  // ── 5: coarse invalidation drops everything older than a version ──────────
+  dropped = cache_invalidate_before(c, 3);
+  println("invalidate before v3: dropped {dropped}, live now {cache_live(c)}");
+  if cache_live(c) != 0 { ok = false; }
+
+  println("cache stats: hits {cache_hits(c)} misses {cache_misses(c)} builds {cache_builds(c)}");
+  if ok { println("=== CACHE OK ==="); } else { println("=== FAIL ==="); }
+}

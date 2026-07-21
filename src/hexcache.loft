@@ -1,0 +1,144 @@
+// hexcache — P6: the L2 REGION CACHE.
+//
+// DESIGN.md section 7: L1 is the authored world (saved, compact); L2 is the derived field
+// (edges -> surface + material). L2 is a CACHE, never saved — which is precisely what
+// makes it safe: it is a pure function of an L1 region, so it cannot drift, and the worst
+// a stale entry can do is be recomputed.
+//
+// The key is (chunk_x, chunk_y, world_version). An edit bumps the version; every entry
+// derived at an older version is simply a miss. Nothing is migrated, nothing is patched
+// in place — which is the whole reason the derivation was made order-independent (P3/P4)
+// and chunk-local (proven in formtest) before this existed.
+//
+// Eviction is LRU against a fixed capacity, because DESIGN.md section 7.2 has rendering
+// and simulation sharing ONE cache: a region is wanted when either must touch it, so the
+// residency policy cannot belong to either alone.
+use hexform;
+use hexedge;
+
+pub struct FieldCache {
+  fc_cx:    vector<integer>,
+  fc_cy:    vector<integer>,
+  fc_ver:   vector<integer>,
+  fc_touch: vector<integer>,     // LRU clock stamp
+  fc_live:  vector<boolean>,
+  fc_edges: vector<EdgeSet>,
+  fc_cap:   integer,
+  fc_clock: integer,
+  fc_hits:  integer,
+  fc_miss:  integer,
+  fc_evict: integer,
+  fc_built: integer,
+}
+
+pub fn cache_new(cap: integer) -> FieldCache {
+  a: vector<integer> = []; b: vector<integer> = []; v: vector<integer> = [];
+  t: vector<integer> = []; l: vector<boolean> = []; e: vector<EdgeSet> = [];
+  for i in 0..cap {
+    a += [0]; b += [0]; v += [-1]; t += [0]; l += [false];
+    e += [edgeset_new(0, 0, 1, 1)];         // placeholder, never read while !live
+  }
+  FieldCache { fc_cx: a, fc_cy: b, fc_ver: v, fc_touch: t, fc_live: l, fc_edges: e,
+               fc_cap: cap, fc_clock: 0, fc_hits: 0, fc_miss: 0, fc_evict: 0, fc_built: 0 }
+}
+
+// Slot holding (cx,cy) AT this exact version, or -1.  A cached entry derived at an older
+// version is NOT a hit — that is the whole invalidation mechanism.
+pub fn cache_find(c: FieldCache, cx: integer, cy: integer, ver: integer) -> integer {
+  hit = -1;
+  for i in 0..c.fc_cap {
+    if (c.fc_live[i] ?? false) && hit < 0 {
+      if (c.fc_cx[i] ?? 0) == cx && (c.fc_cy[i] ?? 0) == cy && (c.fc_ver[i] ?? -1) == ver {
+        hit = i;
+      }
+    }
+  }
+  if hit >= 0 {
+    c.fc_clock = c.fc_clock + 1;
+    c.fc_touch[hit] = c.fc_clock;
+    c.fc_hits = c.fc_hits + 1;
+  } else {
+    c.fc_miss = c.fc_miss + 1;
+  }
+  hit
+}
+
+// Claim a slot for (cx,cy,ver).  Order matters:
+//   1. the SAME chunk at any version — a stale entry must be replaced, never left beside
+//      its own newer copy, or one chunk quietly occupies two slots;
+//   2. a free slot;
+//   3. the least-recently-used.
+// (1 before 2 was found by the gate: with free slots available the cache happily kept a
+// stale v1 entry alongside a fresh v2 one for the same chunk.)
+pub fn cache_claim(c: FieldCache, cx: integer, cy: integer, ver: integer) -> integer {
+  slot = -1;
+  for i in 0..c.fc_cap {
+    if slot < 0 && (c.fc_live[i] ?? false)
+       && (c.fc_cx[i] ?? 0) == cx && (c.fc_cy[i] ?? 0) == cy { slot = i; }
+  }
+  if slot < 0 {
+    for i in 0..c.fc_cap {
+      if slot < 0 && !(c.fc_live[i] ?? true) { slot = i; }
+    }
+  }
+  if slot < 0 {
+    oldest = c.fc_clock + 1;
+    for i in 0..c.fc_cap {
+      if (c.fc_touch[i] ?? 0) < oldest { oldest = c.fc_touch[i] ?? 0; slot = i; }
+    }
+    c.fc_evict = c.fc_evict + 1;
+  }
+  c.fc_clock = c.fc_clock + 1;
+  c.fc_cx[slot] = cx;
+  c.fc_cy[slot] = cy;
+  c.fc_ver[slot] = ver;
+  c.fc_touch[slot] = c.fc_clock;
+  c.fc_live[slot] = true;
+  c.fc_built = c.fc_built + 1;
+  slot
+}
+
+pub fn cache_edges(c: FieldCache, slot: integer) -> EdgeSet {
+  c.fc_edges[slot] ?? edgeset_new(0, 0, 1, 1)
+}
+
+pub fn cache_set_edges(c: FieldCache, slot: integer, e: EdgeSet) {
+  c.fc_edges[slot] = e;
+}
+
+// Drop every entry derived before `ver` — the coarse form of an edit invalidating the
+// world. (A finer version would drop only the chunks an edit actually touched.)
+pub fn cache_invalidate_before(c: FieldCache, ver: integer) -> integer {
+  n = 0;
+  for i in 0..c.fc_cap {
+    if (c.fc_live[i] ?? false) && (c.fc_ver[i] ?? -1) < ver {
+      c.fc_live[i] = false;
+      n = n + 1;
+    }
+  }
+  n
+}
+
+pub fn cache_live(c: FieldCache) -> integer {
+  n = 0;
+  for i in 0..c.fc_cap { if c.fc_live[i] ?? false { n = n + 1; } }
+  n
+}
+
+pub fn cache_hits(c: FieldCache) -> integer { c.fc_hits }
+pub fn cache_misses(c: FieldCache) -> integer { c.fc_miss }
+pub fn cache_evictions(c: FieldCache) -> integer { c.fc_evict }
+pub fn cache_builds(c: FieldCache) -> integer { c.fc_built }
+
+// Are two derived fields identical, edge for edge?  This is the property that makes the
+// cache safe to trust: a cached region must equal a freshly derived one exactly.
+pub fn edgeset_equal(a: EdgeSet, b: EdgeSet) -> boolean {
+  if len(a.ee_surf) != len(b.ee_surf) { return false; }
+  if len(a.ee_mat) != len(b.ee_mat) { return false; }
+  same = true;
+  for i in 0..len(a.ee_surf) {
+    if ((a.ee_surf[i] ?? 0) as integer) != ((b.ee_surf[i] ?? 0) as integer) { same = false; }
+    if ((a.ee_mat[i] ?? 0) as integer) != ((b.ee_mat[i] ?? 0) as integer) { same = false; }
+  }
+  same
+}

@@ -219,9 +219,29 @@ attribute on type 'OpGetShortRaw'`) — and this layer is written by index. File
 surface id and material into one element (`surf * 256 + mat`), which recovers about half
 of what the narrow types would have given.
 
-**Still open: the region cache** and its `(chunk, world_version)` key. The derivation is
-already a pure function of an L1 region and provably order-independent (P3/P4), so the
-cache is bookkeeping rather than new geometry — but it is not built.
+**The region cache shipped too** — `src/hexcache.loft` + `src/cachetest.loft`, gated as
+`[cache]`. Keyed by `(chunk_x, chunk_y, world_version)`; an edit bumps the version and
+every older entry is simply a miss. Nothing is migrated and nothing is patched in place,
+which is exactly why the derivation had to be order-independent (P3/P4) and chunk-local
+(formtest) *first*.
+
+| gate | result |
+|---|---|
+| **cached == freshly derived** | **true**, edge for edge (52 vs 52) |
+| second lookup | hit, **no rebuild** |
+| same chunk at a newer version | **miss** — the stale entry is not served |
+| re-derived at v2 | **differs** from v1, so staleness is detectable, not cosmetic |
+| 4 chunks into a cap-3 cache | live 3, 1 eviction (LRU) |
+| coarse invalidate before v3 | 3 dropped, live 0 |
+
+**The gate caught a design flaw in claim ordering.** `cache_claim` preferred a *free*
+slot over the *stale entry for the same chunk*, so one chunk could occupy two slots and
+the cache would fill with stale duplicates of itself. Fixed order: same chunk (any
+version) → free → LRU.
+
+Eviction is LRU against a fixed capacity because §7.2 has rendering and simulation
+sharing **one** cache: a region is wanted when *either* must touch it, so the residency
+policy cannot belong to either alone.
 
 ## 3. The junction matrix
 
