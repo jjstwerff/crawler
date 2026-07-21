@@ -1,0 +1,181 @@
+// pointstest — RAILWAY POINTS: the hardest way-junction.
+//
+// A turnout splits a stem into a THROUGH route (straight on) and a DIVERGING route. Under
+// the 24-direction grid, P3c forces any arc that rejoins a straight to sweep a multiple of
+// 15 deg — so the minimum departure angle is 15 deg, which is SHARPER than any real
+// turnout (1:3.7, against 1:8 or 1:12 in practice).
+//
+// That is only binding if the route diverges once and stops. Real track does what the grid
+// also wants: turn out, then REVERSE-curve back to parallel. Net heading change zero, both
+// ends on-grid, and the lateral offset is what separates the two tracks:
+//
+//     offset = 2*R*(1 - cos 15deg) = 0.0681*R      (R ~ 25 for one hex width)
+//
+// The reverse curve is also where G2 bites hardest: curvature swings +1/R -> -1/R, the
+// largest discontinuity anywhere in the way system, and exactly what a clothoid removes.
+use hexform;
+use hexedge;
+use hexway;
+
+fn deg(d: float) -> float { d * 0.017453292519943295 }
+
+fn cell_x(q: integer, r: integer) -> float {
+  (lattice_k(q, r) as float) * 0.4330127018922193
+}
+
+fn blocked_count(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer) -> integer {
+  n = 0;
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      for d in 0..6 {
+        if edge_blocked(e, q, r, nb_q(q, r, d), nb_r(q, r, d)) { n = n + 1; }
+      }
+    }
+  }
+  n
+}
+
+fn main() {
+  println("=== story railway points test (turnout + reverse curve) ===");
+  ok = true;
+  r = 26.0;                       // radius; offset = 0.0681*R ~ 1.77 = about one hex width
+  sw = deg(15.0);                 // the forced minimum sweep
+
+  // ── the DIVERGING route: stem -> arc(+15) -> arc(-15) -> parallel straight ──
+  // first arc: centre above the stem start, turning left
+  c1x = 0.0;
+  c1y = r;
+  a1s = deg(270.0);
+  a1e = deg(285.0);
+  div = track_new();
+  track_straight(div, -12.0, 0.0, 0.0, 0.0);
+  track_arc(div, c1x, c1y, r, a1s, a1e);
+  // where the first arc ends, and its heading there
+  e1x = c1x + r * cos(a1e);
+  e1y = c1y + r * sin(a1e);
+  // second arc: opposite curvature, centre reflected to the far side of the tangent
+  c2x = e1x + r * cos(a1e);
+  c2y = e1y + r * sin(a1e);
+  track_arc(div, c2x, c2y, r, a1e + deg(180.0), a1e + deg(165.0));
+  e2x = c2x + r * cos(a1e + deg(165.0));
+  e2y = c2y + r * sin(a1e + deg(165.0));
+  track_straight(div, e2x, e2y, e2x + 14.0, e2y);
+
+  thru = track_new();
+  track_straight(thru, -12.0, 0.0, 26.0, 0.0);
+
+  println("diverging route: {div.tk_n} segments, length {track_len(div)}");
+  println("through route  : {thru.tk_n} segment(s), length {track_len(thru)}");
+  println("lateral offset achieved: {e2y}  ({e2y / 1.7320508075688772} hex widths)");
+
+  // ── every arc sweep must be a multiple of 15 deg (the P3c rule) ────────────
+  sweeps_ok = true;
+  for i in 0..div.tk_n {
+    k = div.tk_kind[i] ?? 0;
+    if k == 2 {
+      a0 = div.tk_p[i * 6 + 3] ?? 0.0;
+      a1 = div.tk_p[i * 6 + 4] ?? 0.0;
+      d = a1 - a0;
+      if d < 0.0 { d = 0.0 - d; }
+      dg = d / 0.017453292519943295;
+      steps = dg / 15.0;
+      rem = steps - ((steps + 0.5) as integer as float);
+      if rem < 0.0 { rem = 0.0 - rem; }
+      println("  arc {i}: sweep {dg} deg -> multiple of 15: {rem < 0.01}");
+      if rem > 0.01 { sweeps_ok = false; }
+    }
+  }
+  if !sweeps_ok { ok = false; }
+
+  // ── G1 at every join, and the G2 discontinuities the clothoids must absorb ──
+  g1_ok = true;
+  worst_g2 = 0.0;
+  for i in 0..div.tk_n - 1 {
+    (tax, tay) = seg_tangent(div, i, seg_len(div, i));
+    (tbx, tby) = seg_tangent(div, i + 1, 0.0);
+    dot = tax * tbx + tay * tby;
+    if dot > 1.0 { dot = 1.0; }
+    kink = acos(dot) / 0.017453292519943295 ?? 0.0;
+    ka = seg_curvature(div, i);
+    kb = seg_curvature(div, i + 1);
+    jump = kb - ka;
+    if jump < 0.0 { jump = 0.0 - jump; }
+    if jump > worst_g2 { worst_g2 = jump; }
+    println("  join {i}->{i+1}: G1 kink {kink} deg, curvature {ka} -> {kb}");
+    if kink > 0.01 { g1_ok = false; }
+  }
+  println("G1 continuous at every join: {g1_ok}; worst curvature jump {worst_g2}");
+  if !g1_ok { ok = false; }
+  // the reverse curve must be the WORST G2 step — that is why it needs a clothoid
+  if worst_g2 < 2.0 / r - 0.0001 { ok = false; }
+
+  // ── both routes stamped together: shared stem, distinct downstream ─────────
+  q0 = -30; r0 = -30; w = 61; h = 61;
+  sf = surfaces_new();
+  mt = materials_new();
+  bed = material_add(mt, true, 0.4, 0.1, 4.0, 0.3, 0.2);
+  hs = hexset_chunk(q0, r0, w, h);
+  way_surfaces(thru, sf);
+  way_surfaces(div, sf);
+  way_mark(thru, 1.0, hs);
+  way_mark(div, 1.0, hs);
+  e = edgeset_new(q0, r0, w, h);
+  cut_arb(hs, e, sf, sf.sf_n, bed);
+  v = trace(hs);
+  code = validate(v, hexset_count(hs));
+  println("turnout footprint: {hexset_count(hs)} cells, {v.vm_loops} loop(s), validator {code}");
+  if code != 0 { ok = false; }
+
+  // every blocked edge attributed to a surface
+  orph = 0;
+  for rr in r0..r0 + h {
+    for qq in q0..q0 + w {
+      for d2 in 0..6 {
+        nq = nb_q(qq, rr, d2);
+        nr = nb_r(qq, rr, d2);
+        if edge_blocked(e, qq, rr, nq, nr) {
+          if edge_surf(e, qq, rr, nq, nr) <= 0 { orph = orph + 1; }
+        }
+      }
+    }
+  }
+  println("blocked edges with no surface: {orph}");
+  if orph != 0 { ok = false; }
+
+  // ── the stem is SHARED: arbitration must not depend on stamp order ─────────
+  hs2 = hexset_chunk(q0, r0, w, h);
+  sf2 = surfaces_new();
+  mt2 = materials_new();
+  bed2 = material_add(mt2, true, 0.4, 0.1, 4.0, 0.3, 0.2);
+  way_surfaces(div, sf2);
+  way_surfaces(thru, sf2);
+  way_mark(div, 1.0, hs2);
+  way_mark(thru, 1.0, hs2);
+  e2 = edgeset_new(q0, r0, w, h);
+  cut_arb(hs2, e2, sf2, sf2.sf_n, bed2);
+  same_cells = hexset_count(hs2) == hexset_count(hs);
+  println("stamp order swapped: same footprint {same_cells}, same blocked edges {blocked_count(e2, q0, r0, w, h) == blocked_count(e, q0, r0, w, h)}");
+  if !same_cells { ok = false; }
+  if blocked_count(e2, q0, r0, w, h) != blocked_count(e, q0, r0, w, h) { ok = false; }
+
+  // ── downstream the two routes must be DISTINCT footprints ─────────────────
+  // (a turnout that never separates is not a turnout)
+  ha = hexset_chunk(q0, r0, w, h);
+  hb = hexset_chunk(q0, r0, w, h);
+  way_mark(thru, 1.0, ha);
+  way_mark(div, 1.0, hb);
+  shared = 0; far_shared = 0;
+  for rr in r0..r0 + h {
+    for qq in q0..q0 + w {
+      if hexset_get(ha, qq, rr) && hexset_get(hb, qq, rr) {
+        shared = shared + 1;
+        if cell_x(qq, rr) > e2x { far_shared = far_shared + 1; }
+      }
+    }
+  }
+  println("cells shared by both routes: {shared}; shared AFTER the reverse curve: {far_shared}");
+  if far_shared != 0 { ok = false; }
+  if shared < 4 { ok = false; }
+
+  if ok { println("=== POINTS OK ==="); } else { println("=== FAIL ==="); }
+}

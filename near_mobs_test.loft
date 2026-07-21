@@ -1,0 +1,124 @@
+// near_mobs_test — @PLN48 S4 consumer validation (crawler).
+//
+// "Near mobs from a mob's perspective": crawler stores enemies as a flat
+// `vector<Enemy>` (src/sim.loft), so every proximity query (aggro, threat,
+// interest management) is a LINEAR SCAN — `sim_enemy_dist` walks all enemies.
+// A `spacial<Mob[q,r]>` keyed on the hex axial coords answers the same query
+// by walking only the Morton interval around the query point.
+//
+// This validates that the spacial near-set is IDENTICAL to the brute-force
+// scan on every query (correctness vs oracle), both backends, and reports the
+// candidate-count reduction (the locality win).  No new keywords / methods —
+// just the range-slice syntax over the collection.
+//
+// REQUIRES a loft with `spacial<T[…]>` (loft-lang/plans #48).  Until that ships
+// in the installed toolchain, run against the in-progress loft:
+//     LOFT_REPO=../loft2 make near-test
+// (or invoke loft directly with `--lib ../loft-libs-world/` for hex_grid).
+use hex_grid;   // hex_distance(q1,r1,q2,r2) — steps in odd-r offset coords
+
+struct Mob { q: integer, r: integer, id: integer }
+
+WORLD   = 240;   // the hex region is WORLD x WORLD cells, centred on the origin
+NMOB    = 2000;  // mobs scattered over it
+RADIUS  = 5;     // aggro / threat radius, in hexes
+QUERIES = 500;   // query from the first QUERIES mobs' OWN positions
+
+// A deterministic scatter (no RNG dependency): a multiplicative hash spreads
+// mob `i` over [-WORLD/2, WORLD/2) on the given axis — exercises negative
+// coordinates (the radix oracle's offset-binary encoding).
+fn scatter(i: integer, salt: integer) -> integer {
+  h = (i * 2654435761 + salt * 40503) % 1000000007;
+  (h % WORLD) - WORLD / 2
+}
+
+fn main() {
+  println("=== near_mobs_test — spacial<Mob[q,r]> vs brute-force scan ===");
+
+  // Build the SAME mob set two ways: a flat vector (crawler's vector<Enemy>,
+  // the brute-force baseline) and a spacial index keyed on the hex coords.
+  flat: vector<Mob> = [];
+  idx: spacial<Mob[q, r]> = [];
+  for i in 0..NMOB {
+    q = scatter(i, 1);
+    r = scatter(i, 2);
+    flat += [Mob{q: q, r: r, id: i}];
+    idx  += [Mob{q: q, r: r, id: i}];
+  }
+  assert(idx.len() == NMOB, "index holds every mob");
+  println("  mobs      : {NMOB} scattered over {WORLD}x{WORLD} hexes");
+
+  // A per-query set fingerprint = count*P + sum(id+1); two near-sets agree iff
+  // their fingerprints match.  Each pass fills its own fingerprint vector so the
+  // two loops are timed independently (no ticks() calls in the hot inner loop).
+  bfp: vector<integer> = [];
+  sfp: vector<integer> = [];
+  spac_cand: integer = 0;   // records the spacial slices yield (candidates to filter)
+
+  // Pass 1 — brute force: scan EVERY mob per query (crawler's sim_enemy_dist shape).
+  t0 = ticks();
+  for k in 0..QUERIES {
+    cm = flat[k];
+    cq = cm.q;
+    cr = cm.r;
+    cnt: integer = 0;
+    sm: integer = 0;
+    for m in flat {
+      if hex_distance(cq, cr, m.q, m.r) <= RADIUS {
+        cnt += 1;
+        sm += m.id + 1;
+      }
+    }
+    bfp += [cnt * 1000003 + sm];
+  }
+  brute_us = ticks() - t0;
+
+  // Pass 2 — spacial: the Morton bounding-box slice is a SUPERSET of the geometric
+  // box (Z-order threads outside it), and a box of half-width RADIUS contains the
+  // whole hex disk (one hex step moves q,r by <=1).  Filter the candidates by the
+  // exact hex distance — the result equals brute force, from far fewer records.
+  t1 = ticks();
+  for k in 0..QUERIES {
+    cm = flat[k];
+    cq = cm.q;
+    cr = cm.r;
+    cnt: integer = 0;
+    sm: integer = 0;
+    for m in idx[(cq - RADIUS, cr - RADIUS)..(cq + RADIUS, cr + RADIUS)] {
+      spac_cand += 1;
+      if hex_distance(cq, cr, m.q, m.r) <= RADIUS {
+        cnt += 1;
+        sm += m.id + 1;
+      }
+    }
+    sfp += [cnt * 1000003 + sm];
+  }
+  spac_us = ticks() - t1;
+
+  brute_cmp = QUERIES * NMOB;   // the linear scan's fixed comparison budget
+  mism: integer = 0;
+  for k in 0..QUERIES {
+    if bfp[k] != sfp[k] { mism += 1; }
+  }
+
+  println("  queries   : {QUERIES} (each mob asking 'who is within {RADIUS} of me?')");
+  println("  brute cmps: {brute_cmp} (scans all {NMOB} mobs every query)");
+  println("  spac cands: {spac_cand} (only the Morton interval)");
+  if spac_cand > 0 {
+    println("  reduction : ~{brute_cmp / spac_cand}x fewer candidates examined");
+  }
+  println("  brute time: {brute_us / 1000} ms");
+  println("  spac time : {spac_us / 1000} ms");
+  assert(mism == 0, "spacial near-set matches brute force on every query");
+  println("  correct   : all {QUERIES} near-sets match brute force");
+
+  // The outward Morton walk the plan calls the "interest list" — walk from the
+  // query point's code, capped at k: exactly k records, no radius (approximate
+  // nearest-in-Morton, the cheap aggro channel).
+  interest: integer = 0;
+  for m in idx[(flat[0].q, flat[0].r)..:8] { interest += 1; }
+  assert(interest == 8, "capped outward walk yields exactly k");
+  println("  interest  : outward walk from mob 0 took {interest} nearest-in-Morton");
+
+  println("=== near_mobs_test OK ===");
+}

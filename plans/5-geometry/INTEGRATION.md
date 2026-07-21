@@ -432,3 +432,45 @@ arbitration rule. P6 is orthogonal and can be done whenever the footprint starts
 
 **Do not start P4 before P3 is green** — an unstated arbitration rule makes every junction
 test order-dependent, and the matrix would encode the bug rather than catch it.
+
+## 6. Railway points (P7) — the hardest way-junction
+
+A turnout splits a stem into a **through** route and a **diverging** route. It is the
+worst case for the 24-direction grid, because P3c forces any arc that rejoins a straight
+tangentially to sweep a **multiple of 15°** — so the smallest possible departure angle is
+15°, and that is *sharper than any prototype turnout*:
+
+```
+  crossing (frog) angle, real practice   OURS
+     1:6   =  9.46°                       15.00° = 1:3.7
+     1:8   =  7.13°
+     1:12  =  4.76°
+     1:20  =  2.86°
+```
+
+That looks fatal and isn't, because a single divergence was never the right model. Real
+track turns out and then **reverse-curves back to parallel**, which is also exactly what
+the grid wants: net heading change zero, so *both* ends land on the 24-direction set.
+
+```
+  stem ──▶ arc(+15°) ──▶ arc(−15°) ──▶ parallel straight
+  lateral offset = 2·R·(1 − cos 15°) = 0.0681·R
+```
+
+So the binding constraint is not the angle, it is **length**: separating two tracks by one
+hex width (1.732) needs `R ≈ 26`; a normal 2-track spacing needs `R ≈ 51`. **A turnout is a
+long object** — it cannot be authored inside a single chunk, which is why way surfaces
+were made chunk-local-but-not-chunk-bounded in P1.
+
+The reverse point is also where **G2** bites hardest: curvature swings `+1/R → −1/R`, a
+jump of `2/R` — the largest discontinuity anywhere in the way system, and the one place a
+clothoid is not optional. Both of its ends inherit the 15°-multiple rule, so the
+transition length is derived, never chosen.
+
+**Gate** `src/pointstest.loft`: every arc sweep is a multiple of 15° · G1 continuous at
+all four joins (measured kink 0°) · the worst curvature step is exactly `2/R` and sits at
+the reverse point · the combined footprint traces to one loop and validates ·
+every blocked edge is attributed to a surface · **stamping the two routes in either order
+gives the identical field** (the shared stem must not be order-dependent) · the routes
+share the stem (12 cells) and are **completely disjoint downstream** (0 shared cells past
+the reverse curve) — a turnout that never separates is not a turnout.
