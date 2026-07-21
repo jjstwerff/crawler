@@ -1,0 +1,197 @@
+// rooftest — ROOF FORMS, THE CONE ON A ROUND TOWER, AND ARCHES.
+//
+// With a height per cell, "real architecture" is mostly roof profiles — and they turn out
+// to be one function of a distance, not a catalogue of cases (hexroof). This gate proves
+// that, then goes after the two hard ones.
+//
+// THE CONE ON A ROUND TOWER is hard for a reason that has nothing to do with cones. The
+// tower's footprint is a hex APPROXIMATION of a circle, so its boundary cells sit at a
+// spread of true radii. Drive the roof height from each cell's own radius and the eave
+// inherits that spread — the eave wobbles, by slope x the roundness deviation the tower
+// catalog measured. The fix is to clamp the radius at the eave: every boundary cell then
+// takes the same height by construction. Quantisation cannot be averaged away, but it can
+// be moved somewhere it does not show.
+//
+// ARCHES are the mirror: an opening whose SOFFIT varies between the pillars, so the clear
+// height varies along the span and what can pass depends on where you stand.
+use hexform;
+use hexway;
+use hexroof;
+
+fn main() {
+  println("=== story roof / arch test ===");
+  ok = true;
+  w = 41;
+
+  // ── 1. every named form, from one mechanism ──────────────────────────────
+  hall = hexset_new(w);
+  for r in -6..7 {
+    for q in -9..10 { hexset_set(hall, q, r, true); }
+  }
+  println("hall footprint {hexset_count(hall)} cells");
+
+  // gable: the ridge spans the whole building
+  gr = track_new();
+  track_straight(gr, -14.0, 0.0, 14.0, 0.0);
+  fg = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
+  roof_ridge(hall, fg, gr, 6.0, 0.6, 100.0);
+  // hip: the SAME call with a shorter ridge
+  hr = track_new();
+  track_straight(hr, -5.0, 0.0, 5.0, 0.0);
+  fh = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
+  roof_ridge(hall, fh, hr, 6.0, 0.6, 100.0);
+
+  println("gable ponds {roof_ponds(hall, fg)}, eave spread {eave_spread(hall, fg)}");
+  println("hip   ponds {roof_ponds(hall, fh)}, eave spread {eave_spread(hall, fh)}");
+  if roof_ponds(hall, fg) != 0 { ok = false; }
+  if roof_ponds(hall, fh) != 0 { ok = false; }
+
+  // the hip differs from the gable ONLY at the ends — that is what hipping is
+  diff_end = 0;
+  diff_mid = 0;
+  for r in -6..7 {
+    for q in -9..10 {
+      dz = height_get(fg, q, r) - height_get(fh, q, r);
+      if dz < 0.0 { dz = 0.0 - dz; }
+      cx = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+      if dz > 0.001 {
+        if cx > 5.0 || cx < -5.0 { diff_end = diff_end + 1; } else { diff_mid = diff_mid + 1; }
+      }
+    }
+  }
+  println("hip vs gable: {diff_end} cells differ beyond the ridge ends, {diff_mid} between them");
+  if diff_end <= 0 { ok = false; }
+  if diff_mid != 0 { ok = false; }
+
+  // ── 2. the cone on a round tower ─────────────────────────────────────────
+  rad = 8.4;
+  slope = 0.8;
+  tower = form_circle(w, rad);
+  println("round tower r={rad}: {hexset_count(tower)} cells");
+
+  // naive — each cell's own radius drives the height
+  fn1 = heights_new(hexset_q0(tower), hexset_r0(tower), hexset_w(tower), hexset_h(tower));
+  roof_cone(tower, fn1, 0.0, 0.0, 12.0, slope, 1000.0);
+  naive = eave_spread(tower, fn1);
+
+  // driven from the FOOTPRINT instead of from the ideal circle
+  fc1 = heights_new(hexset_q0(tower), hexset_r0(tower), hexset_w(tower), hexset_h(tower));
+  rings = roof_hip(tower, fc1, 4.0, slope);
+  clamped = eave_spread(tower, fc1);
+
+  println("cone eave spread: from the ideal circle {naive}, from the footprint {clamped}");
+  println("   the ideal-circle spread is slope x the footprint's roundness deviation: {naive / slope ?? 0.0} cells of radius");
+  println("   boundary-driven: {rings} rings to the apex, eave dead level");
+  if naive < 0.2 { ok = false; }              // it must genuinely wobble
+  if clamped > 0.000001 { ok = false; }       // and the footprint-driven one must not
+  if roof_ponds(tower, fc1) != 0 { ok = false; }
+  if rings < 3 { ok = false; }
+
+  // the apex is a flat HEX, not a point — the error is slope x circumradius
+  hi = -1000.0;
+  napex = 0;
+  for r in hexset_r0(tower)..hexset_r0(tower) + hexset_h(tower) {
+    for q in hexset_q0(tower)..hexset_q0(tower) + hexset_w(tower) {
+      if hexset_get(tower, q, r) {
+        z = height_get(fc1, q, r);
+        if z > hi { hi = z; }
+      }
+    }
+  }
+  for r in hexset_r0(tower)..hexset_r0(tower) + hexset_h(tower) {
+    for q in hexset_q0(tower)..hexset_q0(tower) + hexset_w(tower) {
+      if hexset_get(tower, q, r) && height_get(fc1, q, r) > hi - 0.000001 { napex = napex + 1; }
+    }
+  }
+  println("apex: {napex} cell(s) at z={hi}; a true point apex would sit {slope * 1.0} higher at most");
+  if napex != 1 { ok = false; }
+
+  // ── 3. cone vs octagonal pyramid on the same tower ───────────────────────
+  // An octagonal tower takes a pyramid, not a cone. Do they differ at this quantisation?
+  oct = form_octagon(w, rad * 0.92);
+  fo = heights_new(hexset_q0(oct), hexset_r0(oct), hexset_w(oct), hexset_h(oct));
+  orings = roof_hip(oct, fo, 4.0, slope);
+  println("octagon tower {hexset_count(oct)} cells, {orings} rings, ponds {roof_ponds(oct, fo)}, eave spread {eave_spread(oct, fo)}");
+  if roof_ponds(oct, fo) != 0 { ok = false; }
+  if eave_spread(oct, fo) > 0.000001 { ok = false; }
+
+  // the SAME call on the hall gives a mitred hip-and-valley — the form is the footprint
+  fhip = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
+  hrings = roof_hip(hall, fhip, 4.0, 0.6);
+  println("hall by the same call: {hrings} rings, ponds {roof_ponds(hall, fhip)}, eave spread {eave_spread(hall, fhip)}");
+  if roof_ponds(hall, fhip) != 0 { ok = false; }
+  if eave_spread(hall, fhip) > 0.000001 { ok = false; }
+
+  // ── 4. the drainage invariant has teeth — a negative control ─────────────
+  // Dent one interior cell and ponding MUST be reported. Without this the check could be
+  // passing because it never fires.
+  height_set(fc1, 2, 0, height_get(fc1, 2, 0) - 1.5);
+  dented = roof_ponds(tower, fc1);
+  println("negative control — dent one interior cell: ponds {dented} (must be > 0)");
+  if dented <= 0 { ok = false; }
+
+  // ── 5. arches: an opening whose clear height varies between the pillars ──
+  // The soffit is a semicircle struck from the crown line, so clear height runs from 0 at
+  // the springing to spring+R at the crown. What can pass depends on WHERE you stand.
+  span = 5.0;
+  spring = 2.0;
+  opening = hexset_new(w);
+  for r in -2..3 {
+    for q in -4..5 {
+      cx = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+      if cx > 0.0 - span && cx < span { hexset_set(opening, q, r, true); }
+    }
+  }
+  crown = track_new();
+  track_straight(crown, 0.0, -12.0, 0.0, 12.0);      // the crown line: d = |x|
+  floor = heights_new(hexset_q0(opening), hexset_r0(opening), hexset_w(opening), hexset_h(opening));
+  soffit = heights_new(hexset_q0(opening), hexset_r0(opening), hexset_w(opening), hexset_h(opening));
+  vault_arc(opening, soffit, crown, spring, span);
+
+  println("semicircular arch: half-span {span}, springing {spring}, crown {spring + span}");
+  short_h = 2.5;
+  tall_h = 6.0;
+  npass_s = 0;
+  npass_t = 0;
+  maxx_t = 0.0;
+  for r in hexset_r0(opening)..hexset_r0(opening) + hexset_h(opening) {
+    for q in hexset_q0(opening)..hexset_q0(opening) + hexset_w(opening) {
+      if hexset_get(opening, q, r) {
+        ch = clear_height(floor, soffit, q, r);
+        cx = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+        ax = cx; if ax < 0.0 { ax = 0.0 - ax; }
+        if ch >= short_h { npass_s = npass_s + 1; }
+        if ch >= tall_h {
+          npass_t = npass_t + 1;
+          if ax > maxx_t { maxx_t = ax; }
+        }
+      }
+    }
+  }
+  println("   cells admitting a {short_h} figure: {npass_s}");
+  println("   cells admitting a {tall_h} figure: {npass_t}, reaching out to |x|={maxx_t}");
+  // sqrt(R^2 - x^2) >= tall - spring  ->  |x| <= sqrt(25 - 16) = 3
+  println("   predicted reach for the tall figure: |x| <= {sqrt(span * span - (tall_h - spring) * (tall_h - spring)) ?? 0.0}");
+  if npass_t >= npass_s { ok = false; }
+  if npass_t <= 0 { ok = false; }
+  if maxx_t > 3.01 { ok = false; }
+
+  // a SEGMENTAL arch — the same call, a flatter radius: less headroom at the crown but
+  // the clear height varies far less across the span.
+  seg = heights_new(hexset_q0(opening), hexset_r0(opening), hexset_w(opening), hexset_h(opening));
+  vault_arc(opening, seg, crown, spring - 3.0, span * 1.8);
+  lo = 1000.0; hi2 = -1000.0;
+  for r in hexset_r0(opening)..hexset_r0(opening) + hexset_h(opening) {
+    for q in hexset_q0(opening)..hexset_q0(opening) + hexset_w(opening) {
+      if hexset_get(opening, q, r) {
+        ch = clear_height(floor, seg, q, r);
+        if ch < lo { lo = ch; }
+        if ch > hi2 { hi2 = ch; }
+      }
+    }
+  }
+  println("   segmental arch (R={span * 1.8}): clear height {lo}..{hi2}, variation {hi2 - lo}");
+  if hi2 - lo >= span { ok = false; }         // flatter than the semicircle's full rise
+
+  if ok { println("=== ROOF OK ==="); } else { println("=== FAIL ==="); }
+}

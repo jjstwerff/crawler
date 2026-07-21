@@ -833,3 +833,85 @@ Found by the gate, not by inspection; it would have corrupted every arc milepost
 across three radii · the sub-grid spiral admits no clean tread out of 60 swept and its
 required sector exceeds a full turn · two revolutions overlap and cache as distinct levels ·
 the headroom rule at three rises.
+
+## 13. Roofs, cones and arches (P14) — the form is the footprint
+
+With a height per cell, "real architecture" is mostly roof profiles — and they are not a
+catalogue of cases. Every named form is the same function of a **distance**, with only the
+distance *source* changing:
+
+```
+   d = |p − c|            a point     ->  cone / pyramid
+   d = dist to a line     a line      ->  gable
+   d = dist to a SEGMENT  a segment   ->  hip
+   d = dist to the FOOTPRINT boundary ->  any of them, correctly (below)
+   d = 0                              ->  flat
+```
+
+**A hip is a gable with a shorter ridge** — literally the same call with a shorter `Track`,
+because `track_distance` clamps to the segment. Gated: 176 cells differ beyond the ridge
+ends and **0** between them, which is exactly what hipping means.
+
+### The cone on a round tower — where it goes wrong, and why
+
+The hard case, for a reason that has nothing to do with cones. A round tower's footprint is
+a hex *approximation* of a circle, so its boundary cells sit at a spread of true radii —
+all of them *inside* the nominal radius. Drive the roof from each cell's own radius and the
+eave inherits that spread:
+
+```
+   from the ideal circle:   eave spread 0.807  =  slope × 1.009 cells of radius
+   from the footprint:      eave spread 0      (4 rings to the apex)
+```
+
+That 1.009 is the footprint's **roundness deviation** — the same quantity the tower catalog
+measured. Clamping at the nominal radius does *nothing*, because no cell ever exceeds it;
+this was the first attempt and it failed silently, with the apex looking perfect and only
+the eave wrong.
+
+The fix generalises into the real answer: **drive the roof from the distance to the
+FOOTPRINT, not to the ideal shape.** Boundary cells are at ring 0 by definition, whatever
+their true radius, so the eave is level by construction. And that single function — a
+multi-source BFS inward from the boundary — *is* a hip roof:
+
+```
+   round tower (85 cells)     4 rings, eave spread 0, ponds 0   -> a cone
+   octagon tower (77 cells)   4 rings, eave spread 0, ponds 0   -> a pyramid
+   rectangular hall (247)     6 rings, eave spread 0, ponds 0   -> mitred hip-and-valley
+```
+
+**The form is entirely the footprint's shape.** One call produces a cone, a pyramid or a
+properly mitred hip-and-valley depending only on what it is given. That is why the list of
+roof forms stopped being a list.
+
+The apex is a flat **hex**, not a point — quantisation costs at most `slope × circumradius`
+(gated at exactly 1 apex cell).
+
+### Drainage is the roof's correctness invariant
+
+An interior cell all of whose neighbours are strictly higher is a local minimum: water
+collects and never leaves. A roof that sheds has none — the analogue of a stair's
+monotonicity. Gated 0 on every form above, **with a negative control**: denting one interior
+cell must report ponding, and does. Without it the check could pass by never firing.
+
+### Arches — the same mechanism, inverted
+
+A roof is the upper surface of a solid; an arch the lower surface of an opening. Same
+function, opposite curvature — which is why a cell wants a floor height *and* a soffit
+height rather than one z. A semicircular arch, springing 2.0, half-span 5.0:
+
+```
+   admits a 2.5 figure:  27 cells
+   admits a 6.0 figure:  17 cells, reaching |x| = 2.60   (predicted √(25−16) = 3)
+```
+
+**What can pass depends on where you stand** — the clear height varies continuously between
+the pillars, and the tall figure is confined to the middle of the span. The same call with
+a flatter radius gives a segmental arch: less headroom at the crown, but the clear height
+varies by 1.11 instead of the semicircle's full 5.0.
+
+**Gate** `src/rooftest.loft`: gable/hip differ only past the ridge ends · the ideal-circle
+cone's eave genuinely wobbles and the footprint-driven one is dead level · cone, pyramid and
+hip-and-valley from one call, all pond-free with level eaves · a single apex cell · the
+ponding negative control fires · the arch admits fewer cells to a tall figure than a short
+one, within the predicted reach · the segmental profile is flatter than the semicircular.
