@@ -1,4 +1,4 @@
-// gameflow — the deterministic intent seam (PLAN-KERNEL K2).
+// gameflow — the deterministic intent seam (plan #6 K2).
 //
 // One tick of world mutation, expressed as INTENTS that serialize: the host
 // applies an intent AND broadcasts its wire line; an observer parses the line

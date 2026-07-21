@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""dump_region_bin.py — convert the @PLN1 NPZ artefacts to data/regions/<name>.bin.
+"""dump_region_bin.py — convert the plan #1 NPZ artefacts to data/regions/<name>.bin.
 
 This is the ONLY remaining Python in the data pipeline; per the user's standing rule
 (doc/viewer-design.md §9), loft owns reading the binary AND writing the .loft data

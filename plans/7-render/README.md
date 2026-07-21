@@ -1,4 +1,21 @@
-# PLAN-RENDER.md — the showcase renderer, step by step
+# 7 — Showcase renderer: R4–R9 + the `graphics` substrate flow-back
+
+**Issue:** [`jjstwerff/crawler#7`](https://github.com/jjstwerff/crawler/issues/7) ·
+**Value:** `U` · **Effort:** `H`
+
+## Status
+
+**ACTIVE — the one plan in flight.** P0–P4 shipped 2026-06-12, L0 + P5/L1 (the
+substrate flow-back into `graphics`) 2026-06-14. **P6 (R7 instanced floor)** is
+mid-flight: phases 1+2 are green and compile-clean, awaiting a **user visual verify in
+`make play`**, then the fat-path deletion (phase 3). P7a is a pure-data leaf runnable
+any time; P9 stays profile-gated.
+
+Note (2026-07-21): `graphics` is now pinned at **0.5.0** — required by toolchain
+2026.7.2, and it moved font resolution to program-relative. See CLAUDE.md's survival
+guide before touching the substrate.
+
+---
 
 Phasing + verification for **RENDER.md** (R4–R9 + the `graphics` substrate flow-back).
 Design lives in RENDER.md — this plan does not restate it; each step says what to
@@ -27,7 +44,7 @@ build, in what order, and **how to see quickly that it works**. Effort: S/M/L.
    the loft code then ports a verified picture, not a guess.
 5. **User visual pass** (`make play` / noVNC): theme + feel only — never the
    correctness channel.
-6. **WebGL headless-browser gate** (for `make game` / the @PLN2 loft viewer): serve the
+6. **WebGL headless-browser gate** (for `make game` / the plan #2 loft viewer): serve the
    `loft --html` build and drive headless Chrome (`chromium` — present) via loft's
    `tools/html_render_check.mjs` — a JS-error gate + a canvas color-count gate (blank canvas =
    fail) + a CDP screenshot. Browser AA isn't pixel-exact, so this gates *renders-without-error
@@ -243,7 +260,7 @@ back into it via L3.
 | Step | Effort | Status |
 |---|---|---|
 | P0 probe harness | S | DONE 2026-06-12 — `make probe`: selftest + gpushot scene, 3/3 pixels dmax=0 |
-| P1 idle skip | S | DONE 2026-06-12 — `framekey.loft` + idletest (gate 36); 6s idle drew **1 frame**. The busy-spin caveat is RESOLVED by K1 (PLAN-KERNEL): the kernel loop idles between drift-free ticks — idle = 60 Hz ticks at ~150 µs each + sleeps, GPU zero and CPU near-zero |
+| P1 idle skip | S | DONE 2026-06-12 — `framekey.loft` + idletest (gate 36); 6s idle drew **1 frame**. The busy-spin caveat is RESOLVED by K1 (plan #6): the kernel loop idles between drift-free ticks — idle = 60 Hz ticks at ~150 µs each + sleeps, GPU zero and CPU near-zero |
 | P2 tint bake (R4) | S | DONE 2026-06-12 — `worldmesh.loft` (mesh builder moved KERNEL-side, tint pre-composed) + meshtest (gate 38, exact colors) + worldprobe/world_r4.probe (4/4 dmax=0 incl. the 0.451 dim ratio); wash loop deleted |
 | P3 SDF walls (R5) | M | DONE 2026-06-12 — blueprint (tools/blueprints/wall_sdf.py: interior pure, 1px ramps, joins gap-free; fringe over-blend consciously re-pinned one-sided ≤21) → worldmesh::build_wall_mesh (self-describing quads) + wall shader; stipple + draw_segment DELETED; meshtest exact corners/locals/visUV; world_r5.probe 3/3 (interior dmax=0, rem ×0.451, mono ramp) |
 | P4 light cone (R6) | M | DONE 2026-06-12 — FBO world layer + fullscreen cone/vignette pass (HUD unlit); blueprint tools/blueprints/light_cone.py generates the spec; post_r6.probe 5/5 dmax=0 on uniform gray (ahead 117 > behind 73). En route: shot.loft's stale teleport (landed in rock off-level) fixed gen-proof |

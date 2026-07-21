@@ -4,6 +4,11 @@
 > `hex_terrain`, …). **We never fix loft in this repo.** When a loft/lib bug bites crawler, we
 > **file it upstream**, **work around it**, and **keep moving**. This doc is the full procedure;
 > CLAUDE.md → "Filing loft bugs" is the quick reference and points here.
+>
+> **Staging area: `LOFT-HANDOFF.md`.** A finding that is characterized but not yet opened as an
+> issue goes there first, already in the §4 body shape below (repro · expected · actual ·
+> workaround · labels) — so filing is a copy-paste and nothing is lost if the session ends.
+> Search it alongside the upstream tracker in step 1.
 
 ## Purpose — why we file at all
 

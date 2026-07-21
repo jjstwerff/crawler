@@ -1,0 +1,25 @@
+# loft registry — 22 available packages
+# install: `loft install <name>`   ·   surface: `loft api <name>`
+
+arguments 0.2.0 — CLI argument parsing — positional args + flags + auto-generated --help.
+cbor 0.1.1 — Signable canonical CBOR (RFC 8949) - pure loft. Encode with canonical map-key ordering + full decode (int/negint/bytes/text/array/map/bool/null); encode->decode->encode byte-identical, native == wasm.
+crypto 0.3.5 — Cryptographic primitives — SHA-256, HMAC, base64; Ed25519, X25519, HPKE (RFC 9180), ChaCha20-Poly1305 / XChaCha20-Poly1305 / AES-256-GCM, HKDF, OS CSPRNG.
+game_protocol 0.1.2 — Packet framing + ack/retransmit for loft game-networking demos.
+glb 0.1.2 — glTF 2.0 binary (.glb) writer — exports Mesh / Scene as a glb file readable by Blender, three.js, gltf-validator.  Standalone (pure-loft, no GPU).
+graphics 0.5.0 — 2D canvas + 3D rendering for loft (Canvas pixel surface, Mesh / Scene / glTF, OpenGL bindings).
+gridmesh 0.1.2 — Chunk-local mesh-generation primitives for world-building algorithms.
+hex_grid 0.1.0 — Hex-grid geometry — axial/pixel conversion, neighbours, distance, and corner offsets.
+hex_terrain 0.1.1 — The OVERLAND terrain layer of the `hex_*` family: a coarse overland hex lattice
+hex_world 0.1.2 — Sparse 32x32-chunk hex-grid world data model — Cell / Chunk / World with binary save/load.
+html 0.1.0 — HTML escaping helpers for loft.
+imaging 0.2.1 — PNG load/save + pixel manipulation for loft (Stage A — interpreter + native; wasm bridge deferred pending loft-host-ffi crate).
+input 0.1.0 — Game input for loft — action/axis bindings resolved to per-tick input state.
+markdown 0.2.0 — Markdown-to-HTML rendering for loft — headings, inline spans, slugify, link rewriting.
+mesh3d 0.1.1 — 3D geometry primitives — Vec/Mat, Mesh, Scene, Camera, Light.  Standalone (pure-loft, no GPU).
+random 0.3.0 — Pseudo-random number generation — PCG-64 thread-local PRNG with rand_seed reproducibility.
+regex 0.2.1 — Small-script regex: matches / find / split / match_groups / replace, with a thread-local pattern cache.
+server 0.3.1 — HTTP + WebSocket server — TCP sockets + tungstenite via cdylib.
+shapes 0.3.0 — 2D geometry primitives — Rect, Circle, overlap tests, clamp.  Pure-loft, no other deps.
+ssh 0.1.0 — SSH client — drive an interactive remote shell (e.g. attach tmux) over password auth. Native-only.
+time 0.3.0 — Date/time arithmetic on millisecond-since-epoch integers — proleptic Gregorian, same model as JavaScript Date.  Pure-loft; identical results on interp, --native, WASM.
+web 0.3.0 — HTTP client + WebSocket client — ureq + tungstenite via cdylib.

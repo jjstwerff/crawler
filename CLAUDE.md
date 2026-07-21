@@ -7,6 +7,14 @@ renderer-agnostic kernel also drives an **optional** 3D/WebGL build added for th
 want it (3D is additive, not the destination). Full design + roadmap: **DESIGN.md**
 (backlog = §18a).
 
+**Multi-phase work lives in `plans/<N>-<slug>/`**, `<N>` = its `jjstwerff/crawler` issue
+number (claimed BEFORE the directory — never numbered by scanning the tree). Conventions,
+the lightest-workflow table, and the value categories: **plans/README.md**; templates +
+the close/defer checklist sit beside it. Lifecycle state is a **label on the issue**, not
+a directory — so the overview is the tracker, not a hand-kept table:
+`gh issue list -R jjstwerff/crawler --label plan --state all`. Note `@PLN<N>` always means
+an **upstream loft** plan (UPSTREAM-PLANS.md); crawler's own are written `plan #<N>`.
+
 ## Run / build / test
 
 ```sh
@@ -79,10 +87,10 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   (currently 39 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
   msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
   idle-skip/mesh/kernel/replay/…). Keep it **warning-clean**. Pixel-level render checks live in
-  **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — PLAN-RENDER P0).
-  The games-kernel adoption track (@PLN18 engine_host): **PLAN-KERNEL.md**.
+  **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7) P0).
+  The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
 - **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under
-  Xvfb reads the GL **framebuffer reliably** — it's exactly what `make probe` uses (PLAN-RENDER
+  Xvfb reads the GL **framebuffer reliably** — it's exactly what `make probe` uses (plan #7
   P0). The only *positionally-unreliable* capture is `make shot`'s window-grab
   (`xdotool`/`import`) — not `gl_screenshot`. So render **correctness can be gated headlessly**
   via golden-image diffs, two paths (deps present: `xvfb-run`/`chromium`/`node`/`convert`):
@@ -91,7 +99,7 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   pattern); (2) **WebGL** — the `loft --html` build in headless Chrome via loft's
   `tools/html_render_check.mjs` (CDP screenshot + canvas color-count gate). The **user still
   judges *aesthetics***, but the agent self-checks structure/regressions. Recipe + the
-  scene-`--smoke`-then-`gl_screenshot` idiom: **PLAN-RENDER.md**.
+  scene-`--smoke`-then-`gl_screenshot` idiom: **plans/7-render/**.
 - **2D sprites → the `draw` skill** (method: loft `.claude/skills/draw`; **tool:
   crawler's own `tools/draw.py`** — copied from the skill's `sketch/draw.py` and
   extended: `Background transparent`, `--once` (render-and-exit; exit 1 on unparsed lines /
@@ -206,6 +214,11 @@ Quick version below. **The upstream ROADMAP crawler depends on** (which `loft-la
 issues block us, feed our prototypes, or explain our idioms — incl. `@PLN26` = the `make
 viewer-release` native blocker behind loft#274/#396): **UPSTREAM-PLANS.md**.
 
+**Findings written up but NOT yet filed live in `LOFT-HANDOFF.md`** — each already in the
+issue-body shape (standalone repro + backend matrix + verified workaround + labels), so it can be
+filed cold. Check it before re-debugging an upstream trap, and move an entry to its "Filed"
+section once opened.
+
 When a loft bug bites: **minimal repro first** (verify on BOTH backends — `--interpret`
 and `--check`/`--native`; record expected vs observed; if it won't shrink standalone,
 file with the in-crawler recipe, as loft#303/#336 were). **Open a GitHub Issue** with
@@ -216,35 +229,72 @@ claim), one+ `area:*`, plus `hit-by:crawler`.** Then work around it (a loft-safe
 below) and keep moving — never block crawler on a loft fix. The historical C-id map
 lived in LOFT_ISSUES.md (removed 2026-06-10; all survivors are now filed upstream).
 
-## loft survival guide (updated 2026-07-04 — repros live in the filed issues)
+## loft survival guide (updated 2026-07-21 — repros live in the filed issues + LOFT-HANDOFF.md)
 
-**Toolchain 2026.6.0 (loft main @ 49baf726, installed 2026-07-04) = the @PLN25
-null/dense value model.** Two INTENDED breaking changes + two fresh regressions:
-- **INTENDED: `v[i]` types as `T?` unless the index is provably in-bounds** (a literal
-  into a known-length vector, or a `for i in 0..len(v)` loop var — the checker is
-  flow-based, an `if i < len(v)` guard also proves it). Any other variable index needs
-  `?? d`, a fresh optional variable + null check, or `as T`. (Bit overland.loft twice.)
-- **INTENDED: `return null` from a `-> integer` fn is an error** — declare `-> integer?`.
-  Broke the `random` lib upstream (filed loft-libs-core#14); our
-  `../loft-libs-core-main` worktree carries the one-line `get() -> integer?` patch
-  until it lands.
-- **REGRESSION loft#496 — struct temp reassign clobbers the first source SILENTLY:**
-  `md = sa; if c { md = sb; }` leaves `sa` null/mixed-fielded after the `md = sb` path
-  (copy elided to borrow, overwrite frees it). Context-dependent (big fn + store
-  pressure); standalone shrinks pass. Workaround (clean): no temp — branch and pass
-  `sa`/`sb` straight to the callee (the infestation loop fix).
-- **REGRESSION loft#497 — interpreter SIGSEGV (`len` on a freed vector) consuming a
-  generated Sim in a hot by-value query loop:** `build_walls(sim_new_gen(...))` dies
-  (the #462 shape back under the new model). **`make play` and `make probe` are DOWN
-  on 2026.6.0** (`walltest.loft` = the repro; `make test` avoids it — selftest walls
-  a `sim_new()` world only). `wa:none`; wait for the upstream fix.
+**Toolchain 2026.7.2 (installed 2026-07-21) = the @PLN110 len/size flip point release**
+(it also carries @PLN102 compat-contract work + a wide store-lifetime sweep). The whole
+gate went RED on the upgrade and is green again; **two of the three failures were SILENT
+data corruption, not compile errors** — that is the lesson to carry. INTENDED changes:
+- **INTENDED: fallible float math returns `float?`** — `sqrt`, `pow`, `ln`, `log2`,
+  `log10`, `asin`, `acos`, and *variable* `/` and `%` yield a nullable instead of NaN,
+  and it PROPAGATES. A **literal** operand known to be in range stays plain `float`
+  (`x / 2.0`, `pow(x, 2.0)`, `sqrt(2.0)`) — but `pow(x, 2.1)` is fallible (a negative
+  base with a non-integral exponent has no real answer). Upstream calls this a *warning*,
+  but it lands as a hard **error** whenever the result is reassigned into an existing
+  `float` variable ("cannot change type from float to float?"). Discharge at the ROOT
+  with `?? 0.0` — for `sqrt` of a sum of squares that is a provable no-op, never a
+  behaviour change. (Bit `overland`/`sim`/`wallgeo`/`meshtest` at 24 sites.)
+- **INTENDED: `text as integer|float|single` returns a nullable** — an honest fallible
+  parse (`"oops" as integer` is `null`, not a silent `0`). Settle with `?? 0` at the cast.
+- **INTENDED: `len(text)` = CHARACTERS, `size(text)` = BYTES** (swapped from earlier
+  2026.7.x). A default-on lint flags `for i in 0..len(s) { s[i] }`. **Verified NOT to
+  affect crawler** (0 lint hits) — but note `make test` never compiles the view, so
+  re-check `view.loft`/`story.loft` by hand if text indexing appears there.
+- **INTENDED: a `??` default must match the value's type EXACTLY** — `buf[i] ?? 0.0` on a
+  `vector<single>` is now an error. **Write the single literal directly: `?? 0.0f`**
+  (cleaner than the older `zz = 0.0 as single` idiom still in worldmesh/gpushot).
+- **RELAXED: `return null` from a `-> integer` fn is a WARNING again**, not an error
+  (the compat contract). `random`'s `get() -> integer` still returns null and compiles;
+  loft-libs-core#14 is no longer a blocker, so the sibling needs no local patch.
+- **FIXED — loft#497** (interpreter SIGSEGV consuming a generated Sim): `walltest.loft`
+  runs clean, **verified 2026-07-21**. `make play` and `make probe` are NO LONGER blocked
+  by it. (`make probe` now needs only `xvfb-run` — `apt install xvfb`.)
+- **STILL LIVE — loft#496, in a WIDER form: `vec += [f(struct_temp)]` silently nulls
+  every element but the first.** A struct temp reassigned in a loop and passed BY VALUE
+  into a fn whose result is appended → the copy is elided to a borrow and freed under the
+  vector. **INTERPRETER ONLY — `--native` is correct**, so it is a backend divergence.
+  It corrupted every monster spawn (empty names, garbage `mlvl`) and only `depthtest`
+  caught it. **Workaround (clean, VERIFIED): hoist the call result into a local first** —
+  `ne = mk_enemy(md, q, r); enemies += [ne];`. Hoisting keeps the single call, so RNG
+  order is preserved; inlining the call twice does NOT. (Repro + variant matrix:
+  **LOFT-HANDOFF.md → H2**.)
+- **NEW — a self-referential `??` default SIGSEGVs the COMPILER**: `x = v[i] ?? x;` kills
+  `--check` on BOTH backends in 14 lines. Workaround (clean): use a separate fallback
+  variable (`x = v[i] ?? fallback;`). (Repro: **LOFT-HANDOFF.md → H1**.)
+- **NEW (library, silent) — JSON `kind()` split `JInteger` out of `JNumber`.** Whole
+  numbers now report `"JInteger"`; a `kind() == "JNumber"` test falls through to its
+  DEFAULT for every integer. This zeroed every dimension in the generated room registry
+  while text fields still parsed, so the output looked healthy — `make bundles` is a
+  silent-corruption surface. Test BOTH spellings. **Round-trip check: after `make bundles`,
+  the generated `src/*_gen.loft` must be byte-identical to HEAD** — that is the cheapest
+  proof the scanner is intact. (Write-up: **LOFT-HANDOFF.md → S1**.)
+- **graphics `>=0.5.0` is required** on 2026.7.2 (0.5.0 declares `loft = ">=2026.7.2"`).
+  Older 0.3.0 panics in winit ("event loop outside of the main thread") and `make play`
+  aborts. 0.5.0 also resolves a relative **font path against the PROGRAM, not the cwd**
+  (loft-libs-graphics #255) — build the absolute path from `env_variable("PWD")`, the
+  idiom `story.loft` already uses, or the view silently falls back to coloured squares.
+  (Write-up: **LOFT-HANDOFF.md → S2/S3**.)
+- **Do NOT delete a `?? ""` / `?? 0` guard just because the compiler calls it "Redundant
+  null coalescing."** The checker reasons about TYPES; the #496 use-after-free above still
+  makes those fields null at RUNTIME. Those guards are load-bearing.
 
 The old C-series minefield is FIXED and re-verified (struct returns, text handling,
 cross-module `&`, casts, store pressure, struct-literal comprehensions). What still bites:
-- **STILL LIVE in the installed 0.8.5 — capture-append-reassign on a struct's vector field
-  EMPTIES it** (loft#320: `w = s.v; w += [x]; s.v = w` → len 0; closed upstream, re-verify
-  after the next toolchain refresh). Direct `s.v += [x]` works; the pre-allocated array +
-  count + **index-write** idiom (`enemies`/floor-items) stays the default for hot collections.
+- **capture-append-reassign on a struct's vector field EMPTIES it** (loft#320:
+  `w = s.v; w += [x]; s.v = w` → len 0; closed upstream). **NOT yet re-verified on
+  2026.7.2** — treat as live until someone runs the shrink. Direct `s.v += [x]` works;
+  the pre-allocated array + count + **index-write** idiom (`enemies`/floor-items) stays
+  the default for hot collections.
 - **STILL LIVE — a thin arity-reducing pub wrapper around a big-struct-returning pub fn
   panics codegen** (loft#339: "Too few parameters on n_<fn>"): don't wrap; pass the
   defaulted arg at the call sites.
@@ -265,13 +315,15 @@ cross-module `&`, casts, store pressure, struct-literal comprehensions). What st
 - **NEVER build `vector<text>` literals in large functions** — they can HANG the
   interpreter; indexing one in a call argument can PANIC the allocator (loft#336).
   Use branch-selector functions returning text (`fn key(i) -> text { if ... }`).
-- Manifest `{ path = ... }` deps are NOT compile-time resolved on the installed 0.8.5
-  (loft#337) — consume local packages via `--lib` dirs or sibling layout (the EXTRACTION.md
-  dev route). **#337 is FIXED in the 2026-06 loft (verified 2026-06-14)** — after the
-  toolchain refresh, the `--lib` dev dirs can become `{ path = … }` deps in `loft.toml`. **`--lib` outranks the registry** (VERIFIED) so a sibling shadows a same-named
-  registry copy — BUT 0.8.5's **#322 stale-program-cache** doesn't invalidate when a `--lib`
-  dep changes, so it keeps the old binding until you bust the cache (`LOFT_NO_CACHE=1`) or
-  refresh past the #322 fix. (Full picture: EXTRACTION.md → "Library-handling state".)
+- Manifest `{ path = ... }` deps: **#337 is FIXED** (verified 2026-06-14), so the `--lib`
+  dev dirs can now become `{ path = … }` deps in `loft.toml`. **`--lib` outranks the
+  registry** (VERIFIED) so a sibling shadows a same-named registry copy. The **#322
+  stale-program-cache** (a `--lib` dep change not invalidating the cache; bust it with
+  `LOFT_NO_CACHE=1`) was an 0.8.5 bug — **not re-verified on 2026.7.2**.
+  (Full picture: EXTRACTION.md → "Library-handling state".)
+- **`loft update <pkg>` refreshes the lock AND writes `.loft/api/*.api` stubs** — committed,
+  agent-readable `pub` signatures for each dep (loft#362). Commit them: they make the
+  out-of-`~/.loft` library APIs visible in-tree.
 - Doubled braces `{{`/`}}` in string literals (C14, by design).
 - Soak-period habits kept as defense-in-depth (their bugs are fixed, the idioms are still
   good): same-module `&`-mutating helpers; don't hold many large `Sim`s live / consume
@@ -285,9 +337,9 @@ Definition of Done: **EXTRACTION.md** (hexgrid = the canonical moros-convention 
 text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `random` package;
 wallgeo/gen after one decoupling each; roguelike-kit + the bundle system deliberately gated).
 
-## Where moros, the toolchain & the libraries live (this machine, as of 2026-06-09)
+## Where moros, the toolchain & the libraries live (this machine, as of 2026-07-21)
 
-All siblings under `/home/jurjen/workspace/`:
+All siblings under `/home/jurjens/workspace/`:
 - **crawler** — `crawler/` (this repo, branch `combat`).
 - **moros** — `moros/` (branch `main`): the 3D target + the **canonical hex convention**:
   *pointy-top, **odd-r offset*** — `x = √3·(col + ½·(row&1))`, `y = 1.5·row` (see
@@ -302,9 +354,11 @@ All siblings under `/home/jurjen/workspace/`:
   `loft-libs-core/`, `loft-libs-net/`.
 
 **Installed loft** (what `make` targets use by default after `make install`):
-- binary `/usr/local/bin/loft` (0.8.5); stdlib `/usr/local/share/loft/` (`default/`, `deps/`,
-  `libloft.rlib`, `wasm32-*`). Refresh = `make install` in a loft repo (sudo); check with
-  `make loft-doctor`.
+- binary `/usr/local/bin/loft` (**2026.7.2**, installed 2026-07-21); stdlib
+  `/usr/local/share/loft/` (`default/`, `deps/`, `libloft.rlib`, `wasm32-*`). Refresh =
+  `make install` in a loft repo (sudo); check with `make loft-doctor`.
+- **`graphics` must be `>=0.5.0`** on this toolchain (see the survival guide) — the lock
+  pins it and `loft update graphics` moves it.
 
 **User library store `~/.loft/`:**
 - `registry/` — *built/published* libs **auto-loaded on `use`**: `graphics-0.1.0`,

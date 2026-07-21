@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ortler_import.py — fetcher + geometry for @PLN1 (real Ortler world-gen fixture).
+"""ortler_import.py — fetcher + geometry for plan #1 (real Ortler world-gen fixture).
 
 Lives in the plan directory (the workshop); reuses the repo's existing world-drawing
 routine `tools/overland_blueprint.py` as the SINGLE geometry source (design-protocol

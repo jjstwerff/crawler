@@ -1,16 +1,47 @@
-# PLAN-BUNDLES.md — ALL content moves into THEME bundles (build-your-own-game)
+# 4 — Theme bundles: ALL content moves out of the engine (build-your-own-game)
 
-Goal (user direction): the engine ships with ZERO game content of its own. The
-bestiary (deep monsters and all), their items, lairs/buildings and placement move
-into **self-contained THEME bundles** (undead, ghosts, per-biome, …) that anyone
-adds or removes at will to compose their own game — plus a per-bundle
-**difficulty knob** so a player can soften (or sharpen) one theme's mobs without
-touching its defs.
+**Issue:** [`jjstwerff/crawler#4`](https://github.com/jjstwerff/crawler/issues/4) ·
+**Value:** `G` · **Effort:** `VH`
 
-Anchors: **BUNDLE.md** (the seam law + the standing check), `src/genbundles.loft`
-(the scanner/merger), `catalog.loft` (the merge points), `bundles/desert_surprise/`
-(the proven theme-bundle prototype: enemies + items + stencils + placement),
-`bundles/world_classic/` (the dungeon as a world bundle).
+## Status
+
+**Partly shipped.** The two *mechanism* phases are in — **Phase A** (the trait seam
+that de-keys the engine from content) and **Phase H's spawn-anchor** — and their
+reference content now lives in BUNDLE.md, not here. The content migration itself
+(Phases B–G) has **not started**: the bestiary is still engine-side in
+`src/monsters.loft`, there is no `theme` bundle kind, no `undead/` bundle, no
+difficulty knob and no removal matrix.
+
+Nothing is in flight. Phase B is the next move and it is unblocked; Phase G is the
+only phase with a hard dependency (the geometry plan, #5).
+
+## Goal
+
+The engine ships with ZERO game content of its own — the bestiary, its items, lairs
+and placement live in self-contained **theme bundles** anyone adds or removes to
+compose their own game, plus a per-bundle **difficulty knob** so a player can soften
+(or sharpen) one theme without touching its defs.
+
+## Anchors
+
+**BUNDLE.md** (the seam law + the standing check + the shipped trait seam),
+`src/genbundles.loft` (the scanner/merger), `src/catalog.loft` (the merge points),
+`bundles/desert_surprise/` (the proven theme-bundle prototype: enemies + items +
+stencils + placement), `bundles/world_classic/` (the dungeon as a world bundle).
+
+## Phases
+
+| Phase | Effort | Verify | Status |
+|---|---|---|---|
+| **A** — TRAIT seam (engine de-keyed) | M | `make test` seam gate + `sim_wilds_ok` | ✅ SHIPPED 2026-06-11 → BUNDLE.md |
+| **H₀** — bed as SPAWN ANCHOR (mechanism) | S | `make test` (persist) | ✅ SHIPPED 2026-06-11 |
+| **B** — `theme` bundle kind + undead canary | M | gate + REMOVAL test | Open — **next**, unblocked |
+| **C** — drain the bestiary in waves | H | gate + removal per wave | Blocked on B |
+| **D** — items follow their owners | S | gate | Blocked on C |
+| **E** — the difficulty knob (`tuning.json`) | M | knob 0.5 halves sampled hp/dam | Open (parallel with D/H) |
+| **H** — race `home`, home-site picker, kinfolk enclaves | H | fixed seed → house+bed, affinity match | Open (needs only A's vocabulary) |
+| **F** — the removal MATRIX | M | `make bundles-matrix` | Blocked on C |
+| **G** — buildings & lairs per theme | H | gate + probe | Blocked on **#5** (geometry Track 1) |
 
 ## The law that makes it possible (and the one that must not break)
 
@@ -48,34 +79,24 @@ walks through walls. That is a new engine MECHANISM (`MF_PHASE`: pathing ignores
 wall tiles, FOV/light still applies, never opens doors) built in this plan — we
 do not ship wall-respecting "ghosts".
 
-## Phase A — the TRAIT seam (engine de-keyed; content not moved yet) — **LANDED 2026-06-11**
+## Phase A — the TRAIT seam (engine de-keyed) — ✅ **SHIPPED 2026-06-11**
 
-`MonsterDef` gains two data columns (integers — bitmasks, no text in hot paths):
-- `m_habitat`: bit k = lives on terrain kind k (forest/meadow/scree/snow/swamp/
-  sand/grass…). Replaces the `habitat_key()` branch table verbatim.
-- `m_tags`: placement roles — `TAG_RUIN_NEST`, `TAG_RUIN_BOSS`, `TAG_CAVE_ROOST`,
-  `TAG_TOWER_DWELLER`, `TAG_GRAVE` … (one bit each).
+**Reference content now lives in BUNDLE.md → *The TRAIT seam*** — the `m_habitat` /
+`m_tags` vocabulary, the call-site conversion table, the chooser's distribution
+semantics, and the two gates. Read it there; this row is the closure record.
 
-Engine call sites convert to catalog queries (rarity/depth-weighted like
-`mon_choose`, deterministic roll in, graceful EMPTY out — no candidates means the
-nest stays silent, never a crash):
-- `habitat_key(kind, tier, pick)` → `mon_choose_habitat(tbl, kind, tier, roll)`
-- ruins `goblin`/`goblin_leader` → `TAG_RUIN_NEST` / `TAG_RUIN_BOSS`
-- dead-city `skeleton`/`zombie` → `TAG_GRAVE`
-- cave-mouth `giant_bat` → `TAG_CAVE_ROOST`
-- abandoned tower `skeleton` → `TAG_TOWER_DWELLER`
+Closure notes worth keeping:
 
-Landed as designed with one honest refinement: the chooser picks uniformly
-over the candidates in catalog order (faithful DISTRIBUTION, not bit-exact
-census — the old `pick % 3` triple orderings carried no design weight), so the
-gate asserts habitat CORRECTNESS instead: `sim_wilds_ok` proves every wild
-creature that declares a habitat stands on terrain it claims (surfacetest),
-and a `make test` seam step fails the build on any `mon_find("` literal in
-`src/` outside `spawn_crystal`. `habitat_key()` is deleted; ruins/graves/
-roosts/towers pick by TAG with per-site deterministic salts. The two jackal
-entries split honestly: the lone depth-1 jackal roams the near grass, the
-depth-3 pack the far. The standing BUNDLE.md seam check runs at every phase
-end.
+- Landed as designed with one honest refinement — the chooser picks **uniformly over
+  candidates in catalog order** (faithful distribution, not a bit-exact census of the
+  old `pick % 3` orderings, which carried no design weight), so the gate asserts
+  habitat **correctness** instead of a fixed census.
+- `habitat_key()` is deleted; ruins/graves/roosts/towers pick by TAG with per-site
+  deterministic salts.
+- The two jackal entries split honestly: the lone depth-1 jackal roams the near grass,
+  the depth-3 pack the far.
+- The seam gate (`mon_find("` literals outside `spawn_crystal`) lives in
+  `tools/run_tests.sh`, so the de-keying cannot silently regress.
 
 ## Phase B — the `theme` bundle kind + the canary (undead)
 
@@ -189,7 +210,7 @@ stencil near ruins; ghosts haunt abandoned towers; biome themes claim their
 windows by terrain tags. ALSO: bundles carry their own SPRITES
 (`bundles/<name>/sprites/<key>.png`); the build stages them beside
 `assets/sprites/` and the view's by-name resolution picks them up — a theme
-drops in art-complete. This phase lands after PLAN-GEOMETRY Track 1 (outlines)
+drops in art-complete. This phase lands after plan #5 Track 1 (outlines)
 so themed structures inherit doors/jambs/round forms.
 
 ## Order & risks

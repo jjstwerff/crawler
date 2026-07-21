@@ -1,7 +1,7 @@
 # FORMS.md — a kit of exact, interlocking hex parts (no seams by construction)
 
 > Companion to **WALLS.md** (the triangle-band *exact* wall construction, validated in
-> `tools/wallproto`), **STENCILS.md** (layered castle stencils + anchors), **PLAN-GEOMETRY.md**
+> `tools/wallproto`), **STENCILS.md** (layered castle stencils + anchors), **plans/5-geometry/**
 > (the 24-dir outline engine + multi-layer towers/walls, and the plot-to-PNG verify channel),
 > **DESIGN §9** (the junction-policy table; `emit_cylinder_post`, `grand-arc`/`arc_pivot`).
 > This doc owns the question those depend on: **what are the exact parts, what are their
@@ -395,7 +395,7 @@ wall-dark, per the readability rules), **plus** a round-trip check on a syntheti
 (tower + curtains at anchors + an interior house) that asserts (a) seams are exact and (b)
 `detect(stamp(...))` recovers the parts. Claude reads the PNGs, the user picks the
 silhouettes, the invariant gets pinned — **then** the loft port. Visual-confirmation
-channel: PLAN-GEOMETRY's "plot the kernel's own output to PNG" pattern.
+channel: plan #5's "plot the kernel's own output to PNG" pattern.
 
 > **Next session (user intent, 2026-06-28):** try **various stencils in various
 > configurations** — exercise the kit by stitching real parts together and watching the

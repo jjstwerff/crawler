@@ -72,7 +72,7 @@ farmers'-rule `K_FIELD` near towns, swamps at confluences). Re-implementing them
 duplicate the engine. The python prototype achieved its purpose: derived + validated the
 real-metre defaults (ported, `make test` green), settled the taxonomy verdict, and built the
 comparison machinery (material% / 16-tile / occurrence / spatial-κ). Further fidelity is
-loft-side → @PLN2.
+loft-side → plan #2.
 
 ## Investigation outcome
 

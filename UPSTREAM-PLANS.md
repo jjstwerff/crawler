@@ -39,7 +39,7 @@ V0/V4/V5; [FILING.md](FILING.md).
 
 | `@PLN` | title | status | why it matters to crawler |
 |---|---|---|---|
-| **[#18](https://github.com/loft-lang/plans/issues/18)** | [loft] Engine host (C71/N9 execution model) | active | `story.loft` is hosted on `engine_host::run` (the games kernel). Our adoption track: [PLAN-KERNEL.md](PLAN-KERNEL.md). |
+| **[#18](https://github.com/loft-lang/plans/issues/18)** | [loft] Engine host (C71/N9 execution model) | active | `story.loft` is hosted on `engine_host::run` (the games kernel). Our adoption track: [plans/6-games-kernel/](plans/6-games-kernel/). |
 | **[#21](https://github.com/loft-lang/plans/issues/21)** | [libs] Prebuilt native libraries (no rustc) | finished | the cdylib-not-rlib model that makes `graphics` rustc-independent (avoids E0514); the path to a no-compile native viewer. |
 | **[#11](https://github.com/loft-lang/plans/issues/11)** | [loft] `Data` as a store | active (G2/M5 done) | store-backed IR = our save/replay substrate + the cold-start cache; underpins C71/`@PLN18`. |
 | **[#9](https://github.com/loft-lang/plans/issues/9)** | [lang] Program-relative paths | finished | source-relative asset loading — how the view resolves `assets/sprites/<key>.png` by name. **Names crawler.** |
@@ -72,7 +72,7 @@ idioms remain as defence-in-depth):
 | **[#2](https://github.com/loft-lang/plans/issues/2)** | [loft] Vector store-lifetime watermark | finished | the loft#320 family — pre-allocated array + index-write for hot collections. |
 | **[#25](https://github.com/loft-lang/plans/issues/25)** | [lang] Nullable sequences (`vector<T>` in the null model) | active | unifies the `v[i] ?? fallback` / H6 sentinel rules our code follows. |
 | **[#17](https://github.com/loft-lang/plans/issues/17)** | [loft] Three-state boolean | finished | why `!x` is a null-test on non-bools (compare `== 0`). |
-| **[#15](https://github.com/loft-lang/plans/issues/15)** / **[#43](https://github.com/loft-lang/plans/issues/43)** | serialisable cross-branch refs / store durability | future / active | the save-format + replay direction (PLAN-KERNEL save track). |
+| **[#15](https://github.com/loft-lang/plans/issues/15)** / **[#43](https://github.com/loft-lang/plans/issues/43)** | serialisable cross-branch refs / store durability | future / active | the save-format + replay direction (plan #6 save track). |
 
 ## Keeping this current
 

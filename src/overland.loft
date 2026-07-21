@@ -241,7 +241,7 @@ fn ov_edge_bit(ca: integer, ra: integer, cb: integer, rb: integer) -> (float, fl
   }
   (x1, y1) = ov_center(c1, r1);
   (x2, y2) = ov_center(c2, r2);
-  d = sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+  d = sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)) ?? 0.0;
   px = 0.0 - (((y2 - y1) / d) ?? 0.0);
   py = ((x2 - x1) / d) ?? 0.0;
   off = 0.30 * OV_RC;
@@ -266,7 +266,7 @@ fn ov_displace(xs: vector<float>, ys: vector<float>, open_: float, lvl: integer,
     by = ys[i + 1] ?? 0.0;
     nx2 += [ax];
     ny2 += [ay];
-    seg = sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+    seg = sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay)) ?? 0.0;
     if seg >= 170.0 {
       moved = true;
       px = 0.0 - (((by - ay) / seg) ?? 0.0);
@@ -481,7 +481,7 @@ pub fn overland_new() -> Overland {
       }
       glac = hA >= 2400.0;
       icew = 0.0;
-      if glac { icew = 75.0 + 45.0 * sqrt(a); }
+      if glac { icew = 75.0 + 45.0 * (sqrt(a) ?? 0.0); }
       vw = 150.0 + 2.0 * wnom;
       if glac { vw = vw * 2.3; }
       x0 = pxs[0] ?? 0.0; y0 = pys[0] ?? 0.0; x1 = x0; y1 = y0;
@@ -584,8 +584,8 @@ pub fn overland_new() -> Overland {
         for q in 0..len(peaks) {
           pk = peaks[q];
           if pk != null {
-            da = sqrt((pk.op_x - pax) * (pk.op_x - pax) + (pk.op_y - pay) * (pk.op_y - pay));
-            db = sqrt((pk.op_x - pbx) * (pk.op_x - pbx) + (pk.op_y - pby) * (pk.op_y - pby));
+            da = sqrt((pk.op_x - pax) * (pk.op_x - pax) + (pk.op_y - pay) * (pk.op_y - pay)) ?? 0.0;
+            db = sqrt((pk.op_x - pbx) * (pk.op_x - pbx) + (pk.op_y - pby) * (pk.op_y - pby)) ?? 0.0;
             if da < 400.0 && pk.op_amp > aamp { aamp = pk.op_amp; apx = pk.op_x; apy = pk.op_y; }
             if db < 400.0 && pk.op_amp > bamp { bamp = pk.op_amp; bpx = pk.op_x; bpy = pk.op_y; }
           }
@@ -593,7 +593,7 @@ pub fn overland_new() -> Overland {
         if min(aamp, bamp) < 70.0 { continue; }
         mx = (apx + bpx) * 0.5;
         my = (apy + bpy) * 0.5;
-        dd = sqrt((bpx - apx) * (bpx - apx) + (bpy - apy) * (bpy - apy));
+        dd = sqrt((bpx - apx) * (bpx - apx) + (bpy - apy) * (bpy - apy)) ?? 0.0;
         if dd < 1.0 { continue; }
         qx = 0.0 - ((bpy - apy) / dd ?? 0.0);
         qy = (bpx - apx) / dd ?? 0.0;
@@ -655,7 +655,7 @@ pub fn overland_new() -> Overland {
         for q in 0..len(towns) {
           tq = towns[q];
           if tq != null {
-            dd = sqrt((tq.ot_x - tx) * (tq.ot_x - tx) + (tq.ot_y - ty) * (tq.ot_y - ty));
+            dd = sqrt((tq.ot_x - tx) * (tq.ot_x - tx) + (tq.ot_y - ty) * (tq.ot_y - ty)) ?? 0.0;
             if dd < 2.2 * OV_TILE { farok = false; }
           }
         }
@@ -704,14 +704,14 @@ pub fn overland_new() -> Overland {
         for q in 0..len(towns) {
           tq = towns[q];
           if tq != null {
-            dd = sqrt((tq.ot_x - rx5) * (tq.ot_x - rx5) + (tq.ot_y - ry5) * (tq.ot_y - ry5));
+            dd = sqrt((tq.ot_x - rx5) * (tq.ot_x - rx5) + (tq.ot_y - ry5) * (tq.ot_y - ry5)) ?? 0.0;
             if dd < 1.6 * OV_TILE { farok = false; }
           }
         }
         for q in 0..len(ruins) {
           rq = ruins[q];
           if rq != null {
-            dd = sqrt((rq.ru_x - rx5) * (rq.ru_x - rx5) + (rq.ru_y - ry5) * (rq.ru_y - ry5));
+            dd = sqrt((rq.ru_x - rx5) * (rq.ru_x - rx5) + (rq.ru_y - ry5) * (rq.ru_y - ry5)) ?? 0.0;
             if dd < 1.5 * OV_TILE { farok = false; }
           }
         }
@@ -747,21 +747,21 @@ pub fn overland_new() -> Overland {
         for q in 0..len(towns) {
           tq = towns[q];
           if tq != null {
-            dd = sqrt((tq.ot_x - wx5) * (tq.ot_x - wx5) + (tq.ot_y - wy5) * (tq.ot_y - wy5));
+            dd = sqrt((tq.ot_x - wx5) * (tq.ot_x - wx5) + (tq.ot_y - wy5) * (tq.ot_y - wy5)) ?? 0.0;
             if dd < nearest { nearest = dd; }
           }
         }
         for q in 0..len(ruins) {
           rq = ruins[q];
           if rq != null {
-            dd = sqrt((rq.ru_x - wx5) * (rq.ru_x - wx5) + (rq.ru_y - wy5) * (rq.ru_y - wy5));
+            dd = sqrt((rq.ru_x - wx5) * (rq.ru_x - wx5) + (rq.ru_y - wy5) * (rq.ru_y - wy5)) ?? 0.0;
             if dd < nearest { nearest = dd; }
           }
         }
         for q in 0..len(wiz) {
           wq2 = wiz[q];
           if wq2 != null {
-            dd = sqrt((wq2.wz_x - wx5) * (wq2.wz_x - wx5) + (wq2.wz_y - wy5) * (wq2.wz_y - wy5));
+            dd = sqrt((wq2.wz_x - wx5) * (wq2.wz_x - wx5) + (wq2.wz_y - wy5) * (wq2.wz_y - wy5)) ?? 0.0;
             if dd < nearest { nearest = dd; }
           }
         }
@@ -787,7 +787,7 @@ pub fn overland_new() -> Overland {
     for tj in 0..ti {
       tb = towns[tj];
       if tb != null {
-        dd = sqrt((tb.ot_x - ta.ot_x) * (tb.ot_x - ta.ot_x) + (tb.ot_y - ta.ot_y) * (tb.ot_y - ta.ot_y));
+        dd = sqrt((tb.ot_x - ta.ot_x) * (tb.ot_x - ta.ot_x) + (tb.ot_y - ta.ot_y) * (tb.ot_y - ta.ot_y)) ?? 0.0;
         if dd < bd { bd = dd; bj = tj; }
       }
     }
@@ -886,7 +886,7 @@ pub fn overland_new() -> Overland {
       for tj2 in 0..len(towns) {
         tb2 = towns[tj2];
         if tb2 != null {
-          dd2 = sqrt((tb2.ot_x - ru.ru_x) * (tb2.ot_x - ru.ru_x) + (tb2.ot_y - ru.ru_y) * (tb2.ot_y - ru.ru_y));
+          dd2 = sqrt((tb2.ot_x - ru.ru_x) * (tb2.ot_x - ru.ru_x) + (tb2.ot_y - ru.ru_y) * (tb2.ot_y - ru.ru_y)) ?? 0.0;
           if dd2 < bd2 { bd2 = dd2; bj2 = tj2; }
         }
       }
@@ -931,7 +931,7 @@ pub fn overland_new() -> Overland {
           ay3 = rd0.rd_y[k] ?? 0.0;
           bx3 = rd0.rd_x[k + 1] ?? 0.0;
           by3 = rd0.rd_y[k + 1] ?? 0.0;
-          seg3 = sqrt((bx3 - ax3) * (bx3 - ax3) + (by3 - ay3) * (by3 - ay3));
+          seg3 = sqrt((bx3 - ax3) * (bx3 - ax3) + (by3 - ay3) * (by3 - ay3)) ?? 0.0;
           if run3 + seg3 >= want && run3 < want {
             t3 = ((want - run3) / seg3) ?? 0.0;
             stops += [OvStop { op2_x: ax3 + (bx3 - ax3) * t3,
@@ -971,7 +971,7 @@ fn ov_road_dist(o: Overland, x: float, y: float) -> float {
           t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
           ddx = x - (ax + t * ex);
           ddy = y - (ay + t * ey);
-          d = sqrt(ddx * ddx + ddy * ddy);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
           if d < gd { gd = d; }
         }
       }
@@ -1060,7 +1060,7 @@ fn ov_course(o: Overland, x: float, y: float) -> (float, float, float, float, fl
           t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
           ddx = x - (ax + t * ex);
           ddy = y - (ay + t * ey);
-          d = sqrt(ddx * ddx + ddy * ddy);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
           if d < gd {
             gd = d;
             gbed = (sd.os_bed[k] ?? 0.0) * (1.0 - t) + (sd.os_bed[k + 1] ?? 0.0) * t;
@@ -1087,9 +1087,9 @@ fn ov_vert(o: Overland, x: float, y: float) -> float {
     if pk != null {
       if x > pk.op_x - pk.op_rad && x < pk.op_x + pk.op_rad
          && y > pk.op_y - pk.op_rad && y < pk.op_y + pk.op_rad {
-        d = sqrt((x - pk.op_x) * (x - pk.op_x) + (y - pk.op_y) * (y - pk.op_y));
+        d = sqrt((x - pk.op_x) * (x - pk.op_x) + (y - pk.op_y) * (y - pk.op_y)) ?? 0.0;
         f = max(0.0, 1.0 - ((d / pk.op_rad) ?? 1.0));
-        f = pow(f, 2.1);
+        f = pow(f, 2.1) ?? 0.0;
         m = pk.op_amp * f * (0.62 + 0.38 * rn * min(1.0, pk.op_steep / 60.0));
         vp = vp + pow(m, 5.0);
       }
@@ -1114,18 +1114,18 @@ fn ov_vert(o: Overland, x: float, y: float) -> float {
         ex = bx - ax;
         ey = by - ay;
         ee = ex * ex + ey * ey;
-        seg = sqrt(ee);
+        seg = sqrt(ee) ?? 0.0;
         if ee > 0.000000001 {
           t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
           ddx = x - (ax + t * ex);
           ddy = y - (ay + t * ey);
-          d = sqrt(ddx * ddx + ddy * ddy);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
           if d < 460.0 {
             tg = ((run + t * seg) / tot) ?? 0.0;
             prof = (rg.or_aamp * (1.0 - tg) + rg.or_bamp * tg)
                  * (1.0 - rg.or_sadl * 4.0 * tg * (1.0 - tg));
             f = 1.0 - ((d / 460.0) ?? 1.0);
-            m = prof * pow(f, 1.6) * (0.7 + 0.3 * rn);
+            m = prof * (pow(f, 1.6) ?? 0.0) * (0.7 + 0.3 * rn);
             vp = vp + pow(m, 5.0);
           }
         }
@@ -1165,7 +1165,7 @@ pub fn ov_height(o: Overland, x: float, y: float) -> float {
     h = OV_LAKE_LVL;
   } else {
     if lkj > 0.16 && h > OV_LAKE_LVL {
-      bank = pow(((lkj - 0.16) / 0.26) ?? 0.0, 1.4);
+      bank = pow(((lkj - 0.16) / 0.26) ?? 0.0, 1.4) ?? 0.0;
       h = h - (h - (OV_LAKE_LVL + 2.4)) * bank;
     }
   }
@@ -1206,7 +1206,7 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
   for tq2 in 0..len(o.ov_towns) {
     tw = o.ov_towns[tq2];
     if tw != null {
-      td = sqrt((x - tw.ot_x) * (x - tw.ot_x) + (y - tw.ot_y) * (y - tw.ot_y));
+      td = sqrt((x - tw.ot_x) * (x - tw.ot_x) + (y - tw.ot_y) * (y - tw.ot_y)) ?? 0.0;
       if td < tw.ot_fld {
         bwx2 = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 57);
         bwy2 = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 58);
@@ -1245,7 +1245,7 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
     for sw9 in 0..len(o.ov_swamps) {
       sp9 = o.ov_swamps[sw9];
       if sp9 != null {
-        sd9 = sqrt((x - sp9.ow_x) * (x - sp9.ow_x) + (y - sp9.ow_y) * (y - sp9.ow_y));
+        sd9 = sqrt((x - sp9.ow_x) * (x - sp9.ow_x) + (y - sp9.ow_y) * (y - sp9.ow_y)) ?? 0.0;
         if sd9 < sp9.ow_r { swsite = sw9; }
       }
     }
@@ -1262,7 +1262,7 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
       if swsite >= 0 {
         sp0 = o.ov_swamps[swsite];
         if sp0 != null {
-          sd0 = sqrt((x - sp0.ow_x) * (x - sp0.ow_x) + (y - sp0.ow_y) * (y - sp0.ow_y));
+          sd0 = sqrt((x - sp0.ow_x) * (x - sp0.ow_x) + (y - sp0.ow_y) * (y - sp0.ow_y)) ?? 0.0;
           swf = max(swf, flatf * (1.0 - ((sd0 / sp0.ow_r) ?? 1.0)) * 1.6);
         }
       }
@@ -1328,7 +1328,7 @@ fn ov_faded_dist(o: Overland, x: float, y: float) -> float {
           t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
           ddx = x - (ax + t * ex);
           ddy = y - (ay + t * ey);
-          d = sqrt(ddx * ddx + ddy * ddy);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
           if d < gd { gd = d; }
         }
       }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ortler_stats.py — derive the real terrain-transition VALUES (@PLN1 goal 3).
+"""ortler_stats.py — derive the real terrain-transition VALUES (plan #1 goal 3).
 
 From the per-cell (OSM class, elevation, slope) data, find where terrain types actually
 change inside the range — treeline, alpine/scree onset, snow/glacier line, cliff slope —

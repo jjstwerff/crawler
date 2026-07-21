@@ -119,7 +119,7 @@ fn main() {
       for ti2 in 0..len(o.ov_towns) {
         tw2 = o.ov_towns[ti2];
         if tw2 != null {
-          dd = sqrt((tw2.ot_x - wz.wz_x) * (tw2.ot_x - wz.wz_x) + (tw2.ot_y - wz.wz_y) * (tw2.ot_y - wz.wz_y));
+          dd = sqrt((tw2.ot_x - wz.wz_x) * (tw2.ot_x - wz.wz_x) + (tw2.ot_y - wz.wz_y) * (tw2.ot_y - wz.wz_y)) ?? 0.0;
           if dd < 1.05 * 1500.0 { wiz_ok = false; }  // privacy: > a full tile from any town
         }
       }

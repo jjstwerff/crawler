@@ -1,4 +1,4 @@
-// framekey — the scene version behind the idle skip (PLAN-RENDER P1; RENDER.md →
+// framekey — the scene version behind the idle skip (plan #7 P1; RENDER.md →
 // Frame reuse, Tier 0).
 //
 // A pure digest of everything the 2D frame depends on: the Sim observables plus

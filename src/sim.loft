@@ -185,7 +185,7 @@ pub struct Sim {
   depth:   integer not null,   // dungeon level (1 = shallowest)
   save_depth: integer not null,   // checkpoint: deepest save-point level reached (respawn target)
   anc_kind:  integer not null,    // the ACTIVE SPAWN ANCHOR: 0 none (legacy save-stair fallback),
-  anc_depth: integer not null,    //   1 = a save stair, 2 = the crystal, 3 = a bed (PLAN-BUNDLES H), ...
+  anc_depth: integer not null,    //   1 = a save stair, 2 = the crystal, 3 = a bed (plan #4 H), ...
   anc_wx:    integer not null,    //   any feature can claim the player's respawn — the LAST claim
   anc_wy:    integer not null,    //   wins; death wakes the player there, whole again
   anc_q:     integer not null,
@@ -925,7 +925,7 @@ pub fn sim_player_class(s: Sim) -> text { s.pclass }
 pub fn sim_shrine_pending(s: Sim) -> integer { s.shrine_ev }
 
 // ── SPAWN ANCHORS: any feature can claim the player's respawn ────────────────
-// The save stairs claim it, the crystal claims it, the bed will (PLAN-BUNDLES
+// The save stairs claim it, the crystal claims it, the bed will (plan #4
 // Phase H), and any later spawner just calls sim_anchor_here. The LAST claim
 // wins; sim_respawn regenerates the anchor's level/window and wakes the player
 // on the anchor hex, whole again.
@@ -1441,7 +1441,7 @@ fn aim_target(s: Sim) -> integer {
         (epx, epy) = sim_enemy_pos(s, i);
         dx = epx - s.px;
         dy = epy - s.py;
-        ln = sqrt(dx * dx + dy * dy);
+        ln = sqrt(dx * dx + dy * dy) ?? 0.0;
         front = 0.0;
         if ln > 0.0 { front = (dx * hx + dy * hy) / ln ?? 0.0; }   // -1 behind .. +1 dead ahead
         if front > 0.0 {                                            // never target what's behind you
@@ -1692,7 +1692,7 @@ pub fn sim_compute_fov(s: &Sim) {
         (cxp, cyp) = hex_to_px(q, r);
         dx = cxp - spx;
         dy = cyp - spy;
-        ln = sqrt(dx * dx + dy * dy);
+        ln = sqrt(dx * dx + dy * dy) ?? 0.0;
         if ln > 0.0 {
           dot = (dx * hx + dy * hy) / ln ?? 0.0;        // -1 behind .. +1 ahead
           fwd = (dot + 1.0) / 2.0 ?? 0.0;               // 0 behind .. 1 ahead
@@ -2241,7 +2241,7 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
         moved_y = dy;
       }
     }
-    dist = sqrt(moved_x * moved_x + moved_y * moved_y);
+    dist = sqrt(moved_x * moved_x + moved_y * moved_y) ?? 0.0;
     // Pressing forward into an enemy = melee: advance the clock at walking pace
     // even though the player can't move, landing a hit each tick.
     fe = if fwd > 0 { front_enemy(s) } else { -1 };
@@ -3009,7 +3009,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     nhouse = 3 + tsize * 2;
     if intown {
     for hb in 0..nhouse {
-      hang = ((hb as float) + 0.35) * 6.2831853 / (nhouse as float);
+      hang = (((hb as float) + 0.35) * 6.2831853 / (nhouse as float)) ?? 0.0;
       hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
       hx0 = w / 2 + round(hrad * cos(hang)) as integer - 2;
       hy0 = h / 2 + round(hrad * sin(hang) * 0.866) as integer - 1;
@@ -3191,7 +3191,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         if (rng.get(0, 24) ?? 0) == 0 { eff = depth + (rng.get(1, 4) ?? 1); }   // out-of-depth
         md = mon_choose(table, eff, rng.get(0, 2000000000) ?? 0);
         if md.m_hp > 0 {
-          enemies += [mk_enemy(md, sq, sr)];
+          ne = mk_enemy(md, sq, sr); enemies += [ne];
           placed += 1;
           if (md.m_flags & MF_GROUP) != 0 {
             gsz = rng.get(2, 4) ?? 2;
@@ -3199,7 +3199,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               if placed < budget {
                 (gq, gr) = hex_neighbor(sq, sr, gk % 6 ?? 0);
                 if !tile_solid(tiles, w, h, gq, gr) && hex_distance(gq, gr, pq, pr) >= safe && !occupied_hex(enemies, gq, gr) {
-                  enemies += [mk_enemy(md, gq, gr)];
+                  ne = mk_enemy(md, gq, gr); enemies += [ne];
                   placed += 1;
                 }
               }
@@ -3220,12 +3220,12 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     cy = pr;
     cd = mon_find(ctbl, "spawn_crystal");
     if cd.m_hp > 0 {
-      enemies += [mk_enemy(cd, cx, cy)];
+      ne = mk_enemy(cd, cx, cy); enemies += [ne];
       for gk in 0..4 {
         (gq, gr) = hex_neighbor(cx, cy, gk);
         wk = mon_choose(ctbl, 1, (gseed ^ ((gk + 1) * 2654435761)) & 2147483647);
         if wk.m_hp > 0 && !tile_solid(tiles, w, h, gq, gr) && !occupied_hex(enemies, gq, gr) {
-          enemies += [mk_enemy(wk, gq, gr)];
+          ne = mk_enemy(wk, gq, gr); enemies += [ne];
         }
       }
     }
@@ -3238,7 +3238,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       sqq = w / 2 + 2;
       sqr = h / 2 - 2;                      // the food stalls on the square
       for hb in 0..nhouse {
-        hang = ((hb as float) + 0.35) * 6.2831853 / (nhouse as float);
+        hang = (((hb as float) + 0.35) * 6.2831853 / (nhouse as float)) ?? 0.0;
         hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
         hx5 = w / 2 + round(hrad * cos(hang)) as integer;
         hy5 = h / 2 + round(hrad * sin(hang) * 0.866) as integer;
@@ -3385,7 +3385,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
             // broken houses: stamped, then the years knock holes in them
             nrh = 2 + ru2.ru_size;
             for rh2 in 0..nrh {
-              rang = ((rh2 as float) + 0.6) * 6.2831853 / (nrh as float);
+              rang = (((rh2 as float) + 0.6) * 6.2831853 / (nrh as float)) ?? 0.0;
               rhx = ruq + round(5.0 * cos(rang)) as integer - 2;
               rhy = rur + round(5.0 * sin(rang) * 0.866) as integer - 1;
               stamp_house(tiles, tk, w, h, rhx, rhy, 5, 4, 2);
@@ -3428,7 +3428,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
             rsalt = (ruq * 2654435761 ^ rur * 40503) & 2147483647;
             gld = mon_pick_tag(ctbl2, TAG_RUIN_BOSS, rsalt);
             if gld.m_hp > 0 && !occupied_hex(enemies, ruq, rur) {
-              enemies += [mk_enemy(gld, ruq, rur)];
+              ne = mk_enemy(gld, ruq, rur); enemies += [ne];
             }
             gob = mon_pick_tag(ctbl2, TAG_RUIN_NEST, rsalt);
             if gob.m_hp > 0 {
@@ -3436,7 +3436,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               for gb2 in 0..ngob {
                 (gq3, gr3) = hex_neighbor(ruq, rur, gb2 % 6 ?? 0);
                 if !tile_solid(tiles, w, h, gq3, gr3) && !occupied_hex(enemies, gq3, gr3) {
-                  enemies += [mk_enemy(gob, gq3, gr3)];
+                  ne = mk_enemy(gob, gq3, gr3); enemies += [ne];
                 }
               }
             }
@@ -3445,10 +3445,10 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               skl = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt);
               zmb = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt + 1);
               if skl.m_hp > 0 && !occupied_hex(enemies, ruq + 3, rur + 2) {
-                enemies += [mk_enemy(skl, ruq + 3, rur + 2)];
+                ne = mk_enemy(skl, ruq + 3, rur + 2); enemies += [ne];
               }
               if zmb.m_hp > 0 && !occupied_hex(enemies, ruq - 3, rur - 2) {
-                enemies += [mk_enemy(zmb, ruq - 3, rur - 2)];
+                ne = mk_enemy(zmb, ruq - 3, rur - 2); enemies += [ne];
               }
             }
           }
@@ -3480,7 +3480,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                 if tic2 < len(tiles) { tiles[tic2] = 6; }
                 bat2 = mon_pick_tag(ctbl2, TAG_CAVE_ROOST, cvq * 31 + cvr);
                 if bat2.m_hp > 0 && !occupied_hex(enemies, cvq + 1, cvr) {
-                  enemies += [mk_enemy(bat2, cvq + 1, cvr)];
+                  ne = mk_enemy(bat2, cvq + 1, cvr); enemies += [ne];
                 }
                 ncave = ncave + 1;
               }
@@ -3516,7 +3516,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               }
               skl2 = mon_pick_tag(ctbl2, TAG_TOWER_DWELLER, wzi2);
               if skl2.m_hp > 0 && !occupied_hex(enemies, wzq, wzr) {
-                enemies += [mk_enemy(skl2, wzq, wzr)];
+                ne = mk_enemy(skl2, wzq, wzr); enemies += [ne];
               }
             } else {
               enemies += [mk_npc(1, "wizard", "wizard", "@", 170, 140, 220,
@@ -3543,7 +3543,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
             if wd9 >= 40 { wtier = 2; }
             wdef = mon_choose_habitat(ctbl2, tkw, wtier, rng.get(0, 2000000000) ?? 0);
             if wdef.m_hp > 0 {
-              enemies += [mk_enemy(wdef, wq9, wr9)];
+              ne = mk_enemy(wdef, wq9, wr9); enemies += [ne];
               wplaced = wplaced + 1;
             }
           }
@@ -3703,7 +3703,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               }
             }
           }
-          mdl = sqrt(mdx * mdx + mdy * mdy);
+          mdl = sqrt(mdx * mdx + mdy * mdy) ?? 0.0;
           if mdl > 0.001 {
             exq = w / 2 + round(((mdx / mdl) ?? 0.0) * ((w / 2 - 5) as float)) as integer;
             exr = h / 2 + round(((mdy / mdl) ?? 0.0) * ((h / 2 - 5) as float)) as integer;
@@ -3731,7 +3731,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           // the furnace sits OUTSIDE the wall, toward the mine
           fdx = (mnq - w / 2) as float;
           fdy = (mnr - h / 2) as float;
-          fdl = sqrt(fdx * fdx + fdy * fdy);
+          fdl = sqrt(fdx * fdx + fdy * fdy) ?? 0.0;
           fux2 = ((fdx / fdl) ?? 0.0) * 20.0;
           fuy2 = ((fdy / fdl) ?? 0.0) * 20.0;
           fnq = w / 2 + round(fux2) as integer;
@@ -3945,14 +3945,14 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         (bq, br) = hex_neighbor(dnq, dnr, 0);
         bd = mon_find(gm, bkey);
         if bd.m_hp > 0 && !tile_solid(tiles, w, h, bq, br) && !occupied_hex(enemies, bq, br) {
-          enemies += [mk_enemy(bd, bq, br)];
+          ne = mk_enemy(bd, bq, br); enemies += [ne];
         }
         gd = mon_find(gm, gkey);
         if gd.m_hp > 0 {
           for gki in 0..gnum {
             (gq, gr) = hex_neighbor(bq, br, gki % 6 ?? 0);
             if !tile_solid(tiles, w, h, gq, gr) && !occupied_hex(enemies, gq, gr) && hex_distance(gq, gr, pq, pr) >= 2 {
-              enemies += [mk_enemy(gd, gq, gr)];
+              ne = mk_enemy(gd, gq, gr); enemies += [ne];
             }
           }
         }

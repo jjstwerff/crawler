@@ -1,4 +1,4 @@
-// replaytest — the K2 replica invariant (PLAN-KERNEL): a Sim driven by intents
+// replaytest — the K2 replica invariant (plan #6): a Sim driven by intents
 // and a second Sim driven by the SAME intents round-tripped through the wire
 // codec stay scene_key-identical at every step. This is the foundation under
 // the observer slice (and K4 lockstep): the wire-side replica IS the host's

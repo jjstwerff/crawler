@@ -1,19 +1,24 @@
-# @PLN2 — Chunked LOD world + loft WebGL viewer
+# 2 — Chunked LOD world + loft WebGL viewer
 
-**Status:** active (S0–S5 done — full LOD viewer; aesthetic sign-off + S6 left) · **Issue:** [jjstwerff/crawler#2](https://github.com/jjstwerff/crawler/issues/2) · **Branch:** combat · **Follows:** @PLN1
+**Issue:** [`jjstwerff/crawler#2`](https://github.com/jjstwerff/crawler/issues/2) ·
+**Value:** `F` · **Follows:** plan **#1**
+
+## Status
+
+**Active** — S0–S5 done (the full LOD viewer); aesthetic sign-off + S6 remain.
 
 ## Context
 
-@PLN1 concluded the terrain investigation: the 14 kinds suffice, the real-metre transition
+plan #1 concluded the terrain investigation: the 14 kinds suffice, the real-metre transition
 defaults are derived (`../1-ortler-worldgen-fixture/tuned-defaults.md`), and the loft engine is
 being moved to those defaults. It also showed the open frontier is **sub-hex detail** — cliffs,
 real stream channels, sharp rock/scree — which 1.5 km can't resolve and which need a
 **level-of-detail** structure. This plan builds that: a **chunked LOD world** fed by real
 terrain, with a **loft-scripted WebGL viewer** to inspect real ranges (the dual view).
 
-## Why loft now (handoff from @PLN1)
+## Why loft now (handoff from plan #1)
 
-@PLN1's python prototype hit its ceiling: its spatial-agreement metric (κ=+0.45) showed the
+plan #1's python prototype hit its ceiling: its spatial-agreement metric (κ=+0.45) showed the
 elevation-driven types place well (rock 71%, forest 77%) but the rest place poorly (field 23%,
 grass 30%, glacier-tongues 44%) — because the simplified model has **no town/river/field
 system**. The **loft engine already has it** (`overland.loft`: `ov_towns`/`ov_roads`, `ov_sides`
@@ -21,7 +26,7 @@ with `os_acc`+`os_w` = sized rivers, farmers'-rule `K_FIELD` near towns, conflue
 the chunked world builds on the rich engine instead of re-deriving those in python.
 
 **Validation in loft:** primary = *statistical* (synthetic worlds look alpine + the
-town/river/field systems work) — the right target for a generator; the @PLN1 defaults are
+town/river/field systems work) — the right target for a generator; the plan #1 defaults are
 already validated against real data. Optional = carry the per-triangle **spatial-κ** by feeding
 real heights (`overland_from_seed`) if we want to keep diffing against the real Ortler.
 
@@ -32,7 +37,7 @@ real heights (`overland_from_seed`) if we want to keep diffing against the real 
 - **Detail chunks** = a **base height (the chunk's lowest point)** + per-cell **0.1 m relative
   offsets** (`u16`), compact + precise.
 - **WebGL viewer in loft scripts**: **WASD** move, **QE** zoom (= descend the LOD), the **same
-  dual view** (real vs our model). Renderer *follows the chunk data* (@PLN1 architecture rule).
+  dual view** (real vs our model). Renderer *follows the chunk data* (plan #1 architecture rule).
 
 ## Building blocks — chunks already exist in the libraries (reuse), one piece is new
 
@@ -61,7 +66,7 @@ The chunking-landscape survey (file:line) found 32×32 chunks are **not net-new*
 ## Design protocol — exact invariants (pin before building)
 
 - **I-SEAM — chunk borders are watertight.** A cell/vertex shared by adjacent chunks resolves to
-  **one** absolute height regardless of which chunk computes it (the @PLN1 I-MESH extended across
+  **one** absolute height regardless of which chunk computes it (the plan #1 I-MESH extended across
   chunk borders). With base+offset this is the load-bearing claim: `baseA + offA·0.1 ==
   baseB + offB·0.1` at the shared border — so the **absolute height is the single source**, bases
   are per-chunk bookkeeping. *Cure:* derive every height from world position (or share the border
@@ -78,12 +83,12 @@ The chunking-landscape survey (file:line) found 32×32 chunks are **not net-new*
 
 ## Concrete hierarchy (pin in P0 — propose)
 
-A **chunk = 32×32 cells** (library pattern). Two 32× LOD steps span the @PLN1 1.5 km → 1.5 m range:
+A **chunk = 32×32 cells** (library pattern). Two 32× LOD steps span the plan #1 1.5 km → 1.5 m range:
 
 | Tier | cell size | chunk span | source |
 |------|-----------|------------|--------|
 | **overworld** | 1.5 km hex (`OV_TILE`) | 32 hexes ≈ **48 km** | the overland sampler (coarse), real-metre defaults |
-| **detail** | ≈ **1.5 m** (1.5 km / 32 / 32) | 32 cells ≈ **47 m** | finer sampling + the real DEM seed (@PLN1) |
+| **detail** | ≈ **1.5 m** (1.5 km / 32 / 32) | 32 cells ≈ **47 m** | finer sampling + the real DEM seed (plan #1) |
 
 So **one overworld hex ↔ 32×32 detail chunks ↔ 32×32 cells each** = 1024× (1.5 km → 1.5 m). The
 exact ratios + the seam construction are P0's plotted concrete instance (cheapest medium first).
@@ -116,7 +121,7 @@ group** — the renderer-follows-data rule with the demo's proven scaling.
 
 Data steps verify headlessly in `make test` (a `*test.loft` per step); the viewer verifies by
 **headless golden image** (`gl_screenshot` + Mesa llvmpipe, or headless-Chrome for WebGL — the
-loft `crystal_editor_gold`/brick-buster method; PLAN-RENDER channels 2/6). Renderer-follows-data
+loft `crystal_editor_gold`/brick-buster method; plan #7 channels 2/6). Renderer-follows-data
 throughout: every step produces/consumes chunk DATA; the renderer never enriches.
 
 **S0 — chunk encoding (base + 0.1 m). ✓ DONE.**
@@ -292,7 +297,7 @@ the same game; the cloned repo is the live source.
   different split (e.g. a mid tier).
 - **Where the chunk code lands** — extend the world library (`hex_world.loft`, reusable for
   moros too) vs crawler-first then extract.
-- **Real-data seed** — how the @PLN1 Ortler data feeds detail chunks (the `overland_from_seed`).
+- **Real-data seed** — how the plan #1 Ortler data feeds detail chunks (the `overland_from_seed`).
 - **Streaming policy** — which chunks load/unload around the viewer camera per tier.
 
 ## See also
@@ -300,7 +305,7 @@ the same game; the cloned repo is the live source.
 - `s5-viewer-design.md` — the worked S5 viewer design; `s5-viewer-smooth.md` — the post-S5
   smooth-running plan (native throughput + responsive loop; the 38 s-freeze diagnosis, native
   22× measurement, the consumer `--native` gap, and gated steps V0–V8; audit 2026-06-16).
-- @PLN1 `../1-ortler-worldgen-fixture/` — the real-terrain pipeline, derived defaults, I-MESH.
+- plan #1 `../1-ortler-worldgen-fixture/` — the real-terrain pipeline, derived defaults, I-MESH.
 - `loft-libs-world/hex_world.loft`, moros `wall.loft` — the 32×32 chunk + height precedents.
 - `gridmesh` (loft-libs-graphics) + `loft/tools/audience-demo` (`crystal_render.loft`,
   `crystal_stress.loft`) + audience_crystal `CrystalIncr` — the chunked batched-mesh pipeline

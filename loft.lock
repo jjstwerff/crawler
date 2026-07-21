@@ -4,10 +4,11 @@ schema_version = 1
 
 [[package]]
 name = "graphics"
-version = "0.2.1"
-url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/graphics-v0.2.1/graphics-0.2.1.tar.gz"
-sha256 = "5fb0b21fc1cb2fb93f6003379c7c3ed791161cf89e31653a2d05ec4c16516202"
+version = "0.5.0"
+url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/graphics-v0.5.0/graphics-0.5.0.tar.gz"
+sha256 = "398d1e1fcb272a1da21a49e3eeaadf93ab49f711876dfc6d9c0fcbaac94fcabe"
 source = "registry"
+deps = ["glb", "mesh3d"]
 
 [[package]]
 name = "random"
@@ -28,4 +29,19 @@ name = "hex_terrain"
 version = "0.1.0"
 url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_terrain-v0.1.0/hex_terrain-0.1.0.tar.gz"
 sha256 = "98669010662c92b5d6a26a1d6829e96458fa79c2ed57929568d87f3b78c7249c"
+source = "registry"
+
+[[package]]
+name = "glb"
+version = "0.1.2"
+url = "https://github.com/loft-lang/loft-libs-assets/releases/download/glb-v0.1.2/glb-0.1.2.tar.gz"
+sha256 = "8a1021c6b4eadd6152d1c9806501514cd8d26ef901ebdc7501f406e3c82de01c"
+source = "registry"
+deps = ["mesh3d"]
+
+[[package]]
+name = "mesh3d"
+version = "0.1.1"
+url = "https://github.com/loft-lang/loft-libs-assets/releases/download/mesh3d-v0.1.1/mesh3d-0.1.1.tar.gz"
+sha256 = "de8fdb1fedea6521d90634bc40b4acab2c1bb965010d766a177e40b1e8e66cfd"
 source = "registry"

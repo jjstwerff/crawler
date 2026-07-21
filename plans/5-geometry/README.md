@@ -1,4 +1,24 @@
-# PLAN-GEOMETRY.md — two tracks: the 24-direction outline engine, and multi-layer towers & walls
+# 5 — Geometry: the 24-direction outline engine + multi-layer towers & walls
+
+**Issue:** [`jjstwerff/crawler#5`](https://github.com/jjstwerff/crawler/issues/5) ·
+**Value:** `F` · **Effort:** `VH`
+
+## Status
+
+**Future — neither track has landed.** Both are design-complete enough to start, and
+`wallgeo.loft`'s corner-graph smoother is today's stand-in. This plan **blocks the
+theme-bundles plan (#4) Phase G**: themed structures need doors, jambs and round forms
+before their shapes can move bundle-side.
+
+## Blueprint gate
+
+Exact-invariant work throughout, so CLAUDE.md's design/debug protocol governs every
+step: a **concrete plotted end-result** first, then the named invariant, then the loft
+port — never the other way round. `tools/wallproto` is the proven medium and the
+triangle-wall saga is the cautionary precedent (a small fix behind a large discovery
+cost, only pinpointable *after* the Python verify phase).
+
+---
 
 Two big features, planned per the design/debug protocol (exact-invariant work →
 BLUEPRINT PHASE in the cheapest medium, a CONCRETE plotted end-result per step,

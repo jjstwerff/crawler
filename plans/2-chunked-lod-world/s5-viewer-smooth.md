@@ -5,7 +5,7 @@
 > gated plan to make it **smooth**. It supersedes the ad-hoc checklist in `s5-viewer-hardening.md`
 > (those items survive here as V4/V5). Design-protocol shape: measured facts → the two levers →
 > gated steps → the native decision → open questions.
-> Branch: combat · Part of @PLN2 · Audit + measurements: 2026-06-16.
+> Branch: combat · Part of plan #2 · Audit + measurements: 2026-06-16.
 
 ## Measured facts (the evidence — all reproduced on this host)
 
@@ -108,8 +108,8 @@ Smooth = lever 1 (each bake cheap) **×** lever 2 (no bake ever blocks the frame
 - [x] **V10 — real Ortler source + fly camera + size-following viewport** (the DEFAULT view).
   **DONE 2026-06-16 (verified headlessly: `VIEWER_ORTSHOT=1` → `/tmp/viewer_ortler.png`, the real
   massif dual screen; golden held at 459 px).** `make viewer` now defaults to the real **80×80
-  Ortler** (@PLN1) as the dual screen: **LEFT = real OSM landcover** (A, ground truth) | **RIGHT =
-  our model's elevation bands** (B) over the SAME real DEM — the @PLN1 adequacy comparison, live in
+  Ortler** (plan #1) as the dual screen: **LEFT = real OSM landcover** (A, ground truth) | **RIGHT =
+  our model's elevation bands** (B) over the SAME real DEM — the plan #1 adequacy comparison, live in
   3D. Pipeline: a Python exporter (`plans/1-ortler-worldgen-fixture/export_ortler_loft.py`) bakes
   the npz into `src/ortlerdata.loft` (numeric literals, parse ~0.2 s — no file I/O); `src/ortlergen.loft`
   builds DetailChunks (`ortler_chunk`, A/B classifiers) fed through the **efficient overworld mesh

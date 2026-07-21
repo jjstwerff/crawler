@@ -46,9 +46,9 @@ no editor dependency.
 The game runs on loft's **games kernel** (`engine_host`): a drift-free 60 Hz
 fixed-tick loop, deterministic simulation quanta, and a wire so transparent that
 `src/observe.loft` renders a live, bit-identical spectator view of a running game
-from its intent stream alone (PLAN-KERNEL.md). The renderer is a probe-verified
+from its intent stream alone (plans/6-games-kernel/). The renderer is a probe-verified
 GPU showcase — SDF wall strokes, baked-tint terrain mesh, a directed light cone
-(RENDER.md / PLAN-RENDER.md).
+(RENDER.md / plans/7-render/).
 
 See **[DESIGN.md](DESIGN.md)** for the full design.
 

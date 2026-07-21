@@ -1,7 +1,7 @@
-// kerneltest — crawler consumes the @PLN18 engine-host games kernel (PLAN-KERNEL
+// kerneltest — crawler consumes the @PLN18 engine-host games kernel (plan #6
 // step K0): the lib resolves, the in-binary natives answer, and the wire-schema
 // table accepts registrations — all headless, no socket opened. The deeper
-// adoption (the frame loop on the kernel, then MP) is PLAN-KERNEL.md.
+// adoption (the frame loop on the kernel, then MP) is plans/6-games-kernel/.
 use engine_host;
 
 fn main() {

@@ -1,4 +1,4 @@
-// meshtest — the kernel-side terrain mesh (PLAN-RENDER P2 / RENDER.md R4): the
+// meshtest — the kernel-side terrain mesh (plan #7 P2 / RENDER.md R4): the
 // vertex-count invariant holds, wall hexes keep the wall tone, dungeon floors
 // (kind -1) stay untinted, and a surface sand hex carries the EXACT pre-composed
 // tint — expected values hardcoded from the design numbers (floor 0.80/0.745/0.59,
@@ -20,7 +20,7 @@ fn near(a: float, b: float) -> boolean {
 // stride 10, color at offset 6.
 fn hex_color(buf: vector<single>, s: Sim, gq: integer, gr: integer) -> (float, float, float) {
   base = ((gr * s.lw) + gq) * 180;
-  ((buf[base + 6] ?? 0.0) as float, (buf[base + 7] ?? 0.0) as float, (buf[base + 8] ?? 0.0) as float)
+  ((buf[base + 6] ?? 0.0f) as float, (buf[base + 7] ?? 0.0f) as float, (buf[base + 8] ?? 0.0f) as float)
 }
 
 fn main() {
@@ -81,15 +81,15 @@ fn main() {
   wbuf = build_wall_mesh(d, wsegs);
   e = 0.1284615384615;
   six_verts = len(wbuf) == 60;
-  c0 = near((wbuf[0] ?? 0.0) as float, cx - 1.0 - e) && near((wbuf[1] ?? 0.0) as float, cy - e);
-  c2 = near((wbuf[20] ?? 0.0) as float, cx + 1.0 + e) && near((wbuf[21] ?? 0.0) as float, cy + e);
-  locals_ok = near((wbuf[3] ?? 0.0) as float, 0.0 - e)     // u0 = -e
-           && near((wbuf[4] ?? 0.0) as float, 0.0 - e)     // v  = -e
-           && near((wbuf[5] ?? 0.0) as float, 2.0)         // len
-           && near((wbuf[8] ?? 0.0) as float, 0.09)        // halfw
-           && near((wbuf[9] ?? 0.0) as float, 0.0384615);  // aa
+  c0 = near((wbuf[0] ?? 0.0f) as float, cx - 1.0 - e) && near((wbuf[1] ?? 0.0f) as float, cy - e);
+  c2 = near((wbuf[20] ?? 0.0f) as float, cx + 1.0 + e) && near((wbuf[21] ?? 0.0f) as float, cy + e);
+  locals_ok = near((wbuf[3] ?? 0.0f) as float, 0.0 - e)     // u0 = -e
+           && near((wbuf[4] ?? 0.0f) as float, 0.0 - e)     // v  = -e
+           && near((wbuf[5] ?? 0.0f) as float, 2.0)         // len
+           && near((wbuf[8] ?? 0.0f) as float, 0.09)        // halfw
+           && near((wbuf[9] ?? 0.0f) as float, 0.0384615);  // aa
   evu = ((pq - d.qmin) as float + 0.5) / (d.lw as float) ?? 0.0;
-  vis_ok = near((wbuf[6] ?? 0.0) as float, evu);
+  vis_ok = near((wbuf[6] ?? 0.0f) as float, evu);
   wallmesh_ok = six_verts && c0 && c2 && locals_ok && vis_ok;
   println("wallmesh: verts={six_verts} corners={c0}/{c2} locals={locals_ok} visuv={vis_ok}");
 
@@ -99,12 +99,12 @@ fn main() {
   //    instance color == the fat mesh's color for the same hex (the shared bake).
   hexoff = build_hex_offsets();
   base_ok = len(hexoff) == 54
-         && near((hexoff[0] ?? 9.0) as float, 0.0)        // fan centre x
-         && near((hexoff[1] ?? 9.0) as float, 0.0)        // fan centre y
-         && near((hexoff[3] ?? 9.0) as float, 0.0)        // corner0 dx = 0
-         && near((hexoff[4] ?? 9.0) as float, 1.0)        // corner0 dy = 1
-         && near((hexoff[6] ?? 9.0) as float, 0.0 - 0.5)  // corner1 dx = -0.5
-         && near((hexoff[7] ?? 9.0) as float, 0.5);       // corner1 dy = 0.5
+         && near((hexoff[0] ?? 9.0f) as float, 0.0)        // fan centre x
+         && near((hexoff[1] ?? 9.0f) as float, 0.0)        // fan centre y
+         && near((hexoff[3] ?? 9.0f) as float, 0.0)        // corner0 dx = 0
+         && near((hexoff[4] ?? 9.0f) as float, 1.0)        // corner0 dy = 1
+         && near((hexoff[6] ?? 9.0f) as float, 0.0 - 0.5)  // corner1 dx = -0.5
+         && near((hexoff[7] ?? 9.0f) as float, 0.5);       // corner1 dy = 0.5
   println("base-hexagon: {base_ok} ({len(hexoff)} floats)");
 
   ibuf = build_world_instances(d);
@@ -115,12 +115,12 @@ fn main() {
   exp_col = (iq as float) + 0.5 * (ipar as float);
   exp_row = 1.5 * (ir as float);
   ib = ((1 * d.lw) + 1) * 7;
-  lat_ok = near((ibuf[ib + 0] ?? 0.0) as float, exp_col)
-        && near((ibuf[ib + 1] ?? 0.0) as float, exp_row);
+  lat_ok = near((ibuf[ib + 0] ?? 0.0f) as float, exp_col)
+        && near((ibuf[ib + 1] ?? 0.0f) as float, exp_row);
   (fr, fg, fb) = hex_color(dbuf, d, 1, 1);                // the fat mesh's color
-  icol_ok = near((ibuf[ib + 4] ?? 0.0) as float, fr)
-         && near((ibuf[ib + 5] ?? 0.0) as float, fg)
-         && near((ibuf[ib + 6] ?? 0.0) as float, fb);
+  icol_ok = near((ibuf[ib + 4] ?? 0.0f) as float, fr)
+         && near((ibuf[ib + 5] ?? 0.0f) as float, fg)
+         && near((ibuf[ib + 6] ?? 0.0f) as float, fb);
   inst_ok = base_ok && icount_ok && lat_ok && icol_ok;
   println("instances: count={icount_ok} lattice={lat_ok} color-parity={icol_ok}");
 

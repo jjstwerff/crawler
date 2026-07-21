@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ortler_render.py — the two same-scale drawings (@PLN1 S3/S4), one routine for both.
+"""ortler_render.py — the two same-scale drawings (plan #1 S3/S4), one routine for both.
 
 Feeds our real Ortler hex map into the existing world-drawing routine
 (`tools/overland_blueprint.render_window`) and renders, at the SAME scale:

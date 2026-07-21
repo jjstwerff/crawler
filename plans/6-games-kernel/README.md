@@ -1,4 +1,24 @@
-# PLAN-KERNEL.md — crawler on the games kernel (@PLN18 engine_host)
+# 6 — Games kernel: crawler on `engine_host` (@PLN18)
+
+**Issue:** [`jjstwerff/crawler#6`](https://github.com/jjstwerff/crawler/issues/6) ·
+**Value:** `F` · **Effort:** `H`
+
+## Status
+
+**Mostly shipped, tail DEFERRED.** K0/K1/K2/K5 are in and carrying the game today —
+`make play` runs on `engine_host` (verified 2026-07-21 on toolchain 2026.7.2:
+`engine_host: listening on ws://0.0.0.0:18099/`, drift-free 60 Hz). The remaining two
+steps are parked on concrete triggers, so this is a deferral, not a decline:
+
+- **K3 (live reload)** — blocked on **loft#350** (the shadow session lacks
+  registry/`--lib` resolution → "Unknown library graphics" on any real consumer) and
+  **loft#351** (only the entry file is watched, so view/bundle edits go unnoticed).
+  `src/reloadprobe.loft` + the pixel smoke stand ready; rerun on the next fix.
+- **K4 (MP lockstep)** — needs a design pass; K1/K2 shipped its foundations.
+
+Per-step detail is in the status table below; it is the source of truth, not the issue.
+
+---
 
 The user's direction (2026-06-12): **start using the new games kernel for crawler.**
 The kernel (loft @PLN18 — `../loft/lib/engine_host` + in-binary natives, verified

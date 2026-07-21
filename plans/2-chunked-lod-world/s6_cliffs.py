@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""@PLN2 S6 blueprint (cheapest medium): does per-triangle SLOPE -> cliff improve agreement with
-the real Ortler OSM vs the height-band baseline? Reuses @PLN1's mesh (1600 hexes x 18 inner
+"""plan #2 S6 blueprint (cheapest medium): does per-triangle SLOPE -> cliff improve agreement with
+the real Ortler OSM vs the height-band baseline? Reuses plan #1's mesh (1600 hexes x 18 inner
 triangles, per-triangle real OSM class + per-vertex height). This PINS the inner-triangle cliff
 rule + threshold before porting to the loft detail tier.
 
@@ -64,7 +64,7 @@ def main():
             print(f"{NAMES[c]:9s} {len(sub):6d} {np.percentile(sub,50):9.1f} "
                   f"{np.percentile(sub,90):9.1f} {np.percentile(hh,50):7.0f}")
 
-    # height-band baseline (the @PLN1 confusion() model)
+    # height-band baseline (the plan #1 confusion() model)
     base = np.select([tri_h >= 3100, tri_h >= 2800, tri_h >= 2500, tri_h >= 2150, tri_h >= 1100],
                      [GLAC, ROCK, SCREE, GRASS, WOOD], default=FARM).astype(np.int16)
 

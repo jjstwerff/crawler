@@ -23,7 +23,7 @@ of it tightens or *removes* old caveats; act on the marked items when convenient
   keeps serving the registry binding until the cache is busted (`LOFT_NO_CACHE=1`, or a
   toolchain refresh past #322 which self-invalidates). A `path` dep in `loft.toml`
   (`graphics = { path = "…" }`) is higher-precedence still and flag-independent, if a
-  committed pin is wanted. (This is the corrected story behind PLAN-RENDER's L0.)
+  committed pin is wanted. (This is the corrected story behind plan #7's L0.)
 - **Native libs are largely toolchain-free now (@PLN21 / #370, MERGED).** A loft native
   artifact is a **cdylib** linking loft-ffi's C-ABI, keyed on a *loft-ffi fingerprint*, not
   rustc — so **hand-written** native (`graphics`, `random`, `gridmesh`) is rustc-INDEPENDENT
@@ -145,7 +145,7 @@ The end-to-end flow, VERIFIED, with the gotchas that bit. Needs the **refreshed 
    stubs — **commit them** (a `.gitignore` `!**/.loft/api/` exception keeps the rest of `.loft/`
    ignored) so the out-of-`~/.loft` API surface is visible in-tree. The #322 cache never bites
    here because a VERSION bump re-keys the cache — the win over the dev `--lib` route, and it
-   **collapses the PLAN-RENDER L0 node to a version bump**. (0.2.1 consumed this way 2026-06-14,
+   **collapses the plan #7 L0 node to a version bump**. (0.2.1 consumed this way 2026-06-14,
    gate green, commit `c01faed`; the signed-install path worked with no CDN transient this time.)
 
 Side lessons:
@@ -459,7 +459,7 @@ that drives the `graphics` lib's 2D API to its modern-GPU form. Two layers, in o
 - [ ] `gl_scissor(x, y, w, h)` — partial in-layer damage redraw (RENDER.md frame-reuse
       Tier 3).
 - [x] ~~`gl_wait_events_timeout(ms)`~~ — RESOLVED by loft#343's `run_local`
-      (PLAN-KERNEL K1, 2026-06-12): the games kernel owns the loop and idles
+      (plan #6 K1, 2026-06-12): the games kernel owns the loop and idles
       between drift-free ticks, closing the idle busy-spin without a graphics-lib
       change. Kept here as the record of the gap's route.
 
@@ -639,7 +639,7 @@ testability, publication):
 
 - [ ] **L0** (S): clone `loft-libs-graphics` sibling + crawler dev `--lib` wiring
       (this box only has the registry copy).
-- [ ] **L1** (M, = PLAN-RENDER P5): the `gl_*` substrate lands IN `graphics` (native
+- [ ] **L1** (M, = plan #7 P5): the `gl_*` substrate lands IN `graphics` (native
       Rust FFI — no home choice) + one GL smoke per entry; releasable as 0.2.0 alone.
 - [ ] **L2** (S): painter v2 = a NEW pure-loft package (`canvas`) in the graphics
       chunk repo, layered ON `graphics` (graphics stays the lean binding; the canvas
@@ -721,7 +721,7 @@ flow-back (small — the Petals/Fronds port), §6 GPU 2D primitives (the big blo
 Tier-2 decouplings (opportunistic), Tier-3 (gated).
 
 **The master order for the OPEN 2D/graphics work is the dependency tree in
-PLAN-RENDER.md → "Implementation tree"** — §6's rungs (L0–L7) interleave with the
+plans/7-render/ → "Implementation tree"** — §6's rungs (L0–L7) interleave with the
 P-steps on one spine there; this doc keeps the per-rung detail, the tree owns the order.
 The next actionable node is **L0** (wire the `../loft-libs-graphics` dev `--lib`), with
 §3 (draw.py flow-back) and P7a (atlas packer) as no-dep leaves runnable alongside it.

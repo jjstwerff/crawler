@@ -39,14 +39,14 @@ fn main() {
       for ri2 in 0..len(o.ov_ruins) {
         ru = o.ov_ruins[ri2];
         if ru != null {
-          ddr = sqrt((x - ru.ru_x) * (x - ru.ru_x) + (y - ru.ru_y) * (y - ru.ru_y));
+          ddr = sqrt((x - ru.ru_x) * (x - ru.ru_x) + (y - ru.ru_y) * (y - ru.ru_y)) ?? 0.0;
           if ddr < sx * 0.75 { ch = "X"; }
         }
       }
       for wi2 in 0..len(o.ov_wiz) {
         wz = o.ov_wiz[wi2];
         if wz != null {
-          ddw = sqrt((x - wz.wz_x) * (x - wz.wz_x) + (y - wz.wz_y) * (y - wz.wz_y));
+          ddw = sqrt((x - wz.wz_x) * (x - wz.wz_x) + (y - wz.wz_y) * (y - wz.wz_y)) ?? 0.0;
           if ddw < sx * 0.75 {
             ch = "W";
             if wz.wz_dead == 1 { ch = "w"; }
@@ -56,7 +56,7 @@ fn main() {
       for ti in 0..len(o.ov_towns) {
         tw = o.ov_towns[ti];
         if tw != null {
-          dd = sqrt((x - tw.ot_x) * (x - tw.ot_x) + (y - tw.ot_y) * (y - tw.ot_y));
+          dd = sqrt((x - tw.ot_x) * (x - tw.ot_x) + (y - tw.ot_y) * (y - tw.ot_y)) ?? 0.0;
           if dd < sx * 0.75 {
             if tw.ot_size == 3 { ch = "3"; }
             if tw.ot_size == 2 { ch = "2"; }

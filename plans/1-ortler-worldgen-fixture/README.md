@@ -1,6 +1,18 @@
-# @PLN1 — Terrain-taxonomy adequacy + default tuning (real Ortler terrain)
+# 1 — Terrain-taxonomy adequacy + default tuning (real Ortler terrain)
 
-**Status:** future · **Issue:** [jjstwerff/crawler#1](https://github.com/jjstwerff/crawler/issues/1) · **Branch:** combat · **Shape:** investigation
+**Issue:** [`jjstwerff/crawler#1`](https://github.com/jjstwerff/crawler/issues/1) ·
+**Value:** `F` · **Shape:** investigation
+
+## Status
+
+**Open — the first pass concluded; the plan is being extended.** Goals 1–3 delivered:
+the 14 kinds suffice for the coarse tier, and the real-metre transition defaults are
+derived (`tuned-defaults.md`). Sub-hex *structure* (the LOD that resolves detail at all)
+is carried by plan **#2**.
+
+**What is NOT settled: how to model CLIFF FACES.** This is a taxonomy-adequacy question,
+so it belongs here rather than in #2 — #2 owns the LOD machinery, this plan owns whether
+our terrain vocabulary can represent what that machinery exposes. See *Open work* below.
 
 ## Goal
 
@@ -26,7 +38,7 @@ answer) is **two drawings of the Ortler at the same scale, side by side**:
 Same projection, extent, and cell layout, so they compare directly. The **gap between B and
 A** is the adequacy verdict; closing it is the default tuning. Static PNGs — reviewable by the
 agent (Read) *and* gateable headlessly: `gl_screenshot` under Xvfb is reliable, so the engine
-example world can be self-verified by golden diff too (PLAN-RENDER channel 2/6).
+example world can be self-verified by golden diff too (plan #7 channel 2/6).
 
 Investigation *before* engine change; an engine port is a conditional follow-on.
 
@@ -67,6 +79,8 @@ its own doc so the README stays scannable and inside its length budget. Anticipa
 
 - `intent.md` — the **frozen** recognition intent (draw-skill step 1): the gestalt
   predicates the render must satisfy, written before any mark and not edited to match output.
+- `region-fixtures.md` — PLANNED: the flexible N-region fixture design (a region as a data
+  record) + Wales as the second reference, supplying the coast/cliff ground truth.
 
 New cluster docs are added as new gaps surface; the README links them, never inlines them.
 
@@ -292,6 +306,69 @@ such checkpoint.
 
 Pre-allocated array + index-write for cell vectors (loft#320); no `vector<text>` literals in
 big fns (loft#336); `== 0` not `!x` for non-booleans.
+
+## Open work — a FLEXIBLE region-fixture system (Wales as the second region)
+
+**PLANNED — not implemented.** Design lives in **`region-fixtures.md`**.
+
+One landform family is not enough ground truth: the Ortler has no coast and no
+low-elevation cliffs, so it cannot referee plan #8's F2 (rivers → coastlines) or F3
+(hills → cliffs), and "resembles a real range" risks collapsing into "resembles this one
+seed". A **second real region — Wales / western Britain** — supplies exactly those, plus
+a *mature* upland to contrast with a *young* alpine one.
+
+The point is **flexibility, not a second special case**: a region becomes a **record**
+(name, anchor, extent, tile size, layer set) kept as data, so a third region costs data
+only and no code. The Severn window is **pinned** at **128 x 89 cells** (5.36 W..2.60 W,
+50.75 N..51.95 N) — widened past the Ortler's 80x80 so Pembroke and the inner Severn
+funnel are both on it, which also forces the record to allow a **non-square** grid. The loft side is already region-parameterized (`REGION=`,
+`src/regions/<name>.loft`, and the Makefile's worked example is literally `wales`); the
+Python importer is what is anchored to one region and needs lifting.
+
+Gate for the refactor: the Ortler must keep producing **byte-identical** output through
+the generalized path, and the I-GEO round-trip becomes a **per-region** gate.
+
+## Open work — modelling CLIFF FACES
+
+**The gap:** we still have no good way to model a cliff face. `K_FACE` exists in the
+taxonomy, but nothing yet produces faces that read as real cliffs at a believable
+density.
+
+**What is already known — do not re-derive it:**
+
+| Finding | Where | Verdict |
+|---|---|---|
+| Slope is useless as a cliff signal at 1.5 km — a hex averages a real face (tens of m) into a gentle ramp | `tuned-defaults.md` § Key finding | VERIFIED |
+| "per-triangle slope → cliff, validated by κ" | plan #2 `s6_cliffs.py` | **FALSIFIED** — at ~350 m real resolution forest is as steep as rock; +0.000 κ |
+| κ cannot referee sub-hex cliffs at all — the loft world is synthetic, so there is no real sub-hex ground truth to diff against | plan #2 `s6-subhex-finding.md` | VERIFIED — gate on **invariants**, not κ |
+| Neighbour-coupled **talus** model: bedrock + weathering rubble, rubble slides to lower neighbours at the angle of repose; stripped steep bedrock → `K_FACE`, piled rubble → `K_SCREE` | plan #2 S6.2, `src/talus.loft`, `talustest` | SHIPPED (invariant-gated: rubble conserved / repose / deterministic / watertight) |
+| The talus model's cliff-angle threshold is untuned — 50° reads **~80% face** on the steepest chunk | plan #2 S6 "Left" | OPEN — the visible symptom of this gap |
+
+So the *mechanism* exists and is invariant-gated; what is missing is a principled answer
+to **what makes a face a face** — currently a bare angle threshold, which over-produces.
+
+**Candidate directions** (unpinned — the blueprint phase decides):
+
+1. **Threshold → structure.** A face is plausibly not "steep cell" but a *coherent
+   vertical step* — a connected run of inter-cell drops. That is a shape predicate, not a
+   per-cell angle, and would naturally suppress the 80% smear.
+2. **Is one `K_FACE` kind enough?** The goal-1 question, re-asked at the fine tier: does
+   a believable range need to distinguish a true rock wall from a steep rubble slope from
+   a broken crag? Splitting the kind is in scope for *this* plan.
+3. **What is the ground truth?** κ is ruled out. The honest options are an invariant
+   (a face must have a top edge, a base, and talus below it) or a **cold-read recognition
+   test** on a rendered PNG, in the draw-skill sense — "does this read as a cliff?" —
+   which this plan already uses for its two same-scale drawings.
+
+**Method:** exact-invariant work → CLAUDE.md's design/debug protocol. Plot the concrete
+end-result first (one specific chunk, the exact faces we want to see), name the
+invariant, pin it in Python here in this workshop, and only then touch `src/talus.loft`.
+Do **not** tune the 50° constant toward a nicer screenshot — that is symptom-chasing at
+the threshold the falsified premise already left behind.
+
+**Coordination with plan #2:** #2 owns the LOD machinery and `src/talus.loft`; this plan
+owns the terrain *vocabulary* and the adequacy verdict. A kind split or a changed face
+predicate decided here lands as an S6 change there — cross-link both ways when it does.
 
 ## See also
 

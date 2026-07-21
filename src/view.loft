@@ -192,6 +192,12 @@ pub fn build_hud(s: Sim) -> Hud {
   // A loaded font is a valid index >= 0 (often 0 — the first font). gl_load_font returns
   // null on read failure / -1 on parse failure, so the "not loaded" sentinel is -1, NOT 0.
   font = -1;
+  // graphics >=0.5 resolves a relative font path against the PROGRAM, not the process
+  // cwd (loft-libs-graphics #255), so every cwd-relative candidate below now misses.
+  // Try the repo-root absolute path first — the same PWD idiom story.loft uses.
+  vroot = env_variable("PWD") ?? ".";
+  fabs = graphics::gl_load_font("{vroot}/assets/DejaVuSans-Bold.ttf");
+  if fabs != null && fabs >= 0 { font = fabs; }
   for fci in 0..len(fcands) {
     if font < 0 {
       fc = fcands[fci] ?? "";
@@ -430,12 +436,12 @@ void main() {{
 
 // Compile the world-terrain shader once (global; pass the program to view_draw).
 // (Legacy fat path — still drives the probes; the play path uses the instanced
-// shader below. PLAN-RENDER P6.)
+// shader below. plan #7 P6.)
 pub fn make_world_shader() -> integer {
   graphics::gl_create_shader(WVERT, WFRAG)
 }
 
-// R7 instanced floor (PLAN-RENDER P6): the base hexagon's corner offsets (loc0)
+// R7 instanced floor (plan #7 P6): the base hexagon's corner offsets (loc0)
 // + per-instance lattice anchor / visUV / color (loc5/6/7, divisor 1), expanded
 // to world space by the LATTICE construction  x = √3·(column+dx), y = row_y+dy
 // — watertight by design (worldmesh::build_world_instances). Reuses WFRAG
@@ -503,7 +509,7 @@ pub fn make_wall_shader() -> integer {
   graphics::gl_create_shader(WALLVERT, WALLFRAG)
 }
 
-// ── R6 post-fx: the directed light cone + vignette (PLAN-RENDER P4; constants
+// ── R6 post-fx: the directed light cone + vignette (plan #7 P4; constants
 //    mirrored EXACTLY in tools/blueprints/light_cone.py, which generates the
 //    probe expectations — retune there first, then here) ──
 //
@@ -590,7 +596,7 @@ pub fn build_world_vbo(s: Sim) -> integer {
   graphics::gl_upload_vertices(build_world_mesh(s), 10)
 }
 
-// R7 instanced floor (PLAN-RENDER P6). The base hexagon (18 verts of corner
+// R7 instanced floor (plan #7 P6). The base hexagon (18 verts of corner
 // offsets, stride 3 → loc0) is built ONCE — it never changes. Per-level the floor
 // is just a fresh instance buffer.
 pub fn build_hex_vao() -> integer {
@@ -766,7 +772,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
   graphics::gl_bind_texture(vistex, 0);
   graphics::gl_set_uniform_int(wprog, "uVis", 0);
   // R7: one instanced draw — the base hexagon (18 verts), lw·lh instances. wvao
-  // carries the per-level instance buffer (loc5/6/7). PLAN-RENDER P6.
+  // carries the per-level instance buffer (loc5/6/7). plan #7 P6.
   graphics::gl_draw_instanced(wvao, 18, s.lw * s.lh);
 
   // R5 wall strokes: ONE draw of the per-level capsule-SDF quads — solid lines

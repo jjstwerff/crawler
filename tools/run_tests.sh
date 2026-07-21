@@ -86,7 +86,7 @@ src/overlandtest.loft|OVERLAND OK|/tmp/story_overland.log|overland|[overland] th
 src/cavetest.loft|CAVE OK|/tmp/story_cave.log|cave|[cave] natural caves: mouths on the surface, narrow winding levels ...
 EOF
 
-echo "  [seam] trait seam: no engine spawn by monster key (PLAN-BUNDLES A) ..."
+echo "  [seam] trait seam: no engine spawn by monster key (plan #4 A) ..."
 if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then
   echo "    FAIL: engine references a monster key:"
   grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal
@@ -95,8 +95,8 @@ fi
 
 table <<'EOF'
 src/traveltest.loft|TRAVEL OK|/tmp/story_travel.log|travel|[travel] window crossing + the desert gate ...
-src/idletest.loft|IDLESKIP OK|/tmp/story_idle.log|idle-skip|[idle-skip] scene key: hold when idle, bump on events (PLAN-RENDER P1) ...
-src/meshtest.loft|MESH OK|/tmp/story_mesh.log|world-mesh|[mesh] world mesh: counts + exact R4 tint-bake colors (PLAN-RENDER P2) ...
+src/idletest.loft|IDLESKIP OK|/tmp/story_idle.log|idle-skip|[idle-skip] scene key: hold when idle, bump on events (plan #7 P1) ...
+src/meshtest.loft|MESH OK|/tmp/story_mesh.log|world-mesh|[mesh] world mesh: counts + exact R4 tint-bake colors (plan #7 P2) ...
 src/replaytest.loft|REPLAY OK|/tmp/story_replay.log|replay|[replay] K2 replica invariant: intents + wire codec -> identical worlds ...
 src/chunktest.loft|CHUNK OK|/tmp/story_chunk.log|chunk|[chunk] @PLN2 detail chunk: base+0.1m round-trip / watertight seam / 32x32 addressing ...
 src/chunkgeotest.loft|CHUNKGEO OK|/tmp/story_chunkgeo.log|chunk-geo|[chunk-geo] @PLN2 S1 two-tier map: overworld hex + detail raster round-trips / tier sizes ...
@@ -110,12 +110,12 @@ EOF
 # natives ride the installed binary, the lib surface rides ../loft/lib. Skip (not
 # fail) where the sibling is absent: the kernel dep is opt-in until registry-published.
 if [ -d ../loft/lib/engine_host ]; then
-  echo "  [kernel] engine_host consumable: natives + schema table (PLAN-KERNEL K0) ..."
+  echo "  [kernel] engine_host consumable: natives + schema table (plan #6 K0) ..."
   # shellcheck disable=SC2086
   "$LOFT" --interpret $FLAGS --lib ../loft/lib/ src/kerneltest.loft | tee /tmp/story_kernel.log
   grep -q "KERNEL OK" /tmp/story_kernel.log || { echo "    FAIL: kernel"; exit 1; }
 else
-  echo "  [kernel] SKIP — ../loft/lib not present (sibling-checkout dep, PLAN-KERNEL.md)"
+  echo "  [kernel] SKIP — ../loft/lib not present (sibling-checkout dep, plans/6-games-kernel/)"
 fi
 
 echo "  PASS"

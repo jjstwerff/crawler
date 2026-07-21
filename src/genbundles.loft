@@ -21,7 +21,10 @@ fn jtext(v: JsonValue, name: text, def: text) -> text {
 
 fn jint(v: JsonValue, name: text, def: integer) -> integer {
   f = v.field(name);
-  if f.kind() == "JNumber" { return f.as_long(); }
+  // whole numbers report "JInteger" (loft 2026.7.x); "JNumber" is the pre-split
+  // spelling and still covers a JSON float written where an integer is expected.
+  k = f.kind();
+  if k == "JInteger" || k == "JNumber" { return f.as_long(); }
   def
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# K2 live smoke (PLAN-KERNEL): host + observer on one Xvfb display — drive the
+# K2 live smoke (plan #6): host + observer on one Xvfb display — drive the
 # host with held keys, stop it, then compare the two exit lines: the scene keys
 # MUST be equal (the replica invariant, live over the wire). Run:
 #   FLAGS="<the LOFTFLAGS lib list>" xvfb-run -a -s "-screen 0 800x600x24" tools/k2_smoke.sh

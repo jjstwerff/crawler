@@ -1,0 +1,196 @@
+# mesh3d 0.1.1 — public API surface
+# generated from /home/jurjens/.loft/registry/mesh3d-0.1.1
+# use it with: use mesh3d;
+
+## src/math.loft
+
+// --- Vectors ---
+
+// A 2D vector / point.
+pub struct Vec2
+
+pub fn vec2(vx: float, vy: float) -> Vec2
+
+// A 3D vector / point.
+pub struct Vec3
+
+pub fn vec3(vx: float, vy: float, vz: float) -> Vec3
+
+// A 4D vector (homogeneous coordinates).
+pub struct Vec4
+
+pub fn vec4(vx: float, vy: float, vz: float, vw: float) -> Vec4
+
+// --- Vec3 operations ---
+
+pub fn add3(va: const Vec3, vb: const Vec3) -> Vec3
+
+pub fn sub3(va: const Vec3, vb: const Vec3) -> Vec3
+
+pub fn scale3(sv: const Vec3, ss: float) -> Vec3
+
+pub fn dot3(da: const Vec3, db: const Vec3) -> float
+
+pub fn cross(ca: const Vec3, cb: const Vec3) -> Vec3
+
+pub fn length3(lv: const Vec3) -> float
+
+pub fn normalize3(nv: const Vec3) -> Vec3
+
+// --- 4x4 Matrix (column-major, matching OpenGL/GLB convention) ---
+
+// A 4x4 transformation matrix stored as 16 floats in column-major order.
+// m[0..3] = column 0, m[4..7] = column 1, m[8..11] = column 2, m[12..15] = column 3.
+pub struct Mat4
+
+// Create an identity matrix.
+pub fn mat4_identity() -> Mat4
+
+// Create a translation matrix.
+pub fn mat4_translate(tx: float, ty: float, tz: float) -> Mat4
+
+// Create a uniform scale matrix.
+pub fn mat4_scale(sx: float, sy: float, sz: float) -> Mat4
+
+// Multiply two 4x4 matrices (A * B). Result = A applied after B.
+pub fn mat4_mul(ma: const Mat4, mb: const Mat4) -> Mat4
+
+// Transform a Vec3 by a Mat4 (as a point, w=1).
+pub fn mat4_transform(tm: const Mat4, tv: const Vec3) -> Vec3
+
+// Perspective projection matrix.
+// fov_y = vertical field of view in radians, aspect = width/height.
+pub fn mat4_perspective(fov_y: float, aspect: float, near: float, far: float) -> Mat4
+
+// View matrix looking from eye towards target with up direction.
+pub fn mat4_look_at(eye: const Vec3, target: const Vec3, up: const Vec3) -> Mat4
+
+// Rotation around the Y axis by angle radians.
+pub fn mat4_rotate_y(angle: float) -> Mat4
+
+// Rotation around the X axis by angle radians.
+pub fn mat4_rotate_x(angle: float) -> Mat4
+
+// Orthographic projection matrix.
+// Maps the box [left,right] x [bottom,top] x [near,far] to the [-1,1] cube.
+pub fn mat4_ortho(left: float, right: float, bottom: float, top: float, near: float, far: float) -> Mat4
+
+// Combined translate + rotate_y + scale in one call.
+pub fn mat4_trs(tx: float, ty: float, tz: float, ry: float, sx: float, sy: float, sz: float) -> Mat4
+
+## src/mesh.loft
+
+// --- Vertex and mesh ---
+
+// A single vertex with position, normal, and texture coordinates.
+pub struct Vertex
+
+pub fn vertex(vp: math::Vec3, vn: math::Vec3, vuv: math::Vec2) -> Vertex
+
+// A triangle defined by three vertex indices.
+pub struct Triangle
+
+// A mesh: a collection of vertices and triangles.
+pub struct Mesh
+
+pub fn mesh(mn: text) -> Mesh
+
+// Add a vertex to the mesh and return its index.
+pub fn add_vertex(self: Mesh, av: Vertex) -> integer
+
+// Add a triangle by vertex indices.
+pub fn add_triangle(self: Mesh, ti0: integer, ti1: integer, ti2: integer)
+
+// Build a simple quad (two triangles) from 4 vertices.
+// Vertices should be in counter-clockwise order.
+pub fn add_quad(self: Mesh, qi0: integer, qi1: integer, qi2: integer, qi3: integer)
+
+// --- Primitive builders ---
+
+// Create a unit cube centered at origin (side length 1).
+// 24 vertices (4 per face with correct per-face normals), 12 triangles.
+pub fn cube() -> Mesh
+
+// Create a flat horizontal plane centered at origin.
+// pw = width (x-axis), pd = depth (z-axis); normal = (0, 1, 0).
+pub fn plane(pn: text, pw: float, pd: float) -> Mesh
+
+// Create a UV sphere centered at origin.
+// sr = radius, ss = longitudinal slices (≥3), st = latitudinal stacks (≥2).
+// Produces (ss+1)*(st+1) vertices and ss*st*2 triangles.
+pub fn sphere(sn: text, sr: float, ss: integer, st: integer) -> Mesh
+
+// Flatten a mesh to a vector<single> for GL upload.
+// Expands triangles: for each triangle, emits 3 vertices with pos+normal (stride=6).
+// Returns the flat buffer suitable for gl_upload_vertices(data, 6).
+// Flatten a mesh to a vector<single> with UV coords for GL upload.
+// Expands triangles: for each triangle, emits 3 vertices with pos+normal+uv (stride=8).
+// Returns the flat buffer suitable for gl_upload_vertices(data, 8).
+pub fn mesh_to_floats_uv(mu: const Mesh) -> vector<single>
+
+// Flatten a mesh to a vector<single> for GL upload.
+pub fn mesh_to_floats(mf: const Mesh) -> vector<single>
+
+## src/scene.loft
+
+// --- Materials ---
+
+// A simple PBR-like material.
+pub struct Material
+
+pub fn material(mname: text) -> Material
+
+// Shorthand: opaque dielectric material with the given color.
+pub fn material_color(mname: text, mr: float, mg: float, mb: float) -> Material
+
+// Shorthand: metallic material with the given color and roughness.
+pub fn material_metal(mname: text, mr: float, mg: float, mb: float, mrough: float) -> Material
+
+pub fn set_color(self: Material, scr: float, scg: float, scb: float)
+
+// --- Scene nodes ---
+
+// A node in the scene graph with a mesh, material, and transform.
+pub struct Node
+
+pub fn node(nn: text, nm: integer, nmat: integer) -> Node
+
+// Create a node with an explicit transform (avoids mutation of transform field).
+pub fn node_at(nn: text, nm: integer, nmat: integer, xf: math::Mat4) -> Node
+
+// --- Camera ---
+
+pub struct Camera
+
+pub fn camera(cname: text) -> Camera
+
+// --- Lights (KHR_lights_punctual) ---
+
+pub enum LightType
+
+pub struct Light
+
+pub fn directional_light(ln: text, lr: float, lg: float, lb: float, li: float, ldir: math::Vec3) -> Light
+
+pub fn point_light(ln: text, lr: float, lg: float, lb: float, li: float, lpos: math::Vec3) -> Light
+
+// --- Scene ---
+
+// A complete 3D scene.
+pub struct Scene
+
+pub fn scene(sn: text) -> Scene
+
+// Add a mesh to the scene and return its index.
+pub fn add_mesh(self: Scene, sm: mesh::Mesh) -> integer
+
+// Add a material to the scene and return its index.
+pub fn add_material(self: Scene, smat: Material) -> integer
+
+// Add a node to the scene.
+pub fn add_node(self: Scene, sn: Node)
+
+// Add a camera to the scene.
+pub fn add_camera(self: Scene, sc: Camera)
+
+pub fn add_light(self: Scene, sl: Light) -> integer

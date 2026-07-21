@@ -20,7 +20,7 @@ pub const MF_POISON     = 256;  // a venomous bite — its melee can poison the 
 pub const MF_SHRINE     = 512;  // bump = INTERACT, not melee (the spawning crystal's re-spec);
                                 //   still targetable by ranged fire — destroying it is a choice
 
-// ── THE TRAIT SEAM (PLAN-BUNDLES Phase A) ────────────────────────────────────
+// ── THE TRAIT SEAM (plan #4 Phase A) ────────────────────────────────────
 // The engine never asks for a monster BY KEY — it asks the merged catalog for
 // one that FITS A PLACE. Defs declare where they live (m_habitat: a bitmask
 // over the overland terrain kinds, low 16 bits = the near/tier-1 wilds, high

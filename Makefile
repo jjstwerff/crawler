@@ -31,7 +31,7 @@
 #
 #   make shot     Render one frame under Xvfb and save story.png.
 #
-#   make probe    Pixel-probe gate (PLAN-RENDER P0): render the probe scenes
+#   make probe    Pixel-probe gate (plan #7 P0): render the probe scenes
 #                 under Xvfb (gpushot + any src/*probe.loft), then assert known
 #                 pixels via tools/probe.py against each probes/*.probe spec.
 #
@@ -45,7 +45,7 @@
 #                     its stdlib (/usr/local/share/loft) and auto-loads registry
 #                     libraries (e.g. `graphics`, declared in loft.toml) on `use`.
 #                     The ../loft SIBLING checkout is required for the games kernel
-#                     (engine_host, PLAN-KERNEL) until it is registry-published.
+#                     (engine_host, plan #6) until it is registry-published.
 #                     Keep the installed binary current with
 #                     `make install` in the loft repo; verify with `make loft-doctor`.
 #   LOFT_REPO=<dir>   Instead run that repo's freshly-built binary with its explicit
@@ -77,9 +77,9 @@ endif
 # tracks the MERGED lib state regardless of which branch the working repo has checked out.
 # After a registry release these move to version deps and the worktree flag drops.
 # ../loft/lib carries the @PLN18 games kernel (engine_host — story's loop since
-# PLAN-KERNEL K1); its natives ride the installed loft binary. Sibling checkout
+# plan #6 K1); its natives ride the installed loft binary. Sibling checkout
 # required until engine_host is registry-published.
-# NOTE (PLAN-RENDER L0): consuming the `graphics` sibling (--lib ../loft-libs-graphics/)
+# NOTE (plan #7 L0): consuming the `graphics` sibling (--lib ../loft-libs-graphics/)
 # is VERIFIED to outrank the registry copy — but the installed 0.8.5 has the #322
 # stale-program-cache bug, so it keeps the registry binding until the cache is busted.
 # Wire it at P5 (when the §6(a) substrate edits begin) AFTER a toolchain refresh past
@@ -213,7 +213,7 @@ shot:
 	    echo "  shot: FAILED"; exit 1; }
 	@echo "  wrote $(abspath $(SHOT))"
 
-# ── Pixel probes (Xvfb; PLAN-RENDER P0) ───────────────────────────────────
+# ── Pixel probes (Xvfb; plan #7 P0) ───────────────────────────────────
 # Render side: gpushot (the R1+R3 scene) + every src/*probe.loft, each a
 # deterministic scene -> gl_screenshot. Assert side: tools/probe.py per
 # probes/*.probe spec (point colors / ramps / golden diffs); exit 1 on FAIL.

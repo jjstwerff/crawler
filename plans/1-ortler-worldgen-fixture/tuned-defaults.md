@@ -1,6 +1,6 @@
 # tuned-defaults.md — data-derived terrain-transition values (realistic fantasy defaults)
 
-@PLN1 goal 3: read the elevations/slopes where terrain types actually change inside a real
+plan #1 goal 3: read the elevations/slopes where terrain types actually change inside a real
 range (the Ortler) off the data, so they become realistic world-generation defaults — not
 hand-guessed. Source: `ortler_stats.py` on `data/ortler_hexes.npz` (real OSM class + EU-DEM).
 

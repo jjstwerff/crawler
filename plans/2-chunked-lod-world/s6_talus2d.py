@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""@PLN2 S6.1 — the TALUS model in 2-D, weathering-driven rubble, on a fine alpine patch
+"""plan #2 S6.1 — the TALUS model in 2-D, weathering-driven rubble, on a fine alpine patch
 representative of the loft DETAIL tier (a base relief + fbm — the same shape ov_sample produces).
 
 Why not the real Ortler bedrock: at any samplable resolution it is too smooth to exceed the angle

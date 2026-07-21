@@ -1,4 +1,4 @@
-// idletest — the idle-skip scene key (PLAN-RENDER P1): the digest is pure (same
+// idletest — the idle-skip scene key (plan #7 P1): the digest is pure (same
 // state -> same key), HOLDS across idle frames (no input, no tick -> no redraw),
 // and BUMPS on exactly the bumping events: the clock, continuous movement,
 // turning, and each overlay scalar. Headless, deterministic.

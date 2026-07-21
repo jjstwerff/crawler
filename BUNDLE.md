@@ -62,6 +62,46 @@ The flip side of this check is the ceiling it implies — a bundle can only *set
 engine defined. How we lift that (an event/hook bus, a general deterministic script API,
 flags-as-routines, runtime-interpreted bundles) is its own staged epic: **SCRIPTING.md**.
 
+### The TRAIT seam — how the engine asks for content without naming it
+
+*(Shipped 2026-06-11. This is what makes "the engine never references a bundle by key"
+survive content moving out; before it, `sim.loft` spawned by literal key — `mon_find("goblin")`,
+a `habitat_key()` branch table — which only worked while those monsters were engine-side.)*
+
+**The engine asks the merged catalog for "a monster that fits this place", never for a
+name.** Two integer columns on `MonsterDef` carry the vocabulary (integers, not text —
+no text tables in hot paths, loft#336):
+
+- **`m_habitat`** — bit *k* set = lives on terrain kind *k* (`HB_FOREST`, `HB_MEADOW`,
+  `HB_SCREE`, `HB_SNOW`, `HB_SWAMP`, `HB_SAND`, `HB_GRASS`, …), with `HB_T2` marking the
+  far/second tier.
+- **`m_tags`** — placement roles, one bit each: `TAG_RUIN_NEST`, `TAG_RUIN_BOSS`,
+  `TAG_CAVE_ROOST`, `TAG_TOWER_DWELLER`, `TAG_GRAVE`, …
+
+Engine call sites are catalog queries, rarity/depth-weighted like `mon_choose`, with a
+deterministic per-site salt rolled in and a **graceful EMPTY out** — no candidates means
+the nest simply stays silent, never a crash:
+
+| Was | Is |
+|---|---|
+| `habitat_key(kind, tier, pick)` | `mon_choose_habitat(tbl, kind, tier, roll)` |
+| ruins `goblin` / `goblin_leader` | `TAG_RUIN_NEST` / `TAG_RUIN_BOSS` |
+| dead-city `skeleton` / `zombie` | `TAG_GRAVE` |
+| cave-mouth `giant_bat` | `TAG_CAVE_ROOST` |
+| abandoned tower `skeleton` | `TAG_TOWER_DWELLER` |
+
+The chooser picks **uniformly over the candidates in catalog order** — a faithful
+*distribution*, not a bit-exact census of the old `pick % 3` orderings, which carried no
+design weight. So the gate asserts habitat **correctness** rather than a fixed census:
+
+- `sim_wilds_ok` (surfacetest) proves every wild creature that declares a habitat is
+  standing on terrain it actually claims.
+- `tools/run_tests.sh` fails the build on any `mon_find("` literal in `src/` outside
+  `spawn_crystal` — the seam gate, so the de-keying cannot silently regress.
+
+**`spawn_crystal` is the one permitted engine creature**: it is the respawn/shrine
+*mechanism* wearing a monster's body, not content.
+
 ## Bundles compose — and the entry point is a bundle too
 
 **Bundles link to other bundles via scripts (routines).** A bundle's hooks can
@@ -208,7 +248,7 @@ three tiers:
    digest — a mismatch prints "bundle X found but not wired — run make bundles"
    instead of silently missing content. Engine compares DATA (keys vs digest),
    never naming a bundle — the standing check holds.
-3. **"Next world" — the in-game reload (PLAN-KERNEL K5). v1 SHIPPED 2026-06-12:
+3. **"Next world" — the in-game reload (plan #6 K5). v1 SHIPPED 2026-06-12:
    press N in-game — the scanner (`src/genbundles.loft`, a module the game calls)
    re-scans in-process, the new seed rides `.story_next`, and `make play`'s
    restart loop relaunches into the new world. The original design: port the scanner to loft (stdlib verified sufficient: `files()`

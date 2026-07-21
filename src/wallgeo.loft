@@ -222,7 +222,7 @@ pub fn build_walls(s: Sim) -> vector<WallSeg> {
         dy = ln.by - ln.ay;
         l2 = dx * dx + dy * dy;
         if l2 > 0.0 {
-          t = ((c.x - ln.ax) * dx + (c.y - ln.ay) * dy) / l2;
+          t = (((c.x - ln.ax) * dx + (c.y - ln.ay) * dy) / l2) ?? 0.0;
           if t >= tlo && t <= 1.12 {
             fx = ln.ax + t * dx;
             fy = ln.ay + t * dy;

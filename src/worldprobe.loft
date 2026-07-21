@@ -1,4 +1,4 @@
-// worldprobe — R4 probe scene (PLAN-RENDER P2): the depth-0 surface rendered
+// worldprobe — R4 probe scene (plan #7 P2): the depth-0 surface rendered
 // through the REAL view pipeline (worldmesh bake → view's VBO/shader/vis/camera),
 // with the heading flipped once after the first FOV so the hexes that fell out of
 // the forward cone are REMEMBERED (seen, not visible) — both dim states land in

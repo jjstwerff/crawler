@@ -1,6 +1,6 @@
 # S5 — the chunked-LOD terrain viewer (detailed design)
 
-> Detail doc for @PLN2 step **S5**. The README has the one-paragraph spec; this file is
+> Detail doc for plan #2 step **S5**. The README has the one-paragraph spec; this file is
 > the worked design that fills in as facts land (per the plan rule: iterate details in
 > separate `.md` files). Design-protocol shape: concrete end-result → invariants → reuse
 > map → gated sub-steps → open questions.
@@ -168,6 +168,6 @@ change per chunk.)
   diff vs `tools/golden/viewer_s5e.png` with imagemagick `compare -fuzz 6%`, threshold 800 px; on
   first run with no golden it prints the adopt command). **Gate met:** `viewer-gold` green at **0**
   differing pixels vs the golden. (The original A=real-from-seed / B=model comparison reuses this
-  exact split once @PLN1's real-height seed is ported into loft; until then the panes show the two
+  exact split once plan #1's real-height seed is ported into loft; until then the panes show the two
   LODs of the model.) **User aesthetic sign-off pending** (the one thing the agent can't self-judge).
-  **S5 done; next is S6** (sub-hex cliffs/channels at the 1.5 m tier — the @PLN1 κ re-run).
+  **S5 done; next is S6** (sub-hex cliffs/channels at the 1.5 m tier — the plan #1 κ re-run).

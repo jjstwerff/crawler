@@ -51,7 +51,7 @@ GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
 GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
                     // walk onto the entrance to descend into the dungeon (depth 1: rats/bats/…)
 
-// K1 (PLAN-KERNEL): the world the kernel's closures capture — ONE struct link
+// K1 (plan #6): the world the kernel's closures capture — ONE struct link
 // (the loft#314 struct-held-world pattern; closures stay arguments per #313).
 // Every loop-mutated value lives here; immutables (painter, programs, the post
 // target) are captured directly.
@@ -101,7 +101,7 @@ struct GameWorld {
   frames_drawn: integer not null,
 }
 
-// Boot pump (PLAN-KERNEL § Boot responsiveness, fix 2): the interpreted boot
+// Boot pump (plan #6 § Boot responsiveness, fix 2): the interpreted boot
 // takes seconds AFTER the window exists — without event pumping the compositor
 // flags a frozen window and polled input has nowhere to land. Between boot
 // phases: feed the WM, draw a font-free progress bar (the font itself loads in

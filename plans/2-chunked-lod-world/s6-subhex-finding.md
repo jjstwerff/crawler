@@ -1,7 +1,7 @@
 # S6 — sub-hex cliffs/channels: blueprint finding (the κ premise is falsified)
 
-> Detail doc for @PLN2 **S6**. Per the design-protocol, S6 started in the cheapest medium (the
-> @PLN1 Ortler Python, which has real OSM + real EU-DEM per triangle) **before** any loft code.
+> Detail doc for plan #2 **S6**. Per the design-protocol, S6 started in the cheapest medium (the
+> plan #1 Ortler Python, which has real OSM + real EU-DEM per triangle) **before** any loft code.
 > The blueprint *falsified* the core hypothesis cheaply. This records the result + the fork.
 > Prototype: `s6_cliffs.py` (run from `plans/2-chunked-lod-world/`).
 
@@ -9,13 +9,13 @@
 
 > At the 1.5 m detail tier, per-triangle **slope** resolves **cliffs** (`K_FACE`) and the fed
 > **flow** resolves **channels** (`K_RIVER`) that the 1.5 km hex classification blurs — and the
-> @PLN1 **spatial-κ**, re-run at the fine tier, *improves* for cliff / channel / rock-scree.
+> plan #1 **spatial-κ**, re-run at the fine tier, *improves* for cliff / channel / rock-scree.
 
 ## What the data says (real Ortler, 1600 hexes × 18 inner triangles, per-triangle OSM + EU-DEM)
 
 The triangle vertices are **real EU-DEM samples** at the 19 sub-hex points (hex centre + 6 corners
 + 12 edge-thirds, ~250–750 m spacing) — not interpolation. So this is the finest *real* signal the
-@PLN1 fixture holds.
+plan #1 fixture holds.
 
 **Per-OSM-class triangle slope (deg):**
 
@@ -43,13 +43,13 @@ what the cheap medium is for, before writing loft code that couldn't have hit it
 
 ## Why — two compounding reasons
 
-1. **Resolution.** Real cliffs are <100 m features; the @PLN1 fixture samples at ~250–750 m. A
+1. **Resolution.** Real cliffs are <100 m features; the plan #1 fixture samples at ~250–750 m. A
    cliff is averaged into the general mountainside slope. To *test* sub-100 m cliffs we'd need a
    **dense 25 m DEM + 25 m OSM raster** for a small sub-window (not hex-point samples).
 2. **The loft detail tier samples synthetic fbm, not real terrain.** Even a working cliff rule in
    loft would carve cliffs out of *procedural noise* over the contract wilderness — there is **no
    real reference to compute κ against** for the loft world. The κ gate only ever made sense in the
-   @PLN1 Ortler-Python world; it does not transfer to the loft detail tier as-is.
+   plan #1 Ortler-Python world; it does not transfer to the loft detail tier as-is.
 
 ## The fork (needs a decision)
 
@@ -79,7 +79,7 @@ The fork above resolved by reframing from *classification-of-real* to *geomorpho
 - Where bedrock alone exceeds repose, rubble strips away → **bare rock face (`K_FACE`)**; the shed
   rubble piles at the base → **scree talus (`K_SCREE`)**. **Cliff placement + height = the bedrock
   step to neighbours** — fully neighbour-coupled (no per-triangle-in-isolation slope).
-- **Combined with ZAngband:** the coarse, neighbour-blended classification (@PLN1's model — rock
+- **Combined with ZAngband:** the coarse, neighbour-blended classification (plan #1's model — rock
   zones grow into neighbours, coherent adjacent-triangle noise) sets *where* a cell is bedrock-rocky
   (eligible for faces) vs soil-mantled (forest/grass — vegetation holds rubble, no faces). The talus
   runs within the rocky zones.

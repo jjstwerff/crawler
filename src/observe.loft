@@ -1,4 +1,4 @@
-// observe — the K2 observer (PLAN-KERNEL): a read-only live view of a running
+// observe — the K2 observer (plan #6): a read-only live view of a running
 // story host. Connects to ws://host:18099, receives the intent log (genesis +
 // history), replays it onto a fresh replica Sim, then applies the live
 // broadcasts — the replica stays scene_key-identical to the host's world
@@ -45,7 +45,7 @@ fn obs_rebuild(w: ObsWorld) {
   w.walls = build_walls(w.s);
   w.hud = build_hud(w.s);
   // R7 instanced floor: the base hexagon is built once; each level just re-uploads
-  // the per-hex instance buffer (PLAN-RENDER P6).
+  // the per-hex instance buffer (plan #7 P6).
   if w.wvao == 0 {
     w.wvao = build_hex_vao();
     w.wivbo = build_world_ivbo(w.wvao, w.s);

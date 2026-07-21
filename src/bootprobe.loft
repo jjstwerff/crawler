@@ -1,4 +1,4 @@
-// bootprobe — time the boot phases on either tier (PLAN-KERNEL § Start-time
+// bootprobe — time the boot phases on either tier (plan #6 § Start-time
 // budget). Interpreted today: parse 522ms / genesis ~4.8s / meshes ~0.8s.
 // THE standing measurement for when loft#354 clears the native tier:
 //   loft --interpret <libs> src/bootprobe.loft     (the interpreted floor)

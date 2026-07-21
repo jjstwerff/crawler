@@ -1,0 +1,80 @@
+# hex_grid 0.1.0 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_grid-0.1.0
+# use it with: use hex_grid;
+
+## src/hex_grid.loft
+
+pub const SQRT3    = 1.7320508075688772
+
+pub const HEX_SIZE = 1.0
+
+pub const HEX_LEN  = 1.7320508075688772
+
+// Hex (col,row) -> world-plane centre (x,y). Pointy-top, ODD-R OFFSET (moros's
+// convention): odd rows shifted half a hex right, so a rectangle of cells stays
+// UPRIGHT (axial sheared them). Throughout the kernel (q,r) ARE offset (col,row).
+pub fn hex_to_px(q: integer, r: integer) -> (float, float)
+
+// Round fractional cube coords to the nearest hex; return axial (q,r).
+pub fn hex_round(qf: float, rf: float) -> (integer, integer)
+
+// World-plane point (x,y) -> nearest hex (col,row). Axial-fractional inverse +
+// cube round, then convert axial -> odd-r offset (col = q + (r - (r&1))/2).
+pub fn px_to_hex(x: float, y: float) -> (integer, integer)
+
+// The six neighbour directions (0=E, 1=SE, 2=SW, 3=W, 4=NW, 5=NE; r increases
+// upward). ODD-R OFFSET, so the four diagonal deltas differ by row parity. The
+// compass order matches the old axial one, so edge_corners/canon_edge are unchanged.
+pub fn hex_neighbor(q: integer, r: integer, dir: integer) -> (integer, integer)
+
+// Hex distance in steps — convert odd-r offset -> axial, then cube distance.
+pub fn hex_distance(q1: integer, r1: integer, q2: integer, r2: integer) -> integer
+
+// Which of the 6 neighbour directions leads from (q1,r1) to adjacent (q2,r2)?
+// Inverse of hex_neighbor (odd-r offset, parity-dependent on r1); -1 if not adjacent.
+pub fn hex_neighbor_dir(q1: integer, r1: integer, q2: integer, r2: integer) -> integer
+
+// Corner offset of a pointy-top unit hex (circumradius 1), corner 0 = top,
+// going counter-clockwise. Used to place edge endpoints and wall segments.
+pub fn hex_corner_offset(i: integer) -> (float, float)
+
+// World-plane position of corner i of hex (q,r).
+pub fn hex_corner_px(q: integer, r: integer, i: integer) -> (float, float)
+
+// The two corner indices bounding the edge in neighbour direction `dir`.
+pub fn hex_edge_corners(dir: integer) -> (integer, integer)
+
+// Resolve any of the 6 directions to the owning hex + canonical edge index
+// (0,1,2). Dirs 0,1,2 are stored on this hex; 3,4,5 on the neighbour.
+pub fn hex_canon_edge(q: integer, r: integer, dir: integer) -> (integer, integer, integer)
+
+pub const GRID_SIZE = 1.0
+
+pub const GRID_LEN  = 1.0
+
+// Cell (q,r) -> world centre.
+pub fn cell_to_px(q: integer, r: integer) -> (float, float)
+
+// World point -> the cell containing it (cells centred on integers).
+pub fn px_to_cell(x: float, y: float) -> (integer, integer)
+
+// 4 orthogonal directions: 0=E, 1=S, 2=W, 3=N.
+pub fn cell_neighbor(q: integer, r: integer, dir: integer) -> (integer, integer)
+
+// Inverse of cell_neighbor; -1 if not orthogonally adjacent.
+pub fn cell_neighbor_dir(q1: integer, r1: integer, q2: integer, r2: integer) -> integer
+
+// King-move (Chebyshev) distance — matches 8-directional movement.
+pub fn cell_distance(q1: integer, r1: integer, q2: integer, r2: integer) -> integer
+
+// Corner offsets of a unit cell (centre origin): 0=NW,1=NE,2=SE,3=SW (y down).
+pub fn cell_corner_offset(i: integer) -> (float, float)
+
+pub fn cell_corner_px(q: integer, r: integer, i: integer) -> (float, float)
+
+// The two corner indices bounding the edge in direction dir.
+pub fn cell_edge_corners(dir: integer) -> (integer, integer)
+
+// Resolve any of the 4 directions to the owning cell + canonical edge (0=E,1=S);
+// W/N delegate to the neighbour (each physical edge stored once).
+pub fn cell_canon_edge(q: integer, r: integer, dir: integer) -> (integer, integer, integer)

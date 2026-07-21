@@ -318,7 +318,7 @@ fn fly_forward(fc: FlyCam) -> (float, float, float) {
 fn build_mvp_fly(fc: FlyCam, aspect: float) -> math::Mat4 {
   (fx, fy, fz) = fly_forward(fc);
   // right = normalize(forward x worldUp);  worldUp = (0,1,0) -> (-fz, 0, fx)
-  rxl = sqrt(fz * fz + fx * fx);
+  rxl = sqrt(fz * fz + fx * fx) ?? 0.0;
   if rxl < 0.0001 { rxl = 0.0001; }
   rx = (0.0 - fz) / rxl;
   rz = fx / rxl;
@@ -424,7 +424,7 @@ fn main() {
   }
   // zoom 18000 frames the full ~12.7 km world with margin (no peak clipping) at build_mvp's fixed
   // 3/4 bird's-eye angle; focal_y a quarter up the relief sits the land mid-frame. Headless-tuned
-  // via VIEWER_OVSHOT (gl_screenshot is reliable; CLAUDE.md / PLAN-RENDER P0).
+  // via VIEWER_OVSHOT (gl_screenshot is reliable; CLAUDE.md / plan #7 P0).
   ovcam = ViewerCam { focal_x: owcx, focal_y: ominh + (omaxh - ominh) * 0.25, focal_z: owcz,
                       zoom: 18000.0 };
 
@@ -678,7 +678,7 @@ fn main() {
       step = spd * dt;
       // look-relative basis: forward + a horizontal right vector (for strafing)
       (fwx, fwy, fwz) = fly_forward(flycam);
-      rxl = sqrt(fwz * fwz + fwx * fwx);
+      rxl = sqrt(fwz * fwz + fwx * fwx) ?? 0.0;
       if rxl < 0.0001 { rxl = 0.0001; }
       rgx = (0.0 - fwz) / rxl;
       rgz = fwx / rxl;
@@ -726,7 +726,7 @@ fn main() {
 
   // OVSHOT: headless full-landscape frame (the overworld-view gate, mirrors smoke). Bake the one
   // overworld chunk, render the single full-window pane, screenshot, exit. Xvfb + gl_screenshot
-  // is reliable (CLAUDE.md / PLAN-RENDER P0), so the full-landscape framing is self-verifiable.
+  // is reliable (CLAUDE.md / plan #7 P0), so the full-landscape framing is self-verifiable.
   ovshot = env_variable("VIEWER_OVSHOT");
   if ovshot == "1" {
     _bo = window_update(o, ld_cx, ld_cz, ld_vao, ofx, ofz, OVERWORLD_RAD, true, false, idx);

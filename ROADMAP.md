@@ -61,11 +61,11 @@ Build in order; each is small + headless-tested where it's kernel logic.
   sprite batch R8 — absorbs the sprite atlas) behind
   the `graphics` flow-backs (EXTRACTION.md § GPU 2D primitives, which also carries the
   simple-verbs-over-batched-backend painter API). `moros_render` 3D-bridge groundwork.
-  Step plan + verification channels: **PLAN-RENDER.md**.
+  Step plan + verification channels: **plans/7-render/**.
 - **The platform track** (crosscutting, largely SHIPPED 2026-06-12): the games
   kernel owns the loop (drift-free ticks, idle backoff), crawler hosts a live
   spectator (`observe.loft`, bit-identical replica), N = next world re-scans
-  bundles, and shipping distance is mapped — **PLAN-KERNEL.md**.
+  bundles, and shipping distance is mapped — **plans/6-games-kernel/**.
 
 ## Phase 3 — the world → **M-World** (player-chosen difficulty, §3a #9)
 
@@ -93,7 +93,7 @@ Build in order; each is small + headless-tested where it's kernel logic.
   native; the renderer-agnostic kernel drives it unchanged.
 - **Multiplayer** — the foundations SHIPPED with the platform track (K1 fixed
   quanta + K2's intent wire: a live observer renders a bit-identical replica
-  today); MP proper = K4 in PLAN-KERNEL.md (intents flow both ways; the G4 save
+  today); MP proper = K4 in plans/6-games-kernel/ (intents flow both ways; the G4 save
   format doubles as the net/replay snapshot).
 
 ## The path in one line

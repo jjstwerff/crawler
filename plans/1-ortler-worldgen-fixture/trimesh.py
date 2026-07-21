@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""trimesh.py — the triangle-vertex DATAPOINT evaluation for @PLN1.
+"""trimesh.py — the triangle-vertex DATAPOINT evaluation for plan #1.
 
 Each 1.5 km hex is a center-fan: every side is split into 3, so each side gives 3
 triangles → 18 triangles / hex, over 19 vertices (center + 6 corners + 12 edge-thirds).

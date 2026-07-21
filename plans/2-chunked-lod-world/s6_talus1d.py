@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""@PLN2 S6 blueprint — the TALUS model, pinned in the cheapest medium (1-D cliff cross-section).
+"""plan #2 S6 blueprint — the TALUS model, pinned in the cheapest medium (1-D cliff cross-section).
 
 Each cell has BEDROCK + a RUBBLE layer. Rubble can't hold a slope steeper than the angle of
 repose, so it slides to lower neighbours (a sandpile relaxation) until every rubble surface is

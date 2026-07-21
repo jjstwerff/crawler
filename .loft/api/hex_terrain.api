@@ -1,0 +1,97 @@
+# hex_terrain 0.1.0 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_terrain-0.1.0
+# use it with: use hex_terrain;
+
+## src/hex_terrain.loft
+
+// One terrain type = content (a bundle row in the consuming game).
+// tt_rise and tt_steep are INDEPENDENT; tt_wet marks water bodies (sea/lake):
+// they take no relief and no boundary contest.
+pub struct TerrainType
+
+// Algorithm parameters (engine side).  terrain_params() gives the blueprint's
+// user-tuned defaults; every field is meters unless noted.
+pub struct TerrainParams
+
+pub fn terrain_params(seed: integer, tile: float) -> TerrainParams
+
+// Parallel per-cell vectors, index = r * tr_nx + c (odd-r offset coords).
+pub struct Terrain
+
+pub fn terrain_new(nx: integer, ny: integer) -> Terrain
+
+pub fn terrain_idx(t: Terrain, c: integer, r: integer) -> integer
+
+// Cell center in world meters — hex_grid's odd-r lattice scaled so the
+// horizontal pitch equals tp_tile (hex_grid's unit pitch is SQRT3).
+pub fn terrain_center(p: TerrainParams, c: integer, r: integer) -> (float, float)
+
+// The downstream cell of (c, r) — itself when it has no flow direction.
+pub fn terrain_flow_to(t: Terrain, c: integer, r: integer) -> (integer, integer)
+
+pub fn terrain_hash01(seed: integer, ix: integer, iy: integer, ch: integer) -> float
+
+pub fn terrain_vnoise(seed: integer, x: float, y: float, wl: float, ch: integer) -> float
+
+// Fractal sum, roughly in [-1, 1].
+pub fn terrain_fbm(seed: integer, x: float, y: float, wl0: float, octaves: integer, ch: integer) -> float
+
+// Detail noise with DOMAIN WARP (the sampling space is swirled by a second
+// noise so the value-noise lattice never reads as a repeating pattern).
+pub fn terrain_detail_at(p: TerrainParams, x: float, y: float) -> float
+
+// LOW-frequency ridged field, crest-sharpened: roughly ONE combined crest per
+// steep zone — peaks consolidate into ridgelines instead of speckling.
+pub fn terrain_ridge_at(p: TerrainParams, x: float, y: float) -> float
+
+// PRIORITY-FLOOD pit fill + steepest-descent flow + accumulation.  After this
+// every land cell drains to the sea; cells the flood raised by more than
+// tp_lake_fill become lakes (material set to lake_mat).  Selection-based
+// flood (O(n^2)) — overland grids are small and this runs once at gen time.
+pub fn terrain_hydrology(t: Terrain, p: TerrainParams, lake_mat: integer)
+
+// Wet flags + the compounded neighbor relief.  Call AFTER the caller has
+// classified land materials (relief reads the final wet set).
+pub fn terrain_relief_pass(t: Terrain, types: vector<TerrainType>, p: TerrainParams)
+
+// One blended surface record at a fine point.
+pub struct TerrainSurf
+
+// Smooth kernel blend of the overland cells around (x, y) + the boundary-line
+// contest + the fine height.  Pure function — THE seam invariant lives here.
+pub fn terrain_surface_at(t: Terrain, types: vector<TerrainType>, p: TerrainParams, x: float, y: float) -> TerrainSurf
+
+// Lightweight coarse-blend height only (for slopes along river courses).
+pub fn terrain_blend_h(t: Terrain, p: TerrainParams, x: float, y: float) -> float
+
+// The fractally jittered lake contour field (>= 0.5 = lake water).
+pub fn terrain_lake_field(p: TerrainParams, x: float, y: float, lakey: float) -> float
+
+// Is (x, y) open water (sea by the fine height contour, or lake)?  PRE-carve —
+// this is the shoreline rivers attach to.
+pub fn terrain_water_at(t: Terrain, types: vector<TerrainType>, p: TerrainParams, x: float, y: float) -> boolean
+
+// One river course PIECE: fine polyline (ends ON the shorelines) with
+// per-vertex water width, carve depth and valley falloff width.
+pub struct TerrainRiver
+
+// THE EDGE BIT (user rule): a river never exits mid-side; each shared edge
+// carries one canonical left/right bit.  Both tiles hash the SORTED cell pair,
+// so they derive the same crossing point — seamless.
+pub fn terrain_edge_cross(p: TerrainParams, ca: integer, ra: integer, cb: integer, rb: integer) -> (float, float)
+
+// The interior routing point of a tile (hash-jittered off-center; the natural
+// confluence spot — tributaries entering the tile share it).
+pub fn terrain_control_pt(p: TerrainParams, c: integer, r: integer) -> (float, float)
+
+// All river course pieces, fully shaped: anchors (edge bits + control points)
+// -> fractal displacement -> corner-cut smoothing -> shoreline trim -> width/
+// depth/valley-width per vertex (slope-shaped + the estuary depth bonus).
+pub fn terrain_rivers(t: Terrain, types: vector<TerrainType>, p: TerrainParams) -> vector<TerrainRiver>
+
+pub struct TerrainSample
+
+// The full sample: surface + ADDITIVE valley carving from every course near
+// the point + the water classification (sea floods the carved mouth).  Pure
+// function of (t, types, p, rivers, x, y) — THE window-independence invariant.
+pub fn terrain_sample(t: Terrain, types: vector<TerrainType>, p: TerrainParams, rivers: vector<TerrainRiver>, x: float, y: float) -> TerrainSample
