@@ -22,3 +22,4 @@ tools/_triangle/
 plans/1-ortler-worldgen-fixture/data/osm_polys.npz
 **/__pycache__/
 plans/1-ortler-worldgen-fixture/out/
+plans/5-geometry/out/

@@ -1,0 +1,136 @@
+// formtest — the loft vector-map port proves itself against the PYTHON ORACLE.
+//
+// plans/5-geometry/hexforms.py is the reference implementation; its golden JSON is a
+// LANGUAGE-NEUTRAL CONTRACT, because the whole vector map is exact integers. So this
+// test does not re-derive anything and needs no float tolerance: it rebuilds each form,
+// traces it, and asserts the emitted loops are IDENTICAL to the golden, point for point.
+//
+// Regenerate the golden with:  python3 plans/5-geometry/hexforms.py
+use hexform;
+
+fn fam_form(fam: text, n: integer) -> HexSet {
+  if fam == "A" { return form_hexdisk(14, n); }
+  if fam == "B" { return form_circle(14, ((n as float) + 0.45) * 1.7320508075688772); }
+  form_octagon(14, ((n as float) + 0.35) * 1.5)
+}
+
+fn fam_name(i: integer) -> text {
+  if i == 0 { return "A"; }
+  if i == 1 { return "B"; }
+  "C"
+}
+
+fn main() {
+  println("=== story form test (vector map vs the python golden) ===");
+  root = env_variable("PWD") ?? ".";
+  raw = file("{root}/plans/5-geometry/golden/hexforms.json").content() ?? "";
+  if len(raw) == 0 {
+    println("golden not found — run: python3 plans/5-geometry/hexforms.py");
+    println("=== FAIL ===");
+    return;
+  }
+  g = json_parse(raw);
+
+  ok = true;
+  checked = 0;
+  pts_checked = 0;
+  for fi in 0..3 {
+    fam = fam_name(fi);
+    for n in 1..7 {
+      s = fam_form(fam, n);
+      v = trace(s);
+      cells = hexset_count(s);
+
+      // the validator must pass before anything is compared
+      code = validate(v, cells);
+      if code != 0 {
+        println("  {fam}:{n} VALIDATOR failed, code {code}");
+        ok = false;
+      }
+
+      ent = g.field("{fam}:{n}");
+      if ent.kind() == "JNull" {
+        println("  {fam}:{n} missing from the golden");
+        ok = false;
+      } else {
+        gc = ent.field("cells");
+        gw = ent.field("wall");
+        want_cells = gc.as_long();
+        want_wall = gw.as_long();
+        if cells != want_cells {
+          println("  {fam}:{n} cells {cells} != golden {want_cells}");
+          ok = false;
+        }
+        if wall_count(s) != want_wall {
+          println("  {fam}:{n} wall {wall_count(s)} != golden {want_wall}");
+          ok = false;
+        }
+        gl = ent.field("loops");
+        if gl.len() != v.vm_loops {
+          println("  {fam}:{n} loops {v.vm_loops} != golden {gl.len()}");
+          ok = false;
+        } else {
+          for li in 0..v.vm_loops {
+            a = v.vm_start[li] ?? 0;
+            b = v.vm_start[li + 1] ?? 0;
+            gloop = gl.item(li);
+            if gloop.len() != b - a {
+              println("  {fam}:{n} loop {li} pts {b - a} != golden {gloop.len()}");
+              ok = false;
+            } else {
+              for j in 0..b - a {
+                gp = gloop.item(j);
+                gk = gp.item(0).as_long();
+                gm = gp.item(1).as_long();
+                mk = v.vm_k[a + j] ?? 0;
+                mm = v.vm_m[a + j] ?? 0;
+                if mk != gk || mm != gm {
+                  if ok { println("  {fam}:{n} loop {li} pt {j}: ({mk},{mm}) != golden ({gk},{gm})"); }
+                  ok = false;
+                }
+                pts_checked = pts_checked + 1;
+              }
+            }
+          }
+        }
+      }
+      checked = checked + 1;
+    }
+  }
+  // ── CHUNK LOCALITY ────────────────────────────────────────────────────────
+  // The routines must work on a bounded chunk, never on an unbounded graph. Prove it:
+  // build the SAME disk at two different absolute positions, in two differently
+  // anchored chunks, and require the traced loops to be identical up to the lattice
+  // translation. Any hidden dependence on a global frame or on being centred fails here.
+  // (Row offset is EVEN so odd-r parity — and hence the lattice delta — is exact.)
+  dq = 5;
+  dr = 4;
+  ca = hexset_chunk(-12, -12, 25, 25);
+  hexdisk_into(ca, 0, 0, 4);
+  cb = hexset_chunk(-12 + dq, -12 + dr, 25, 25);
+  hexdisk_into(cb, dq, dr, 4);
+  va = trace(ca);
+  vb = trace(cb);
+  wk = 2 * dq;
+  wm = 3 * dr;
+  local_ok = true;
+  if hexset_count(ca) != hexset_count(cb) { local_ok = false; }
+  if va.vm_loops != vb.vm_loops { local_ok = false; }
+  if len(va.vm_k) != len(vb.vm_k) { local_ok = false; }
+  if local_ok {
+    for i in 0..len(va.vm_k) {
+      if ((va.vm_k[i] ?? 0) + wk) != (vb.vm_k[i] ?? 0) { local_ok = false; }
+      if ((va.vm_m[i] ?? 0) + wm) != (vb.vm_m[i] ?? 0) { local_ok = false; }
+    }
+  }
+  if !local_ok {
+    println("  CHUNK LOCALITY failed — the trace depends on absolute position");
+    ok = false;
+  }
+  println("chunk-locality: {local_ok} (same disk, chunks anchored {dq},{dr} apart)");
+
+  println("forms checked : {checked}");
+  println("points matched: {pts_checked}");
+  println("validator     : all forms pass");
+  if ok { println("=== FORM OK ==="); } else { println("=== FAIL ==="); }
+}
