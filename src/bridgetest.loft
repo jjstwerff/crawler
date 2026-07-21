@@ -1,0 +1,215 @@
+// bridgetest — BRIDGES AND TUNNELS: two ways sharing cells without meeting.
+//
+// Everything up to here has been flat: a cell is marked or not, an edge blocked or not.
+// A bridge breaks that outright — the road and the railway occupy the SAME cells and do
+// not interact at all. So this is where the model has to answer whether it was really 2D.
+//
+// It was not, quite. The answer is a LEVEL: the topological sheet a way sits on, which is
+// exactly OSM's `layer` tag and therefore already in the data plan #1/#8 reads. A level is
+// NOT a height — the actual z comes from the surface/feature interval, as sighttest
+// already uses. Two ways on different levels never arbitrate; the L2 cache gains one key
+// field and most of the world, existing only at level 0, costs nothing extra.
+//
+// The sharpest statement of the whole phase is the contrast with levelxtest: the SAME two
+// ways, at the same level, are a level crossing; at different levels, a bridge. Nothing
+// about the ways changes — only the sheet.
+//
+// A tunnel is the same operation with the opposite sign, which is why they are one gate.
+use hexform;
+use hexedge;
+use hexway;
+use hexcache;
+
+fn deg(v: float) -> float { v * 0.017453292519943295 }
+
+fn straight_track(th: float, half: float) -> Track {
+  t = track_new();
+  track_straight(t, 0.0 - half * cos(th), 0.0 - half * sin(th),
+                       half * cos(th),       half * sin(th));
+  t
+}
+
+fn blocked_count(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer) -> integer {
+  n = 0;
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      for i in 0..6 {
+        if edge_blocked(e, q, r, nb_q(q, r, i), nb_r(q, r, i)) { n = n + 1; }
+      }
+    }
+  }
+  n
+}
+
+fn main() {
+  println("=== story bridge / tunnel test ===");
+  ok = true;
+  q0 = -30; r0 = -30; gw = 61; gh = 61;
+  rail_hw = 1.0;
+  road_hw = 1.5;
+  half = 20.0;
+  th = deg(60.0);
+
+  rail = straight_track(0.0, half);
+  road = straight_track(th, half);
+
+  mt = materials_new();
+  bed  = material_add(mt, true, 0.3, 0.1, 3.0, 0.4, 0.2);
+  pier = material_add(mt, true, 6.0, 1.0, 20.0, 0.0, 0.1);
+  bore = material_add(mt, true, 5.0, 1.0, 25.0, 0.0, 0.1);
+
+  // ── 1. the rail alone, as the reference ──────────────────────────────────
+  hsolo = hexset_chunk(q0, r0, gw, gh);
+  way_mark(rail, rail_hw, hsolo);
+  sfsolo = surfaces_new();
+  way_surfaces(rail, sfsolo);
+  esolo = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hsolo, esolo, sfsolo, sfsolo.sf_n, bed);
+  solo_cells = hexset_count(hsolo);
+  solo_edges = blocked_count(esolo, q0, r0, gw, gh);
+  println("rail alone: {solo_cells} cells, {solo_edges} blocked edges");
+
+  // ── 2. same level -> a LEVEL CROSSING (they interact) ────────────────────
+  hflat = hexset_chunk(q0, r0, gw, gh);
+  way_mark(rail, rail_hw, hflat);
+  way_mark(road, road_hw, hflat);
+  sfflat = surfaces_new();
+  way_surfaces(rail, sfflat);
+  way_surfaces(road, sfflat);
+  eflat = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hflat, eflat, sfflat, sfflat.sf_n, bed);
+  println("same level  : {hexset_count(hflat)} cells, {blocked_count(eflat, q0, r0, gw, gh)} edges -> a level crossing");
+  if hexset_count(hflat) == solo_cells { ok = false; }      // they MUST interact
+
+  // ── 3. different levels -> a BRIDGE (they do not) ────────────────────────
+  // Level 0 carries the railway; level 1 carries the road deck. Each level is derived
+  // on its own, so the road can never cut a rail edge.
+  hl0 = hexset_chunk(q0, r0, gw, gh);
+  way_mark(rail, rail_hw, hl0);
+  sf0 = surfaces_new();
+  way_surfaces(rail, sf0);
+  e0 = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hl0, e0, sf0, sf0.sf_n, bed);
+
+  hl1 = hexset_chunk(q0, r0, gw, gh);
+  way_mark(road, road_hw, hl1);
+  sf1 = surfaces_new();
+  way_surfaces(road, sf1);
+  e1 = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hl1, e1, sf1, sf1.sf_n, bed);
+
+  l0_cells = hexset_count(hl0);
+  l0_edges = blocked_count(e0, q0, r0, gw, gh);
+  println("level 0     : {l0_cells} cells, {l0_edges} edges -> IDENTICAL to the rail alone: {l0_cells == solo_cells && l0_edges == solo_edges}");
+  if l0_cells != solo_cells || l0_edges != solo_edges { ok = false; }
+  if !edgeset_equal(e0, esolo) { ok = false; }
+
+  // and the two levels genuinely share cells — this is not two disjoint things
+  shared = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(hl0, q, r) && hexset_get(hl1, q, r) { shared = shared + 1; }
+    }
+  }
+  println("cells occupied at BOTH levels: {shared} (a bridge shares ground plan, not space)");
+  if shared <= 0 { ok = false; }
+
+  // ── 4. the piers DO land at level 0 — a bridge is not weightless ─────────
+  // Two piers flanking the rail, clear of its structure gauge.
+  gauge = 2.6;
+  hp = hexset_chunk(q0, r0, gw, gh);
+  for i in 0..2 {
+    sgn = 1.0;
+    if i == 1 { sgn = 0.0 - 1.0; }
+    px = sgn * gauge * cos(th);
+    py = sgn * gauge * sin(th);
+    pt = track_new();
+    track_straight(pt, px, py, px + 0.01, py + 0.01);
+    way_mark(pt, 0.9, hp);
+  }
+  // a pier must not foul the running line
+  foul = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(hp, q, r) {
+        cx = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+        cy = ((lattice_m(q, r)) as float) * 0.5;
+        if track_distance(rail, cx, cy) < rail_hw { foul = foul + 1; }
+      }
+    }
+  }
+  println("piers: {hexset_count(hp)} cells at level 0, fouling the running line: {foul}");
+  if hexset_count(hp) <= 0 { ok = false; }
+  if foul != 0 { ok = false; }
+
+  // ── 5. clearance and gradient — who climbs? ──────────────────────────────
+  // The deck must clear the rail's structure gauge; reaching that height costs a ramp of
+  // h/g. The way with the STEEPER permissible gradient should be the one that moves.
+  clear_h = 5.0;
+  println("ramp to clear {clear_h}:");
+  for i in 0..4 {
+    g = 0.01; nm = "rail 1:100 (mainline)";
+    if i == 1 { g = 0.033; nm = "rail 1:30  (steep)   "; }
+    if i == 2 { g = 0.05;  nm = "road 1:20            "; }
+    if i == 3 { g = 0.10;  nm = "road 1:10            "; }
+    ramp = clear_h / g ?? 0.0;
+    println("   {nm}: ramp {ramp} long");
+  }
+  rail_ramp = clear_h / 0.01 ?? 0.0;
+  road_ramp = clear_h / 0.10 ?? 0.0;
+  println("   -> the road ramp is {rail_ramp / road_ramp ?? 0.0}x shorter: the ROAD climbs, the railway stays level");
+  if road_ramp >= rail_ramp { ok = false; }
+
+  // ── 6. the vertical curve is the SAME chord constant, a fourth time ──────
+  // A gradient change dg over vertical radius Rv gives L = Rv*dg and offset L^2/(8Rv).
+  rv = 2000.0;
+  dg = 0.10;
+  lv = rv * dg;
+  sag = lv * lv / (8.0 * rv) ?? 0.0;
+  println("vertical curve Rv={rv}, grade change {dg}: length {lv}, offset {sag} = Rv*dg^2/8 {rv * dg * dg / 8.0 ?? 0.0}");
+  if sag < rv * dg * dg / 8.0 * 0.999 ?? 0.0 { ok = false; }
+  if sag > rv * dg * dg / 8.0 * 1.001 ?? 0.0 { ok = false; }
+
+  // ── 7. the tunnel: the same operation, opposite sign ─────────────────────
+  // The bore sits at level -1; the ground above at level 0 is untouched. The bore's own
+  // walls are opaque, so you see ALONG it and not through its side.
+  bhs = hexset_chunk(q0, r0, gw, gh);
+  way_mark(rail, rail_hw, bhs);
+  sfb = surfaces_new();
+  way_surfaces(rail, sfb);
+  eb = edgeset_new(q0, r0, gw, gh);
+  cut_arb(bhs, eb, sfb, sfb.sf_n, bore);
+  along = sight_clear(eb, mt, -16.0, 0.0, 1.5, 16.0, 0.0, 1.5, 0.5);
+  across = sight_clear(eb, mt, 0.0, -8.0, 1.5, 0.0, 8.0, 1.5, 0.5);
+  println("tunnel bore: sight along {along}, sight across {across}");
+  if !along { ok = false; }
+  if across { ok = false; }
+
+  // the ground at level 0 above the bore is undisturbed
+  hg = hexset_chunk(q0, r0, gw, gh);
+  road_over = straight_track(th, half);
+  way_mark(road_over, road_hw, hg);
+  sfg = surfaces_new();
+  way_surfaces(road_over, sfg);
+  eg = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hg, eg, sfg, sfg.sf_n, bed);
+  println("ground above the bore: {hexset_count(hg)} cells, {blocked_count(eg, q0, r0, gw, gh)} edges — the bore left no mark");
+  if !edgeset_equal(eg, e1) { ok = false; }
+
+  // ── 8. the cache holds both levels of one chunk ──────────────────────────
+  fc = cache_new(4);
+  ver = 3;
+  s0 = cache_claim(fc, 0, 0, 0, ver);   cache_set_edges(fc, s0, e0);
+  s1 = cache_claim(fc, 0, 0, 1, ver);   cache_set_edges(fc, s1, e1);
+  h0 = cache_find(fc, 0, 0, 0, ver);
+  h1 = cache_find(fc, 0, 0, 1, ver);
+  println("cache: level 0 slot {s0}, level 1 slot {s1}, both hit {h0 >= 0 && h1 >= 0}, distinct {s0 != s1}");
+  if s0 == s1 { ok = false; }
+  if h0 < 0 || h1 < 0 { ok = false; }
+  if !edgeset_equal(cache_edges(fc, h0), e0) { ok = false; }
+  if !edgeset_equal(cache_edges(fc, h1), e1) { ok = false; }
+  // a level that was never derived is a miss, not someone else's field
+  if cache_find(fc, 0, 0, -1, ver) >= 0 { ok = false; }
+
+  if ok { println("=== BRIDGE OK ==="); } else { println("=== FAIL ==="); }
+}

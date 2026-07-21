@@ -31,9 +31,9 @@ fn main() {
   stone = material_add(mt, true, 2.5, 1.0, 30.0, 0.0, 0.5);
 
   // ── 1: cached == freshly derived, edge for edge ───────────────────────────
-  s0 = cache_find(c, 0, 0, 1);
+  s0 = cache_find(c, 0, 0, 0, 1);
   if s0 < 0 {
-    s0 = cache_claim(c, 0, 0, 1);
+    s0 = cache_claim(c, 0, 0, 0, 1);
     e0 = edgeset_new(-8, -8, 17, 17);
     derive(0, 0, 1, e0, sf, stone);
     cache_set_edges(c, s0, e0);
@@ -50,17 +50,17 @@ fn main() {
 
   // ── 2: a second lookup is a HIT, and does not rebuild ─────────────────────
   before = cache_builds(c);
-  again = cache_find(c, 0, 0, 1);
+  again = cache_find(c, 0, 0, 0, 1);
   println("second lookup: slot {again}, builds {before} -> {cache_builds(c)} (no rebuild)");
   if again != s0 || cache_builds(c) != before { ok = false; }
 
   // ── 3: a VERSION BUMP must MISS — that is the whole invalidation ──────────
-  stale = cache_find(c, 0, 0, 2);
+  stale = cache_find(c, 0, 0, 0, 2);
   println("same chunk at version 2: {stale} (expect -1 — the v1 entry is stale)");
   if stale >= 0 { ok = false; }
 
   // and re-deriving at v2 must differ from v1 (so staleness is detectable, not cosmetic)
-  s2 = cache_claim(c, 0, 0, 2);
+  s2 = cache_claim(c, 0, 0, 0, 2);
   e2 = edgeset_new(-8, -8, 17, 17);
   derive(0, 0, 2, e2, sf, stone);
   cache_set_edges(c, s2, e2);
@@ -70,9 +70,9 @@ fn main() {
 
   // ── 4: capacity + LRU eviction ────────────────────────────────────────────
   for k in 1..4 {
-    sk = cache_find(c, k, 0, 2);
+    sk = cache_find(c, k, 0, 0, 2);
     if sk < 0 {
-      sk = cache_claim(c, k, 0, 2);
+      sk = cache_claim(c, k, 0, 0, 2);
       ek = edgeset_new(k * 16 - 8, -8, 17, 17);
       derive(k, 0, 2, ek, sf, stone);
       cache_set_edges(c, sk, ek);

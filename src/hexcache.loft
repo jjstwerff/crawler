@@ -5,6 +5,12 @@
 // makes it safe: it is a pure function of an L1 region, so it cannot drift, and the worst
 // a stale entry can do is be recomputed.
 //
+// The key is (chunk_x, chunk_y, LEVEL, world_version).  The level is the topological
+// sheet a way sits on — OSM's `layer` tag, not a height.  Two ways on different levels
+// share cells without ever arbitrating against each other, which is exactly what a bridge
+// or a tunnel is; their actual z comes from the surface/feature interval, not from the
+// level index.  Most of the world exists only at level 0 and costs nothing extra.
+//
 // The key is (chunk_x, chunk_y, world_version). An edit bumps the version; every entry
 // derived at an older version is simply a miss. Nothing is migrated, nothing is patched
 // in place — which is the whole reason the derivation was made order-independent (P3/P4)
@@ -19,6 +25,7 @@ use hexedge;
 pub struct FieldCache {
   fc_cx:    vector<integer>,
   fc_cy:    vector<integer>,
+  fc_lev:   vector<integer>,     // topological sheet (OSM `layer`)
   fc_ver:   vector<integer>,
   fc_touch: vector<integer>,     // LRU clock stamp
   fc_live:  vector<boolean>,
@@ -34,21 +41,23 @@ pub struct FieldCache {
 pub fn cache_new(cap: integer) -> FieldCache {
   a: vector<integer> = []; b: vector<integer> = []; v: vector<integer> = [];
   t: vector<integer> = []; l: vector<boolean> = []; e: vector<EdgeSet> = [];
+  g: vector<integer> = [];
   for i in 0..cap {
-    a += [0]; b += [0]; v += [-1]; t += [0]; l += [false];
+    a += [0]; b += [0]; v += [-1]; t += [0]; l += [false]; g += [0];
     e += [edgeset_new(0, 0, 1, 1)];         // placeholder, never read while !live
   }
-  FieldCache { fc_cx: a, fc_cy: b, fc_ver: v, fc_touch: t, fc_live: l, fc_edges: e,
+  FieldCache { fc_cx: a, fc_cy: b, fc_lev: g, fc_ver: v, fc_touch: t, fc_live: l, fc_edges: e,
                fc_cap: cap, fc_clock: 0, fc_hits: 0, fc_miss: 0, fc_evict: 0, fc_built: 0 }
 }
 
 // Slot holding (cx,cy) AT this exact version, or -1.  A cached entry derived at an older
 // version is NOT a hit — that is the whole invalidation mechanism.
-pub fn cache_find(c: FieldCache, cx: integer, cy: integer, ver: integer) -> integer {
+pub fn cache_find(c: FieldCache, cx: integer, cy: integer, lev: integer, ver: integer) -> integer {
   hit = -1;
   for i in 0..c.fc_cap {
     if (c.fc_live[i] ?? false) && hit < 0 {
-      if (c.fc_cx[i] ?? 0) == cx && (c.fc_cy[i] ?? 0) == cy && (c.fc_ver[i] ?? -1) == ver {
+      if (c.fc_cx[i] ?? 0) == cx && (c.fc_cy[i] ?? 0) == cy
+         && (c.fc_lev[i] ?? 0) == lev && (c.fc_ver[i] ?? -1) == ver {
         hit = i;
       }
     }
@@ -70,11 +79,11 @@ pub fn cache_find(c: FieldCache, cx: integer, cy: integer, ver: integer) -> inte
 //   3. the least-recently-used.
 // (1 before 2 was found by the gate: with free slots available the cache happily kept a
 // stale v1 entry alongside a fresh v2 one for the same chunk.)
-pub fn cache_claim(c: FieldCache, cx: integer, cy: integer, ver: integer) -> integer {
+pub fn cache_claim(c: FieldCache, cx: integer, cy: integer, lev: integer, ver: integer) -> integer {
   slot = -1;
   for i in 0..c.fc_cap {
-    if slot < 0 && (c.fc_live[i] ?? false)
-       && (c.fc_cx[i] ?? 0) == cx && (c.fc_cy[i] ?? 0) == cy { slot = i; }
+    if slot < 0 && (c.fc_live[i] ?? false) && (c.fc_cx[i] ?? 0) == cx
+       && (c.fc_cy[i] ?? 0) == cy && (c.fc_lev[i] ?? 0) == lev { slot = i; }
   }
   if slot < 0 {
     for i in 0..c.fc_cap {
@@ -91,6 +100,7 @@ pub fn cache_claim(c: FieldCache, cx: integer, cy: integer, ver: integer) -> int
   c.fc_clock = c.fc_clock + 1;
   c.fc_cx[slot] = cx;
   c.fc_cy[slot] = cy;
+  c.fc_lev[slot] = lev;
   c.fc_ver[slot] = ver;
   c.fc_touch[slot] = c.fc_clock;
   c.fc_live[slot] = true;

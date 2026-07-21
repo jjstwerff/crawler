@@ -113,17 +113,17 @@ fn main() {
   // A material flip does not bump the world version, so the cached region stays valid.
   fc = cache_new(4);
   ver = 7;
-  slot = cache_claim(fc, 0, 0, ver);
+  slot = cache_claim(fc, 0, 0, 0, ver);
   cache_set_edges(fc, slot, e);
   material_set_solid(mt, gate, false);
-  hit = cache_find(fc, 0, 0, ver);
+  hit = cache_find(fc, 0, 0, 0, ver);
   println("cache after barrier toggle: hit {hit >= 0} (geometry unchanged, version unbumped)");
   if hit < 0 { ok = false; }
   if !edgeset_equal(cache_edges(fc, hit), e) { ok = false; }
 
   // ── contrast: an actual EDIT does invalidate ──────────────────────────────
   ver2 = ver + 1;
-  miss = cache_find(fc, 0, 0, ver2);
+  miss = cache_find(fc, 0, 0, 0, ver2);
   println("cache after a real edit (version bump): hit {miss >= 0} (must be false)");
   if miss >= 0 { ok = false; }
 

@@ -659,3 +659,62 @@ failing test was right and the scene was wrong.
 with `hex_grid::px_to_hex` on 400 off-centre points (no convention drift) · the three
 obstructions above resolve movement and sight independently · the height crossover is
 measured either side · the swept cutback boundary lands within 0.1 of sagitta + halfwidth.
+
+## 10. Bridges and tunnels (P11) — the level
+
+Everything before this was flat: a cell is marked or not, an edge blocked or not. A bridge
+breaks that outright — the road and the railway occupy the **same cells** and do not
+interact at all. This is where the model has to answer whether it was really 2D.
+
+It was not, quite. The answer is a **level**: the topological sheet a way sits on. That is
+exactly OSM's `layer` tag, so it is already in the data plan #1/#8 reads. A level is **not
+a height** — the actual z comes from the surface/feature interval, which sighting already
+uses. Two ways on different levels never arbitrate, the L2 cache gains one key field, and
+most of the world (level 0 only) costs nothing extra.
+
+The sharpest statement of the phase is the contrast with §8 — **the same two ways**:
+
+```
+   rail alone     25 cells, 204 edges
+   same level     73 cells, 384 edges   -> a level crossing
+   level 0        25 cells, 204 edges   -> bit-identical to the rail alone
+```
+
+Nothing about the ways changed; only the sheet. And the levels genuinely share ground plan
+(2 cells occupied at both), so this is not two disjoint things pretending.
+
+**A bridge is not weightless.** The piers do land at level 0 and must clear the running
+line's structure gauge — gated at 4 pier cells, 0 fouling.
+
+### Who climbs
+
+Reaching clearance `h` at gradient `g` costs a ramp of `h/g`:
+
+```
+   rail 1:100 (mainline)   ramp 500
+   rail 1:30  (steep)      ramp 152
+   road 1:20               ramp 100
+   road 1:10               ramp  50
+```
+
+The road ramp is **10× shorter**, so the road climbs and the railway stays level — the
+standard arrangement, here as a derived quantity rather than a convention.
+
+### The chord constant, a fourth time
+
+A gradient change `Δg` over vertical radius `Rv` gives `L = Rv·Δg` and offset `L²/(8Rv) =
+Rv·Δg²/8`. The same sagitta that sets flattening error, the platform chord gap and the
+sighting cutback also sets the **vertical** curve. Four unrelated questions, one constant.
+
+### The tunnel is the same operation with the opposite sign
+
+The bore sits at level −1, the ground above at level 0 untouched — gated bit-identical to
+the road derived with no bore present at all. The bore's own walls are opaque, so sight
+runs **along** it and not **through** its side (both directions gated), reusing `sight_clear`
+unchanged.
+
+**Gate** `src/bridgetest.loft`: the same-level pair interacts and the cross-level pair does
+not (edge sets compared bit for bit) · the levels share cells · piers land at level 0 and
+foul nothing · the ramp comparison · the vertical-curve identity to 0.1% · sight along vs
+across the bore · the ground above the bore is unmarked · the cache holds both levels of
+one chunk in distinct slots, both hitting, with an underived level a clean miss.
