@@ -22,6 +22,8 @@ fn scene_name(i: integer) -> text {
   if i == 3 { return "wall -> round tower (tangential)"; }
   if i == 4 { return "two overlapping towers"; }
   if i == 5 { return "curved wall -> straight (15 deg on-grid)"; }
+  if i == 7 { return "wall -> OCTAGON flat face"; }
+  if i == 8 { return "wall -> OCTAGON corner (must be a corner)"; }
   "road crosses wall"
 }
 
@@ -59,6 +61,23 @@ fn scene_mark(i: integer, order: integer, hs: HexSet, sf: Surfaces) -> integer {
     track_straight(a, 0.0, -16.0, 0.0, 16.0);
     track_straight(b, -16.0, 0.0, 16.0, 0.0);
   }
+  // OCTAGON — canonical rotation 0, so all 8 face normals land on the 24-dir grid.
+  // Approximated by its 8 faces as straight segments (apothem 6.7 = catalog rung 4,
+  // the smallest whose faces read as flat).
+  if i == 7 || i == 8 {
+    ap = 6.7;
+    tn = ap * 0.41421356237;        // half a face = a*tan(22.5)
+    // the +x face (normal at 0 deg = an EDGE-normal direction: the best tier)
+    track_straight(a, ap, 0.0 - tn, ap, tn);
+    if i == 7 {
+      // a wall leaving that face along its normal — tangential to the FACE
+      track_straight(b, ap, 0.0, ap + 14.0, 0.0);
+    } else {
+      // a wall arriving at the CORNER between two faces — 8-fold vs 6-fold means the
+      // tangent cannot be continuous here, so this must be an explicit corner
+      track_straight(b, ap, tn, ap + 10.0, tn + 10.0);
+    }
+  }
   ia = way_surfaces(a, sf);
   ib = way_surfaces(b, sf);
   if order == 0 {
@@ -77,7 +96,7 @@ fn main() {
   allok = true;
   println("");
   println("scene                                 cells topo area arb attr matcher");
-  for i in 0..7 {
+  for i in 0..9 {
     sfa = surfaces_new();
     mta = materials_new();
     stone = material_add(mta, true, 2.5, 1.0, 30.0, 0.0, 0.5);

@@ -280,6 +280,65 @@ Every cell is a test. `G0` = no gap, `G1` = no kink, `∠` = a deliberate corner
 - **Road crossing a wall** — the collision layers disagree by design (the road is
   passable, the wall is not). Whichever wins must be *stated*, not emergent.
 
+## 3b. OCTAGONAL TOWERS — settled 2026-07-21
+
+FORMS.md left three things open (canonical orientation, minimum size `K`, frozen
+hex-sets). All three are now measured rather than chosen.
+
+### The orientation is FORCED, not picked
+
+An octagon's 8 face normals sit 45° apart, and **45 is a multiple of 15** — so at a
+rotation that is itself a multiple of 15°, every face normal lands on the 24-direction
+grid and a wall *can* meet any face tangentially.
+
+| rotation | faces | mean cost |
+|---|---|---|
+| **0° / 15° / 30°** | e O v O e O v O | **2.45** — all on the 24-dir grid |
+| 7.5° / 22.5° / 37.5° | O O O O O O O O | 3.56 — **none** on the grid |
+
+At 22.5° every face sits at `22.5 + 45k`, none a multiple of 15, so **no wall direction
+could meet any face tangentially at all**. 0/15/30 are the same octagon on different hex
+axes, so **rotation 0 is canonical**.
+
+### The 8 faces are NOT equal quality — and that is inherent
+
+At the canonical rotation the faces split across all three cost tiers measured earlier:
+**2 edge-normal (1.00×), 2 vertex (1.68×), 4 off-axis (3.56×)**. That is the 8-fold /
+6-fold mismatch made concrete — not a defect to fix, but a fact to expose to whoever
+places a wall. A designer attaching a curtain wall should prefer the two edge-normal
+faces.
+
+### Minimum size: a small octagon IS a circle
+
+Rasterised below a certain size an octagon is not merely *similar* to a circle — it is
+**the identical cell set**. Checked against every circle radius and every hex-disk:
+
+| octagon | verdict |
+|---|---|
+| 7, 19, 31, 37, 55, 61, 85, 121 cells | **identical to some circle** — the family carries no information |
+| 17, 35, 51 cells | distinct, but faces only 1.6–2.9 hex widths — marginal |
+| **59 cells and up** | distinct **and** faces ≥ 3 hex widths — reads as flat |
+
+So the rule: **do not offer an octagon below 59 cells** (apothem ≈ 6.7). Below that it
+either *is* a circle or its faces are too short to survive quantisation. A face must span
+~3 cells before it reads flat at all.
+
+### The catalog — `golden/octagon_catalog.json`
+
+16 distinct rungs, 13 of which read as flat, each frozen as an authored hex-set with its
+effective apothem, worst deviation and face length in hex widths. Frozen rather than
+formula-generated for the reason FORMS.md gave and the measurements confirm: the
+rasterised octagon is not a clean function of its apothem.
+
+### Junction rule, verified in the matrix
+
+Two new matrix scenarios, both passing all six invariants:
+
+- **wall → octagon flat face** — tangential, since the face normal is on the 24-dir grid.
+- **wall → octagon corner** — **must be an explicit `∠`**. Tangent continuity is
+  impossible at a corner where two faces meet at 135°; there is no wall heading that is
+  tangent to both. This is a *rule*, not a fix, exactly as the plan predicted.
+
 ## 4. Doors and windows — the limitations are real
 
 The user's suspicion is correct, and the first limitation is hard.
