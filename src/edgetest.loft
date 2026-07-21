@@ -1,0 +1,215 @@
+// edgetest — collision as an EDGE SET (plan #5 decision: the edge model).
+//
+// The property that settled the model: a ONE-EDGE-THICK wall separates in every one of
+// the 24 headings, where a one-CELL-thick wall manages only 6. Verified here by the only
+// test that matters — flood the hex graph and see whether anything gets across.
+use hexform;
+use hexedge;
+
+fn heading_nx(k: integer) -> float {
+  a = (k as float) * 15.0 * 0.017453292519943295;
+  0.0 - sin(a)          // normal of a line running at heading a
+}
+
+fn heading_ny(k: integer) -> float {
+  a = (k as float) * 15.0 * 0.017453292519943295;
+  cos(a)
+}
+
+// Can anything walk from the far side of the wall to the near side?
+fn crosses(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+           nx: float, ny: float) -> boolean {
+  side: vector<float> = [];
+  seen: vector<boolean> = [];
+  n = w * h;
+  for i in 0..n { seen += [false]; }
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      side += [(lattice_k(q, r) as float) * 0.8660254037844386 * nx
+             + (lattice_m(q, r) as float) * 0.5 * ny];
+    }
+  }
+  // seed every cell well on the negative side
+  stackq: vector<integer> = [];
+  stackr: vector<integer> = [];
+  ns = 0;
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      i = (r - r0) * w + (q - q0);
+      if (side[i] ?? 0.0) < -3.0 {
+        seen[i] = true;
+        stackq += [q]; stackr += [r]; ns = ns + 1;
+      }
+    }
+  }
+  got = false;
+  top = ns;
+  while top > 0 {
+    top = top - 1;
+    cq = stackq[top] ?? 0;
+    cr = stackr[top] ?? 0;
+    ci = (cr - r0) * w + (cq - q0);
+    if (side[ci] ?? 0.0) > 3.0 { got = true; }
+    for d in 0..6 {
+      nq = nb_q(cq, cr, d);
+      nr = nb_r(cq, cr, d);
+      if nq >= q0 && nq < q0 + w && nr >= r0 && nr < r0 + h {
+        ni = (nr - r0) * w + (nq - q0);
+        if !(seen[ni] ?? true) && passable(e, cq, cr, nq, nr) {
+          seen[ni] = true;
+          stackq += [nq]; stackr += [nr];
+          top = top + 1;
+        }
+      }
+    }
+  }
+  got
+}
+
+fn main() {
+  println("=== story edge-collision test (the edge wall model) ===");
+  Q = -14; R = -14; W = 29; H = 29;
+  ok = true;
+  blocked_all = 0;
+  for k in 0..24 {
+    nx = heading_nx(k);
+    ny = heading_ny(k);
+    e = edgeset_new(Q, R, W, H);
+    edges_halfplane(e, Q, R, W, H, nx, ny, 0.0);
+    if crosses(e, Q, R, W, H, nx, ny) {
+      println("  heading {k * 15} deg: LEAKS ({edge_count(e)} edges)");
+      ok = false;
+    } else {
+      blocked_all = blocked_all + 1;
+    }
+  }
+  println("1-edge wall blocks in {blocked_all}/24 headings");
+
+  // ── BOUNCE NORMALS ────────────────────────────────────────────────────────
+  // The point of storing a surface per edge: a hex edge has only 6 normals, so using
+  // it directly is wrong by up to 90 degrees. With the surface recorded, the normal is
+  // EXACT for every heading — and for arcs, exact at every point along the curve.
+  sfs = surfaces_new();
+  norm_ok = true;
+  worst = 0.0;
+  for k2 in 0..24 {
+    nx2 = heading_nx(k2);
+    ny2 = heading_ny(k2);
+    e2 = edgeset_new(Q, R, W, H);
+    sid = surf_straight(sfs, nx2, ny2, 0.0);
+    edges_halfplane_surf(e2, Q, R, W, H, nx2, ny2, 0.0, sid);
+    // probe every blocked edge and compare against the true wall normal
+    for r2 in R..R + H {
+      for q2 in Q..Q + W {
+        for d2 in 0..6 {
+          aq = nb_q(q2, r2, d2);
+          ar = nb_r(q2, r2, d2);
+          (hit, gx, gy) = collide(e2, sfs, q2, r2, aq, ar);
+          if hit {
+            dx = gx - nx2;
+            dy = gy - ny2;
+            err = sqrt(dx * dx + dy * dy) ?? 0.0;
+            if err > worst { worst = err; }
+            if err > 0.000001 { norm_ok = false; }
+          }
+        }
+      }
+    }
+  }
+  println("straight-wall normals exact in all 24 headings: {norm_ok} (worst {worst})");
+
+  // an ARC surface: the normal is radial, so it is exact at EVERY contact point
+  asfs = surfaces_new();
+  aid = surf_arc(asfs, 0.0, 0.0, 5.0);
+  ae = edgeset_new(Q, R, W, H);
+  aring = hexset_chunk(Q, R, W, H);
+  hexdisk_into(aring, 0, 0, 3);
+  arc_ok = true;
+  arc_worst = 0.0;
+  for r3 in R..R + H {
+    for q3 in Q..Q + W {
+      if hexset_get(aring, q3, r3) {
+        for d3 in 0..6 {
+          bq = nb_q(q3, r3, d3);
+          br = nb_r(q3, r3, d3);
+          if !hexset_get(aring, bq, br) {
+            edge_block_surf(ae, q3, r3, bq, br, aid);
+            (h2, ax, ay) = collide(ae, asfs, q3, r3, bq, br);
+            if h2 {
+              (px, py) = edge_point(q3, r3, bq, br);
+              pd = sqrt(px * px + py * py) ?? 1.0;
+              ex = ax - (px / pd ?? 0.0);
+              ey = ay - (py / pd ?? 0.0);
+              er = sqrt(ex * ex + ey * ey) ?? 0.0;
+              if er > arc_worst { arc_worst = er; }
+              if er > 0.000001 { arc_ok = false; }
+            }
+          }
+        }
+      }
+    }
+  }
+  println("arc normals radial-exact at every contact: {arc_ok} (worst {arc_worst})");
+
+  // the edge model subsumes the cell model: a solid body cannot be entered
+  s = hexset_chunk(Q, R, W, H);
+  hexdisk_into(s, 0, 0, 3);
+  es = edgeset_new(Q, R, W, H);
+  edges_solid(s, es);
+  solid_ok = !passable(es, 0, 0, 1, 0) && !passable(es, 4, 0, 3, 0);
+  println("solid body seals (edges_solid): {solid_ok}");
+
+  // a ring cut: the tower wall as a thin cut, interior sealed from outside
+  ring = hexset_chunk(Q, R, W, H);
+  hexdisk_into(ring, 0, 0, 3);
+  ec = edgeset_new(Q, R, W, H);
+  edges_cut(ring, ec);
+  cut_ok = edge_count(ec) > 0 && !passable(ec, 3, 0, 4, 0);
+  println("ring cut seals the boundary: {cut_ok}");
+
+  // ── ONE EDGE, SEVEN CONSUMERS ─────────────────────────────────────────────
+  // The point of splitting surface (geometry) from material (physics): the consumers
+  // read DIFFERENT properties of the same edge. A low wall stops movement but not
+  // sight; a hedge muffles sound without sealing it; water runs along what it cannot
+  // cross. A boolean cannot express any of that.
+  mats = materials_new();
+  stone = material_add(mats, true,  2.5, 1.0, 30.0, 0.0, 0.55);
+  hedge = material_add(mats, true,  1.2, 0.7,  6.0, 0.35, 0.10);
+  lowwall = material_add(mats, true, 0.5, 0.15, 4.0, 0.0, 0.40);
+  me = edgeset_new(Q, R, W, H);
+  msf = surfaces_new();
+  wid = surf_straight(msf, 0.0, 1.0, 0.0);
+  edge_block_full(me, 0, 0, 1, 0, wid, stone);
+  edge_block_full(me, 1, 0, 2, 0, wid, hedge);
+  edge_block_full(me, 2, 0, 3, 0, wid, lowwall);
+
+  ms = edge_mat(me, 0, 0, 1, 0);
+  mh = edge_mat(me, 1, 0, 2, 0);
+  ml = edge_mat(me, 2, 0, 3, 0);
+  println("one edge, many consumers — each reads a different property:");
+  println("  stone : solid={mat_solid(mats, ms)} sight={mat_opacity(mats, ms)} sound={mat_sound(mats, ms)}dB water={mat_perm(mats, ms)} bounce={mat_bounce(mats, ms)}");
+  println("  hedge : solid={mat_solid(mats, mh)} sight={mat_opacity(mats, mh)} sound={mat_sound(mats, mh)}dB water={mat_perm(mats, mh)} bounce={mat_bounce(mats, mh)}");
+  println("  low   : solid={mat_solid(mats, ml)} height={mat_height(mats, ml)} sight={mat_opacity(mats, ml)} — stops movement, not sight");
+  mat_ok = mat_solid(mats, ms) && mat_perm(mats, mh) > 0.0
+        && mat_opacity(mats, ml) < 0.5 && mat_height(mats, ml) < 1.0;
+  println("surface/material split usable by every consumer: {mat_ok}");
+
+  // ── FOOTPRINT GATE ────────────────────────────────────────────────────────
+  // L2 is a per-region CACHE, so its size is a real cost. `size` reports the actual
+  // byte footprint, so assert it rather than reasoning about it — this is what stops
+  // the structure quietly growing back.
+  fe = edgeset_new(0, 0, 32, 32);
+  fbytes = size(fe.ee_surf) + size(fe.ee_mat);
+  ideal = 3 * 32 * 32 * 3;      // 3 edges/cell, u16 surface + u8 material
+  println("footprint 32x32 chunk: {fbytes} B  (minimised target {ideal} B, {fbytes / ideal ?? 0}x)");
+  // the current layout is the correct-but-fat version; the gate records the gap and
+  // fails only if it gets WORSE than what is documented in DESIGN.md 7.3.
+  foot_ok = fbytes <= 441000;
+  println("footprint within documented bound: {foot_ok}");
+
+  if ok && blocked_all == 24 && solid_ok && cut_ok && norm_ok && arc_ok && mat_ok && foot_ok {
+    println("=== EDGE OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}

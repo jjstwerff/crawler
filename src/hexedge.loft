@@ -1,0 +1,312 @@
+// hexedge — collision as an EDGE SET (plan #5, decision 2026-07-21).
+//
+// THE MODEL.  Collision is a set of blocked hex EDGES, not blocked cells.  Movement from
+// hex A to hex B is legal iff the edge they share is not blocked.  This was settled by
+// measurement: a 1-unit-thick wall blocks in
+//
+//     6 of 24 headings   as cells   (an off-axis 1-cell chain is not even connected)
+//    24 of 24 headings   as edges   (a cut separates BY CONSTRUCTION)
+//
+// and it makes wall WIDTH a rendering choice rather than a quantised, anisotropic
+// accident — the cell model could only reach a consistent width at >= 2 hexes.
+//
+// The edge model SUBSUMES the cell model: "you cannot enter this cell" is just "every
+// edge of this cell is blocked" (`edges_solid`).  So one primitive serves a thin fence,
+// a thick curtain wall, and a closed tower ring.
+//
+// THE KEY.  An edge is identified by the DOUBLED MIDPOINT of its two cells' lattice
+// centres:  (kA+kB, mA+mB).  That is exact integer, symmetric in A and B — so no
+// ordering convention is needed — and unique per edge (verified: 930 edges, 0
+// collisions).  It costs nothing because the lattice is already integer.
+//
+// WHY AN EDGE STORES A SURFACE, NOT A BOOLEAN.  To bounce off a wall you need its
+// NORMAL, and a hex edge has only 6 possible normals (60 deg apart).  Measured against
+// the true wall normal across the 24 headings, using the edge's own normal is wrong by
+// up to **90 degrees** — a bounce that sends you sideways or backwards.  The direction
+// simply is not recoverable from the cell grid.
+//
+// So each blocked edge stores a SURFACE ID, and the surface carries the exact geometry:
+// a line's constant normal, or an arc's radial normal evaluated at the contact point.
+// The hex grid becomes a SPATIAL INDEX that tells you THAT you hit something and WHICH
+// thing; the surface tells you its exact normal.  This keeps the design's standing rule —
+// never derive a smooth thing from cells — and it needs no mesh, so it works for a large
+// area and for small blockers (a tree, a bush) that a mesh would describe badly.
+use hexform;
+
+// The surfaces a collision can reference.  Small and flat on purpose: a normal must be
+// cheap to evaluate at contact time.
+pub struct Surfaces {
+  sf_kind: vector<integer>,     // 1 = straight, 2 = arc (radial normal)
+  sf_a:    vector<float>,       // straight: nx      arc: centre x
+  sf_b:    vector<float>,       // straight: ny      arc: centre y
+  sf_c:    vector<float>,       // straight: offset  arc: radius
+  sf_n:    integer,
+}
+
+pub fn surfaces_new() -> Surfaces {
+  k: vector<integer> = [];
+  a: vector<float> = [];
+  b: vector<float> = [];
+  c: vector<float> = [];
+  // id 0 is reserved for "no surface"
+  k += [0]; a += [0.0]; b += [0.0]; c += [0.0];
+  Surfaces { sf_kind: k, sf_a: a, sf_b: b, sf_c: c, sf_n: 1 }
+}
+
+// A straight wall with unit normal (nx,ny) at offset c.  Normal is constant -> exact for
+// every one of the 24 headings, and for anything between them.
+pub fn surf_straight(s: Surfaces, nx: float, ny: float, c: float) -> integer {
+  s.sf_kind += [1]; s.sf_a += [nx]; s.sf_b += [ny]; s.sf_c += [c];
+  s.sf_n = s.sf_n + 1;
+  s.sf_n - 1
+}
+
+// An arc / round tower / tree trunk: the normal is radial, so it is exact everywhere
+// along the curve — no faceting, no mesh.
+pub fn surf_arc(s: Surfaces, cx: float, cy: float, r: float) -> integer {
+  s.sf_kind += [2]; s.sf_a += [cx]; s.sf_b += [cy]; s.sf_c += [r];
+  s.sf_n = s.sf_n + 1;
+  s.sf_n - 1
+}
+
+// The outward normal of surface `id` at world point (px,py).
+pub fn surf_normal(s: Surfaces, id: integer, px: float, py: float) -> (float, float) {
+  if id <= 0 || id >= s.sf_n { return (0.0, 0.0); }
+  kind = s.sf_kind[id] ?? 0;
+  if kind == 1 { return (s.sf_a[id] ?? 0.0, s.sf_b[id] ?? 0.0); }
+  cx = s.sf_a[id] ?? 0.0;
+  cy = s.sf_b[id] ?? 0.0;
+  dx = px - cx;
+  dy = py - cy;
+  d = sqrt(dx * dx + dy * dy) ?? 0.0;
+  if d < 0.000001 { return (0.0, 0.0); }
+  (dx / d ?? 0.0, dy / d ?? 0.0)
+}
+
+// MATERIALS — the PHYSICS half of an edge.  Kept separate from Surfaces (the geometry
+// half) because they vary independently: a stone wall and a hedge on the SAME arc share a
+// surface and differ entirely in material; a wall and a tower of the same stone share a
+// material and differ entirely in surface.
+//
+// The consumers do not all want "blocked".  A low wall blocks movement but not sight; a
+// hedge muffles sound without stopping it; water runs along a wall it cannot cross.  So a
+// material carries a small vector of transmission terms rather than one flag.
+pub struct Materials {
+  mt_solid:  vector<boolean>,   // stops movement outright
+  mt_height: vector<float>,     // world units — step over / see over
+  mt_opacity: vector<float>,    // 0 clear .. 1 opaque        (sight)
+  mt_sound:  vector<float>,     // attenuation in dB          (sound)
+  mt_perm:   vector<float>,     // 0 sealed .. 1 open         (water / air)
+  mt_bounce: vector<float>,     // restitution 0..1           (balls)
+  mt_n:      integer,
+}
+
+pub fn materials_new() -> Materials {
+  so: vector<boolean> = []; he: vector<float> = []; op: vector<float> = [];
+  sd: vector<float> = []; pe: vector<float> = []; bo: vector<float> = [];
+  // id 0 = "open air": blocks nothing
+  so += [false]; he += [0.0]; op += [0.0]; sd += [0.0]; pe += [1.0]; bo += [0.0];
+  Materials { mt_solid: so, mt_height: he, mt_opacity: op, mt_sound: sd,
+              mt_perm: pe, mt_bounce: bo, mt_n: 1 }
+}
+
+pub fn material_add(m: Materials, solid: boolean, height: float, opacity: float,
+                    sound_db: float, perm: float, bounce: float) -> integer {
+  m.mt_solid += [solid]; m.mt_height += [height]; m.mt_opacity += [opacity];
+  m.mt_sound += [sound_db]; m.mt_perm += [perm]; m.mt_bounce += [bounce];
+  m.mt_n = m.mt_n + 1;
+  m.mt_n - 1
+}
+
+// The per-consumer accessors.  Each reads ONE property of the same edge.
+pub fn mat_solid(m: Materials, id: integer) -> boolean {
+  if id <= 0 || id >= m.mt_n { return false; }
+  m.mt_solid[id] ?? false
+}
+pub fn mat_height(m: Materials, id: integer) -> float {
+  if id <= 0 || id >= m.mt_n { return 0.0; }
+  m.mt_height[id] ?? 0.0
+}
+pub fn mat_opacity(m: Materials, id: integer) -> float {
+  if id <= 0 || id >= m.mt_n { return 0.0; }
+  m.mt_opacity[id] ?? 0.0
+}
+pub fn mat_sound(m: Materials, id: integer) -> float {
+  if id <= 0 || id >= m.mt_n { return 0.0; }
+  m.mt_sound[id] ?? 0.0
+}
+pub fn mat_perm(m: Materials, id: integer) -> float {
+  if id <= 0 || id >= m.mt_n { return 1.0; }
+  m.mt_perm[id] ?? 1.0
+}
+pub fn mat_bounce(m: Materials, id: integer) -> float {
+  if id <= 0 || id >= m.mt_n { return 0.0; }
+  m.mt_bounce[id] ?? 0.0
+}
+
+pub struct EdgeSet {
+  ee_q0:      integer,
+  ee_r0:      integer,
+  ee_w:       integer,
+  ee_h:       integer,
+  ee_kmin:    integer,
+  ee_mmin:    integer,
+  ee_kspan:   integer,
+  ee_surf:    vector<integer>,   // 0 = passable, else the surface id (GEOMETRY)
+  ee_mat:     vector<integer>,   // the material id (PHYSICS) — 0 = open air
+  ee_count:   integer,
+}
+
+// An edge layer over the same bounded chunk as its HexSet — never a global graph.
+pub fn edgeset_new(q0: integer, r0: integer, w: integer, h: integer) -> EdgeSet {
+  // lattice bounds of the chunk, then doubled (an edge key is a sum of two centres)
+  kmin = 2 * (q0 - 1);
+  kmax = 2 * (q0 + w) + 1;
+  mmin = 3 * (r0 - 1);
+  mmax = 3 * (r0 + h);
+  kspan = 2 * (kmax - kmin) + 3;
+  mspan = 2 * (mmax - mmin) + 3;
+  cells: vector<integer> = [];
+  mats: vector<integer> = [];
+  n = kspan * mspan;
+  for i in 0..n { cells += [0]; mats += [0]; }
+  EdgeSet { ee_q0: q0, ee_r0: r0, ee_w: w, ee_h: h,
+            ee_kmin: 2 * kmin, ee_mmin: 2 * mmin, ee_kspan: kspan,
+            ee_surf: cells, ee_mat: mats, ee_count: 0 }
+}
+
+// The canonical edge key: doubled midpoint of the two cell centres.
+pub fn edge_k(qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+  lattice_k(qa, ra) + lattice_k(qb, rb)
+}
+
+pub fn edge_m(qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+  lattice_m(qa, ra) + lattice_m(qb, rb)
+}
+
+fn ee_index(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+  k = edge_k(qa, ra, qb, rb) - e.ee_kmin;
+  m = edge_m(qa, ra, qb, rb) - e.ee_mmin;
+  if k < 0 || m < 0 || k >= e.ee_kspan { return -1; }
+  i = m * e.ee_kspan + k;
+  if i < 0 || i >= len(e.ee_surf) { return -1; }
+  i
+}
+
+// Block an edge, recording WHICH surface blocks it (surf 0 = a bare blocker with no
+// recoverable normal — allowed, but it cannot be bounced off correctly).
+pub fn edge_block_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+                       surf: integer) {
+  i = ee_index(e, qa, ra, qb, rb);
+  if i < 0 { return; }
+  if (e.ee_surf[i] ?? 0) == 0 {
+    e.ee_surf[i] = surf;
+    e.ee_count = e.ee_count + 1;
+  }
+}
+
+// Record BOTH halves: which surface (geometry) and which material (physics).
+pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+                       surf: integer, mat: integer) {
+  edge_block_surf(e, qa, ra, qb, rb, surf);
+  i = ee_index(e, qa, ra, qb, rb);
+  if i >= 0 { e.ee_mat[i] = mat; }
+}
+
+pub fn edge_mat(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+  i = ee_index(e, qa, ra, qb, rb);
+  if i < 0 { return 0; }
+  e.ee_mat[i] ?? 0
+}
+
+pub fn edge_block(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) {
+  edge_block_surf(e, qa, ra, qb, rb, -1);
+}
+
+pub fn edge_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+  i = ee_index(e, qa, ra, qb, rb);
+  if i < 0 { return 0; }
+  e.ee_surf[i] ?? 0
+}
+
+pub fn edge_blocked(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
+  edge_surf(e, qa, ra, qb, rb) != 0
+}
+
+// The world point where the two cells' shared edge sits (its midpoint) — the contact
+// point a normal is evaluated at.
+pub fn edge_point(qa: integer, ra: integer, qb: integer, rb: integer) -> (float, float) {
+  ((edge_k(qa, ra, qb, rb) as float) * 0.4330127018922193,
+   (edge_m(qa, ra, qb, rb) as float) * 0.25)
+}
+
+// THE COLLISION RESPONSE QUERY: blocked?, and the EXACT outward normal to bounce off.
+pub fn collide(e: EdgeSet, s: Surfaces,
+               qa: integer, ra: integer, qb: integer, rb: integer) -> (boolean, float, float) {
+  id = edge_surf(e, qa, ra, qb, rb);
+  if id == 0 { return (false, 0.0, 0.0); }
+  (px, py) = edge_point(qa, ra, qb, rb);
+  (nx, ny) = surf_normal(s, id, px, py);
+  (true, nx, ny)
+}
+
+// THE collision query.  Everything else is construction.
+pub fn passable(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
+  !edge_blocked(e, qa, ra, qb, rb)
+}
+
+pub fn edge_count(e: EdgeSet) -> integer { e.ee_count }
+
+// A THIN wall: the cut between the cells of `s` and everything else.  One edge thick,
+// and it separates by construction — in every one of the 24 headings.
+pub fn edges_cut(s: HexSet, e: EdgeSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        for d in 0..6 {
+          nq = nb_q(q, r, d);
+          nr = nb_r(q, r, d);
+          if !hexset_get(s, nq, nr) { edge_block(e, q, r, nq, nr); }
+        }
+      }
+    }
+  }
+}
+
+// A SOLID body: every edge incident to an occupied cell, so the cells cannot be entered
+// at all.  This is the cell model expressed in the edge primitive — which is the point:
+// one collision layer serves both.
+pub fn edges_solid(s: HexSet, e: EdgeSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        for d in 0..6 { edge_block(e, q, r, nb_q(q, r, d), nb_r(q, r, d)); }
+      }
+    }
+  }
+}
+
+// Block every edge a straight line crosses: the wall runs along `n·p = c` in world
+// units, with n the unit normal.  A thin wall in ANY heading, one edge thick.
+pub fn edges_halfplane_surf(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+                            nx: float, ny: float, c: float, surf: integer) {
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      sa = (lattice_k(q, r) as float) * 0.8660254037844386 * nx
+         + (lattice_m(q, r) as float) * 0.5 * ny - c;
+      for d in 0..6 {
+        nq = nb_q(q, r, d);
+        nr = nb_r(q, r, d);
+        sb = (lattice_k(nq, nr) as float) * 0.8660254037844386 * nx
+           + (lattice_m(nq, nr) as float) * 0.5 * ny - c;
+        if sa < 0.0 && sb >= 0.0 { edge_block_surf(e, q, r, nq, nr, surf); }
+      }
+    }
+  }
+}
+
+// Back-compat: a halfplane wall with no surface recorded.
+pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+                       nx: float, ny: float, c: float) {
+  edges_halfplane_surf(e, q0, r0, w, h, nx, ny, c, -1);
+}

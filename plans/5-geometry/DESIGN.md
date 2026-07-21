@@ -161,23 +161,296 @@ A new way type is a **profile**, not a routine. Invariants:
 | minimum wall | **model-dependent** — see §6 | 1-cell connected runs do not exist off-axis at all |
 | push resistance | `interlock margin ≈ block_length / (2·radius)` | matches measurement to 3 decimals, R = 2…200 |
 
-## 6. The one open decision that blocks the rest
+## 6. SETTLED — collision is the EDGE model
 
-**Is a wall a cell footprint or an edge cut?**
+**Decision (2026-07-21): collision is a set of blocked hex EDGES.** Movement from hex A
+to B is legal iff their shared edge is not blocked. This answers FORMS.md open question 7.
 
 | model | 1 unit thick blocks | width |
 |---|---|---|
-| **cell** | 6 of 24 headings | quantised + anisotropic; consistent only at ≥2 hex |
+| cell | 6 of 24 headings | quantised + anisotropic; consistent only at ≥2 hex |
 | **edge** | **24 of 24** | a rendering choice — exact, via the offset construction |
 
-Crawler is cell-model today (`sim.loft` `tile_solid`). The edge model is the better
-collision primitive and makes width exact. **They compose**: cell footprint for the body
-and its features (doors, windows — FORMS.md's anatomy), edge cut for collision.
+Two properties made the call:
 
-This is FORMS.md open question 7 with numbers attached, and it should be settled before
-the wall↔tower joins are designed, because the join *is* the seam between the two.
+- A cut **separates by construction**, so one edge is always enough, in any heading. The
+  cell model cannot even form a connected 1-cell run off-axis.
+- Wall **width stops being a collision concern** and becomes geometry, set exactly by the
+  §4 offset construction — instead of quantised and 25% anisotropic.
 
-## 7. Verification contract
+**The edge model subsumes the cell model.** "You cannot enter this cell" is just "every
+edge of that cell is blocked", so ONE collision layer serves a thin fence, a thick
+curtain wall and a closed tower ring:
+
+```loft
+edges_cut(HexSet, EdgeSet)         // thin wall: the boundary cut
+edges_solid(HexSet, EdgeSet)       // thick body: cannot be entered
+edges_halfplane(EdgeSet, …)        // a straight wall in any heading
+passable(EdgeSet, qa,ra, qb,rb)    // THE collision query
+```
+
+**The edge key is free**, because the lattice is already integer: an edge is identified
+by the **doubled midpoint** of its two cell centres, `(kA+kB, mA+mB)`. Exact, symmetric
+in A and B (so no ordering convention), unique per edge — verified 930 edges, 0
+collisions.
+
+Verified in `src/edgetest.loft` (in `make test`): a 1-edge wall blocks in **24/24**
+headings, a solid body seals, and a ring cut seals its boundary.
+
+### 6.1 Collision must return a NORMAL, so an edge stores a SURFACE
+
+A bounce needs the wall's direction, and **a hex edge has only 6 possible normals** (60°
+apart). Measured against the true wall normal across the 24 headings, using the edge's own
+normal is wrong by **up to 90°** — a bounce that sends you sideways or backwards. Even the
+best-case heading is 30° off. The direction is simply *not recoverable* from the cell grid.
+
+So a blocked edge stores a **surface id**, not a boolean, and the surface carries the exact
+geometry:
+
+```loft
+surf_straight(sfs, nx, ny, c) -> id     // constant normal — exact for any heading
+surf_arc(sfs, cx, cy, r)      -> id     // radial normal — exact at EVERY point, no facets
+collide(EdgeSet, Surfaces, qa,ra, qb,rb) -> (blocked, nx, ny)
+```
+
+**The hex grid becomes a SPATIAL INDEX, not the geometry.** The edge tells you *that* you
+hit something and *which* thing; the surface tells you its exact normal at the contact
+point. That is the standing rule again — never derive a smooth thing from cells — applied
+to the normal.
+
+Verified in `src/edgetest.loft`: straight-wall normals **exact in all 24 headings**
+(worst error 0), and arc normals **radial-exact at every contact point** (worst error 0).
+
+**Why this beats a collision mesh**, which was the alternative: no mesh has to be authored
+or stored for a large area, and small organic blockers — a tree, a bush — are described
+*better* by a surface (an arc/disc with a true radial normal) than by any low-poly hull.
+Storage is one integer per blocked edge.
+
+Open: a surface kind for irregular blockers (a rock outcrop, a hedge run) beyond
+straight/arc, and what happens at a corner where two surfaces meet at one edge — today
+first-writer-wins.
+
+**What this does NOT change:** the cell footprint stays, for the body, its features
+(doors, windows — FORMS.md's anatomy), matching, and rendering. Cells say what *occupies*
+space; edges say what *blocks* movement; curves say what it *looks* like.
+
+Crawler's `sim.loft` `tile_solid` is still cell-based — migrating it is a separate piece
+of work, not a prerequisite for the joins.
+
+## 7. The DUAL SYSTEM — stored world, derived field
+
+**Decision (2026-07-21).** Two layers, deliberately different in kind:
+
+| | **L1 — WORLD** | **L2 — FIELD** |
+|---|---|---|
+| what | cells + tags, stencils, bundles | edges → (surface, material) |
+| authority | **the truth**; authored, saved, versioned | a **cache**; never saved |
+| extent | the whole world, compact | one region, on demand |
+| built | by authoring / generation | derived, `O(chunk)`, pure function of L1 |
+| serves | matching, editing, persistence, diffing | physics, collision, propagation |
+
+**L2 is a pure function of an L1 region**, which is what makes it safe: it is deterministic,
+cacheable, chunk-local (already proven — same shape in two chunks traces identically), and
+**cannot drift**, because it is thrown away rather than stored. Key it by
+`(chunk, world_version)`; an edit bumps the version and the region is recomputed. Nothing
+to migrate, nothing to keep in sync.
+
+That also preserves L1's compactness: the exact positions and normals never enter the saved
+world.
+
+### 7.1 The consumers do NOT all want "blocked"
+
+This is the part a boolean cannot carry. Each consumer reads a different property of the
+same edge:
+
+| consumer | needs |
+|---|---|
+| **bouncing balls** | blocked · **normal** · restitution |
+| **movement limiters** | blocked · **height** (step over a low wall) |
+| **damage decals** | **contact point** · surface parameter · orientation |
+| **water flow** | **permeability** · surface **tangent** (water runs *along* a wall) |
+| **air flow** | permeability (and gaps a solid wall still leaks through) |
+| **sound barriers** | **attenuation in dB** — not binary; a hedge muffles, a wall stops |
+| **sight barriers** | **opacity** · height — a low wall blocks movement but not sight |
+
+So an edge carries **two references, not one flag**:
+
+```
+    edge  →  (surface_id, material_id)
+             surface = GEOMETRY  — normal, tangent, contact point, curvature
+             material = PHYSICS  — solid, height, opacity, sound_db, permeability, restitution
+```
+
+The split matters because they vary independently: a stone wall and a hedge on the *same*
+arc share a surface and differ entirely in material; a wall and a tower of the same stone
+share a material and differ entirely in surface.
+
+**Sight and sound fall out of the same structure**: both are propagation across edges, and
+both already have their barrier term stored per edge. A shadowcast reads `opacity`, a sound
+solver accumulates `sound_db`, a flow solver reads `permeability` — all traversing the same
+derived field, none of them needing a mesh or a second spatial structure.
+
+### 7.2 WHEN to build it — L2 is a first pass, not an end product
+
+The tempting reading is that L2 is derived *after* everything, purely to answer physics
+queries. That is wrong, and the reason is a bug class rather than a preference.
+
+**The failure mode to design out.** If the mesh is derived from L1, and the collision field
+is *also* derived from L1, then the same geometry has been computed twice by two different
+routines — and they will disagree. That is the "the wall you see is not the wall you hit"
+bug, and it is invisible in unit tests because each derivation is self-consistent. The
+design already forbids exactly this shape elsewhere (one home per fact; no part owns a
+local frame), and it applies here.
+
+**So the surface layer is the SHARED intermediate**, and it is built before the mesh:
+
+```
+   L1 world cells / tags
+        │
+        ▼
+   L2  SURFACES   (exact 2D geometry: centrelines, arcs, offsets)   ← built FIRST
+        │                    │
+        │                    └─── validate()  — the gate, before any consumer
+        ├──────────────► terrain heights ──► GROUND LINES ──► mesh / extrusion
+        └──────────────► materials ────────► physics, flow, sight, sound
+```
+
+Read that as three claims:
+
+1. **The mesh is built FROM the surfaces, not beside them.** The wall the renderer extrudes
+   and the wall the ball bounces off are then the *same* curve by construction — not two
+   curves that happen to agree.
+2. **Ground lines are `surface × terrain height`.** The surfaces are exact and 2D; draping
+   them onto the LOD heights is what produces the ground line. So the surface must exist
+   before the ground line can, which settles the ordering the question asked about.
+3. **`validate()` sits at that junction** — the earliest point where bad geometry can be
+   caught, and before either consumer has spent work on it.
+
+**And L2 is useful with no mesh at all.** Physics, water and air flow, sight and sound need
+only L2. A region that is never rendered — off-screen, server-side, a headless test — still
+gets correct behaviour, and pays nothing for meshes it does not need. That is the same
+argument that ruled meshes out for collision, one level up: the mesh becomes a *rendering*
+artifact rather than a simulation prerequisite.
+
+**Cost is not doubled.** L2 is `O(chunk)` and already required for physics; the mesh path
+consumes it instead of re-deriving, so building it first is cheaper than the alternative,
+not more expensive.
+
+**Lifecycle follows from this.** A region needs L2 when *either* something must simulate
+there or something must be drawn there — so it is built on first demand of either, cached
+by `(chunk, world_version)`, and dropped when neither holds. Rendering and simulation share
+one cache rather than keeping two.
+
+### 7.2b THE GRID *IS* THE INDEX — and that is why L2 is a grid, not a list
+
+**A correction to an earlier draft of this section.** It claimed the surface↔geometry join
+was missing outright, because `VecMap` carries no surface id. That over-stated the problem
+and mis-read the architecture. The reason L2 was made a **hex grid** rather than a list is
+precisely that a grid *is* an in-structure index: it answers **"what is at this position?"
+in O(1)**, with no lookup structure to build and nothing to keep in sync.
+
+Sorting the consumers by the question they actually ask makes the split obvious:
+
+| consumer | question | structure | path |
+|---|---|---|---|
+| bouncing ball | position → what is here? | **GRID** O(1) | edge → surf → normal |
+| damage decal | position → what is here? | **GRID** O(1) | edge → surf → point + normal |
+| movement limiter | position → passable? | **GRID** O(1) | edge → solid |
+| water / air flow | position → permeability? | **GRID** O(1) | edge → material |
+| sight / shadowcast | position → opacity? | **GRID** O(1) | edge → material |
+| sound | position → attenuation? | **GRID** O(1) | edge → material |
+| draw the outline | *iterate* all geometry | LIST O(n) | vector map, sequential |
+| build the mesh | *iterate* all geometry | LIST O(n) | vector map, sequential |
+
+Every **random-access** consumer asks "what is at this position?" — that is a grid. Every
+**sequential** consumer iterates — that is a list, and it needs no index at all. The two
+structures are not rivals; they serve opposite access patterns, and the list is an *output*
+rather than a queryable store.
+
+**So the physics path is complete today**: `grid → surface id → exact normal`, verified in
+`edgetest.loft`. A decal *can* be placed on the wall it just hit, without the vector map
+being involved.
+
+**The one real gap is render-side attribution.** `VecMap` has no `vm_surf`, so a list
+segment cannot be traced back to the surface it came from. That matters for drawing a decal
+*onto the mesh*, or highlighting a hit segment — not for the simulation. It is a smaller,
+render-only gap, and the fix is still to tag segments with the surface id when the vector
+map is derived from surfaces (§7.2).
+
+**What survives from the earlier draft, because it is independently true:** cell-authored
+content still has no surfaces, so it has no recoverable normal. That makes FORMS.md's
+**matcher** load-bearing for physics rather than kit polish — it is what lets cell-authored
+and curve-authored content behave identically. Until it exists, cell-authored walls report
+`surf 0`: blocked, with `collide()` honestly returning no normal instead of faking one.
+
+### 7.3 Minimising L2 — small integers, and a better index
+
+L2 is a per-region cache, so its size is a real cost. Measured, the current `EdgeSet` is
+**~48× larger than it needs to be** for a 32×32 chunk (430 KB vs 9 KB), from two
+independent causes.
+
+**Cause 1 — the index wastes ~9× (the bigger problem).** Keying a dense array by the
+doubled-midpoint `(K,M)` is sparse: only half the slots are legal at all (parity must be
+`(0,0)` or `(1,1)`), and the doubled lattice spans ~4×/6× the cell grid.
+
+| chunk | cells | real edges | slots allocated | waste |
+|---|---|---|---|---|
+| 16×16 | 256 | 800 | 7 665 | 9.6× |
+| 32×32 | 1 024 | 3 136 | 27 537 | 8.8× |
+| 64×64 | 4 096 | 12 416 | 104 145 | 8.4× |
+
+**Fix: index by `(cell, canonical direction)` — exactly 3 slots per cell, zero waste.**
+Verified: crawler's neighbour encoding pairs opposites as `{0↔1, 2↔5, 3↔4}`, so the
+canonical set `[0, 2, 3]` covers **every edge exactly once** (813 edges, 0 duplicates, 0
+missed). The doubled-midpoint key stays as the *canonical identity* (it is what makes the
+key symmetric and portable); it is just no longer the storage index.
+
+**Cause 2 — 64-bit integers per edge.** Nothing per-edge needs 64 bits:
+
+| field | type | why it is enough |
+|---|---|---|
+| surface id | `u16` | 65 k distinct surfaces in one region |
+| material id | `u8` | 256 materials |
+| *(optional)* baked normal | `u8` angle | 360/256 = **1.41°/step, max error 0.70°** — against the 90° error we are avoiding |
+
+**Answer to "small integers or `single`?" — both, in different places.** Per-edge data is
+**small integers, no floats at all**. `single` belongs in the *surface table*, which holds
+one entry per wall or tower in the region and is therefore not the memory driver; f32's
+~7 digits is far more than the geometry needs. **No doubles anywhere in L2.**
+
+Loft supports this directly — `vector<u8>` / `vector<u16>` / `vector<single>` are
+declarable, with a checked narrowing cast: `x as u8? ?? 0` (verified).
+
+**Measured with loft's `size`, not estimated** — element costs are integer 8 B, u16 2 B,
+u8 1 B, single 4 B, boolean 1 B:
+
+| 32×32 chunk | slots | bytes |
+|---|---|---|
+| current `ee_surf` + `ee_mat` (`integer`) | 27 537 each | **440 592 B** (430 KB) |
+| minimised (cell,dir index; u16 + u8) | 3 072 each | **9 216 B** (9 KB) |
+| | | **47× smaller** |
+
+`size(v)` on a vector returns its byte footprint, so this is a fact about the running
+structure rather than a hand computation — and it is worth asserting in the test so the
+footprint cannot silently regress.
+
+At 9 KB a chunk, keeping many regions resident stops being a concern — which matters,
+because §7.2 has rendering and simulation sharing one cache.
+
+### 7.4 What is built and what is not
+
+Built and verified (`src/hexedge.loft`, `src/edgetest.loft` in `make test`):
+`EdgeSet` keyed by the exact doubled-midpoint edge key · `Surfaces` with straight and arc
+kinds · `Materials` with the six per-consumer terms · `collide()` returning exact normals
+(0 error, all 24 headings; radial-exact on arcs).
+
+Not built yet: the region cache and its `(chunk, world_version)` key; the §7.3
+minimisation (canonical-direction index + narrow types — the current `EdgeSet` is the
+correct-but-fat version); a surface kind for irregular blockers; and corner arbitration
+where two surfaces meet at one edge (today first-writer-wins — the wall→tower join work
+should settle it).
+
+## 8. Verification contract
 
 - **Python is the ORACLE**, `plans/5-geometry/*.py`. It stays; it is not the destination.
 - **The golden JSON is language-neutral** — exact integers, canonical loops. The loft port
@@ -201,7 +474,7 @@ instrument was fine and the *framing* was loose, so these are now rules:
 5. **State bounds as bounds.** "0.577 is irreducible" was wrong (0.658 measured); it is a
    characteristic scale, and `max|d−W|` is bounded by 1.155.
 
-## 8. Next, in order
+## 9. Next, in order
 
 1. **Settle §6** (wall model) — it gates the joins.
 2. **Wall → round tower joins**: the connector seam, G0/G1 across the model boundary.
