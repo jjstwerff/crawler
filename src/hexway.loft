@@ -316,15 +316,26 @@ pub fn seg_param(t: Track, i: integer, px: float, py: float) -> float {
   a0 = t.tk_p[i * 6 + 3] ?? 0.0;
   a1 = t.tk_p[i * 6 + 4] ?? 0.0;
   a = atan2(py - cy, px - cx);
-  da = a - a0;
   sweep = a1 - a0;
-  // bring da into the same turn as the sweep
-  while da < 0.0 && sweep > 0.0 { da = da + 6.283185307179586; }
-  while da > 0.0 && sweep < 0.0 { da = da - 6.283185307179586; }
-  if sweep > 0.0 && da > sweep { da = sweep; }
-  if sweep < 0.0 && da < sweep { da = sweep; }
-  ad = da; if ad < 0.0 { ad = 0.0 - ad; }
-  ad * rr
+  da = a - a0;
+  // Bring the offset into [0, 2pi), then measure it ALONG the arc's own direction.
+  while da < 0.0 { da = da + 6.283185307179586; }
+  while da >= 6.283185307179586 { da = da - 6.283185307179586; }
+  span = sweep;
+  if span < 0.0 { span = 0.0 - span; }
+  tp = da;
+  if sweep < 0.0 {
+    tp = 6.283185307179586 - da;
+    if da < 0.000000001 { tp = 0.0; }
+  }
+  // Outside the span, snap to the NEARER end.  Clamping blindly to the far end is the
+  // trap: a point sitting just BEFORE the start wraps to nearly 2pi, and clamping that
+  // to `span` hands the first cell of a flight the height of the last one — a full-flight
+  // riser between two neighbouring cells.  Found by stairtest, not by inspection.
+  if tp > span {
+    if tp - span < 6.283185307179586 - tp { tp = span; } else { tp = 0.0; }
+  }
+  tp * rr
 }
 
 // Arc length from the START OF THE WAY to the point on it nearest (px,py).  This is the

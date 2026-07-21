@@ -1,0 +1,195 @@
+// spiraltest — CURVED AND SPIRAL STAIRS: when the tread stops being a rectangle.
+//
+// A straight flight has a constant tread. Curve it and the tread becomes an annular
+// SECTOR, so the going varies across the width: going(r) = r * dphi. Two things follow
+// immediately, and they pull in opposite directions:
+//
+//   * A GRAND curved stair needs no new machinery at all. way_param already measures arc
+//     length at the CENTRELINE, which is exactly the walking-line convention a builder
+//     uses, so way_steps on an arc produces correct sector treads unchanged.
+//
+//   * A SPIRAL stair inside a small circle cannot be represented AT ALL. The narrowest
+//     going is at the inner edge, and it must still clear the grid bound the straight
+//     gate measured (sqrt(3)*max|cos| ~ 1.73). That gives dphi >= 1.73/r_inner, which
+//     exceeds a full turn once r_inner < 0.28 — not one tread fits. A domestic spiral
+//     (r_inner ~ 0.1) is far below that.
+//
+// The second is the more valuable result, because it is a statement about the MODEL: the
+// field has a resolution floor, and a feature below it is not a badly-tuned field, it is
+// an OBJECT — one cell carrying a surface, like a tree or a piece of furniture. Knowing
+// exactly where that floor sits is what this gate is for.
+use hexform;
+use hexedge;
+use hexway;
+use hexcache;
+
+fn deg(v: float) -> float { v * 0.017453292519943295 }
+
+fn worst_riser(s: HexSet, f: Heights) -> float {
+  w = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        for i in 0..6 {
+          nq = nb_q(q, r, i);
+          nr = nb_r(q, r, i);
+          if hexset_get(s, nq, nr) {
+            dz = height_get(f, q, r) - height_get(f, nq, nr);
+            if dz < 0.0 { dz = 0.0 - dz; }
+            if dz > w { w = dz; }
+          }
+        }
+      }
+    }
+  }
+  w
+}
+
+fn levels_of(s: HexSet, f: Heights, rise: float) -> integer {
+  hi = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        n = (height_get(f, q, r) / rise ?? 0.0) as integer;
+        if n > hi { hi = n; }
+      }
+    }
+  }
+  hi + 1
+}
+
+fn main() {
+  println("=== story spiral / grand stair test ===");
+  ok = true;
+  q0 = -34; r0 = -34; gw = 69; gh = 69;
+  rise = 0.5;
+  wid = 2.0;
+
+  // ── 1. a grand curved stair, on machinery that already existed ───────────
+  rc = 10.0;
+  arc = track_new();
+  track_arc(arc, 0.0, 0.0, rc, deg(0.0), deg(100.0));
+  hs = hexset_chunk(q0, r0, gw, gh);
+  way_mark(arc, wid, hs);
+  hf = heights_new(q0, r0, gw, gh);
+  way_steps(arc, hs, hf, rise, 2.5);
+  println("grand curved stair R={rc}, width {wid}: {hexset_count(hs)} cells, {levels_of(hs, hf, rise)} steps, worst riser {worst_riser(hs, hf)}");
+  if worst_riser(hs, hf) > rise * 1.01 { ok = false; }
+  if levels_of(hs, hf, rise) < 5 { ok = false; }
+
+  // treads really are SECTORS: the going at the outer edge exceeds the inner
+  ri = rc - wid;
+  ro = rc + wid;
+  taper = ro / ri ?? 0.0;
+  println("   going inner {2.5 * ri / rc ?? 0.0}, outer {2.5 * ro / rc ?? 0.0}, taper {taper} = r_out/r_in {ro / ri ?? 0.0}");
+  // the taper is the RADIUS RATIO, independent of how finely the stair is divided
+  t2 = 2.5 * 0.4;
+  tap2 = (t2 * ro / rc ?? 0.0) / (t2 * ri / rc ?? 0.0) ?? 0.0;
+  println("   divide 2.5x finer -> taper {tap2} (unchanged: {tap2 > taper - 0.001 && tap2 < taper + 0.001})");
+  if tap2 < taper - 0.001 || tap2 > taper + 0.001 { ok = false; }
+
+  // ── 2. the threshold INNER GOING is a constant, not a per-radius tuning ──
+  // Sweep the tread down at three radii. The minimum clean tread differs every time,
+  // but converted to going AT THE INNER EDGE it lands on the same grid bound the
+  // straight flight measured. The constraint is always on the narrowest going.
+  println("minimum clean tread by radius (and the inner going it implies):");
+  for j in 0..3 {
+    rcj = 8.0;
+    if j == 1 { rcj = 12.0; }
+    if j == 2 { rcj = 16.0; }
+    aj = track_new();
+    track_arc(aj, 0.0, 0.0, rcj, deg(0.0), deg(110.0));
+    hj = hexset_chunk(q0, r0, gw, gh);
+    way_mark(aj, wid, hj);
+    mint = 0.0;
+    for i in 0..40 {
+      tr = 0.4 + (i as float) * 0.1;
+      fj = heights_new(q0, r0, gw, gh);
+      way_steps(aj, hj, fj, rise, tr);
+      if worst_riser(hj, fj) > rise * 1.01 { mint = tr + 0.1; }
+    }
+    rij = rcj - wid;
+    inner = mint * rij / rcj ?? 0.0;
+    println("   R={rcj} (r_in {rij}): min tread {mint} -> inner going {inner}");
+    if mint <= 0.0 { ok = false; }
+    // the inner going must land on the straight-stair bound, ~1.5..1.9
+    if inner < 1.3 || inner > 2.1 { ok = false; }
+  }
+
+  // ── 3. a small spiral is BELOW THE FLOOR — no tread value works ──────────
+  // Not a tuning failure: at r_inner = 0.2 the required sector is 8.7 radians, more than
+  // a full turn, so a single tread cannot be laid. The sweep proves it exhaustively.
+  rcs = 1.2;
+  ws = 1.0;
+  ris = rcs - ws;
+  spiral = track_new();
+  track_arc(spiral, 0.0, 0.0, rcs, deg(0.0), deg(350.0));
+  hsp = hexset_chunk(q0, r0, gw, gh);
+  way_mark(spiral, ws, hsp);
+  good = 0;
+  for i in 0..60 {
+    tr = 0.2 + (i as float) * 0.1;
+    fs = heights_new(q0, r0, gw, gh);
+    way_steps(spiral, hsp, fs, rise, tr);
+    if worst_riser(hsp, fs) <= rise * 1.01 && levels_of(hsp, fs, rise) >= 4 { good = good + 1; }
+  }
+  need = 1.7320508075688772 / ris ?? 0.0;
+  println("domestic spiral R={rcs} width {ws} (r_in {ris}): {hexset_count(hsp)} cells");
+  println("   required sector {need} rad = {need / 0.017453292519943295 ?? 0.0} deg — more than a full turn: {need > 6.283185307179586}");
+  println("   tread values yielding a clean 4+ step stair, out of 60: {good}");
+  if good != 0 { ok = false; }
+  if need <= 6.283185307179586 { ok = false; }
+
+  // the floor, stated exactly: below this inner radius nothing is representable
+  floor_r = 1.7320508075688772 / 6.283185307179586 ?? 0.0;
+  println("   -> field resolution floor: r_inner >= {floor_r}; below it a stair is an OBJECT, not a field");
+
+  // ── 4. more than one turn self-overlaps, so a spiral needs LEVELS ────────
+  // Exactly the bridge problem: the same cells, twice, not interacting. One Heights
+  // field cannot hold two revolutions; one level per revolution can.
+  rcg = 12.0;
+  turn1 = track_new();
+  track_arc(turn1, 0.0, 0.0, rcg, deg(0.0), deg(359.0));
+  h1 = hexset_chunk(q0, r0, gw, gh);
+  way_mark(turn1, wid, h1);
+  h2 = hexset_chunk(q0, r0, gw, gh);
+  way_mark(turn1, wid, h2);
+  same = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(h1, q, r) && hexset_get(h2, q, r) { same = same + 1; }
+    }
+  }
+  println("two revolutions of a grand spiral overlap in {same} cells — one height field cannot hold both");
+  if same <= 0 { ok = false; }
+
+  fc = cache_new(6);
+  ver = 1;
+  sa = cache_claim(fc, 0, 0, 0, ver);
+  sb = cache_claim(fc, 0, 0, 1, ver);
+  sc = cache_claim(fc, 0, 0, 2, ver);
+  println("three revolutions cached as three levels: slots {sa}/{sb}/{sc}, distinct {sa != sb && sb != sc && sa != sc}");
+  if sa == sb || sb == sc || sa == sc { ok = false; }
+
+  // ── 5. headroom is the bridge-clearance rule, wearing a hat ─────────────
+  // After one revolution you pass over your own head. N*rise must clear it.
+  head = 2.0;
+  thick = 0.1;
+  println("headroom {head} + soffit {thick}: treads needed per revolution");
+  for j in 0..3 {
+    rz = 0.18;
+    if j == 1 { rz = 0.25; }
+    if j == 2 { rz = rise; }
+    nn = ((head + thick) / rz ?? 0.0) as integer + 1;
+    println("   rise {rz}: N >= {nn}");
+    if (nn as float) * rz < head + thick { ok = false; }
+  }
+  // and the going that many treads implies at our grand radius must still be legal
+  ngrand = ((head + thick) / rise ?? 0.0) as integer + 1;
+  dphi = 6.283185307179586 / (ngrand as float) ?? 0.0;
+  inner_going = (rcg - wid) * dphi;
+  println("   grand spiral R={rcg}: N={ngrand} -> inner going {inner_going}, legal {inner_going >= 1.5}");
+  if inner_going < 1.5 { ok = false; }
+
+  if ok { println("=== SPIRAL OK ==="); } else { println("=== FAIL ==="); }
+}

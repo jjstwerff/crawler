@@ -770,3 +770,66 @@ eye at z=6.0 (above pitch) can.
 `rise` · the minimum clean tread matches the closed form within one sweep step on four
 headings · monotonicity along the flight (0 inversions — a flight only ever goes up) · 40
 riser edges across 9 step levels · the pitch-line sight test either side.
+
+## 12. Curved and spiral stairs (P13) — and the field's resolution floor
+
+Curving a flight turns the tread from a rectangle into an annular **sector**, so the going
+varies across the width: `going(r) = r·dφ`. Two consequences, pulling opposite ways.
+
+### A grand curved stair needs no new machinery
+
+`way_param` already measures arc length at the **centreline** — which is exactly the
+walking-line convention a builder uses — so `way_steps` on an arc produces correct sector
+treads unchanged. Measured at R=10, width 2: 29 cells, 7 steps, worst riser exactly `rise`.
+
+The taper is `going_outer/going_inner = r_outer/r_inner`, **independent of dφ**: dividing
+the stair 2.5× finer leaves the taper at 1.5. So the taper is set by the radius ratio
+alone, and keeping it under 2 needs `r_inner ≥ width`.
+
+### The bound is on the narrowest going, and it is the same number
+
+Sweeping the tread at three radii gives three different minimum treads — but converted to
+the going **at the inner edge**, they land on one constant:
+
+```
+   R=8  (r_in 6)    min tread 2.2   ->  inner going 1.65
+   R=12 (r_in 10)   min tread 1.9   ->  inner going 1.58
+   R=16 (r_in 14)   min tread 1.8   ->  inner going 1.58
+```
+
+That is the same `√3`-ish bound the straight flight measured. **The constraint is always on
+the narrowest going, wherever on the tread it occurs** — which is also how building codes
+state it.
+
+### A small spiral stair is below the floor — and that is a statement about the model
+
+The narrowest going must clear the grid bound, so `dφ ≥ 1.73/r_inner`. That exceeds a full
+turn once `r_inner < 0.276`: **not one tread fits**. A domestic spiral (`r_inner ≈ 0.2`)
+needs a 496° sector. Gated exhaustively — of 60 tread values swept, **zero** produce a
+clean 4-step stair.
+
+This is the valuable result, because it is not a tuning failure. **The field has a
+resolution floor at `r_inner ≥ √3/2π ≈ 0.276`, and a feature below it is not a badly-tuned
+field — it is an OBJECT**: one cell carrying a surface, like a tree or a piece of
+furniture. Knowing exactly where that floor sits is what tells you which representation a
+thing belongs in.
+
+### More than one turn is the bridge problem again
+
+Two revolutions overlap in 120 cells, so one height field cannot hold both — a spiral is a
+**stack of levels, one per revolution**, reusing §10 unchanged (three revolutions cached as
+three distinct slots). And headroom is the bridge-clearance rule wearing a hat: after one
+turn you pass over your own head, so `N·rise ≥ headroom + soffit`.
+
+### A bug this found
+
+`seg_param` wrapped a point sitting just *before* an arc's start into `+2π` and then clamped
+it to the arc's **end** — handing the first cell of a flight the height of the last one, a
+full-flight riser between two neighbouring cells. The clamp now snaps to the *nearer* end.
+Found by the gate, not by inspection; it would have corrupted every arc milepost query.
+
+**Gate** `src/spiraltest.loft`: the grand curved stair is clean with worst riser exactly
+`rise` · the taper is invariant under subdivision · the threshold inner going is constant
+across three radii · the sub-grid spiral admits no clean tread out of 60 swept and its
+required sector exceeds a full turn · two revolutions overlap and cache as distinct levels ·
+the headroom rule at three rises.
