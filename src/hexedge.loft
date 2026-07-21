@@ -69,6 +69,22 @@ pub fn surf_arc(s: Surfaces, cx: float, cy: float, r: float) -> integer {
   s.sf_n - 1
 }
 
+// Distance from a world point to surface `id` — the ARBITRATION metric (P3).
+pub fn surf_distance(s: Surfaces, id: integer, px: float, py: float) -> float {
+  if id <= 0 || id >= s.sf_n { return 1000000.0; }
+  kind = s.sf_kind[id] ?? 0;
+  if kind == 1 {
+    d = (s.sf_a[id] ?? 0.0) * px + (s.sf_b[id] ?? 0.0) * py - (s.sf_c[id] ?? 0.0);
+    if d < 0.0 { d = 0.0 - d; }
+    return d;
+  }
+  ex = px - (s.sf_a[id] ?? 0.0);
+  ey = py - (s.sf_b[id] ?? 0.0);
+  d2 = (sqrt(ex * ex + ey * ey) ?? 0.0) - (s.sf_c[id] ?? 0.0);
+  if d2 < 0.0 { d2 = 0.0 - d2; }
+  d2
+}
+
 // The outward normal of surface `id` at world point (px,py).
 pub fn surf_normal(s: Surfaces, id: integer, px: float, py: float) -> (float, float) {
   if id <= 0 || id >= s.sf_n { return (0.0, 0.0); }
@@ -205,6 +221,98 @@ pub fn edge_block_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: in
   }
 }
 
+// The world point where the two cells' shared edge sits (its midpoint) — the contact
+// point a normal is evaluated at.
+pub fn edge_point(qa: integer, ra: integer, qb: integer, rb: integer) -> (float, float) {
+  ((edge_k(qa, ra, qb, rb) as float) * 0.4330127018922193,
+   (edge_m(qa, ra, qb, rb) as float) * 0.25)
+}
+
+// ── P3: JUNCTION ARBITRATION ─────────────────────────────────────────────────
+//
+// When two parts meet, one edge is claimed by two surfaces. First-writer-wins made that
+// order-dependent — stamp the wall then the tower and you got a different world than the
+// other way round, which is exactly the class of bug that never shows up in a unit test.
+//
+// THE RULE: the surface whose geometry is NEAREST the edge's contact point wins; ties
+// break to the LOWER surface id. Both halves matter — nearest is what a ball should
+// actually bounce off, and the tie-break is what makes it deterministic.
+pub fn edge_block_arb(e: EdgeSet, sf: Surfaces, qa: integer, ra: integer,
+                      qb: integer, rb: integer, surf: integer, mat: integer) {
+  i = ee_index(e, qa, ra, qb, rb);
+  if i < 0 { return; }
+  cur = e.ee_surf[i] ?? 0;
+  if cur == 0 {
+    e.ee_surf[i] = surf;
+    e.ee_mat[i] = mat;
+    e.ee_count = e.ee_count + 1;
+    return;
+  }
+  (px, py) = edge_point(qa, ra, qb, rb);
+  dcur = surf_distance(sf, cur, px, py);
+  dnew = surf_distance(sf, surf, px, py);
+  take = false;
+  if dnew < dcur - 0.000000001 { take = true; }
+  gap = dnew - dcur;
+  if gap < 0.0 { gap = 0.0 - gap; }
+  if gap <= 0.000000001 && surf < cur { take = true; }
+  if take {
+    e.ee_surf[i] = surf;
+    e.ee_mat[i] = mat;
+  }
+}
+
+// A junction records WHICH surfaces meet and what continuity was INTENDED there, so a
+// deliberate corner is never mistaken for an accidental kink (FORMS.md's junction policy).
+pub const JOIN_SMOOTH = 1;      // G1 intended — tangents must agree
+pub const JOIN_CORNER = 2;      // a deliberate angle — a corner on purpose
+
+pub struct Junctions {
+  jn_a:    vector<integer>,
+  jn_b:    vector<integer>,
+  jn_kind: vector<integer>,
+  jn_x:    vector<float>,
+  jn_y:    vector<float>,
+  jn_n:    integer,
+}
+
+pub fn junctions_new() -> Junctions {
+  a: vector<integer> = []; b: vector<integer> = []; k: vector<integer> = [];
+  x: vector<float> = []; y: vector<float> = [];
+  Junctions { jn_a: a, jn_b: b, jn_kind: k, jn_x: x, jn_y: y, jn_n: 0 }
+}
+
+pub fn junction_add(j: Junctions, sa: integer, sb: integer, kind: integer,
+                    x: float, y: float) {
+  j.jn_a += [sa]; j.jn_b += [sb]; j.jn_kind += [kind];
+  j.jn_x += [x]; j.jn_y += [y];
+  j.jn_n = j.jn_n + 1;
+}
+
+// Does the junction honour what was intended?  G0 is exact by construction (both
+// surfaces pass through the seam point); this checks the TANGENT.
+pub fn junction_ok(j: Junctions, i: integer, sf: Surfaces) -> boolean {
+  sa = j.jn_a[i] ?? 0;
+  sb = j.jn_b[i] ?? 0;
+  x = j.jn_x[i] ?? 0.0;
+  y = j.jn_y[i] ?? 0.0;
+  (ax, ay) = surf_normal(sf, sa, x, y);
+  (bx, by) = surf_normal(sf, sb, x, y);
+  dot = ax * bx + ay * by;
+  if dot < 0.0 { dot = 0.0 - dot; }
+  if (j.jn_kind[i] ?? 0) == JOIN_SMOOTH { return dot > 0.999; }
+  dot < 0.999
+}
+
+// G0: both surfaces must actually pass through the seam point.
+pub fn junction_g0(j: Junctions, i: integer, sf: Surfaces, tol: float) -> boolean {
+  x = j.jn_x[i] ?? 0.0;
+  y = j.jn_y[i] ?? 0.0;
+  da = surf_distance(sf, j.jn_a[i] ?? 0, x, y);
+  db = surf_distance(sf, j.jn_b[i] ?? 0, x, y);
+  da <= tol && db <= tol
+}
+
 // Record BOTH halves: which surface (geometry) and which material (physics).
 pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
                        surf: integer, mat: integer) {
@@ -231,13 +339,6 @@ pub fn edge_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer)
 
 pub fn edge_blocked(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
   edge_surf(e, qa, ra, qb, rb) != 0
-}
-
-// The world point where the two cells' shared edge sits (its midpoint) — the contact
-// point a normal is evaluated at.
-pub fn edge_point(qa: integer, ra: integer, qb: integer, rb: integer) -> (float, float) {
-  ((edge_k(qa, ra, qb, rb) as float) * 0.4330127018922193,
-   (edge_m(qa, ra, qb, rb) as float) * 0.25)
 }
 
 // THE COLLISION RESPONSE QUERY: blocked?, and the EXACT outward normal to bounce off.

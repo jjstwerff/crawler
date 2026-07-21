@@ -1,0 +1,111 @@
+// jointest — P3 gate: junction arbitration is a RULE, not an accident of order.
+//
+// When a wall meets a tower, one edge is claimed by two surfaces. First-writer-wins made
+// that order-dependent: stamp wall-then-tower and you got a different world than
+// tower-then-wall. That is the class of bug that never shows up in a unit test, because
+// each build is self-consistent.
+//
+// THE RULE: nearest surface to the edge's contact point wins; ties to the lower id.
+use hexform;
+use hexedge;
+use hexway;
+
+// Build the same scene in a given order; return the EdgeSet for comparison.
+fn scene(order: integer, sf: Surfaces, mat: integer,
+         q0: integer, r0: integer, w: integer, h: integer) -> EdgeSet {
+  e = edgeset_new(q0, r0, w, h);
+  hs = hexset_chunk(q0, r0, w, h);
+
+  // A round tower at the origin, and a wall leaving it TANGENTIALLY. The wall must
+  // depart where the tower's tangent already runs east — the top of the circle — or the
+  // meet is a 90-degree corner, not a G1 join.
+  tower = track_new();
+  track_arc(tower, 0.0, 0.0, 6.0, 0.0, 6.283185307179586);
+  wall = track_new();
+  track_straight(wall, 0.0, 6.0, 20.0, 6.0);
+
+  tid = way_surfaces(tower, sf);
+  wid = way_surfaces(wall, sf);
+
+  // two-phase: mark every part, THEN cut once — see hexway::way_mark
+  if order == 0 {
+    way_mark(tower, 1.1, hs);
+    way_mark(wall, 1.1, hs);
+  } else {
+    way_mark(wall, 1.1, hs);
+    way_mark(tower, 1.1, hs);
+  }
+  cut_arb(hs, e, sf, sf.sf_n, mat);
+  e
+}
+
+fn main() {
+  println("=== story junction test (arbitration is order-independent) ===");
+  ok = true;
+  Q = -26; R = -26; W = 53; H = 53;
+
+  sfa = surfaces_new();
+  mta = materials_new();
+  stone = material_add(mta, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+  ea = scene(0, sfa, stone, Q, R, W, H);
+
+  sfb = surfaces_new();
+  mtb = materials_new();
+  stone2 = material_add(mtb, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+  eb = scene(1, sfb, stone2, Q, R, W, H);
+
+  // ── order independence: every edge must resolve to the SAME surface ────────
+  same = 0;
+  diff = 0;
+  blocked = 0;
+  for r in R..R + H {
+    for q in Q..Q + W {
+      for d in 0..6 {
+        nq = nb_q(q, r, d);
+        nr = nb_r(q, r, d);
+        sa = edge_surf(ea, q, r, nq, nr);
+        sb = edge_surf(eb, q, r, nq, nr);
+        if sa != 0 || sb != 0 {
+          blocked = blocked + 1;
+          if sa == sb { same = same + 1; } else { diff = diff + 1; }
+        }
+      }
+    }
+  }
+  println("blocked edges: {blocked}  same surface both orders: {same}  DIFFER: {diff}");
+  if diff != 0 || blocked == 0 { ok = false; }
+
+  // ── no edge left without a surface ────────────────────────────────────────
+  orphan = 0;
+  for r in R..R + H {
+    for q in Q..Q + W {
+      for d2 in 0..6 {
+        nq2 = nb_q(q, r, d2);
+        nr2 = nb_r(q, r, d2);
+        if edge_blocked(ea, q, r, nq2, nr2) {
+          if edge_surf(ea, q, r, nq2, nr2) <= 0 { orphan = orphan + 1; }
+        }
+      }
+    }
+  }
+  println("blocked edges with no surface: {orphan}");
+  if orphan != 0 { ok = false; }
+
+  // ── the junction itself: G0 exact, and the intended continuity honoured ───
+  jn = junctions_new();
+  // the wall leaves the tower at (0,6) — where the tangent matches — so G1 is INTENDED
+  junction_add(jn, 1, 2, JOIN_SMOOTH, 0.0, 6.0);
+  // a deliberate corner: the same wall meeting a second wall at a right angle
+  w2 = surf_straight(sfa, 1.0, 0.0, 20.0);
+  junction_add(jn, 2, w2, JOIN_CORNER, 20.0, 6.0);
+
+  g0a = junction_g0(jn, 0, sfa, 0.000001);
+  g0b = junction_g0(jn, 1, sfa, 0.000001);
+  oka = junction_ok(jn, 0, sfa);
+  okb = junction_ok(jn, 1, sfa);
+  println("junction 0 (tower->wall, G1 intended): G0={g0a} continuity_ok={oka}");
+  println("junction 1 (wall->wall, corner intended): G0={g0b} continuity_ok={okb}");
+  if !g0a || !g0b || !oka || !okb { ok = false; }
+
+  if ok { println("=== JOIN OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -82,9 +82,78 @@ order-dependent. Replace with a stated rule.
 A `Junction` records the participating surfaces, the intended continuity (G1 smooth vs a
 deliberate corner), and the arbitration outcome.
 
-**Gate** `src/jointest.loft`: arbitration is order-independent (build A-then-B and
-B-then-A, require identical `EdgeSet`) · no edge left with surface 0 · G0 exact at every
-seam · G1 where intended, a corner where intended.
+**Gate** `src/jointest.loft` ✅ **SHIPPED 2026-07-21** — gated as `[join]`.
+
+| check | result |
+|---|---|
+| tower + wall built A-then-B vs B-then-A | 268 blocked edges, **268 identical, 0 differ** |
+| blocked edges with no surface | **0** |
+| tangential join, `G1` intended | G0 exact ✓, continuity honoured ✓ |
+| wall↔wall, `∠` corner intended | G0 exact ✓, corner honoured ✓ |
+
+**The gate caught two real defects, neither of them arbitration:**
+
+1. **A PHASE bug.** `way_stamp` marked cells *and* cut edges per part. When a later part
+   added cells, edges the earlier part had blocked became *interior* — and were never
+   cleared. The stale set depended on which part ran first (22 of 266 edges differed).
+   Fix: **two phases — `way_mark` every part, then `cut_arb` once** over the finished
+   footprint. Order-independent by construction, because the cut never looks at what was
+   stamped when.
+2. **A wrong test scene.** The wall left the tower rim at `(6,0)`, where the tower's
+   tangent is *vertical* — a 90° meet, not a tangential one. The G1 check was right and
+   my scene was wrong; the wall must depart at `(0,6)` where the tangent already runs east.
+
+### P3b — WALL TYPE as a matcher hint *(user direction, 2026-07-21)*
+
+Tag a wall as `ROUND` or `STRAIGHT` at authoring time and let it **constrain** the
+matcher. Measured benefit:
+
+- **It is the only thing that can work at small sizes.** Below 37 cells hexdisk, circle
+  and octagon rasterise to *byte-identical* cell sets (7 and 19 cells at N=1,2) — no
+  amount of geometry can separate them. A tag can.
+- **It removes the line-vs-arc guess.** Free inference shatters a round tower into 10
+  runs at tol 0.6 and 7 at tol 0.8; with a `ROUND` tag it is **1 arc, r = 8.390** at every
+  tolerance. So the matcher stops depending on the tolerance being exactly right.
+- **A type change marks a run boundary explicitly**, so a wall→tower junction is *stated*
+  in the data rather than inferred from a fit residual.
+
+Design: the tag is a **hint, not a replacement**. Cell-authored content with no tags
+(a hand-drawn footprint) still falls back to inference, so nothing regresses; tagged
+content simply gets an unambiguous, tolerance-independent answer.
+
+### P3c — the SAME tag for ways, and the 15° rule it exposes *(user direction)*
+
+Ways need it more than walls do, because a railway junction is usually exactly the hard
+case: **a rounded centreline meeting a straight one**. Under 24 directions that is not
+merely ambiguous — it is often *impossible* to join smoothly, and the tag is what makes
+the constraint checkable.
+
+A straight is one of 24 headings (15° apart). An arc's tangent varies **continuously**.
+So a tangential join only exists where the arc's end tangent lands exactly on the
+24-grid:
+
+| arc sweep | end tangent | nearest 24-dir | kink |
+|---|---|---|---|
+| 10° | 10° | 15° | **5.00°** |
+| 15° | 15° | 15° | 0 — on-grid |
+| 37.5° | 37.5° | 30° | **7.50°** |
+| 45° | 45° | 45° | 0 — on-grid |
+| 60° | 60° | 60° | 0 — on-grid |
+
+Worst case is **7.5°** — half a step — which is plainly visible on a rail and a real
+lurch to ride.
+
+> **THE RULE: an arc that joins a 24-direction straight tangentially must have a sweep
+> that is a multiple of 15°** (given an on-grid start tangent). There are exactly 24 legal
+> departure points around any circle.
+
+**Corollary for railways:** G2 already requires a clothoid between straight and arc, and a
+clothoid's whole job is to rotate the tangent while ramping curvature — so the same 15°
+quantisation must hold at **both** of its ends, not just one. That makes the transition
+length a *derived* quantity (the sweep it must absorb), not a free parameter.
+
+This belongs in the P1 way builder as a validation, not in P4: an illegal arc should be
+rejected where it is authored, not discovered at the junction.
 
 ### P4 — the junction matrix *(the real deliverable — §3)*
 
