@@ -1,0 +1,220 @@
+// hexmatch — P2: recover SURFACES from a traced cell boundary.
+//
+// Cell-authored content (a stamped stencil, a hand-drawn footprint) carries no surfaces,
+// so it has no normals — which makes this load-bearing for physics, not kit polish. The
+// job is the inverse of hexway's rasteriser:
+//
+//     traced boundary loop (exact integer lattice points)  ->  straights + arcs
+//
+// THE TOLERANCE IS NOT TUNED.  A boundary vertex is a hex CORNER, so it can sit at most
+// one circumradius — exactly 1.0 world unit — from the true surface it came from. That
+// is the quantisation scale measured throughout this plan, and it is therefore the
+// tolerance: large enough to absorb the zigzag (worst measured residual on a straight
+// wall is 0.81), small enough that a real corner never fits inside it.
+use hexform;
+use hexedge;
+
+pub const MATCH_TOL = 1.0;
+
+// A recovered surface run: which stretch of the loop it covers, and its primitive.
+pub struct Fit {
+  ft_kind:  vector<integer>,   // 1 straight, 2 arc
+  ft_a:     vector<float>,     // straight: nx    arc: cx
+  ft_b:     vector<float>,     // straight: ny    arc: cy
+  ft_c:     vector<float>,     // straight: c     arc: r
+  ft_from:  vector<integer>,   // first loop vertex index
+  ft_to:    vector<integer>,   // one past the last
+  ft_res:   vector<float>,     // fit residual
+  ft_n:     integer,
+}
+
+pub fn fit_new() -> Fit {
+  k: vector<integer> = []; a: vector<float> = []; b: vector<float> = [];
+  c: vector<float> = []; f: vector<integer> = []; t: vector<integer> = [];
+  r: vector<float> = [];
+  Fit { ft_kind: k, ft_a: a, ft_b: b, ft_c: c, ft_from: f, ft_to: t, ft_res: r, ft_n: 0 }
+}
+
+fn wx(v: VecMap, i: integer) -> float { ((v.vm_k[i] ?? 0) as float) * 0.8660254037844386 }
+fn wy(v: VecMap, i: integer) -> float { ((v.vm_m[i] ?? 0) as float) * 0.5 }
+
+// ── primitive fits over loop vertices [a0, a0+n) of loop `li`, wrapping ──────
+
+fn wrap(base: integer, cnt: integer, j: integer) -> integer {
+  k = j;
+  while k >= cnt { k = k - cnt; }
+  base + k
+}
+
+// Total-least-squares line: principal direction of the covariance.
+fn line_fit(v: VecMap, base: integer, cnt: integer, a0: integer, n: integer)
+    -> (float, float, float, float) {
+  sx = 0.0; sy = 0.0;
+  for j in 0..n {
+    i = wrap(base, cnt, a0 + j);
+    sx = sx + wx(v, i); sy = sy + wy(v, i);
+  }
+  nf = n as float;
+  cx = sx / nf ?? 0.0;
+  cy = sy / nf ?? 0.0;
+  sxx = 0.0; syy = 0.0; sxy = 0.0;
+  for j in 0..n {
+    i = wrap(base, cnt, a0 + j);
+    dx = wx(v, i) - cx; dy = wy(v, i) - cy;
+    sxx = sxx + dx * dx; syy = syy + dy * dy; sxy = sxy + dx * dy;
+  }
+  th = 0.5 * atan2(2.0 * sxy, sxx - syy);
+  ux = cos(th); uy = sin(th);
+  nx = 0.0 - uy; ny = ux;
+  c = nx * cx + ny * cy;
+  res = 0.0;
+  for j in 0..n {
+    i = wrap(base, cnt, a0 + j);
+    d = nx * wx(v, i) + ny * wy(v, i) - c;
+    if d < 0.0 { d = 0.0 - d; }
+    if d > res { res = d; }
+  }
+  (nx, ny, c, res)
+}
+
+// Kasa circle + mean-radius refinement (the geometric optimum for a fixed centre).
+fn circle_fit(v: VecMap, base: integer, cnt: integer, a0: integer, n: integer)
+    -> (float, float, float, float) {
+  sx = 0.0; sy = 0.0; sxx = 0.0; syy = 0.0; sxy = 0.0;
+  sxz = 0.0; syz = 0.0; sz = 0.0;
+  for j in 0..n {
+    i = wrap(base, cnt, a0 + j);
+    x = wx(v, i); y = wy(v, i); z = x * x + y * y;
+    sx = sx + x; sy = sy + y; sxx = sxx + x * x; syy = syy + y * y;
+    sxy = sxy + x * y; sxz = sxz + x * z; syz = syz + y * z; sz = sz + z;
+  }
+  nf = n as float;
+  m00 = sxx; m01 = sxy; m02 = sx;
+  m10 = sxy; m11 = syy; m12 = sy;
+  m20 = sx;  m21 = sy;  m22 = nf;
+  b0 = sxz * 0.5; b1 = syz * 0.5; b2 = sz * 0.5;
+  det = m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20)
+      + m02 * (m10 * m21 - m11 * m20);
+  ad = det; if ad < 0.0 { ad = 0.0 - ad; }
+  if ad < 0.000000001 { return (0.0, 0.0, 0.0, 1000000.0); }
+  dx = b0 * (m11 * m22 - m12 * m21) - m01 * (b1 * m22 - m12 * b2)
+     + m02 * (b1 * m21 - m11 * b2);
+  dy = m00 * (b1 * m22 - m12 * b2) - b0 * (m10 * m22 - m12 * m20)
+     + m02 * (m10 * b2 - b1 * m20);
+  cx = dx / det ?? 0.0;
+  cy = dy / det ?? 0.0;
+  rs = 0.0;
+  for j in 0..n {
+    i = wrap(base, cnt, a0 + j);
+    ex = wx(v, i) - cx; ey = wy(v, i) - cy;
+    rs = rs + (sqrt(ex * ex + ey * ey) ?? 0.0);
+  }
+  r = rs / nf ?? 0.0;
+  res = 0.0;
+  for j in 0..n {
+    i = wrap(base, cnt, a0 + j);
+    ex = wx(v, i) - cx; ey = wy(v, i) - cy;
+    d = (sqrt(ex * ex + ey * ey) ?? 0.0) - r;
+    if d < 0.0 { d = 0.0 - d; }
+    if d > res { res = d; }
+  }
+  (cx, cy, r, res)
+}
+
+// ── greedy segmentation of one loop ─────────────────────────────────────────
+//
+// Extend a run while a primitive still fits within MATCH_TOL; prefer the simpler
+// primitive (a straight) when both fit, so a flat wall never becomes a huge arc.
+pub fn match_loop(v: VecMap, li: integer, f: Fit, minrun: integer) {
+  base = v.vm_start[li] ?? 0;
+  endi = v.vm_start[li + 1] ?? 0;
+  cnt = endi - base;
+  if cnt < minrun { return; }
+  at = 0;
+  guard = 0;
+  while at < cnt && guard <= cnt {
+    guard = guard + 1;
+    bestn = 0;
+    bk = 0; ba = 0.0; bb = 0.0; bc = 0.0; br = 0.0;
+    n = minrun;
+    going = true;
+    while going && n <= cnt {
+      (lx, ly, lc, lres) = line_fit(v, base, cnt, at, n);
+      okl = lres <= MATCH_TOL;
+      okc = false;
+      ccx = 0.0; ccy = 0.0; ccr = 0.0; cres = 1000000.0;
+      if n >= 8 {
+        (qx, qy, qr, qres) = circle_fit(v, base, cnt, at, n);
+        ccx = qx; ccy = qy; ccr = qr; cres = qres;
+        okc = qres <= MATCH_TOL;
+      }
+      if !okl && !okc { going = false; }
+      if okl { bestn = n; bk = 1; ba = lx; bb = ly; bc = lc; br = lres; }
+      if !okl && okc { bestn = n; bk = 2; ba = ccx; bb = ccy; bc = ccr; br = cres; }
+      n = n + 1;
+    }
+    if bestn == 0 {
+      (lx2, ly2, lc2, lr2) = line_fit(v, base, cnt, at, minrun);
+      bestn = minrun; bk = 1; ba = lx2; bb = ly2; bc = lc2; br = lr2;
+    }
+    f.ft_kind += [bk]; f.ft_a += [ba]; f.ft_b += [bb]; f.ft_c += [bc];
+    f.ft_from += [at]; f.ft_to += [at + bestn]; f.ft_res += [br];
+    f.ft_n = f.ft_n + 1;
+    at = at + bestn;
+  }
+}
+
+// Register the recovered runs as real Surfaces; returns the id of the first.
+pub fn fit_surfaces(f: Fit, sf: Surfaces) -> integer {
+  first = 0;
+  for i in 0..f.ft_n {
+    if (f.ft_kind[i] ?? 0) == 1 {
+      id = surf_straight(sf, f.ft_a[i] ?? 0.0, f.ft_b[i] ?? 0.0, f.ft_c[i] ?? 0.0);
+      if i == 0 { first = id; }
+    } else {
+      id = surf_arc(sf, f.ft_a[i] ?? 0.0, f.ft_b[i] ?? 0.0, f.ft_c[i] ?? 0.0);
+      if i == 0 { first = id; }
+    }
+  }
+  first
+}
+
+// Distance from a point to recovered run i — the arbitration metric (nearest wins).
+pub fn fit_distance(f: Fit, i: integer, px: float, py: float) -> float {
+  if (f.ft_kind[i] ?? 0) == 1 {
+    d = (f.ft_a[i] ?? 0.0) * px + (f.ft_b[i] ?? 0.0) * py - (f.ft_c[i] ?? 0.0);
+    if d < 0.0 { d = 0.0 - d; }
+    return d;
+  }
+  ex = px - (f.ft_a[i] ?? 0.0);
+  ey = py - (f.ft_b[i] ?? 0.0);
+  d2 = (sqrt(ex * ex + ey * ey) ?? 0.0) - (f.ft_c[i] ?? 0.0);
+  if d2 < 0.0 { d2 = 0.0 - d2; }
+  d2
+}
+
+// Tag every boundary edge of `s` with the recovered surface NEAREST it — the same
+// arbitration rule hexway uses, so cell-authored and curve-authored content behave
+// identically downstream. This is the whole point of P2.
+pub fn tag_edges(s: HexSet, f: Fit, first_surf: integer, e: EdgeSet, mat: integer) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        for d in 0..6 {
+          nq = nb_q(q, r, d);
+          nr = nb_r(q, r, d);
+          if !hexset_get(s, nq, nr) {
+            (ex, ey) = edge_point(q, r, nq, nr);
+            best = -1;
+            bd = 1000000.0;
+            for i in 0..f.ft_n {
+              dd = fit_distance(f, i, ex, ey);
+              if dd < bd - 0.000000001 { bd = dd; best = i; }
+            }
+            if best >= 0 { edge_block_full(e, q, r, nq, nr, first_surf + best, mat); }
+          }
+        }
+      }
+    }
+  }
+}

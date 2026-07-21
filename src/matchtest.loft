@@ -1,0 +1,105 @@
+// matchtest — P2 gate: recover surfaces from a cell-authored boundary.
+//
+// Cell-authored content has no surfaces, so it has no NORMALS. This proves the matcher
+// gives it the same downstream behaviour as curve-authored content.
+use hexform;
+use hexedge;
+use hexmatch;
+
+fn main() {
+  println("=== story match test (cells -> surfaces) ===");
+  ok = true;
+  Q = -16; R = -16; W = 33; H = 33;
+
+  // ── a ROUND TOWER should collapse to essentially ONE arc, at the right radius
+  tw = hexset_chunk(Q, R, W, H);
+  tw2 = form_circle(16, 8.4);
+  for r in R..R + H {
+    for q in Q..Q + W {
+      if hexset_get(tw2, q, r) { hexset_set(tw, q, r, true); }
+    }
+  }
+  vt = trace(tw);
+  ft = fit_new();
+  match_loop(vt, 0, ft, 6);
+  arcs = 0;
+  bestr = 0.0;
+  for i in 0..ft.ft_n {
+    if (ft.ft_kind[i] ?? 0) == 2 { arcs = arcs + 1; bestr = ft.ft_c[i] ?? 0.0; }
+  }
+  println("round tower r=8.4: {hexset_count(tw)} cells -> {ft.ft_n} run(s), {arcs} arc(s), fitted r={bestr}");
+  rerr = bestr - 8.4;
+  if rerr < 0.0 { rerr = 0.0 - rerr; }
+  if ft.ft_n > 2 || arcs < 1 || rerr > 0.35 { ok = false; }
+
+  // ── a STRAIGHT-SIDED form should come back as straights, not arcs
+  hx = hexset_chunk(Q, R, W, H);
+  hx2 = form_hexdisk(16, 6);
+  for r in R..R + H {
+    for q in Q..Q + W {
+      if hexset_get(hx2, q, r) { hexset_set(hx, q, r, true); }
+    }
+  }
+  vh = trace(hx);
+  fh = fit_new();
+  match_loop(vh, 0, fh, 6);
+  lines = 0;
+  for i in 0..fh.ft_n { if (fh.ft_kind[i] ?? 0) == 1 { lines = lines + 1; } }
+  println("hexagon N=6: {hexset_count(hx)} cells -> {fh.ft_n} run(s), {lines} straight(s)");
+  if fh.ft_n < 3 || lines < 3 { ok = false; }
+
+  // ── every recovered run must fit within the tolerance
+  worst = 0.0;
+  for i in 0..ft.ft_n { if (ft.ft_res[i] ?? 0.0) > worst { worst = ft.ft_res[i] ?? 0.0; } }
+  for i in 0..fh.ft_n { if (fh.ft_res[i] ?? 0.0) > worst { worst = fh.ft_res[i] ?? 0.0; } }
+  println("worst fit residual across all runs: {worst} (tolerance {MATCH_TOL})");
+  if worst > MATCH_TOL { ok = false; }
+
+  // ── the payoff: cell-authored content now has NORMALS on every boundary edge
+  sf = surfaces_new();
+  mats = materials_new();
+  stone = material_add(mats, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+  first = fit_surfaces(ft, sf);
+  e = edgeset_new(Q, R, W, H);
+  tag_edges(tw, ft, first, e, stone);
+  tagged = 0; untagged = 0; badn = 0; radial = 0;
+  for r in R..R + H {
+    for q in Q..Q + W {
+      if hexset_get(tw, q, r) {
+        for d in 0..6 {
+          nq = nb_q(q, r, d);
+          nr = nb_r(q, r, d);
+          if !hexset_get(tw, nq, nr) {
+            (hit, nx, ny) = collide(e, sf, q, r, nq, nr);
+            if hit {
+              tagged = tagged + 1;
+              m = sqrt(nx * nx + ny * ny) ?? 0.0;
+              if m < 0.999 || m > 1.001 { badn = badn + 1; }
+              // a tower's recovered normal must point radially outward
+              (px, py) = edge_point(q, r, nq, nr);
+              pl = sqrt(px * px + py * py) ?? 1.0;
+              dot = nx * (px / pl ?? 0.0) + ny * (py / pl ?? 0.0);
+              if dot > 0.95 { radial = radial + 1; }
+            } else { untagged = untagged + 1; }
+          }
+        }
+      }
+    }
+  }
+  println("tower edges: {tagged} tagged, {untagged} untagged, {badn} bad normals, {radial} radial");
+  if untagged != 0 || badn != 0 || tagged == 0 { ok = false; }
+  if radial * 100 < tagged * 90 { ok = false; }
+
+  // ── a wall with DOORS must still match as ONE wall.
+  // In the edge model a door does not change the footprint at all — it makes edges
+  // passable. So the traced boundary is IDENTICAL and the body cannot fragment.
+  before = ft.ft_n;
+  edge_block_full(e, 0, 0, 1, 0, 0, 0);      // a door: no surface, no material
+  vt2 = trace(tw);
+  ft2 = fit_new();
+  match_loop(vt2, 0, ft2, 6);
+  println("after punching a door: {ft2.ft_n} run(s) (was {before}) — body intact: {ft2.ft_n == before}");
+  if ft2.ft_n != before { ok = false; }
+
+  if ok { println("=== MATCH OK ==="); } else { println("=== FAIL ==="); }
+}

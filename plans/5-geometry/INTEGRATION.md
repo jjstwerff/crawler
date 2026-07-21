@@ -13,6 +13,7 @@
 |---|---|
 | `hexform.loft` — chunked `HexSet`, tracer, validator, exact integer `VecMap` | the §7.3 minimisation (canonical-dir index, `u16`/`u8`) |
 | `hexway.loft` — `Track`, offsets, `way_stamp` one-pass rasteriser **(P1)** | the way *profiles* (rails/ruts/lane lines) on top of `Track` |
+| `hexmatch.loft` — line/arc fits, greedy segmentation, `tag_edges` **(P2)** | junctions (P3) — the matcher assumes ONE part per loop |
 | `hexedge.loft` — `EdgeSet`, `Surfaces` (straight/arc), `Materials`, `collide()` | the matcher (cells → surfaces) |
 | `formtest.loft` — 18 forms / 900 points vs the Python golden; chunk-locality | junctions of any kind |
 | `edgetest.loft` — 24/24 blocking, exact normals, materials, footprint | region cache, `vm_surf`, features |
@@ -42,13 +43,33 @@ Measured by the gate:
 The flattening row is the useful one: the sagitta sits just *under* the theoretical bound
 at every density, so `chord = √(8·R·tol)` is a usable design rule rather than an estimate.
 
-### P2 — the matcher: cells → surfaces *(load-bearing, not polish)*
-Cell-authored content has no surfaces today, so it has no normals. Fit straight runs and
-arcs to a traced boundary; emit surfaces + the per-edge ids.
+### P2 — the matcher: cells → surfaces ✅ **SHIPPED 2026-07-21**
+`src/hexmatch.loft` + `src/matchtest.loft`, gated as `[match]`. Greedy segmentation of a
+traced loop into straights (total-least-squares) and arcs (Kasa + mean-radius
+refinement), then `tag_edges` attaches the recovered surface **nearest** each boundary
+edge — the same arbitration hexway uses, so cell-authored and curve-authored content
+behave identically downstream.
 
-**Gate** `src/matchtest.loft`: `detect(stamp(parts)) == parts` on the tower catalog ·
-recovered radius within one rung of the catalog value · **a wall with three doors still
-matches as ONE wall** (FORMS.md's stated invariant) · every boundary edge gets a surface.
+**The tolerance is not tuned.** A boundary vertex is a hex *corner*, so it sits at most
+one circumradius — exactly **1.0 world unit** — from the true surface. That is the
+quantisation scale measured throughout this plan, so it *is* the tolerance: big enough to
+absorb the zigzag (worst measured residual on a straight wall, 0.81), small enough that a
+real corner never fits inside it. Pinned in the Python oracle first
+(`plans/5-geometry/matcher.py`) — below 1.0 a tower over-segments into 9–11 line runs.
+
+| gate | result |
+|---|---|
+| round tower r=8.4, 85 cells | **1 run, 1 arc, fitted r = 8.390** (error 0.01) |
+| hexagon N=6, 127 cells | **6 runs, 6 straights** — exactly its 6 flat sides |
+| worst fit residual, all runs | 0.952 ≤ tolerance 1.0 |
+| tower boundary edges | 66 tagged, **0 untagged**, 0 bad normals, **66 of 66 radial** |
+| punch a door, re-match | still **1 run** — body intact |
+
+**A door cannot fragment the body, by construction.** In the edge model a door does not
+change the footprint at all — it makes edges passable. So the traced boundary is
+identical and FORMS.md's "a feature is an annotation on a continuous body, never a break
+in it" is satisfied *structurally* rather than by careful handling. That invariant was the
+motivation for the whole body/features split; the edge model gives it for free.
 
 ### P3 — junctions as first-class objects
 Today two surfaces meeting at one edge is **first-writer-wins** — arbitrary and
