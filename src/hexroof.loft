@@ -194,3 +194,167 @@ pub fn eave_spread(s: HexSet, f: Heights) -> float {
   if hi < lo { return 0.0; }
   hi - lo
 }
+
+// ── RECOVERING THE FORM: the inverse of everything above ────────────────────
+//
+// Cells are STORAGE; the analytic surface is the truth.  hexmatch already does this for a
+// traced 2D boundary (loop of lattice points -> straights + arcs).  A height field needs
+// the same service: read the per-cell z back, decide the profile, recover its exact
+// parameters, and hand the renderer a real cone — not a staircase of hexes wearing one.
+//
+// Nothing downstream should ever draw the quantised heights directly.  Once the form is
+// recovered, the drawn surface is exact at any resolution, and the grid has served its
+// purpose as a compact way to STORE the roof rather than as the shape itself.
+pub const ROOF_UNKNOWN = 0;
+pub const ROOF_PLANE   = 1;
+pub const ROOF_CONE    = 2;
+
+pub struct RoofFit {
+  rf_kind:  integer,
+  rf_x:     float,     // plane: a       cone: centre x
+  rf_y:     float,     // plane: b       cone: centre y
+  rf_z:     float,     // plane: c       cone: apex z
+  rf_slope: float,     // cone only
+  rf_res:   float,     // worst residual over the footprint
+}
+
+// Least squares z = a*x + b*y + c.  Covers flat and every shed/mono-pitch.
+pub fn roof_plane_fit(s: HexSet, f: Heights) -> RoofFit {
+  sxx = 0.0; sxy = 0.0; sx = 0.0; syy = 0.0; sy = 0.0; sn = 0.0;
+  sxz = 0.0; syz = 0.0; sz = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        x = cellx(q, r); y = celly(q, r); z = height_get(f, q, r);
+        sxx = sxx + x * x; sxy = sxy + x * y; sx = sx + x;
+        syy = syy + y * y; sy = sy + y; sn = sn + 1.0;
+        sxz = sxz + x * z; syz = syz + y * z; sz = sz + z;
+      }
+    }
+  }
+  det = sxx * (syy * sn - sy * sy) - sxy * (sxy * sn - sy * sx)
+      + sx * (sxy * sy - syy * sx);
+  ad = det; if ad < 0.0 { ad = 0.0 - ad; }
+  if ad < 0.000000001 {
+    return RoofFit { rf_kind: ROOF_UNKNOWN, rf_x: 0.0, rf_y: 0.0, rf_z: 0.0,
+                     rf_slope: 0.0, rf_res: 1000000.0 };
+  }
+  da = sxz * (syy * sn - sy * sy) - sxy * (syz * sn - sy * sz)
+     + sx * (syz * sy - syy * sz);
+  db = sxx * (syz * sn - sy * sz) - sxz * (sxy * sn - sy * sx)
+     + sx * (sxy * sz - syz * sx);
+  dc = sxx * (syy * sz - syz * sy) - sxy * (sxy * sz - syz * sx)
+     + sxz * (sxy * sy - syy * sx);
+  a = da / det ?? 0.0;
+  b = db / det ?? 0.0;
+  c = dc / det ?? 0.0;
+  res = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        e = a * cellx(q, r) + b * celly(q, r) + c - height_get(f, q, r);
+        if e < 0.0 { e = 0.0 - e; }
+        if e > res { res = e; }
+      }
+    }
+  }
+  RoofFit { rf_kind: ROOF_PLANE, rf_x: a, rf_y: b, rf_z: c, rf_slope: 0.0, rf_res: res }
+}
+
+// Worst |z - (apex - slope*r)| for one candidate centre, with apex and slope regressed.
+fn cone_at(s: HexSet, f: Heights, cx: float, cy: float) -> (float, float, float) {
+  sr = 0.0; szz = 0.0; srr = 0.0; srz = 0.0; sn = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        dx = cellx(q, r) - cx; dy = celly(q, r) - cy;
+        rad = sqrt(dx * dx + dy * dy) ?? 0.0;
+        z = height_get(f, q, r);
+        sr = sr + rad; szz = szz + z; srr = srr + rad * rad; srz = srz + rad * z;
+        sn = sn + 1.0;
+      }
+    }
+  }
+  den = sn * srr - sr * sr;
+  ad = den; if ad < 0.0 { ad = 0.0 - ad; }
+  if ad < 0.000000001 { return (0.0, 0.0, 1000000.0); }
+  grad = (sn * srz - sr * szz) / den ?? 0.0;     // dz/dr, negative for a cone
+  apex = (szz - grad * sr) / sn ?? 0.0;
+  res = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        dx = cellx(q, r) - cx; dy = celly(q, r) - cy;
+        rad = sqrt(dx * dx + dy * dy) ?? 0.0;
+        e = apex + grad * rad - height_get(f, q, r);
+        if e < 0.0 { e = 0.0 - e; }
+        if e > res { res = e; }
+      }
+    }
+  }
+  (apex, 0.0 - grad, res)
+}
+
+// A cone: seed the centre at the highest cell, then refine.  The apex cell is only within
+// one circumradius of the true apex, so the seed alone is not good enough — the refinement
+// is what makes the recovery exact rather than approximately right.
+pub fn roof_cone_fit(s: HexSet, f: Heights) -> RoofFit {
+  hi = -1000000.0;
+  bx = 0.0; by = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        z = height_get(f, q, r);
+        if z > hi { hi = z; bx = cellx(q, r); by = celly(q, r); }
+      }
+    }
+  }
+  (ba, bs, br) = cone_at(s, f, bx, by);
+  step = 0.4;
+  for pass in 0..4 {
+    moved = true;
+    while moved {
+      moved = false;
+      for i in 0..8 {
+        ox = 0.0; oy = 0.0;
+        if i == 0 { ox = step; }
+        if i == 1 { ox = 0.0 - step; }
+        if i == 2 { oy = step; }
+        if i == 3 { oy = 0.0 - step; }
+        if i == 4 { ox = step; oy = step; }
+        if i == 5 { ox = step; oy = 0.0 - step; }
+        if i == 6 { ox = 0.0 - step; oy = step; }
+        if i == 7 { ox = 0.0 - step; oy = 0.0 - step; }
+        (ca, cs, cr) = cone_at(s, f, bx + ox, by + oy);
+        if cr < br - 0.0000000001 {
+          br = cr; ba = ca; bs = cs; bx = bx + ox; by = by + oy;
+          moved = true;
+        }
+      }
+    }
+    step = step * 0.25;
+  }
+  RoofFit { rf_kind: ROOF_CONE, rf_x: bx, rf_y: by, rf_z: ba, rf_slope: bs, rf_res: br }
+}
+
+// Decide what the field IS.  A plane wins ties: it is the simpler statement, and a cone
+// fitted to a flat roof would put its apex somewhere arbitrary.
+pub fn roof_match(s: HexSet, f: Heights, tol: float) -> RoofFit {
+  p = roof_plane_fit(s, f);
+  if p.rf_res <= tol { return p; }
+  c = roof_cone_fit(s, f);
+  if c.rf_res <= tol { return c; }
+  if c.rf_res < p.rf_res { return c; }
+  p
+}
+
+// The recovered ANALYTIC surface — what a renderer should draw, at any resolution, instead
+// of the cells it came from.
+pub fn roof_eval(fit: RoofFit, x: float, y: float) -> float {
+  if fit.rf_kind == ROOF_PLANE { return fit.rf_x * x + fit.rf_y * y + fit.rf_z; }
+  if fit.rf_kind == ROOF_CONE {
+    dx = x - fit.rf_x; dy = y - fit.rf_y;
+    return fit.rf_z - fit.rf_slope * (sqrt(dx * dx + dy * dy) ?? 0.0);
+  }
+  0.0
+}

@@ -915,3 +915,62 @@ cone's eave genuinely wobbles and the footprint-driven one is dead level · cone
 hip-and-valley from one call, all pond-free with level eaves · a single apex cell · the
 ponding negative control fires · the arch admits fewer cells to a tall figure than a short
 one, within the predicted reach · the segmental profile is flatter than the semicircular.
+
+## 14. Reading the form back out (P15) — draw the cone, not the hexes
+
+Storing a roof as per-cell heights is compact and it composes, but it is **not the shape**.
+A renderer that draws the stored cells draws a staircase of hexes wearing a cone. So the
+height field needs the service hexmatch already gives a traced 2D boundary: read the values
+back, decide the profile, recover its exact parameters, hand the renderer an analytic
+surface. Same principle, one dimension up.
+
+The invariant is the design protocol's — **round trip = identity**:
+
+```
+   analytic cone in:   centre (0,0)      apex 12.0    slope 0.80
+   recovered:          centre (0,0)      apex 12.0    slope 0.80    residual 1.3e-13
+   off-centre cone:    (2.31, −1.44)  ->  recovered to 0.0006 / 0.0025
+```
+
+The off-centre case is the one that matters: the apex **cell** is only within a circumradius
+of the true apex, so a matcher that stopped at the seed would be out by up to 1.0. The
+refinement is what makes recovery exact rather than approximately right.
+
+And the negative half matters as much — **the matcher must refuse to name what it does not
+know**. A gable's iso-height sets are parallel line pairs, neither circles nor a plane, so
+it comes back with a residual of 4.47 against a 0.05 tolerance. A confident wrong shape
+would be far worse than an admitted unknown.
+
+### Only the cone needs any of this
+
+A shed, a gable, a hip, a pyramid are made of **flat facets**, and linear interpolation
+between stored cell heights reproduces a flat facet *exactly*. For those, storing the cells
+**is** storing the shape: interpolate and draw, no matcher, no recovery, no analytic form.
+Measured at every adjacent-cell midpoint:
+
+```
+   shed  (one plane)     worst 1.8e-15
+   gable (two planes)    worst 3.6e-15
+   cone  (curved plan)   worst 0.186  at r=1.5   (slope·L²/8r predicts 0.200)
+```
+
+The cone is the sole exception because it is curved **in plan**: interpolating between two
+neighbours chords a circle, and the error is `slope·L²/(8r)` — the chord constant for the
+**fifth** time, after flattening, the platform gap, the sighting cutback and the vertical
+curve. It is **worst at the apex**, where `r` is smallest — precisely where a spire's
+silhouette is most visible.
+
+One refinement the gate found: a gable is exact everywhere *when its ridge lies on a cell
+row*, because then no pair of neighbours straddles the crease. Move the ridge between rows
+and the crease costs 0.525 — but still **only at the crease** (4e-16 more than 2 units
+away). So a planar roof's accuracy is a question of where its creases sit relative to the
+grid, not of whether the grid can represent it.
+
+**The rule: interpolate planar roofs; recover only cones.**
+
+**Gate** `src/roofmatchtest.loft`: analytic cone round-trips to 1e-13 · an off-centre cone
+recovers its centre to 0.003 where a seed-only matcher would be out by 1.0 · a shed comes
+back a plane with exact coefficients · a gable is refused rather than mis-named · a
+boundary-driven hip still reads as a cone with its ring quantisation *reported* not hidden ·
+planar interpolation is exact to 1e-15 and the cone's error matches `slope·L²/8r` · the
+off-row crease costs only at the crease.

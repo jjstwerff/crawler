@@ -1,0 +1,227 @@
+// roofmatchtest — READING THE FORM BACK OUT: draw the cone, not the hexes.
+//
+// The whole point of storing a roof as per-cell heights is that it is compact and it
+// composes. It is NOT the shape. A renderer that draws the stored cells draws a staircase
+// of hexes wearing a cone; what it should draw is the cone.
+//
+// So the height field needs the same service hexmatch gives a traced 2D boundary: read the
+// values back, decide which profile they are, recover its exact parameters, and hand the
+// renderer an analytic surface. The invariant is the one the design protocol asks for —
+// ROUND TRIP = IDENTITY: build a cone, store it as cells, recover it, and get the same
+// cone back within the quantisation bound.
+//
+// The negative half matters as much: the matcher must REFUSE to call a gable a cone.
+use hexform;
+use hexway;
+use hexroof;
+
+fn main() {
+  println("=== story roof-matching test ===");
+  ok = true;
+  w = 41;
+
+  // ── 1. round trip on an analytic cone ────────────────────────────────────
+  rad = 8.4;
+  tower = form_circle(w, rad);
+  cx0 = 0.0; cy0 = 0.0; apex0 = 12.0; slope0 = 0.8;
+  fc = heights_new(hexset_q0(tower), hexset_r0(tower), hexset_w(tower), hexset_h(tower));
+  roof_cone(tower, fc, cx0, cy0, apex0, slope0, 1000.0);
+
+  fit = roof_match(tower, fc, 0.05);
+  println("analytic cone -> kind {fit.rf_kind} (2 = cone), residual {fit.rf_res}");
+  println("   centre ({fit.rf_x}, {fit.rf_y}) vs ({cx0}, {cy0})");
+  println("   apex {fit.rf_z} vs {apex0}; slope {fit.rf_slope} vs {slope0}");
+  if fit.rf_kind != ROOF_CONE { ok = false; }
+  dx = fit.rf_x - cx0; if dx < 0.0 { dx = 0.0 - dx; }
+  dy = fit.rf_y - cy0; if dy < 0.0 { dy = 0.0 - dy; }
+  da = fit.rf_z - apex0; if da < 0.0 { da = 0.0 - da; }
+  ds = fit.rf_slope - slope0; if ds < 0.0 { ds = 0.0 - ds; }
+  if dx > 0.02 || dy > 0.02 { ok = false; }
+  if da > 0.02 || ds > 0.005 { ok = false; }
+  if fit.rf_res > 0.02 { ok = false; }
+
+  // and the recovered surface reproduces every stored cell
+  worst = 0.0;
+  for r in hexset_r0(tower)..hexset_r0(tower) + hexset_h(tower) {
+    for q in hexset_q0(tower)..hexset_q0(tower) + hexset_w(tower) {
+      if hexset_get(tower, q, r) {
+        e = roof_eval(fit, ((lattice_k(q, r)) as float) * 0.8660254037844386,
+                           ((lattice_m(q, r)) as float) * 0.5) - height_get(fc, q, r);
+        if e < 0.0 { e = 0.0 - e; }
+        if e > worst { worst = e; }
+      }
+    }
+  }
+  println("   round trip: worst cell error {worst}");
+  if worst > 0.02 { ok = false; }
+
+  // ── 2. an off-centre cone — the seed must not be mistaken for the answer ─
+  // The apex CELL is only within a circumradius of the true apex, so a matcher that
+  // stopped at the seed would be wrong by up to 1.0 in the centre. The refinement is
+  // what makes this exact.
+  hall = hexset_new(w);
+  for r in -8..9 {
+    for q in -10..11 { hexset_set(hall, q, r, true); }
+  }
+  ox = 2.31; oy = -1.44;
+  fo = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
+  roof_cone(hall, fo, ox, oy, 9.0, 0.55, 1000.0);
+  fit2 = roof_match(hall, fo, 0.05);
+  println("off-centre cone at ({ox}, {oy}) -> recovered ({fit2.rf_x}, {fit2.rf_y}), residual {fit2.rf_res}");
+  ex = fit2.rf_x - ox; if ex < 0.0 { ex = 0.0 - ex; }
+  ey = fit2.rf_y - oy; if ey < 0.0 { ey = 0.0 - ey; }
+  println("   centre error {ex}, {ey} (a seed-only matcher would be out by up to 1.0)");
+  if fit2.rf_kind != ROOF_CONE { ok = false; }
+  if ex > 0.05 || ey > 0.05 { ok = false; }
+
+  // ── 3. a shed roof must come back a PLANE, not a very wide cone ──────────
+  fp = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
+  for r in -8..9 {
+    for q in -10..11 {
+      x = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+      y = ((lattice_m(q, r)) as float) * 0.5;
+      height_set(fp, q, r, 0.25 * x - 0.1 * y + 4.0);
+    }
+  }
+  fit3 = roof_match(hall, fp, 0.05);
+  println("shed roof -> kind {fit3.rf_kind} (1 = plane), a={fit3.rf_x} b={fit3.rf_y} c={fit3.rf_z}, residual {fit3.rf_res}");
+  if fit3.rf_kind != ROOF_PLANE { ok = false; }
+  ea = fit3.rf_x - 0.25; if ea < 0.0 { ea = 0.0 - ea; }
+  eb = fit3.rf_y + 0.1; if eb < 0.0 { eb = 0.0 - eb; }
+  if ea > 0.001 || eb > 0.001 { ok = false; }
+
+  // ── 4. the NEGATIVE: a gable is neither, and must not be claimed ─────────
+  // A gable's iso-height sets are parallel line PAIRS, not circles and not a plane. The
+  // matcher has no primitive for it, so the honest answer is a large residual — never a
+  // confident wrong shape. This is the check that stops the renderer drawing a cone
+  // wherever it fails to recognise something.
+  ridge = track_new();
+  track_straight(ridge, -24.0, 0.0, 24.0, 0.0);   // past the footprint: a TRUE gable,
+                                                  // no hipped ends (which are conical)
+  fgab = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
+  roof_ridge(hall, fgab, ridge, 8.0, 0.7, 1000.0);
+  fit4 = roof_match(hall, fgab, 0.05);
+  println("gable -> kind {fit4.rf_kind}, residual {fit4.rf_res} (must exceed the 0.05 tolerance)");
+  if fit4.rf_res <= 0.05 { ok = false; }
+
+  // ── 5. the quantised hip roof still reads as a cone, with an honest error ─
+  // roof_hip stores ring indices, so its heights are a STAIRCASE approximation of a cone.
+  // The matcher should still name it a cone — and its residual should report the
+  // quantisation rather than hide it.
+  fh = heights_new(hexset_q0(tower), hexset_r0(tower), hexset_w(tower), hexset_h(tower));
+  rings = roof_hip(tower, fh, 4.0, 0.8);
+  fit5 = roof_cone_fit(tower, fh);
+  println("boundary-driven hip ({rings} rings) -> cone slope {fit5.rf_slope}, residual {fit5.rf_res}");
+  println("   the residual IS the ring quantisation — reported, not hidden");
+  if fit5.rf_res <= 0.05 { ok = false; }        // it must not pretend to be exact
+  if fit5.rf_res > 1.2 { ok = false; }          // but it must still be a recognisable cone
+  if fit5.rf_slope <= 0.0 { ok = false; }
+
+  // ── 6. WHY only the cone needs any of this ──────────────────────────────
+  // A shed, a gable, a hip, a pyramid are all made of FLAT facets. Linear interpolation
+  // between stored cell heights reproduces a flat facet EXACTLY — so for those, storing
+  // the cells IS storing the shape, and no matcher, no analytic form and no recovery step
+  // is warranted. Interpolate and draw.
+  //
+  // The cone is the one exception, because it is curved IN PLAN: interpolating between two
+  // neighbouring cells chords a circle, and the error is the same sagitta that governs
+  // everything else in this plan,
+  //
+  //     err = slope * L^2 / (8r)
+  //
+  // which is WORST AT THE APEX, where r is smallest — precisely where a spire's silhouette
+  // is most visible. That is the whole justification for recovering cones and nothing else.
+  println("linear interpolation error, measured at every adjacent-cell midpoint:");
+  for kind in 0..3 {
+    src = fp;  nm = "shed  (one plane)   "; tgt = hall;
+    if kind == 1 { src = fgab; nm = "gable (two planes)  "; }
+    if kind == 2 { src = fc;   nm = "cone  (curved plan) "; tgt = tower; }
+    worst_i = 0.0;
+    worst_r = 0.0;
+    off_ridge = 0.0;
+    for r in hexset_r0(tgt)..hexset_r0(tgt) + hexset_h(tgt) {
+      for q in hexset_q0(tgt)..hexset_q0(tgt) + hexset_w(tgt) {
+        if hexset_get(tgt, q, r) {
+          for i in 0..6 {
+            nq = nb_q(q, r, i);
+            nr = nb_r(q, r, i);
+            if hexset_get(tgt, nq, nr) {
+              x1 = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+              y1 = ((lattice_m(q, r)) as float) * 0.5;
+              x2 = ((lattice_k(nq, nr)) as float) * 0.8660254037844386;
+              y2 = ((lattice_m(nq, nr)) as float) * 0.5;
+              mx = (x1 + x2) * 0.5;
+              my = (y1 + y2) * 0.5;
+              lerp = (height_get(src, q, r) + height_get(src, nq, nr)) * 0.5;
+              exact = lerp;
+              if kind == 0 { exact = 0.25 * mx - 0.1 * my + 4.0; }
+              if kind == 1 {
+                dr = my; if dr < 0.0 { dr = 0.0 - dr; }
+                exact = 8.0 - 0.7 * dr;
+              }
+              if kind == 2 {
+                exact = 12.0 - 0.8 * (sqrt(mx * mx + my * my) ?? 0.0);
+              }
+              e = lerp - exact;
+              if e < 0.0 { e = 0.0 - e; }
+              if e > worst_i {
+                worst_i = e;
+                worst_r = sqrt(mx * mx + my * my) ?? 0.0;
+              }
+              ay = my; if ay < 0.0 { ay = 0.0 - ay; }
+              if ay > 2.0 && e > off_ridge { off_ridge = e; }
+            }
+          }
+        }
+      }
+    }
+    println("   {nm} worst {worst_i}, away from any crease {off_ridge}");
+    if kind == 0 && worst_i > 0.000001 { ok = false; }      // a plane interpolates EXACTLY
+    // A gable is exact EVERYWHERE when its ridge lies on a cell row — no pair of
+    // neighbours straddles the crease, so every pair sits within one plane. (The
+    // off-row case below is where the crease starts to cost.)
+    if kind == 1 && worst_i > 0.000001 { ok = false; }
+    if kind == 2 {
+      pred = 0.8 * 3.0 / (8.0 * worst_r) ?? 0.0;
+      println("     -> at r={worst_r}, slope*L^2/(8r) predicts {pred}");
+      if worst_i <= 0.001 { ok = false; }                    // a cone genuinely errs
+      if worst_i > pred * 1.6 || worst_i < pred * 0.4 { ok = false; }
+    }
+  }
+  // The crease only costs when it falls BETWEEN cell rows: then a pair of neighbours
+  // straddles two different planes and the interpolation cuts the corner. So a planar
+  // roof is exact up to where its creases sit relative to the grid — a placement
+  // question, not a representation one.
+  offr = track_new();
+  track_straight(offr, -24.0, 0.75, 24.0, 0.75);
+  fgo = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
+  roof_ridge(hall, fgo, offr, 8.0, 0.7, 1000.0);
+  cre = 0.0;
+  far = 0.0;
+  for r in hexset_r0(hall)..hexset_r0(hall) + hexset_h(hall) {
+    for q in hexset_q0(hall)..hexset_q0(hall) + hexset_w(hall) {
+      if hexset_get(hall, q, r) {
+        for i in 0..6 {
+          nq = nb_q(q, r, i);
+          nr = nb_r(q, r, i);
+          if hexset_get(hall, nq, nr) {
+            my = (((lattice_m(q, r)) as float) * 0.5 + ((lattice_m(nq, nr)) as float) * 0.5) * 0.5;
+            lerp = (height_get(fgo, q, r) + height_get(fgo, nq, nr)) * 0.5;
+            dr = my - 0.75; if dr < 0.0 { dr = 0.0 - dr; }
+            e = lerp - (8.0 - 0.7 * dr);
+            if e < 0.0 { e = 0.0 - e; }
+            if e > cre { cre = e; }
+            ad = my - 0.75; if ad < 0.0 { ad = 0.0 - ad; }
+            if ad > 2.0 && e > far { far = e; }
+          }
+        }
+      }
+    }
+  }
+  println("   gable with the ridge BETWEEN rows: worst {cre}, more than 2 from the ridge {far}");
+  if cre <= 0.001 { ok = false; }              // the crease now genuinely costs
+  if far > 0.000001 { ok = false; }            // and only at the crease
+  println("   => interpolate planar roofs; recover ONLY cones.");
+
+  if ok { println("=== ROOFMATCH OK ==="); } else { println("=== FAIL ==="); }
+}
