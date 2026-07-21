@@ -13,7 +13,8 @@ Found on **2026-07-21** while bringing crawler up on toolchain **2026.7.2** (ins
 2026-07-21, binary `/usr/local/bin/loft`). Every reproducer below is **standalone** — no crawler
 sources, no `--lib` flags, no bundles. Run them from any directory.
 
-Both are `sev:high`: one crashes the compiler, the other silently produces wrong data.
+H1/H2 are `sev:high` — one crashes the compiler, the other silently produces wrong data.
+H3 is `sev:medium` with a clean workaround.
 
 ---
 
@@ -262,6 +263,80 @@ the registry can refuse the combination at load time (as it does for too-new lib
 would turn an abort into a diagnostic.
 
 ---
+
+## H3 — narrow-width vectors: `u16`/`i16` reject index assignment, and `u32` LOSES IT SILENTLY
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:high`, `wa:clean`, `area:codegen`, `hit-by:crawler`, `bug`
+**Suggested title:** `vector<u32> element write through a struct parameter is silently discarded; vector<u16>/<i16> reject index assignment outright`
+
+### Summary
+
+Two related defects in index-assignment to narrow-width vector elements. The second is the
+dangerous one because it is **silent**.
+
+| element type | direct `v[i] = x` | `v[i] = x` inside a called fn, via a struct param |
+|---|---|---|
+| `u8` | ok | ok |
+| **`u16`** | **compile error** | — |
+| **`i16`** | **compile error** | — |
+| **`u32`** | ok | **SILENTLY LOST — reads back 0** |
+| `i32` | ok | ok |
+| `integer` | ok | ok |
+| `single` | ok | ok |
+
+So `u32` writes appear to work when written and read in the same function, and vanish the
+moment the write happens through a parameter — with no error, no warning, and a plausible
+zero left behind.
+
+### Minimal reproducer
+
+```loft
+struct S { a: vector<u32> }
+fn poke(s: S, i: integer, v: integer) { s.a[i] = v as u32? ?? 0; }
+fn main() {
+  s = S { a: [] };
+  for i in 0..4 { s.a += [0 as u32? ?? 0]; }
+  s.a[0] = 5 as u32? ?? 0;      // direct   -> 5, correct
+  poke(s, 1, 7);                // via a fn -> 0, WRONG
+  println("direct={s.a[0] ?? 0}  via_fn={s.a[1] ?? 0}");
+}
+```
+
+```
+loft --interpret repro.loft
+direct=5  via_fn=0            # expected: direct=5  via_fn=7
+```
+
+Swap `u32` for `i32`, `u8`, `integer` or `single` and it prints `via_fn=7`.
+
+For the 16-bit half, the same program with `u16` or `i16` fails to compile:
+
+```
+error: Cannot assign to attribute on type 'OpGetShortRaw'
+```
+
+### Expected
+
+`poke` writes through the struct parameter exactly as it does for `i32`/`integer`; and
+`u16`/`i16` accept index assignment like every other width.
+
+### Actual
+
+`u32` silently discards the write (reads back 0). `u16`/`i16` fail to compile.
+
+### Why it is `sev:high`
+
+The `u32` case is silent data loss with a plausible-looking result, in exactly the shape a
+grid/field layer uses: a struct holding a vector, mutated by helper functions. crawler hit
+it in the collision field, where every wall silently became passable — the flood test
+reported *every* heading leaking, which is the only reason it was noticed.
+
+### Workaround (clean)
+
+Use `i32` where you wanted `u32`, and `i32`/`integer` where you wanted `u16`. crawler
+stores a 32-bit surface id (`i32`) and an 8-bit material (`u8`) — 5 bytes a slot where
+`u16`+`u8` would have been 3.
 
 ## Filed
 

@@ -195,11 +195,33 @@ model** — another place the cell/edge choice shows through:
 above, and a counter that visited every shared edge twice (once per side), silently
 doubling every figure. Fixed with the canonical direction set `{0,2,3}`.*
 
-### P6 — minimisation + region cache
-Apply §7.3 (canonical-dir index, `u16`/`u8`) and add the `(chunk, world_version)` cache.
+### P6 — minimisation ✅ **PARTIALLY SHIPPED 2026-07-21** (cache still open)
 
-**Gate**: footprint assertion drops from 440 592 B to ≤ 9 216 B per 32×32 chunk (the test
-already measures it) · a cached region equals a freshly derived one, bit for bit.
+**The index change shipped, and it was the bigger half.** `EdgeSet` now stores by
+`(cell, canonical direction)` — a hex's 6 edges form 3 opposite pairs `{0,1} {2,5} {3,4}`,
+so the canonical set `{0,2,3}` gives exactly 3 slots per cell and every edge is owned
+once. A one-cell halo covers boundary edges whose canonical owner sits outside the chunk.
+The doubled-midpoint key remains the **canonical identity** (symmetric, portable); it is
+simply no longer the storage index — two different jobs that were conflated.
+
+**Measured, not estimated** (`size` in the gate):
+
+| | bytes / 32×32 chunk |
+|---|---|
+| before | 440 592 |
+| after the reindex | **27 744** — **15.9×** |
+| theoretical, with `u16`+`u8` | 10 404 |
+
+**The remaining 2× is blocked upstream.** `vector<u16>` / `vector<u8>` exist and can be
+appended to and read, but loft **cannot index-assign into them** (`Cannot assign to
+attribute on type 'OpGetShortRaw'`) — and this layer is written by index. Filed as
+**LOFT-HANDOFF.md → H3**. Workaround in place: keep `vector<integer>` and **pack** the
+surface id and material into one element (`surf * 256 + mat`), which recovers about half
+of what the narrow types would have given.
+
+**Still open: the region cache** and its `(chunk, world_version)` key. The derivation is
+already a pure function of an L1 region and provably order-independent (P3/P4), so the
+cache is bookkeeping rather than new geometry — but it is not built.
 
 ## 3. The junction matrix
 

@@ -103,7 +103,7 @@ fn main() {
         ar = nb_r(hq, hr, hd);
         if !holed && edge_blocked(ectl, hq, hr, aq, ar) {
           i = ee_index_pub(ectl, hq, hr, aq, ar);
-          if i >= 0 { ectl.ee_surf[i] = 0; ectl.ee_mat[i] = 0; holed = true; }
+          if i >= 0 { ectl.ee_surf[i] = 0 as i32? ?? 0; holed = true; }
         }
       }
     }
@@ -227,11 +227,11 @@ fn main() {
   // the structure quietly growing back.
   fe = edgeset_new(0, 0, 32, 32);
   fbytes = size(fe.ee_surf) + size(fe.ee_mat);
-  ideal = 3 * 32 * 32 * 3;      // 3 edges/cell, u16 surface + u8 material
+  ideal = 3 * 34 * 34 * 3;      // 3 slots/cell over a haloed 34x34 grid, u16+u8
   println("footprint 32x32 chunk: {fbytes} B  (minimised target {ideal} B, {fbytes / ideal ?? 0}x)");
   // the current layout is the correct-but-fat version; the gate records the gap and
   // fails only if it gets WORSE than what is documented in DESIGN.md 7.3.
-  foot_ok = fbytes <= 441000;
+  foot_ok = fbytes <= 20000;
   println("footprint within documented bound: {foot_ok}");
 
   if ok && blocked_all == 24 && solid_ok && cut_ok && norm_ok && arc_ok && mat_ok && foot_ok {

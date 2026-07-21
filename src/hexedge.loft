@@ -160,34 +160,40 @@ pub fn mat_bounce(m: Materials, id: integer) -> float {
   m.mt_bounce[id] ?? 0.0
 }
 
+// P6 STORAGE.  The doubled-midpoint key stays the CANONICAL IDENTITY of an edge — it is
+// what makes the key symmetric and portable — but it is a terrible storage INDEX: only
+// half its slots are legal (parity) and the doubled lattice spans ~4x/6x the cell grid,
+// so ~9 in 10 slots were air.  Storage now indexes by (cell, canonical direction): a hex
+// has 6 edges in 3 opposite PAIRS, so exactly 3 slots per cell own every edge once.
+// A one-cell halo covers boundary edges whose canonical owner sits outside the chunk.
+//
+// TYPE WIDTHS — chosen around two toolchain defects (LOFT-HANDOFF.md H3):
+//   u16 / i16  cannot be index-assigned at all (compile error)
+//   u32        loses the write SILENTLY when done through a struct parameter
+//   u8, i32, integer, single  all work
+// So the surface id is i32 and the material u8: 5 bytes a slot, where the natural
+// u16 + u8 would have been 3.  i32 is the widest safe choice, not a preference.
 pub struct EdgeSet {
   ee_q0:      integer,
   ee_r0:      integer,
   ee_w:       integer,
   ee_h:       integer,
-  ee_kmin:    integer,
-  ee_mmin:    integer,
-  ee_kspan:   integer,
-  ee_surf:    vector<integer>,   // 0 = passable, else the surface id (GEOMETRY)
-  ee_mat:     vector<integer>,   // the material id (PHYSICS) — 0 = open air
+  ee_gw:      integer,           // grid width  = w + 2 (halo)
+  ee_gh:      integer,           // grid height = h + 2
+  ee_surf:    vector<i32>,       // surface id (GEOMETRY); 0 = passable
+  ee_mat:     vector<u8>,        // material id (PHYSICS); 0 = open air
   ee_count:   integer,
 }
 
 // An edge layer over the same bounded chunk as its HexSet — never a global graph.
 pub fn edgeset_new(q0: integer, r0: integer, w: integer, h: integer) -> EdgeSet {
-  // lattice bounds of the chunk, then doubled (an edge key is a sum of two centres)
-  kmin = 2 * (q0 - 1);
-  kmax = 2 * (q0 + w) + 1;
-  mmin = 3 * (r0 - 1);
-  mmax = 3 * (r0 + h);
-  kspan = 2 * (kmax - kmin) + 3;
-  mspan = 2 * (mmax - mmin) + 3;
-  cells: vector<integer> = [];
-  mats: vector<integer> = [];
-  n = kspan * mspan;
-  for i in 0..n { cells += [0]; mats += [0]; }
-  EdgeSet { ee_q0: q0, ee_r0: r0, ee_w: w, ee_h: h,
-            ee_kmin: 2 * kmin, ee_mmin: 2 * mmin, ee_kspan: kspan,
+  gw = w + 2;
+  gh = h + 2;
+  cells: vector<i32> = [];
+  mats: vector<u8> = [];
+  n = gw * gh * 3;
+  for i in 0..n { cells += [0 as i32? ?? 0]; mats += [0 as u8? ?? 0]; }
+  EdgeSet { ee_q0: q0, ee_r0: r0, ee_w: w, ee_h: h, ee_gw: gw, ee_gh: gh,
             ee_surf: cells, ee_mat: mats, ee_count: 0 }
 }
 
@@ -205,13 +211,31 @@ pub fn ee_index_pub(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integ
   ee_index(e, qa, ra, qb, rb)
 }
 
+// Which of the 6 directions leads from a to b?  -1 if they are not neighbours.
+fn dir_from(qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+  d = -1;
+  for i in 0..6 {
+    if nb_q(qa, ra, i) == qb && nb_r(qa, ra, i) == rb { d = i; }
+  }
+  d
+}
+
+// Storage index: (cell, canonical direction).  Opposite pairs are {0,1} {2,5} {3,4}, so
+// the canonical set is {0,2,3} — exactly one of an edge's two cells sees it that way.
 fn ee_index(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
-  k = edge_k(qa, ra, qb, rb) - e.ee_kmin;
-  m = edge_m(qa, ra, qb, rb) - e.ee_mmin;
-  if k < 0 || m < 0 || k >= e.ee_kspan { return -1; }
-  i = m * e.ee_kspan + k;
-  if i < 0 || i >= len(e.ee_surf) { return -1; }
-  i
+  d = dir_from(qa, ra, qb, rb);
+  if d < 0 { return -1; }
+  cq = qa; cr = ra; slot = 0;
+  if d == 0 { slot = 0; }
+  if d == 2 { slot = 1; }
+  if d == 3 { slot = 2; }
+  if d == 1 { cq = qb; cr = rb; slot = 0; }
+  if d == 5 { cq = qb; cr = rb; slot = 1; }
+  if d == 4 { cq = qb; cr = rb; slot = 2; }
+  dq = cq - e.ee_q0 + 1;          // +1 for the one-cell halo
+  dr = cr - e.ee_r0 + 1;
+  if dq < 0 || dq >= e.ee_gw || dr < 0 || dr >= e.ee_gh { return -1; }
+  (dr * e.ee_gw + dq) * 3 + slot
 }
 
 // Block an edge, recording WHICH surface blocks it (surf 0 = a bare blocker with no
@@ -220,8 +244,8 @@ pub fn edge_block_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: in
                        surf: integer) {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return; }
-  if (e.ee_surf[i] ?? 0) == 0 {
-    e.ee_surf[i] = surf;
+  if ((e.ee_surf[i] ?? 0) as integer) == 0 {
+    e.ee_surf[i] = surf as i32? ?? 0;
     e.ee_count = e.ee_count + 1;
   }
 }
@@ -246,10 +270,10 @@ pub fn edge_block_arb(e: EdgeSet, sf: Surfaces, qa: integer, ra: integer,
                       qb: integer, rb: integer, surf: integer, mat: integer) {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return; }
-  cur = e.ee_surf[i] ?? 0;
+  cur = (e.ee_surf[i] ?? 0) as integer;
   if cur == 0 {
-    e.ee_surf[i] = surf;
-    e.ee_mat[i] = mat;
+    e.ee_surf[i] = surf as i32? ?? 0;
+    e.ee_mat[i] = mat as u8? ?? 0;
     e.ee_count = e.ee_count + 1;
     return;
   }
@@ -262,8 +286,8 @@ pub fn edge_block_arb(e: EdgeSet, sf: Surfaces, qa: integer, ra: integer,
   if gap < 0.0 { gap = 0.0 - gap; }
   if gap <= 0.000000001 && surf < cur { take = true; }
   if take {
-    e.ee_surf[i] = surf;
-    e.ee_mat[i] = mat;
+    e.ee_surf[i] = surf as i32? ?? 0;
+    e.ee_mat[i] = mat as u8? ?? 0;
   }
 }
 
@@ -399,7 +423,10 @@ pub fn apply_features(e: EdgeSet, sf: Surfaces, f: Features,
               hi = f.fe_s1[i] ?? 0.0;
               if t >= lo && t <= hi {
                 idx = ee_index(e, q, r, nq, nr);
-                if idx >= 0 { e.ee_mat[idx] = f.fe_mat[i] ?? 0; hits = hits + 1; }
+                if idx >= 0 {
+                  e.ee_mat[idx] = (f.fe_mat[i] ?? 0) as u8? ?? 0;
+                  hits = hits + 1;
+                }
               }
             }
           }
@@ -415,23 +442,27 @@ pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: in
                        surf: integer, mat: integer) {
   edge_block_surf(e, qa, ra, qb, rb, surf);
   i = ee_index(e, qa, ra, qb, rb);
-  if i >= 0 { e.ee_mat[i] = mat; }
+  if i >= 0 { e.ee_mat[i] = mat as u8? ?? 0; }
 }
 
 pub fn edge_mat(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return 0; }
-  e.ee_mat[i] ?? 0
+  (e.ee_mat[i] ?? 0) as integer
 }
 
+// A bare blocker with no recoverable geometry.  u16 cannot hold -1, so the sentinel is
+// the top of the range: blocked, but collide() will report no usable normal.
+pub const SURF_NONE = 65535;
+
 pub fn edge_block(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) {
-  edge_block_surf(e, qa, ra, qb, rb, -1);
+  edge_block_surf(e, qa, ra, qb, rb, SURF_NONE);
 }
 
 pub fn edge_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return 0; }
-  e.ee_surf[i] ?? 0
+  (e.ee_surf[i] ?? 0) as integer
 }
 
 pub fn edge_blocked(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
@@ -506,5 +537,5 @@ pub fn edges_halfplane_surf(e: EdgeSet, q0: integer, r0: integer, w: integer, h:
 // Back-compat: a halfplane wall with no surface recorded.
 pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
                        nx: float, ny: float, c: float) {
-  edges_halfplane_surf(e, q0, r0, w, h, nx, ny, c, -1);
+  edges_halfplane_surf(e, q0, r0, w, h, nx, ny, c, SURF_NONE);
 }
