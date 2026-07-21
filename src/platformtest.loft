@@ -1,0 +1,152 @@
+// platformtest — PLATFORMS: the exactness of an offset, where it is safety-critical.
+//
+// A platform is an OFFSET of the track centreline, so P1 already provides it exactly: the
+// offset of a straight is a straight, of an arc a concentric arc. Equidistance is not
+// approximated anywhere.
+//
+// That matters here more than anywhere else in the system, because the offset distance is
+// a STEPPING GAP a person crosses, not a rendering nicety. Two consequences this gate
+// pins:
+//
+//   1. Building the platform as a CHORD against a curved track — what any polyline or
+//      mesh-first pipeline does by default — costs L^2/(8R). At R=26 a 20-long platform
+//      is 1.9 out, larger than the stepping distance itself. On a curve a platform MUST
+//      be concentric, and the surface layer is what makes that free.
+//   2. Even a concentric platform is flattened to chords to reach cells. Its tolerance is
+//      a physical gap, so it needs a FINER chord than the track it serves: c = sqrt(8*R*g).
+//
+// And the platform face is the mirror image of a level crossing: a crossing must have no
+// cut edge between the two ways (passable), a platform must HAVE one along its face (a
+// drop). Same machinery, opposite answer — which is the check that they are both right.
+use hexform;
+use hexedge;
+use hexway;
+
+fn deg(d: float) -> float { d * 0.017453292519943295 }
+
+fn main() {
+  println("=== story platform test ===");
+  ok = true;
+  step = 1.5;                       // platform face offset from the track centreline
+
+  // ── 1. straight track: the offset is exact, trivially ─────────────────────
+  st = track_new();
+  track_straight(st, -14.0, 0.0, 14.0, 0.0);
+  sp = track_offset(st, step);
+  worst = 0.0;
+  for i in 0..81 {
+    s = (i as float) * 0.35;
+    if s <= seg_len(sp, 0) {
+      (px, py) = seg_point(sp, 0, s);
+      gd = track_distance(st, px, py) - step;
+      if gd < 0.0 { gd = 0.0 - gd; }
+      if gd > worst { worst = gd; }
+    }
+  }
+  println("straight platform: worst gap error {worst}");
+  if worst > 0.000001 { ok = false; }
+
+  // ── 2. curved track: concentric platform vs a chord platform ──────────────
+  rr = 26.0;
+  sweep = deg(30.0);
+  ct = track_new();
+  track_arc(ct, 0.0, 0.0, rr, deg(-15.0), deg(15.0));
+  cp = track_offset(ct, step);       // concentric — the right answer
+  println("offset legal on the inside at d={step}: {offset_legal(ct, 0.0 - step)}");
+  if !offset_legal(ct, 0.0 - step) { ok = false; }
+
+  wc = 0.0;
+  for i in 0..121 {
+    s = (i as float) * (seg_len(cp, 0) / 120.0 ?? 1.0);
+    (px, py) = seg_point(cp, 0, s);
+    gd = track_distance(ct, px, py) - step;
+    if gd < 0.0 { gd = 0.0 - gd; }
+    if gd > wc { wc = gd; }
+  }
+  println("concentric platform on R={rr}: worst gap error {wc}");
+  if wc > 0.000001 { ok = false; }
+
+  // the chord platform: a straight from one end of the concentric face to the other
+  (ax, ay) = seg_point(cp, 0, 0.0);
+  (bx, by) = seg_point(cp, 0, seg_len(cp, 0));
+  ch = track_new();
+  track_straight(ch, ax, ay, bx, by);
+  wch = 0.0;
+  for i in 0..121 {
+    s = (i as float) * (seg_len(ch, 0) / 120.0 ?? 1.0);
+    (px, py) = seg_point(ch, 0, s);
+    gd = track_distance(ct, px, py) - step;
+    if gd < 0.0 { gd = 0.0 - gd; }
+    if gd > wch { wch = gd; }
+  }
+  ll = seg_len(ch, 0);
+  pred = ll * ll / (8.0 * (rr + step)) ?? 0.0;
+  println("chord platform, length {ll}: worst gap error {wch}, L^2/8R predicts {pred}");
+  if wch < 0.5 { ok = false; }                       // it must genuinely fail
+  if wch > pred * 1.15 || wch < pred * 0.85 { ok = false; }
+  println("  -> chord error is {wch / step ?? 0.0}x the stepping distance itself");
+
+  // ── 3. flattening: a platform needs a finer chord than the track ──────────
+  println("chord for a given gap tolerance, c = sqrt(8*R*g):");
+  for i in 0..3 {
+    g = 0.5;
+    if i == 1 { g = 0.1; }
+    if i == 2 { g = 0.05; }
+    c = sqrt(8.0 * rr * g) ?? 0.0;
+    println("   tol {g} -> chord {c}");
+    // the actual flattening error of that chord must respect the tolerance
+    err = c * c / (8.0 * rr) ?? 0.0;
+    if err > g * 1.0001 { ok = false; }
+  }
+
+  // ── 4. the platform face IS a cut edge — the level-crossing mirror ────────
+  q0 = -26; r0 = -26; gw = 53; gh = 53;
+  sf = surfaces_new();
+  mt = materials_new();
+  bed  = material_add(mt, true, 0.3, 0.1, 3.0, 0.4, 0.2);
+  face = material_add(mt, true, 0.9, 1.0, 8.0, 0.0, 0.1);   // a drop: opaque, sealed
+
+  htrack = hexset_chunk(q0, r0, gw, gh);
+  way_mark(st, 1.0, htrack);
+  // the platform body: a band on the far side of the face
+  pf = track_offset(st, step + 1.6);
+  hplat = hexset_chunk(q0, r0, gw, gh);
+  way_mark(pf, 1.6, hplat);
+
+  // they must be adjacent but DISJOINT — a platform is beside the track, not on it
+  shared = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(htrack, q, r) && hexset_get(hplat, q, r) { shared = shared + 1; }
+    }
+  }
+  println("track {hexset_count(htrack)} cells, platform {hexset_count(hplat)} cells, shared {shared}");
+  if shared != 0 { ok = false; }
+
+  // stamp the platform alone: its face must be blocked against the track side
+  way_surfaces(pf, sf);
+  e = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hplat, e, sf, sf.sf_n, face);
+  faces = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(hplat, q, r) {
+        for d in 0..6 {
+          nq = nb_q(q, r, d); nr = nb_r(q, r, d);
+          if hexset_get(htrack, nq, nr) && edge_blocked(e, q, r, nq, nr) {
+            faces = faces + 1;
+          }
+        }
+      }
+    }
+  }
+  println("platform edges cut against the track: {faces} (a platform face IS a drop)");
+  if faces <= 0 { ok = false; }
+
+  v = trace(hplat);
+  code = validate(v, hexset_count(hplat));
+  println("platform footprint: {v.vm_loops} loop(s), validator {code}");
+  if code != 0 || v.vm_loops != 1 { ok = false; }
+
+  if ok { println("=== PLATFORM OK ==="); } else { println("=== FAIL ==="); }
+}

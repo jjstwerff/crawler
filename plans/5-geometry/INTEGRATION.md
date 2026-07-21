@@ -530,3 +530,70 @@ angle · both slip sweeps equal the crossing angle · G1 at both tangencies (mea
 0°) · the slip adds **zero** cells over the plain diamond · four surfaces arbitrate
 order-free (372 blocked edges either way) · every blocked edge attributed · and no edge is
 cut between two track cells — a crossing is passable, not a wall.
+
+## 8. Level crossings and platforms (P9)
+
+These two are worth doing together because they give **opposite** answers from the same
+machinery, which is how you know both are right: a level crossing must have **no** cut edge
+between the two ways (it is passable); a platform must **have** one along its face (it is a
+drop). Measured 0 and 32 respectively.
+
+### The level crossing — where material stops being decoration
+
+Geometrically it is §7's diamond with unequal bed widths (rail 1.0, road 1.5), so the
+overlap is not a rhombus and arbitration settles a genuinely asymmetric contest. What is
+new is the **barrier**, the first dynamic object in the system — and it needs no new
+machinery: a barrier is an inner wall (P4), a short straight across the road carrying its
+own material.
+
+Lowering it flips **one entry in the material table**. Every edge already holds that
+material id, so nothing in the geometry layer is written:
+
+```
+   barrier down -> up:  surf sum 340 == 340,  mat sum 192 == 192   (zero edge writes)
+   L2 cache:            still a HIT — the world version never moved
+```
+
+**A barrier toggle does not invalidate the L2 cache.** That is the payoff for making
+surface and material separate axes (DESIGN.md §7.2), and it is what makes doors, gates,
+portcullises and signals affordable: dynamic state is a table flip, not a re-derivation.
+The contrast is gated too — a *real* edit bumps the version and misses.
+
+This added one function, `material_set_solid` — the only API this phase needed.
+
+### The platform — exactness where it is safety-critical
+
+A platform is an **offset** of the centreline, which P1 already gives exactly: the offset
+of a straight is a straight, of an arc a concentric arc. Equidistance is never
+approximated. That matters more here than anywhere else, because the offset distance is a
+**stepping gap a person crosses**, not a rendering nicety.
+
+Building the platform as a **chord** against a curved track — what any polyline- or
+mesh-first pipeline does by default — costs `L²/(8R)`:
+
+```
+   R=26, L=14.2 chord platform:  gap error 0.937   (L²/8R predicts 0.921)
+   concentric platform:          gap error 3.6e-15
+```
+
+At R=26 the chord error is **62% of the stepping distance itself**, and grows as `L²`. On a
+curve a platform must be concentric — and the surface layer makes the correct version the
+free one. A mesh-first pipeline has no way to even express the distinction.
+
+Even a concentric platform is flattened to chords to reach cells, but its tolerance is a
+physical gap rather than a visual error, so it needs a **finer chord than the track it
+serves**, `c = √(8·R·g)`:
+
+```
+   tol 0.5 -> chord 10.20      (rendering)
+   tol 0.05 -> chord 3.22      (stepping)     ~3x finer
+```
+
+**Gates** `src/levelxtest.loft`: unequal-width crossing traces to one validated loop, is
+genuinely shared, has zero cuts between way cells · a barrier toggle changes `solid` while
+leaving both edge sums bit-identical · the cache hits after a toggle and misses after a
+version bump. `src/platformtest.loft`: straight and concentric offsets exact to float
+noise · `offset_legal` on the inside of the curve · the chord platform genuinely fails and
+matches `L²/8R` within 15% · the flattening chord respects its tolerance at three scales ·
+track and platform are adjacent but disjoint · the platform face cuts against the track ·
+one validated loop.

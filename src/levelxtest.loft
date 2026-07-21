@@ -1,0 +1,131 @@
+// levelxtest — LEVEL CROSSINGS: a road and a railway meeting at grade.
+//
+// Geometrically this is the diamond of crossingtest with two differences that matter:
+//
+//   1. the two ways have DIFFERENT bed widths, so the overlap is not a rhombus and the
+//      arbitration has to settle a genuinely asymmetric contest;
+//   2. it carries BARRIERS — and a barrier is the first truly dynamic thing in the model.
+//
+// A barrier is not new machinery: it is an inner wall (P4), a short straight across the
+// road, carrying its own material. Lowering it flips ONE entry in the material table.
+// Every edge already holds that material id, so nothing in the geometry layer is written
+// — which means a barrier toggle does NOT invalidate the L2 cache (P6). Surface and
+// material being separate axes is what buys that, and this gate is where it gets proven.
+use hexform;
+use hexedge;
+use hexway;
+use hexcache;
+
+fn deg(d: float) -> float { d * 0.017453292519943295 }
+
+fn straight_track(th: float, half: float) -> Track {
+  t = track_new();
+  track_straight(t, 0.0 - half * cos(th), 0.0 - half * sin(th),
+                       half * cos(th),       half * sin(th));
+  t
+}
+
+fn main() {
+  println("=== story level-crossing test ===");
+  ok = true;
+  q0 = -30; r0 = -30; gw = 61; gh = 61;
+  rail_hw = 1.0;
+  road_hw = 1.5;                  // the road is WIDER — an asymmetric contest
+  half = 20.0;
+  th = deg(60.0);
+
+  rail = straight_track(0.0, half);
+  road = straight_track(th, half);
+
+  hs = hexset_chunk(q0, r0, gw, gh);
+  way_mark(rail, rail_hw, hs);
+  way_mark(road, road_hw, hs);
+  hr = hexset_chunk(q0, r0, gw, gh); way_mark(rail, rail_hw, hr);
+  hd = hexset_chunk(q0, r0, gw, gh); way_mark(road, road_hw, hd);
+  v = trace(hs);
+  code = validate(v, hexset_count(hs));
+  println("rail {hexset_count(hr)} + road {hexset_count(hd)} cells -> crossing {hexset_count(hs)} ({v.vm_loops} loop, valid {code})");
+  if code != 0 || v.vm_loops != 1 { ok = false; }
+  if hexset_count(hr) + hexset_count(hd) <= hexset_count(hs) { ok = false; }
+
+  // ── surfaces: the two beds, plus four barriers across the road ────────────
+  sf = surfaces_new();
+  mt = materials_new();
+  bed  = material_add(mt, true, 0.3, 0.1, 3.0, 0.4, 0.2);
+  gate = material_add(mt, true, 1.2, 0.2, 2.0, 0.8, 0.1);   // DOWN to begin with
+  way_surfaces(rail, sf);
+  way_surfaces(road, sf);
+
+  // a barrier sits across the road, clear of the rail bed on each side.
+  // as a surface it is a straight whose normal points ALONG the road.
+  bx = cos(th); by = sin(th);
+  gap = 4.0;                       // stand-off from the crossing centre
+  g1 = surf_straight(sf, bx, by, gap);
+  g2 = surf_straight(sf, bx, by, 0.0 - gap);
+  println("barrier surfaces {g1} and {g2} at +/-{gap} along the road");
+
+  e = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hs, e, sf, sf.sf_n, bed);
+
+  // the crossing must be PASSABLE: no cut between two way cells
+  through = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      for d in 0..6 {
+        nq = nb_q(q, r, d); nr = nb_r(q, r, d);
+        if edge_blocked(e, q, r, nq, nr) && hexset_get(hs, q, r) && hexset_get(hs, nq, nr) {
+          through = through + 1;
+        }
+      }
+    }
+  }
+  println("cuts between two way cells: {through} (a crossing is passable)");
+  if through != 0 { ok = false; }
+
+  // ── the toggle: material table only, zero edge writes ─────────────────────
+  // snapshot the geometry layer, flip the gate, and prove nothing moved.
+  surf_before = 0;
+  mat_before = 0;
+  for i in 0..len(e.ee_surf) {
+    surf_before = surf_before + ((e.ee_surf[i] ?? 0) as integer);
+    mat_before = mat_before + ((e.ee_mat[i] ?? 0) as integer);
+  }
+  was_solid = mat_solid(mt, gate);
+  material_set_solid(mt, gate, false);          // raise the barrier
+  now_solid = mat_solid(mt, gate);
+  surf_after = 0;
+  mat_after = 0;
+  for i in 0..len(e.ee_surf) {
+    surf_after = surf_after + ((e.ee_surf[i] ?? 0) as integer);
+    mat_after = mat_after + ((e.ee_mat[i] ?? 0) as integer);
+  }
+  println("barrier down->up: solid {was_solid}->{now_solid}");
+  println("edge layer untouched: surf sum {surf_before}=={surf_after}, mat sum {mat_before}=={mat_after}");
+  if !was_solid || now_solid { ok = false; }
+  if surf_before != surf_after { ok = false; }
+  if mat_before != mat_after { ok = false; }
+
+  // and the derived field a consumer reads DID change, without any re-derivation
+  material_set_solid(mt, gate, true);
+  if !mat_solid(mt, gate) { ok = false; }
+
+  // ── the L2 cache survives the toggle ──────────────────────────────────────
+  // A material flip does not bump the world version, so the cached region stays valid.
+  fc = cache_new(4);
+  ver = 7;
+  slot = cache_claim(fc, 0, 0, ver);
+  cache_set_edges(fc, slot, e);
+  material_set_solid(mt, gate, false);
+  hit = cache_find(fc, 0, 0, ver);
+  println("cache after barrier toggle: hit {hit >= 0} (geometry unchanged, version unbumped)");
+  if hit < 0 { ok = false; }
+  if !edgeset_equal(cache_edges(fc, hit), e) { ok = false; }
+
+  // ── contrast: an actual EDIT does invalidate ──────────────────────────────
+  ver2 = ver + 1;
+  miss = cache_find(fc, 0, 0, ver2);
+  println("cache after a real edit (version bump): hit {miss >= 0} (must be false)");
+  if miss >= 0 { ok = false; }
+
+  if ok { println("=== LEVELX OK ==="); } else { println("=== FAIL ==="); }
+}

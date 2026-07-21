@@ -134,6 +134,16 @@ pub fn material_add(m: Materials, solid: boolean, height: float, opacity: float,
   m.mt_n - 1
 }
 
+// A DYNAMIC material — a level-crossing barrier, a door, a portcullis.  Flipping the
+// table entry retargets every edge already carrying this id, so the geometry layer is not
+// touched at all: no edge writes, no surface change, and therefore NO L2 cache
+// invalidation (P6 keys the cache on the world version, which a material toggle does not
+// bump).  That is the whole reason material is a separate axis from surface.
+pub fn material_set_solid(m: Materials, id: integer, solid: boolean) {
+  if id <= 0 || id >= m.mt_n { return; }
+  m.mt_solid[id] = solid;
+}
+
 // The per-consumer accessors.  Each reads ONE property of the same edge.
 pub fn mat_solid(m: Materials, id: integer) -> boolean {
   if id <= 0 || id >= m.mt_n { return false; }
