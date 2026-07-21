@@ -1,0 +1,224 @@
+// vaulttest — DOMES AND VAULTS: the same two knobs, all the way down.
+//
+// By this point every form in the plan has come from one pattern: a PROFILE applied to a
+// DISTANCE. Domes and vaults do not add a third idea; they fill in the rest of the table.
+//
+//   distance source     linear profile      circular profile
+//   ---------------     --------------      ----------------
+//   point               cone / pyramid      DOME
+//   line                gable               BARREL VAULT
+//   segment             hip                 hipped barrel
+//   min of two lines    two gables          CLOISTER VAULT
+//   max of two lines    butterfly           GROIN VAULT
+//
+// The two classical vaults differ by ONE OPERATOR over the same two barrels. Groin takes
+// the max, so both crown lines stay at full height and every wall keeps its arch. Cloister
+// takes the min, so the vault springs continuously from all four walls and no wall opens
+// at all. That is a real architectural difference — you can put a window in one and not
+// the other — and here it is exactly `if b > a` versus `if b < a`.
+//
+// The dome is the hard one, for the opposite reason to the cone. A cone's slope is
+// constant; a dome's DIVERGES at the springing, so past the 45-degree point a per-cell
+// height simply cannot carry the surface. That is why real domes sit on a vertical drum.
+use hexform;
+use hexway;
+use hexroof;
+
+fn main() {
+  println("=== story dome / vault test ===");
+  ok = true;
+  w = 41;
+
+  // ── 1. the dome, and where it stops being a roof ─────────────────────────
+  rad = 8.4;
+  base = 3.0;
+  disc = form_circle(w, rad);
+  fd = heights_new(hexset_q0(disc), hexset_r0(disc), hexset_w(disc), hexset_h(disc));
+  dome(disc, fd, 0.0, 0.0, base, rad);
+  println("dome R={rad} on {hexset_count(disc)} cells, ponds {roof_ponds(disc, fd)}");
+  if roof_ponds(disc, fd) != 0 { ok = false; }
+
+  // the height drop across one cell, as a function of radius
+  println("worst one-cell drop by ring (a cone's would be constant):");
+  worst_in = 0.0;
+  worst_out = 0.0;
+  cross = rad / 1.4142135623730951 ?? 0.0;
+  for r in hexset_r0(disc)..hexset_r0(disc) + hexset_h(disc) {
+    for q in hexset_q0(disc)..hexset_q0(disc) + hexset_w(disc) {
+      if hexset_get(disc, q, r) {
+        x = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+        y = ((lattice_m(q, r)) as float) * 0.5;
+        rr = sqrt(x * x + y * y) ?? 0.0;
+        for i in 0..6 {
+          nq = nb_q(q, r, i);
+          nr = nb_r(q, r, i);
+          if hexset_get(disc, nq, nr) {
+            dz = height_get(fd, q, r) - height_get(fd, nq, nr);
+            if dz < 0.0 { dz = 0.0 - dz; }
+            if rr < cross {
+              if dz > worst_in { worst_in = dz; }
+            } else {
+              if dz > worst_out { worst_out = dz; }
+            }
+          }
+        }
+      }
+    }
+  }
+  println("   inside the 45-deg point (r<{cross}): worst drop {worst_in}");
+  println("   outside it:                        worst drop {worst_out}");
+  println("   -> outside, one cell spans more height than a whole storey: that band is a");
+  println("      WALL (a drum), not a roof. The field has a slope ceiling, as it had a");
+  println("      resolution floor for the spiral stair.");
+  if worst_out <= worst_in { ok = false; }
+
+  // ── 2. groin vs cloister: one operator apart, and you can prove it ───────
+  half = 9.0;
+  bay = hexset_new(w);
+  for r in -7..8 {
+    for q in -6..7 {
+      x = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+      y = ((lattice_m(q, r)) as float) * 0.5;
+      ax = x; if ax < 0.0 { ax = 0.0 - ax; }
+      ay = y; if ay < 0.0 { ay = 0.0 - ay; }
+      if ax <= half && ay <= half { hexset_set(bay, q, r, true); }
+    }
+  }
+  ax1 = track_new();
+  track_straight(ax1, -20.0, 0.0, 20.0, 0.0);       // crown line along x
+  ax2 = track_new();
+  track_straight(ax2, 0.0, -20.0, 0.0, 20.0);       // crown line along y
+  fgr = heights_new(hexset_q0(bay), hexset_r0(bay), hexset_w(bay), hexset_h(bay));
+  fcl = heights_new(hexset_q0(bay), hexset_r0(bay), hexset_w(bay), hexset_h(bay));
+  vault_groin(bay, fgr, ax1, ax2, 0.0, half);
+  vault_cloister(bay, fcl, ax1, ax2, 0.0, half);
+  println("bay {hexset_count(bay)} cells, span {2.0 * half}");
+
+  // a WINDOW test: how much clear height survives at the middle of each wall?
+  gr_wall = 0.0;
+  cl_wall = 0.0;
+  gr_diag = 0.0;
+  cl_diag = 0.0;
+  for r in hexset_r0(bay)..hexset_r0(bay) + hexset_h(bay) {
+    for q in hexset_q0(bay)..hexset_q0(bay) + hexset_w(bay) {
+      if hexset_get(bay, q, r) {
+        x = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+        y = ((lattice_m(q, r)) as float) * 0.5;
+        ax = x; if ax < 0.0 { ax = 0.0 - ax; }
+        ay = y; if ay < 0.0 { ay = 0.0 - ay; }
+        // middle of a wall: hard against one wall, near the centre of the other axis
+        if ax > half - 1.0 && ay < 1.0 {
+          if height_get(fgr, q, r) > gr_wall { gr_wall = height_get(fgr, q, r); }
+          if height_get(fcl, q, r) > cl_wall { cl_wall = height_get(fcl, q, r); }
+        }
+        // the diagonal, where the groins / arrises run
+        df = ax - ay; if df < 0.0 { df = 0.0 - df; }
+        if df < 0.9 && ax > 3.0 {
+          if height_get(fgr, q, r) > gr_diag { gr_diag = height_get(fgr, q, r); }
+          if height_get(fcl, q, r) > cl_diag { cl_diag = height_get(fcl, q, r); }
+        }
+      }
+    }
+  }
+  println("   at the middle of a wall: groin {gr_wall}, cloister {cl_wall}");
+  println("   on the diagonal:         groin {gr_diag}, cloister {cl_diag}");
+  println("   -> the groin vault keeps a full-height arch in every wall; the cloister");
+  println("      vault springs from the wall and offers nothing to open.");
+  // The cloister's wall soffit is not zero only because the last CELL CENTRE sits inside
+  // the wall: at x = 8.66 of a 9.0 half-span the exact soffit is sqrt(9^2 - 8.66^2) = 2.45,
+  // which is what is measured. The vault really does spring from the wall; the residue is
+  // where the sample sits, not an error in the vault.
+  lastx = 10.0 * 0.8660254037844386;
+  pred_cl = sqrt(half * half - lastx * lastx) ?? 0.0;
+  println("   cloister wall soffit {cl_wall} vs sqrt(half^2 - x_cell^2) = {pred_cl} at the last cell centre");
+  if gr_wall < half * 0.85 { ok = false; }     // the groin's wall arch is near full height
+  ecl = cl_wall - pred_cl; if ecl < 0.0 { ecl = 0.0 - ecl; }
+  if ecl > 0.02 { ok = false; }                // the cloister is springing, exactly
+  if cl_wall > gr_wall * 0.35 { ok = false; }  // and it is far shut compared with the groin
+  // on the diagonal they agree — that is where the two surfaces meet
+  dgap = gr_diag - cl_diag; if dgap < 0.0 { dgap = 0.0 - dgap; }
+  println("   on the diagonal the two vaults AGREE to {dgap} — that is the groin/arris line");
+  if dgap > 0.7 { ok = false; }
+
+  // ── 3. a barrel vault is the same call with one crown line ──────────────
+  fb = heights_new(hexset_q0(bay), hexset_r0(bay), hexset_w(bay), hexset_h(bay));
+  vault_arc(bay, fb, ax1, 0.0, half);
+  ridge_flat = true;
+  for r in hexset_r0(bay)..hexset_r0(bay) + hexset_h(bay) {
+    for q in hexset_q0(bay)..hexset_q0(bay) + hexset_w(bay) {
+      if hexset_get(bay, q, r) {
+        y = ((lattice_m(q, r)) as float) * 0.5;
+        if y > -0.01 && y < 0.01 {
+          e = height_get(fb, q, r) - half;
+          if e < 0.0 { e = 0.0 - e; }
+          if e > 0.000001 { ridge_flat = false; }
+        }
+      }
+    }
+  }
+  println("barrel vault: crown line dead level {ridge_flat}");
+  if !ridge_flat { ok = false; }
+
+  // ── 4. recovery: a dome must come back a DOME, not a cone ───────────────
+  fit = roof_match(disc, fd, 0.05);
+  println("dome recovered: kind {fit.rf_kind} (3 = dome), centre ({fit.rf_x}, {fit.rf_y})");
+  println("   base {fit.rf_z} vs {base}, radius {fit.rf_slope} vs {rad}, residual {fit.rf_res}");
+  if fit.rf_kind != ROOF_DOME { ok = false; }
+  eb = fit.rf_z - base; if eb < 0.0 { eb = 0.0 - eb; }
+  er = fit.rf_slope - rad; if er < 0.0 { er = 0.0 - er; }
+  if eb > 0.02 || er > 0.02 { ok = false; }
+  if fit.rf_res > 0.02 { ok = false; }
+
+  // and a CONE must still come back a cone — the two must not be confused
+  fcone = heights_new(hexset_q0(disc), hexset_r0(disc), hexset_w(disc), hexset_h(disc));
+  roof_cone(disc, fcone, 0.0, 0.0, 12.0, 0.8, 1000.0);
+  fit2 = roof_match(disc, fcone, 0.05);
+  println("cone still recovered as kind {fit2.rf_kind} (2 = cone), residual {fit2.rf_res}");
+  if fit2.rf_kind != ROOF_CONE { ok = false; }
+
+  // a groin vault is none of the three primitives — it must be refused, not guessed
+  fit3 = roof_match(bay, fgr, 0.05);
+  println("groin vault -> kind {fit3.rf_kind}, residual {fit3.rf_res} (refused: {fit3.rf_res > 0.05})");
+  if fit3.rf_res <= 0.05 { ok = false; }
+
+  // ── 5. interpolation: a dome is worse than a cone, and where ────────────
+  // Both are curved in plan, so both need recovery. But the dome is curved in SECTION
+  // too, so its interpolation error peaks at the springing rather than at the apex —
+  // the opposite end from the cone.
+  in_err = 0.0;
+  out_err = 0.0;
+  for r in hexset_r0(disc)..hexset_r0(disc) + hexset_h(disc) {
+    for q in hexset_q0(disc)..hexset_q0(disc) + hexset_w(disc) {
+      if hexset_get(disc, q, r) {
+        for i in 0..6 {
+          nq = nb_q(q, r, i);
+          nr = nb_r(q, r, i);
+          if hexset_get(disc, nq, nr) {
+            x1 = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+            y1 = ((lattice_m(q, r)) as float) * 0.5;
+            x2 = ((lattice_k(nq, nr)) as float) * 0.8660254037844386;
+            y2 = ((lattice_m(nq, nr)) as float) * 0.5;
+            mx = (x1 + x2) * 0.5; my = (y1 + y2) * 0.5;
+            mr = sqrt(mx * mx + my * my) ?? 0.0;
+            lerp = (height_get(fd, q, r) + height_get(fd, nq, nr)) * 0.5;
+            exact = base;
+            if mr < rad { exact = base + (sqrt(rad * rad - mr * mr) ?? 0.0); }
+            e = lerp - exact;
+            if e < 0.0 { e = 0.0 - e; }
+            if mr < cross {
+              if e > in_err { in_err = e; }
+            } else {
+              if e > out_err { out_err = e; }
+            }
+          }
+        }
+      }
+    }
+  }
+  println("dome interpolation error: inside the 45-deg point {in_err}, outside {out_err}");
+  println("   -> a cone's error peaks at the APEX, a dome's at the SPRINGING: opposite ends,");
+  println("      same conclusion — recover the analytic form, never draw the cells.");
+  if out_err <= in_err { ok = false; }
+
+  if ok { println("=== VAULT OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -974,3 +974,71 @@ back a plane with exact coefficients · a gable is refused rather than mis-named
 boundary-driven hip still reads as a cone with its ring quantisation *reported* not hidden ·
 planar interpolation is exact to 1e-15 and the cone's error matches `slope·L²/8r` · the
 off-row crease costs only at the crease.
+
+## 15. Domes and vaults (P16) — the table closes
+
+Domes and vaults add no third idea. Every form in this plan is a **profile** applied to a
+**distance**, and these fill in the rest of the table:
+
+| distance source | linear profile | circular profile |
+|---|---|---|
+| point | cone / pyramid | **dome** |
+| line | gable | **barrel vault** |
+| segment | hip | hipped barrel |
+| min of two lines | two gables | **cloister vault** |
+| max of two lines | butterfly | **groin vault** |
+
+### The two classical vaults are one operator apart
+
+Same two barrels over the same bay. **Groin takes the max**, so both crown lines stay at
+full height and every wall keeps its arch. **Cloister takes the min**, so the vault springs
+continuously from all four walls and nothing opens. In code that is `if b > a` versus
+`if b < a`; in a building it is whether you can put a window in the wall:
+
+```
+   middle of a wall:  groin 9.00    cloister 2.45
+   on the diagonal:   groin 8.49    cloister 8.31   (agree to 0.18 — the groin/arris line)
+```
+
+The cloister's 2.45 is not a residue of failure: it is exactly `√(9² − 8.66²)` at the last
+cell **centre**, which sits inside the wall. The vault really does spring; the number is
+where the sample is. Gated against that prediction rather than a chosen threshold.
+
+### The dome has a slope ceiling, as the spiral stair had a resolution floor
+
+A cone's slope is constant; a dome's **diverges** at the springing
+(`dz/dr = −r/√(R²−r²)`). Past the 45° point at `r = R/√2` a per-cell height cannot carry
+the surface:
+
+```
+   inside  r = 5.94:  worst one-cell drop 1.85
+   outside r = 5.94:  worst one-cell drop 2.87
+```
+
+Outside it, one cell spans more height than a storey — **that band is a wall (a drum), not
+a roof.** Which is how domes are actually built. This is the second boundary of the field
+model found in this plan, and the pair is worth stating together: a **resolution floor**
+(§12, the spiral stair) and a **slope ceiling** (here). Between them the field is the right
+representation; outside them the thing is an object or a wall.
+
+### Recovery extends cleanly, and still refuses
+
+The dome fit is linear after one substitution — from `z = base + √(R²−r²)`,
+`(z² + r²) = 2·base·z + (R² − base²)`, so regressing `(z²+r²)` on `z` returns base and
+radius directly, with the centre refined by the cone's search:
+
+```
+   dome:  base 3.000 (vs 3.0), radius 8.400 (vs 8.4), residual 6.5e-14
+   cone:  still recovered as a cone, residual 1.3e-13   (the two are not confused)
+   groin vault: refused, residual 3.70 against a 0.05 tolerance
+```
+
+And the interpolation error goes the *opposite* way from a cone: a cone's peaks at the
+**apex**, a dome's at the **springing** (0.098 inside the 45° point, 0.323 outside).
+Opposite ends, same conclusion — recover the analytic form, never draw the cells.
+
+**Gate** `src/vaulttest.loft`: the dome is pond-free and its one-cell drop is larger
+outside the 45° point than inside · groin and cloister differ at the wall and agree on the
+diagonal, with the cloister's wall soffit matching its predicted value to 0.02 · the barrel
+crown line is dead level · dome and cone each recover as themselves · a groin vault is
+refused · dome interpolation error is worse at the springing than at the apex.

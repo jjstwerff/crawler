@@ -142,6 +142,74 @@ pub fn roof_hip(s: HexSet, f: Heights, eave: float, per_ring: float) -> integer 
   top
 }
 
+// A DOME — a point source with a CIRCULAR profile, where a cone is a point source with a
+// linear one.  That single swap is the whole difference, and it is also why a dome is the
+// harder object: a cone's slope is constant, a dome's diverges at the springing
+// (dz/dr = -r/sqrt(R^2-r^2)).  Past the 45-degree point r = R/sqrt(2) the surface is more
+// wall than roof and a per-cell height stops being able to carry it — which is exactly why
+// real domes sit on a vertical DRUM and only the cap is vaulted.  vaulttest measures it.
+pub fn dome(s: HexSet, f: Heights, cx: float, cy: float, base: float, radius: float) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        dx = cellx(q, r) - cx;
+        dy = celly(q, r) - cy;
+        d2 = dx * dx + dy * dy;
+        if d2 >= radius * radius {
+          height_set(f, q, r, base);
+        } else {
+          height_set(f, q, r, base + (sqrt(radius * radius - d2) ?? 0.0));
+        }
+      }
+    }
+  }
+}
+
+// Two barrels over one bay.  Which way you combine them is the entire distinction between
+// the two classical vaults:
+//
+//   GROIN    = max — the higher surface wins, so both crown lines stay at full height and
+//              every wall keeps its arch.  The groins (concave) run along the diagonals.
+//   CLOISTER = min — the lower wins, so the vault springs continuously from all four walls
+//              and there is no wall opening anywhere.  The arrises (convex) run diagonally.
+//
+// Same two inputs, opposite operator, opposite building.
+fn barrel_at(t: Track, x: float, y: float, spring: float, radius: float) -> float {
+  d = track_distance(t, x, y);
+  if d >= radius { return spring; }
+  spring + (sqrt(radius * radius - d * d) ?? 0.0)
+}
+
+pub fn vault_groin(s: HexSet, f: Heights, t1: Track, t2: Track,
+                   spring: float, radius: float) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        x = cellx(q, r); y = celly(q, r);
+        a = barrel_at(t1, x, y, spring, radius);
+        b = barrel_at(t2, x, y, spring, radius);
+        if b > a { a = b; }
+        height_set(f, q, r, a);
+      }
+    }
+  }
+}
+
+pub fn vault_cloister(s: HexSet, f: Heights, t1: Track, t2: Track,
+                      spring: float, radius: float) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        x = cellx(q, r); y = celly(q, r);
+        a = barrel_at(t1, x, y, spring, radius);
+        b = barrel_at(t2, x, y, spring, radius);
+        if b < a { a = b; }
+        height_set(f, q, r, a);
+      }
+    }
+  }
+}
+
 // What can pass here: the gap between floor and soffit.
 pub fn clear_height(fl: Heights, so: Heights, q: integer, r: integer) -> float {
   height_get(so, q, r) - height_get(fl, q, r)
@@ -208,6 +276,7 @@ pub fn eave_spread(s: HexSet, f: Heights) -> float {
 pub const ROOF_UNKNOWN = 0;
 pub const ROOF_PLANE   = 1;
 pub const ROOF_CONE    = 2;
+pub const ROOF_DOME    = 3;   // rf_z = base, rf_slope = sphere radius
 
 pub struct RoofFit {
   rf_kind:  integer,
@@ -337,6 +406,88 @@ pub fn roof_cone_fit(s: HexSet, f: Heights) -> RoofFit {
   RoofFit { rf_kind: ROOF_CONE, rf_x: bx, rf_y: by, rf_z: ba, rf_slope: bs, rf_res: br }
 }
 
+// A DOME.  Given a centre, the fit is LINEAR after one substitution: from
+// z = base + sqrt(R^2 - r^2) we get (z^2 + r^2) = 2*base*z + (R^2 - base^2), so regressing
+// (z^2 + r^2) on z hands back base as half the gradient and R from the intercept.  The
+// centre is then refined by the same local search the cone uses.
+fn dome_at(s: HexSet, f: Heights, cx: float, cy: float) -> (float, float, float) {
+  sv = 0.0; su = 0.0; svv = 0.0; suv = 0.0; sn = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        dx = cellx(q, r) - cx; dy = celly(q, r) - cy;
+        z = height_get(f, q, r);
+        v = z;
+        u = z * z + dx * dx + dy * dy;
+        sv = sv + v; su = su + u; svv = svv + v * v; suv = suv + u * v; sn = sn + 1.0;
+      }
+    }
+  }
+  den = sn * svv - sv * sv;
+  ad = den; if ad < 0.0 { ad = 0.0 - ad; }
+  if ad < 0.000000001 { return (0.0, 0.0, 1000000.0); }
+  grad = (sn * suv - sv * su) / den ?? 0.0;
+  icept = (su - grad * sv) / sn ?? 0.0;
+  base = grad * 0.5;
+  rr2 = icept + base * base;
+  if rr2 <= 0.0 { return (0.0, 0.0, 1000000.0); }
+  rad = sqrt(rr2) ?? 0.0;
+  res = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        dx = cellx(q, r) - cx; dy = celly(q, r) - cy;
+        d2 = dx * dx + dy * dy;
+        pred = base;
+        if d2 < rad * rad { pred = base + (sqrt(rad * rad - d2) ?? 0.0); }
+        e = pred - height_get(f, q, r);
+        if e < 0.0 { e = 0.0 - e; }
+        if e > res { res = e; }
+      }
+    }
+  }
+  (base, rad, res)
+}
+
+pub fn roof_dome_fit(s: HexSet, f: Heights) -> RoofFit {
+  hi = -1000000.0;
+  bx = 0.0; by = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        z = height_get(f, q, r);
+        if z > hi { hi = z; bx = cellx(q, r); by = celly(q, r); }
+      }
+    }
+  }
+  (bb, brad, bres) = dome_at(s, f, bx, by);
+  step = 0.4;
+  for pass in 0..4 {
+    moved = true;
+    while moved {
+      moved = false;
+      for i in 0..8 {
+        ox = 0.0; oy = 0.0;
+        if i == 0 { ox = step; }
+        if i == 1 { ox = 0.0 - step; }
+        if i == 2 { oy = step; }
+        if i == 3 { oy = 0.0 - step; }
+        if i == 4 { ox = step; oy = step; }
+        if i == 5 { ox = step; oy = 0.0 - step; }
+        if i == 6 { ox = 0.0 - step; oy = step; }
+        if i == 7 { ox = 0.0 - step; oy = 0.0 - step; }
+        (cb, crad, cres) = dome_at(s, f, bx + ox, by + oy);
+        if cres < bres - 0.0000000001 {
+          bres = cres; bb = cb; brad = crad; bx = bx + ox; by = by + oy;
+          moved = true;
+        }
+      }
+    }
+    step = step * 0.25;
+  }
+  RoofFit { rf_kind: ROOF_DOME, rf_x: bx, rf_y: by, rf_z: bb, rf_slope: brad, rf_res: bres }
+}
+
 // Decide what the field IS.  A plane wins ties: it is the simpler statement, and a cone
 // fitted to a flat roof would put its apex somewhere arbitrary.
 pub fn roof_match(s: HexSet, f: Heights, tol: float) -> RoofFit {
@@ -344,8 +495,12 @@ pub fn roof_match(s: HexSet, f: Heights, tol: float) -> RoofFit {
   if p.rf_res <= tol { return p; }
   c = roof_cone_fit(s, f);
   if c.rf_res <= tol { return c; }
-  if c.rf_res < p.rf_res { return c; }
-  p
+  d = roof_dome_fit(s, f);
+  if d.rf_res <= tol { return d; }
+  best = p;
+  if c.rf_res < best.rf_res { best = c; }
+  if d.rf_res < best.rf_res { best = d; }
+  best
 }
 
 // The recovered ANALYTIC surface — what a renderer should draw, at any resolution, instead
@@ -355,6 +510,12 @@ pub fn roof_eval(fit: RoofFit, x: float, y: float) -> float {
   if fit.rf_kind == ROOF_CONE {
     dx = x - fit.rf_x; dy = y - fit.rf_y;
     return fit.rf_z - fit.rf_slope * (sqrt(dx * dx + dy * dy) ?? 0.0);
+  }
+  if fit.rf_kind == ROOF_DOME {
+    dx = x - fit.rf_x; dy = y - fit.rf_y;
+    d2 = dx * dx + dy * dy;
+    if d2 >= fit.rf_slope * fit.rf_slope { return fit.rf_z; }
+    return fit.rf_z + (sqrt(fit.rf_slope * fit.rf_slope - d2) ?? 0.0);
   }
   0.0
 }
