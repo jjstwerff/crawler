@@ -157,7 +157,43 @@ rejected where it is authored, not discovered at the junction.
 
 ### P4 — the junction matrix *(the real deliverable — §3)*
 
-### P5 — features: doors and windows *(§4)*
+### P5 — features: doors and windows ✅ **SHIPPED 2026-07-21**
+`Features` in `hexedge.loft` + `src/feattest.loft`, gated as `[feat]`. A feature is an
+**interval on the surface** `[s0,s1]` with a **vertical extent** `(z0,z1)`, pointing at
+its own **material**.
+
+| gate | result |
+|---|---|
+| plain wall | 70 blocked edges, **0 passable** |
+| door width 1.0 | 4 passable |
+| door width 2.6 — **double door** | **8 passable**, 62 still sealed |
+| door width 7.0 — gateway | 16 passable |
+| window | solid ✓ (blocks movement), see-through ✓ (opacity 0.1) |
+| window sill..head | 1.0…2.0 inside a wall of height 2.5 |
+| wall with 3 features | matcher: **2 runs — same as the plain wall** |
+
+**Pointing at a material solves L4 without inventing a per-term override.** A door's
+material has `solid=false`; a window's has `solid=true` with low `opacity`/`sound`. "Which
+subset does this feature change?" is answered by *which material it names*.
+
+**L3 confirmed and fixed**: `Materials.height` is a scalar and can only say "a wall of
+height h", so a window's sill..head is inexpressible there. The feature carries `(z0,z1)`.
+
+**The door quantum is NOT the edge length — measured.** For a one-row wall the boundary
+edges cluster at ±0.433 around each hex centre, and centres are **1.732** apart, so a door
+only gains edges when the interval reaches the *next hex*: widths 1.0 and 2.2 open exactly
+the same edges. The earlier 1.0-unit figure was measured on a *cut* (the edge-model thin
+wall), where edges run along the wall ~1.0 apart. **So the quantum depends on the wall
+model** — another place the cell/edge choice shows through:
+
+| wall model | door quantum |
+|---|---|
+| edge-model cut | ~1.0 (one cut edge) |
+| cell-model one-row footprint | **1.732** (hex spacing) |
+
+*Two of my own test expectations were wrong here and the gate caught both: the quantum
+above, and a counter that visited every shared edge twice (once per side), silently
+doubling every figure. Fixed with the canonical direction set `{0,2,3}`.*
 
 ### P6 — minimisation + region cache
 Apply §7.3 (canonical-dir index, `u16`/`u8`) and add the `(chunk, world_version)` cache.

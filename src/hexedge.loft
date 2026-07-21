@@ -318,6 +318,98 @@ pub fn junction_g0(j: Junctions, i: integer, sf: Surfaces, tol: float) -> boolea
   da <= tol && db <= tol
 }
 
+// ── P5: FEATURES — doors, windows, loopholes ────────────────────────────────
+//
+// A feature is an INTERVAL ON THE SURFACE, never a hole cut in the cell outline. That is
+// forced by measurement: the traced boundary turns at every vertex, so an opening cut
+// from cells can never be straight beyond one 1.0-unit edge. On the surface it is
+// [s0,s1] of an exact straight or arc — straight because the surface is, at any width.
+//
+// It carries a VERTICAL interval too. A window is sill..head, and Materials.height is a
+// single scalar that can only say "a wall of height h" — so without (z0,z1) a window
+// cannot be expressed at all.
+//
+// And it points at its own MATERIAL rather than replacing terms one by one: a door
+// changes `solid`, a window changes `opacity`/`sound`/`permeability` but NOT `solid`
+// (you cannot walk through it). Pointing at a material expresses "override this subset"
+// without inventing a per-term override mechanism.
+pub const FEAT_DOOR     = 1;
+pub const FEAT_WINDOW   = 2;
+pub const FEAT_LOOPHOLE = 3;
+
+pub struct Features {
+  fe_surf: vector<integer>,
+  fe_s0:   vector<float>,     // interval along the surface parameter
+  fe_s1:   vector<float>,
+  fe_z0:   vector<float>,     // vertical extent: sill..head
+  fe_z1:   vector<float>,
+  fe_kind: vector<integer>,
+  fe_mat:  vector<integer>,   // the material INSIDE the feature
+  fe_n:    integer,
+}
+
+pub fn features_new() -> Features {
+  a: vector<integer> = []; b: vector<float> = []; c: vector<float> = [];
+  d: vector<float> = []; e: vector<float> = []; k: vector<integer> = [];
+  m: vector<integer> = [];
+  Features { fe_surf: a, fe_s0: b, fe_s1: c, fe_z0: d, fe_z1: e,
+             fe_kind: k, fe_mat: m, fe_n: 0 }
+}
+
+pub fn feature_add(f: Features, surf: integer, s0: float, s1: float,
+                   z0: float, z1: float, kind: integer, mat: integer) -> integer {
+  f.fe_surf += [surf]; f.fe_s0 += [s0]; f.fe_s1 += [s1];
+  f.fe_z0 += [z0]; f.fe_z1 += [z1]; f.fe_kind += [kind]; f.fe_mat += [mat];
+  f.fe_n = f.fe_n + 1;
+  f.fe_n - 1
+}
+
+// Where along surface `id` does this point sit?  Straight: distance along its direction.
+// Arc: arc length from angle 0.  This is the parameter a feature interval is stated in.
+pub fn surf_param(s: Surfaces, id: integer, px: float, py: float) -> float {
+  if id <= 0 || id >= s.sf_n { return 0.0; }
+  if (s.sf_kind[id] ?? 0) == 1 {
+    nx = s.sf_a[id] ?? 0.0;
+    ny = s.sf_b[id] ?? 0.0;
+    return (0.0 - ny) * px + nx * py;
+  }
+  cx = s.sf_a[id] ?? 0.0;
+  cy = s.sf_b[id] ?? 0.0;
+  atan2(py - cy, px - cx) * (s.sf_c[id] ?? 1.0)
+}
+
+// Apply every feature to the edge layer: an edge whose contact point falls inside a
+// feature's interval takes that feature's material.  The SURFACE is untouched — which is
+// why the body never fragments and the matcher still sees one wall.
+pub fn apply_features(e: EdgeSet, sf: Surfaces, f: Features,
+                      q0: integer, r0: integer, w: integer, h: integer) -> integer {
+  hits = 0;
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      for d in 0..6 {
+        nq = nb_q(q, r, d);
+        nr = nb_r(q, r, d);
+        sid = edge_surf(e, q, r, nq, nr);
+        if sid > 0 {
+          (px, py) = edge_point(q, r, nq, nr);
+          t = surf_param(sf, sid, px, py);
+          for i in 0..f.fe_n {
+            if (f.fe_surf[i] ?? -1) == sid {
+              lo = f.fe_s0[i] ?? 0.0;
+              hi = f.fe_s1[i] ?? 0.0;
+              if t >= lo && t <= hi {
+                idx = ee_index(e, q, r, nq, nr);
+                if idx >= 0 { e.ee_mat[idx] = f.fe_mat[i] ?? 0; hits = hits + 1; }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  hits
+}
+
 // Record BOTH halves: which surface (geometry) and which material (physics).
 pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
                        surf: integer, mat: integer) {

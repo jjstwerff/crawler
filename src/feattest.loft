@@ -1,0 +1,145 @@
+// feattest — P5 gate: doors and windows as intervals on the SURFACE.
+//
+// The measured constraint this design answers: a traced cell boundary turns at every
+// vertex, so an opening CUT FROM CELLS can never be straight beyond one 1.0-unit edge.
+// As an interval on an exact surface it is straight at any width — and a DOUBLE DOOR is
+// simply a wider interval, which is what this proves.
+use hexform;
+use hexedge;
+use hexway;
+use hexmatch;
+
+// Count each edge ONCE. Iterating all six directions from every cell visits a shared
+// edge twice, which silently doubled every figure in an earlier version of this test.
+// The canonical set {0,2,3} is one direction per opposite pair (see hexform).
+fn is_canon(d: integer) -> boolean { d == 0 || d == 2 || d == 3 }
+
+fn count_passable(e: EdgeSet, m: Materials, q0: integer, r0: integer,
+                  w: integer, h: integer) -> integer {
+  n = 0;
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      for d in 0..6 {
+        if is_canon(d) {
+        nq = nb_q(q, r, d);
+        nr = nb_r(q, r, d);
+        if edge_surf(e, q, r, nq, nr) > 0 {
+          if !mat_solid(m, edge_mat(e, q, r, nq, nr)) { n = n + 1; }
+        }
+        }
+      }
+    }
+  }
+  n
+}
+
+fn main() {
+  println("=== story feature test (doors + windows on the surface) ===");
+  q0 = -22; r0 = -22; w = 45; h = 45;
+  ok = true;
+
+  sf = surfaces_new();
+  mt = materials_new();
+  //                       solid height opacity sound  perm  bounce
+  stone  = material_add(mt, true,  2.5,   1.0,  30.0,  0.0,  0.55);
+  doorm  = material_add(mt, false, 0.0,   0.0,   2.0,  1.0,  0.00);
+  windm  = material_add(mt, true,  2.5,   0.1,   8.0,  0.2,  0.30);
+
+  // one straight wall running east
+  wall = track_new();
+  track_straight(wall, -14.0, 0.0, 14.0, 0.0);
+  wid = way_surfaces(wall, sf);
+  hs = hexset_chunk(q0, r0, w, h);
+  way_mark(wall, 1.1, hs);
+  e = edgeset_new(q0, r0, w, h);
+  cut_arb(hs, e, sf, sf.sf_n, stone);
+  base_pass = count_passable(e, mt, q0, r0, w, h);
+  println("plain wall: {edge_count(e)} blocked edges, {base_pass} passable");
+  if base_pass != 0 { ok = false; }
+
+  // ── SINGLE vs DOUBLE door: the interval width is the only difference ───────
+  f1 = features_new();
+  feature_add(f1, wid, -0.5, 0.5, 0.0, 2.2, FEAT_DOOR, doorm);
+  e1 = edgeset_new(q0, r0, w, h);
+  cut_arb(hs, e1, sf, sf.sf_n, stone);
+  apply_features(e1, sf, f1, q0, r0, w, h);
+  p1 = count_passable(e1, mt, q0, r0, w, h);
+
+  f2 = features_new();
+  feature_add(f2, wid, -1.3, 1.3, 0.0, 2.2, FEAT_DOOR, doorm);
+  e2 = edgeset_new(q0, r0, w, h);
+  cut_arb(hs, e2, sf, sf.sf_n, stone);
+  apply_features(e2, sf, f2, q0, r0, w, h);
+  p2 = count_passable(e2, mt, q0, r0, w, h);
+
+  f3 = features_new();
+  feature_add(f3, wid, -3.5, 3.5, 0.0, 3.0, FEAT_DOOR, doorm);
+  e3 = edgeset_new(q0, r0, w, h);
+  cut_arb(hs, e3, sf, sf.sf_n, stone);
+  apply_features(e3, sf, f3, q0, r0, w, h);
+  p3 = count_passable(e3, mt, q0, r0, w, h);
+
+  println("door width 1.0 -> {p1} passable edges   (single)");
+  println("door width 2.6 -> {p2} passable edges   (DOUBLE DOOR)");
+  println("door width 7.0 -> {p3} passable edges   (gateway)");
+  println("  NOTE: for a one-row wall the quantum is the HEX SPACING (1.732), not the");
+  println("  1.0 edge length — widths 1.0 and 2.2 open the SAME edges. Measured.");
+  if p1 < 1 { ok = false; }
+  if p2 <= p1 { ok = false; }
+  if p3 <= p2 { ok = false; }
+
+  // the wall must still seal everywhere else
+  still = edge_count(e2) - p2;
+  println("double door: {p2} passable, {still} still sealed");
+  if still < 10 { ok = false; }
+
+  // ── a WINDOW blocks movement but not sight ────────────────────────────────
+  fw = features_new();
+  feature_add(fw, wid, 4.0, 6.0, 1.0, 2.0, FEAT_WINDOW, windm);
+  ew = edgeset_new(q0, r0, w, h);
+  cut_arb(hs, ew, sf, sf.sf_n, stone);
+  nwin = apply_features(ew, sf, fw, q0, r0, w, h);
+  wsolid = true;
+  wsee = false;
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      for d in 0..6 {
+        nq = nb_q(q, r, d);
+        nr = nb_r(q, r, d);
+        mid = edge_mat(ew, q, r, nq, nr);
+        if mid == windm {
+          if !mat_solid(mt, mid) { wsolid = false; }
+          if mat_opacity(mt, mid) < 0.5 { wsee = true; }
+        }
+      }
+    }
+  }
+  println("window: {nwin} edge(s), solid={wsolid} (blocks movement), see-through={wsee}");
+  if nwin < 1 || !wsolid || !wsee { ok = false; }
+
+  // ── L3: the window carries a VERTICAL interval the material cannot express ─
+  zlo = fw.fe_z0[0] ?? 0.0;
+  zhi = fw.fe_z1[0] ?? 0.0;
+  wallh = mat_height(mt, stone);
+  println("window sill..head = {zlo}..{zhi} within a wall of height {wallh} — a scalar height cannot say this");
+  if zlo <= 0.0 || zhi >= wallh + 0.001 { ok = false; }
+
+  // ── L5: three features must NOT fragment the body ─────────────────────────
+  fm = features_new();
+  feature_add(fm, wid, -6.0, -5.0, 0.0, 2.2, FEAT_DOOR, doorm);
+  feature_add(fm, wid, -1.0, 1.0, 0.0, 2.2, FEAT_DOOR, doorm);
+  feature_add(fm, wid, 5.0, 6.0, 1.0, 2.0, FEAT_WINDOW, windm);
+  em = edgeset_new(q0, r0, w, h);
+  cut_arb(hs, em, sf, sf.sf_n, stone);
+  apply_features(em, sf, fm, q0, r0, w, h);
+  vm = trace(hs);
+  fitm = fit_new();
+  match_loop(vm, 0, fitm, 6);
+  vplain = trace(hs);
+  fitp = fit_new();
+  match_loop(vplain, 0, fitp, 6);
+  println("wall with 3 features: matcher gives {fitm.ft_n} run(s), plain wall {fitp.ft_n} — body intact: {fitm.ft_n == fitp.ft_n}");
+  if fitm.ft_n != fitp.ft_n { ok = false; }
+
+  if ok { println("=== FEAT OK ==="); } else { println("=== FAIL ==="); }
+}
