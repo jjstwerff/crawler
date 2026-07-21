@@ -1,0 +1,125 @@
+// waytest — P1 gate: ways as exact curves, and the single rasterising pass.
+//
+// Asserts the invariants DESIGN.md section 4 pins:
+//   I-EQUI  offsets of straights/arcs are EXACTLY d from the centreline
+//   flatten err <= c^2/(8R) — near-exact is cheap, name a tolerance
+//   I-CURV  an offset degenerates when |d| >= R  (the minimum curve radius)
+//   one pass: every blocked edge carries the surface of its nearest segment
+use hexform;
+use hexedge;
+use hexway;
+
+fn main() {
+  println("=== story way test (exact curves -> cells + edges + surfaces) ===");
+  ok = true;
+
+  // straight -> arc -> straight, joined tangentially
+  R = 9.0;
+  t = track_new();
+  a0 = 0.0 - 1.5707963267948966;
+  a1 = 0.0 - 0.3490658503988659;
+  track_arc(t, 0.0, 0.0, R, a0, a1);
+  (px0, py0) = seg_point(t, 0, 0.0);
+  (tx0, ty0) = seg_tangent(t, 0, 0.0);
+  (px1, py1) = seg_point(t, 0, seg_len(t, 0));
+  (tx1, ty1) = seg_tangent(t, 0, seg_len(t, 0));
+  full = track_new();
+  track_straight(full, px0 - tx0 * 8.0, py0 - ty0 * 8.0, px0, py0);
+  track_arc(full, 0.0, 0.0, R, a0, a1);
+  track_straight(full, px1, py1, px1 + tx1 * 8.0, py1 + ty1 * 8.0);
+  println("track: {full.tk_n} segments, length {track_len(full)}");
+
+  // ── I-EQUI ────────────────────────────────────────────────────────────────
+  worst = 0.0;
+  for oi in 0..4 {
+    d = 0.5 + (oi as float) * 0.5;
+    if oi >= 2 { d = 0.0 - (d - 1.0); }
+    o = track_offset(full, d);
+    ad = d; if ad < 0.0 { ad = 0.0 - ad; }
+    for i in 0..o.tk_n {
+      L = seg_len(o, i);
+      for k in 0..21 {
+        s = L * (k as float) / 20.0;
+        (qx, qy) = seg_point(o, i, s);
+        dev = track_distance(full, qx, qy) - ad;
+        if dev < 0.0 { dev = 0.0 - dev; }
+        if dev > worst { worst = dev; }
+      }
+    }
+  }
+  println("I-EQUI worst |dist - d| over 4 offsets = {worst}");
+  if worst > 0.000001 { ok = false; }
+
+  // ── I-CURV ────────────────────────────────────────────────────────────────
+  legal_small = offset_legal(full, 3.0);
+  legal_at_R = offset_legal(full, R);
+  legal_big = offset_legal(full, R + 1.0);
+  println("I-CURV: d=3 legal={legal_small}  d=R legal={legal_at_R}  d=R+1 legal={legal_big}");
+  if !legal_small || legal_at_R || legal_big { ok = false; }
+
+  // ── flattening: err <= c^2/(8R), so chord = sqrt(8*R*tol) ─────────────────
+  arc_only = track_new();
+  track_arc(arc_only, 0.0, 0.0, R, a0, a1);
+  flat_ok = true;
+  for n in 0..4 {
+    segs = 4 * (n + 1);
+    L = seg_len(arc_only, 0);
+    c = L / (segs as float) ?? 0.0;
+    bound = c * c / (8.0 * R) ?? 0.0;
+    wmax = 0.0;
+    for j in 0..segs {
+      (ax, ay) = seg_point(arc_only, 0, L * (j as float) / (segs as float));
+      (bx, by) = seg_point(arc_only, 0, L * ((j + 1) as float) / (segs as float));
+      (mx, my) = ((ax + bx) * 0.5, (ay + by) * 0.5);
+      dev = track_distance(arc_only, mx, my);
+      if dev > wmax { wmax = dev; }
+    }
+    println("  flatten {segs} chords: sagitta {wmax}  bound c^2/(8R) {bound}");
+    if wmax > bound * 1.05 { flat_ok = false; }
+  }
+  if !flat_ok { ok = false; }
+
+  // ── the one pass: cells + edges + surface ids ─────────────────────────────
+  Q = -18; RR = -18; W = 37; H = 37;
+  hs = hexset_chunk(Q, RR, W, H);
+  e = edgeset_new(Q, RR, W, H);
+  sf = surfaces_new();
+  mats = materials_new();
+  stone = material_add(mats, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+  first = way_surfaces(full, sf);
+  way_stamp(full, 1.2, hs, e, first, stone);
+  println("stamped: {hexset_count(hs)} cells, {edge_count(e)} blocked edges, surfaces {first}..{first + full.tk_n - 1}");
+
+  // every blocked edge must carry a surface AND yield an exact normal
+  tagged = 0;
+  untagged = 0;
+  badnorm = 0;
+  for r in RR..RR + H {
+    for q in Q..Q + W {
+      if hexset_get(hs, q, r) {
+        for nd in 0..6 {
+          nq = nb_q(q, r, nd);
+          nr = nb_r(q, r, nd);
+          if !hexset_get(hs, nq, nr) {
+            (hit, nx, ny) = collide(e, sf, q, r, nq, nr);
+            if hit {
+              m = sqrt(nx * nx + ny * ny) ?? 0.0;
+              if m < 0.999 || m > 1.001 { badnorm = badnorm + 1; }
+              tagged = tagged + 1;
+            } else { untagged = untagged + 1; }
+          }
+        }
+      }
+    }
+  }
+  println("boundary edges: {tagged} tagged with a surface, {untagged} untagged, {badnorm} bad normals");
+  if untagged != 0 || badnorm != 0 || tagged == 0 { ok = false; }
+
+  // the vector map of the same footprint must still validate
+  v = trace(hs);
+  code = validate(v, hexset_count(hs));
+  println("vector map: {v.vm_loops} loop(s), validator {code}");
+  if code != 0 { ok = false; }
+
+  if ok { println("=== WAY OK ==="); } else { println("=== FAIL ==="); }
+}

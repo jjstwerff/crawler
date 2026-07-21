@@ -1,0 +1,251 @@
+// hexway — P1: WAYS as exact curves, and the one pass that rasterises them.
+//
+// The loft port of plans/5-geometry/ways.py.  A way is authored as ONE exact centreline;
+// every other line — rails, ruts, lane markings, bed edges — is an OFFSET of it.  That is
+// what escapes the hex quantisation floor: rasterising a band bottoms out around 0.5 hex
+// widths, while an offset is equidistant by construction.
+//
+// The load-bearing part for the rest of plan #5 is the LAST function: `way_stamp` walks
+// the centreline once and writes the cells, the blocked edges AND the surface ids in a
+// single pass.  The surface id is attached where it is known — at derivation time — which
+// is why no separate index is ever needed to answer "which wall segment did I hit?".
+//
+// Segment record: 6 floats, uniform for both kinds (flat arrays, no vector<vector<>>).
+//   straight: [x0, y0, x1, y1,  0,  0]
+//   arc:      [cx, cy,  R, a0, a1,  0]
+use hexform;
+use hexedge;
+
+pub const WAY_STRAIGHT = 1;
+pub const WAY_ARC      = 2;
+
+pub struct Track {
+  tk_kind: vector<integer>,
+  tk_p:    vector<float>,      // 6 per segment
+  tk_n:    integer,
+}
+
+pub fn track_new() -> Track {
+  k: vector<integer> = [];
+  p: vector<float> = [];
+  Track { tk_kind: k, tk_p: p, tk_n: 0 }
+}
+
+pub fn track_straight(t: Track, x0: float, y0: float, x1: float, y1: float) {
+  t.tk_kind += [WAY_STRAIGHT];
+  t.tk_p += [x0]; t.tk_p += [y0]; t.tk_p += [x1]; t.tk_p += [y1];
+  t.tk_p += [0.0]; t.tk_p += [0.0];
+  t.tk_n = t.tk_n + 1;
+}
+
+pub fn track_arc(t: Track, cx: float, cy: float, r: float, a0: float, a1: float) {
+  t.tk_kind += [WAY_ARC];
+  t.tk_p += [cx]; t.tk_p += [cy]; t.tk_p += [r]; t.tk_p += [a0];
+  t.tk_p += [a1]; t.tk_p += [0.0];
+  t.tk_n = t.tk_n + 1;
+}
+
+fn pv(t: Track, i: integer, j: integer) -> float { t.tk_p[i * 6 + j] ?? 0.0 }
+
+pub fn seg_len(t: Track, i: integer) -> float {
+  if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT {
+    dx = pv(t, i, 2) - pv(t, i, 0);
+    dy = pv(t, i, 3) - pv(t, i, 1);
+    return sqrt(dx * dx + dy * dy) ?? 0.0;
+  }
+  d = pv(t, i, 4) - pv(t, i, 3);
+  if d < 0.0 { d = 0.0 - d; }
+  d * pv(t, i, 2)
+}
+
+pub fn track_len(t: Track) -> float {
+  s = 0.0;
+  for i in 0..t.tk_n { s = s + seg_len(t, i); }
+  s
+}
+
+// Point at arc-length `s` along segment i.
+pub fn seg_point(t: Track, i: integer, s: float) -> (float, float) {
+  if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT {
+    L = seg_len(t, i);
+    if L < 0.000001 { return (pv(t, i, 0), pv(t, i, 1)); }
+    u = s / L ?? 0.0;
+    return (pv(t, i, 0) + (pv(t, i, 2) - pv(t, i, 0)) * u,
+            pv(t, i, 1) + (pv(t, i, 3) - pv(t, i, 1)) * u);
+  }
+  r = pv(t, i, 2);
+  a0 = pv(t, i, 3);
+  a1 = pv(t, i, 4);
+  dir = 1.0;
+  if a1 < a0 { dir = 0.0 - 1.0; }
+  a = a0 + (s / r ?? 0.0) * dir;
+  (pv(t, i, 0) + r * cos(a), pv(t, i, 1) + r * sin(a))
+}
+
+pub fn seg_tangent(t: Track, i: integer, s: float) -> (float, float) {
+  if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT {
+    L = seg_len(t, i);
+    if L < 0.000001 { return (1.0, 0.0); }
+    return ((pv(t, i, 2) - pv(t, i, 0)) / L ?? 0.0,
+            (pv(t, i, 3) - pv(t, i, 1)) / L ?? 0.0);
+  }
+  r = pv(t, i, 2);
+  a0 = pv(t, i, 3);
+  a1 = pv(t, i, 4);
+  dir = 1.0;
+  if a1 < a0 { dir = 0.0 - 1.0; }
+  a = a0 + (s / r ?? 0.0) * dir;
+  (0.0 - sin(a) * dir, cos(a) * dir)
+}
+
+// Signed curvature: + turning left (centre on the left of travel), - turning right.
+pub fn seg_curvature(t: Track, i: integer) -> float {
+  if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT { return 0.0; }
+  r = pv(t, i, 2);
+  if r < 0.000001 { return 0.0; }
+  if pv(t, i, 4) >= pv(t, i, 3) { return 1.0 / r ?? 0.0; }
+  0.0 - (1.0 / r ?? 0.0)
+}
+
+// I-CURV — an offset degenerates when |d| >= R.  This IS the minimum curve radius, and
+// it falls out of the geometry rather than being a tuning constant.
+pub fn offset_legal(t: Track, d: float) -> boolean {
+  ad = d; if ad < 0.0 { ad = 0.0 - ad; }
+  ok = true;
+  for i in 0..t.tk_n {
+    if (t.tk_kind[i] ?? 0) == WAY_ARC {
+      if ad >= pv(t, i, 2) { ok = false; }
+    }
+  }
+  ok
+}
+
+// The parallel track at distance d (left normal positive).  For straights and arcs the
+// offset is again a straight / a concentric arc, so equidistance is EXACT here — the
+// only cost anywhere is flattening, err ~ c^2/(8R).
+pub fn track_offset(t: Track, d: float) -> Track {
+  o = track_new();
+  for i in 0..t.tk_n {
+    if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT {
+      (tx, ty) = seg_tangent(t, i, 0.0);
+      nx = 0.0 - ty;
+      ny = tx;
+      track_straight(o, pv(t, i, 0) + nx * d, pv(t, i, 1) + ny * d,
+                        pv(t, i, 2) + nx * d, pv(t, i, 3) + ny * d);
+    } else {
+      dir = 1.0;
+      if pv(t, i, 4) < pv(t, i, 3) { dir = 0.0 - 1.0; }
+      track_arc(o, pv(t, i, 0), pv(t, i, 1), pv(t, i, 2) + d * dir,
+                   pv(t, i, 3), pv(t, i, 4));
+    }
+  }
+  o
+}
+
+// Distance from a point to the centreline (min over segments).
+pub fn seg_distance(t: Track, i: integer, px: float, py: float) -> float {
+  if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT {
+    ax = pv(t, i, 0); ay = pv(t, i, 1);
+    vx = pv(t, i, 2) - ax; vy = pv(t, i, 3) - ay;
+    L2 = vx * vx + vy * vy;
+    u = 0.0;
+    if L2 > 0.000000001 { u = ((px - ax) * vx + (py - ay) * vy) / L2 ?? 0.0; }
+    if u < 0.0 { u = 0.0; }
+    if u > 1.0 { u = 1.0; }
+    dx = px - (ax + u * vx);
+    dy = py - (ay + u * vy);
+    return sqrt(dx * dx + dy * dy) ?? 0.0;
+  }
+  cx = pv(t, i, 0); cy = pv(t, i, 1); r = pv(t, i, 2);
+  dx = px - cx; dy = py - cy;
+  dd = sqrt(dx * dx + dy * dy) ?? 0.0;
+  a = atan2(dy, dx);
+  lo = pv(t, i, 3); hi = pv(t, i, 4);
+  if hi < lo { tmp = lo; lo = hi; hi = tmp; }
+  aa = a;
+  while aa < lo { aa = aa + 6.283185307179586; }
+  if aa <= hi {
+    v = dd - r;
+    if v < 0.0 { v = 0.0 - v; }
+    return v;
+  }
+  (e0x, e0y) = seg_point(t, i, 0.0);
+  (e1x, e1y) = seg_point(t, i, seg_len(t, i));
+  d0 = sqrt((px - e0x) * (px - e0x) + (py - e0y) * (py - e0y)) ?? 0.0;
+  d1 = sqrt((px - e1x) * (px - e1x) + (py - e1y) * (py - e1y)) ?? 0.0;
+  if d0 < d1 { return d0; }
+  d1
+}
+
+pub fn track_distance(t: Track, px: float, py: float) -> float {
+  best = 1000000.0;
+  for i in 0..t.tk_n {
+    d = seg_distance(t, i, px, py);
+    if d < best { best = d; }
+  }
+  best
+}
+
+// ── the one pass: cells + edges + surface ids together ───────────────────────
+//
+// Walks the centreline once, marks every cell within `halfwidth`, then cuts the boundary
+// into the EdgeSet — recording, per edge, WHICH segment of the way blocks it.  That is
+// the whole reason no lookup index is needed later.
+
+// Register this track's segments as surfaces; returns the id of the FIRST one (ids are
+// contiguous, so segment i has id first+i).
+pub fn way_surfaces(t: Track, sf: Surfaces) -> integer {
+  first = 0;
+  for i in 0..t.tk_n {
+    if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT {
+      (tx, ty) = seg_tangent(t, i, 0.0);
+      id = surf_straight(sf, 0.0 - ty, tx,
+                         (0.0 - ty) * pv(t, i, 0) + tx * pv(t, i, 1));
+      if i == 0 { first = id; }
+    } else {
+      id = surf_arc(sf, pv(t, i, 0), pv(t, i, 1), pv(t, i, 2));
+      if i == 0 { first = id; }
+    }
+  }
+  first
+}
+
+// Which segment of the track is nearest this point?  This is the P3 arbitration rule in
+// embryo: nearest-surface-wins, ties to the lower index — deterministic, order-free.
+pub fn nearest_seg(t: Track, px: float, py: float) -> integer {
+  best = -1;
+  bd = 1000000.0;
+  for i in 0..t.tk_n {
+    d = seg_distance(t, i, px, py);
+    if d < bd - 0.000000001 { bd = d; best = i; }
+  }
+  best
+}
+
+// Mark the way's footprint into `s`, cut its boundary into `e`, and tag every blocked
+// edge with the surface of the NEAREST segment.  One walk, one source of truth.
+pub fn way_stamp(t: Track, halfwidth: float, s: HexSet, e: EdgeSet,
+                 first_surf: integer, mat: integer) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      px = (lattice_k(q, r) as float) * 0.8660254037844386;
+      py = (lattice_m(q, r) as float) * 0.5;
+      if track_distance(t, px, py) <= halfwidth { hexset_set(s, q, r, true); }
+    }
+  }
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        for d in 0..6 {
+          nq = nb_q(q, r, d);
+          nr = nb_r(q, r, d);
+          if !hexset_get(s, nq, nr) {
+            (ex, ey) = edge_point(q, r, nq, nr);
+            si = nearest_seg(t, ex, ey);
+            if si >= 0 { edge_block_full(e, q, r, nq, nr, first_surf + si, mat); }
+          }
+        }
+      }
+    }
+  }
+}

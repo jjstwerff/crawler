@@ -12,20 +12,35 @@
 | built + gated | not built |
 |---|---|
 | `hexform.loft` — chunked `HexSet`, tracer, validator, exact integer `VecMap` | the §7.3 minimisation (canonical-dir index, `u16`/`u8`) |
+| `hexway.loft` — `Track`, offsets, `way_stamp` one-pass rasteriser **(P1)** | the way *profiles* (rails/ruts/lane lines) on top of `Track` |
 | `hexedge.loft` — `EdgeSet`, `Surfaces` (straight/arc), `Materials`, `collide()` | the matcher (cells → surfaces) |
 | `formtest.loft` — 18 forms / 900 points vs the Python golden; chunk-locality | junctions of any kind |
 | `edgetest.loft` — 24/24 blocking, exact normals, materials, footprint | region cache, `vm_surf`, features |
 
 ## 2. Phases
 
-### P1 — surfaces from curves *(unblocks everything)*
-Port `ways.py` to loft: `Straight` / `ArcSeg` / `Track`, `build_way(profile)`, and the
-offset construction. Emit surfaces into `Surfaces` and rasterise the footprint into a
-`HexSet` + `EdgeSet` in one pass, so the surface id is attached at derivation time.
+### P1 — surfaces from curves ✅ **SHIPPED 2026-07-21**
+`src/hexway.loft` + `src/waytest.loft`, gated in `make test` as `[ways]`.
 
-**Gate** `src/waytest.loft`: I-EQUI exact for straights/arcs · flattening error
-`≤ c²/(8R)` · I-CURV rejects `|d| ≥ R` · a way's cells and its surfaces agree (every
-blocked edge has a surface id).
+A `Track` is a flat 6-float record per segment (straight or arc — no `vector<vector<>>`),
+with `track_offset`, `offset_legal`, and `track_distance`. The load-bearing piece is
+**`way_stamp`: one walk of the centreline writes the cells, the blocked edges AND the
+surface ids together** — which is precisely why no lookup index is ever needed to answer
+"which wall segment did I hit?". `nearest_seg` is the P3 arbitration rule in embryo
+(nearest wins, ties to the lower index).
+
+Measured by the gate:
+
+| invariant | result |
+|---|---|
+| **I-EQUI** worst \|dist − d\| over 4 offsets | **1.8e-15** (float noise — exact) |
+| **I-CURV** `d=3` / `d=R` / `d=R+1` | legal / **rejected** / **rejected** |
+| **flattening** sagitta vs `c²/(8R)` at 4/8/12/16 chords | 0.10475 ≤ 0.10495 · 0.02622 ≤ 0.02624 · 0.01166 ≤ 0.01166 · 0.006559 ≤ 0.006559 |
+| **one pass** boundary edges tagged | **74 of 74**, 0 untagged, 0 bad normals |
+| vector map of the same footprint | 1 loop, validator 0 |
+
+The flattening row is the useful one: the sagitta sits just *under* the theoretical bound
+at every density, so `chord = √(8·R·tol)` is a usable design rule rather than an estimate.
 
 ### P2 — the matcher: cells → surfaces *(load-bearing, not polish)*
 Cell-authored content has no surfaces today, so it has no normals. Fit straight runs and
