@@ -1042,3 +1042,13 @@ outside the 45° point than inside · groin and cloister differ at the wall and 
 diagonal, with the cloister's wall soffit matching its predicted value to 0.02 · the barrel
 crown line is dead level · dome and cone each recover as themselves · a groin vault is
 refused · dome interpolation error is worse at the springing than at the apex.
+
+
+## 16. Trees — moved out
+
+Canopy-first trees were designed here and have moved to their own plan: **#9
+(`plans/9-canopy-trees/`)**. They share this plan's substrate completely — same hexes,
+chunks, levels, cache, `Heights`, materials — but invert the derivation direction (the
+field is primary, the form is derived) and carry their own rendering model (semi-filled
+cards, not surfaces). That makes them a *consumer* of this geometry library rather than a
+phase of it. This plan stays the library.
