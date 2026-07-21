@@ -1,7 +1,7 @@
 # Canopy-first trees — design
 
 **Status: DESIGN ONLY. Nothing built.** Step 1 of the design protocol is a concrete
-plotted end-result, agreed before any code. §2 proposes one; it needs confirming or
+plotted end-result, agreed before any code. §3 proposes one; it needs confirming or
 correcting before implementation starts.
 
 ---
@@ -39,9 +39,37 @@ Three further things are genuinely new:
    crown. That is a conservation law across a graph, and we have never had one.
 
 This is the "different order" — correctly identified. The shapes are simple; the
-*derivation direction* is not.
+*derivation direction* is not. What does **not** change is the substrate: §2.
 
-## 2. The concrete end-result (PROPOSED — confirm or correct)
+## 2. One grid — trees live where houses live
+
+The canopy is **not a separate world**. It uses the same hexes, the same chunks, the same
+level key and the same cache as everything else in this plan. That is the whole reason a
+forest can meet a village at all, and it belongs before the tree-specific machinery because
+it constrains all of it.
+
+Concretely, what sharing the grid buys:
+
+- **A canopy over a building is the bridge case (§10).** Crowns and rooftops occupy the same
+  cells at different **levels**, so they never arbitrate — the mechanism that lets a road
+  cross a railway lets a branch overhang a roof. Nothing new required.
+- **Buildings compete for the canopy.** A wall or roof holding a cell is just another
+  claimant in the argmax of I-CROWN, so a tree beside a house grows away from it and an
+  avenue closes over a street — with no special case for architecture anywhere.
+- **One `sight_clear` crosses both.** A ray leaving a window accumulates wall opacity and
+  then leaf opacity. Sight, sound and light already read materials, and a leaf is a
+  material (§9).
+- **One cache.** Canopy regions are `FieldCache` entries keyed `(chunk, level, version)`
+  like everything else, so a forest pays the same residency policy as a town, and felling a
+  tree invalidates by the same rule as moving a wall (§8, §10).
+- **One height stack.** Terrain, stair treads, roof heights and canopy base/top are all
+  `Heights` at their level — a tree on a terraced hillside needs no reconciliation code.
+
+So the tree-specific parts are **additions to this field, not a parallel system**: a
+`Labels` field beside `Heights`, and a `Skeleton` hanging off it. If any part of the design
+below appears to want its own grid, that is a sign it is wrong.
+
+## 3. The concrete end-result (PROPOSED — confirm or correct)
 
 Two cases. The first pins the machinery; the second is the one that matters.
 
@@ -79,14 +107,14 @@ Exact expected output:
 - `|C_A| > |C_B| > |C_C|` — A is open on three sides, C is overtopped;
 - C's crown centroid is displaced **+y, away from A** — C leans away from its competitor;
 - A's centroid is displaced slightly **−x and −y**, away from both;
-- trunk diameters satisfy `d ∝ √(cells)` (pipe model, §3);
+- trunk diameters satisfy `d ∝ √(cells)` (pipe model, §4);
 - no branch path of C passes through a cell owned by A.
 
 **Open**: the exact numbers depend on the crown profile and the weighting, which §3 fixes
 but does not yet calibrate. Do you want to plot the expected partition for Case B yourself,
 or should the first implementation print it for you to correct?
 
-## 3. The invariants
+## 4. The invariants
 
 These are the exact statements; everything else is tuning.
 
@@ -162,11 +190,13 @@ This replaces drainage as the canopy's correctness invariant.
 Zero for an isolated tree (Case A). Non-zero and directed away from competitors when
 crowded. Bounded by crown radius — a trunk cannot lean outside the crown it carries.
 
-## 4. What is reused, and what is new
+## 5. What is reused, and what is new
 
-Most of it is reuse. That is the point of having built the rest first.
+Most of it is reuse — §2 is why. That is the point of having built the rest first.
 
 | need | already exists |
+|---|---|
+| the grid, chunks, levels, cache | unchanged; a canopy is a level over the same hexes (§2) |
 |---|---|
 | canopy top AND base | two `Heights` fields — the floor/soffit pair from arches (§13) |
 | crown profiles | `dome` / `roof_cone` / the profile×distance table (§15) |
@@ -189,7 +219,7 @@ Most of it is reuse. That is the point of having built the rest first.
 4. **Relaxation** — crown extent affects height affects competition. This is iterative and
    needs a convergence criterion. **The main open risk in this design.**
 
-## 5. How it is drawn — and why that changes the design
+## 6. How it is drawn — and why that changes the design
 
 Trees are **not** rendered like houses. A house is surfaces all the way down: recover the
 form, emit geometry. A tree is two representations at once:
@@ -262,7 +292,7 @@ authored through the existing sprite pipeline, not a new one — and the sprite 
 unchanged. Worth confirming: a handful of species-typical sprays, or a generic set tinted
 per species?
 
-## 6. Phases
+## 7. Phases
 
 | phase | deliverable | gate |
 |---|---|---|
@@ -283,7 +313,7 @@ simulated one. T9 depends on T4 producing smooth terminal directions, which is a
 requirement on T4 that only the rendering model reveals — worth knowing before T4 is
 written rather than after.
 
-## 7. Open questions
+## 8. Open questions
 
 1. **The concrete end-result for Case B** — plot it, or have the first run print it for
    correction? (§2)
@@ -297,10 +327,14 @@ written rather than after.
    (they change crown profile, shade tolerance and branching angle — and shade tolerance is
    what makes mixed forests interesting)?
 5. **Card art**: a handful of species-typical branch sprays, or one generic set tinted per
-   species? (§5)
+   species? (§6)
 6. **Mesh threshold `N`**: pick it from a target on-screen branch thickness, or fix it as a
    crown-cell count and let apparent thickness follow? The first is more directly about how
    it looks; the second is resolution-independent.
-7. **Scope**: is this plan #5's, or its own plan? It is a different order of thing, as you
-   say — and now that it carries its own rendering model as well as its own derivation
-   direction, it looks more like its own issue and directory than a phase of this one.
+7. **Scope**: is this plan #5's, or its own plan? The answer is now clearer than when this
+   doc was started. It shares the **substrate completely** (§2 — same hexes, chunks, levels,
+   cache, heights, materials), and differs completely in **derivation direction** (§1) and
+   **rendering model** (§6). That is the shape of a *sibling plan consuming #5's library*,
+   not a fork of it and not a phase inside it: #5 stays the geometry library, trees become
+   its first consumer that is not architecture. Recommend a separate issue + directory,
+   with #5 listed as a dependency — but it is your call.
