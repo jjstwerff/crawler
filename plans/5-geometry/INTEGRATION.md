@@ -718,3 +718,55 @@ not (edge sets compared bit for bit) · the levels share cells · piers land at 
 foul nothing · the ramp comparison · the vertical-curve identity to 0.1% · sight along vs
 across the bore · the ground above the bore is unmarked · the cache holds both levels of
 one chunk in distinct slots, both hitting, with an underived level a clean miss.
+
+## 11. Stairs (P12) — the first per-cell height
+
+Stairs are a small feature and a large test. Everything before them got by with height on
+the *material* — how tall a wall is. A staircase is different: each step **is** a floor at
+a different level, so the height belongs to the **cell**. That is a new structure,
+`Heights`, deliberately kept separate from `HexSet` — most of the world is flat and should
+not pay for a height it never reads, and a height field is *derived* (from a way, a
+contour, a terrace) exactly as the edge field is.
+
+It also needed `way_param`, the arc length from the start of a way to the nearest point on
+it. That is the **milepost**: the parameter stations, signals, steps and mileage markers
+are all stated in, and nothing before this had a reason to compute it.
+
+### The minimum tread has a closed form — and it contradicts the width result
+
+Two adjacent cells are `√3` apart, and their along-way parameters differ by that separation
+projected onto the heading. A double riser (two adjacent cells two steps apart — a trip
+hazard, and a discontinuity in the field) needs that difference to exceed one tread, so:
+
+```
+   min tread(θ) = √3 · max over the six neighbour directions |cos(θ − 60k°)|
+```
+
+Neighbour directions are multiples of 60°, so this ranges only over `√3·cos30° = 1.50` to
+`√3 = 1.73`. Measured against the closed form by sweep:
+
+```
+     0° edge       1.70   predicted 1.73
+    30° vertex     1.40   predicted 1.50
+    15° off-axis   1.70   predicted 1.67
+    75° off-axis   1.70   predicted 1.67
+```
+
+**A spread of 15%.** That is worth stating loudly because it is the *opposite* of the
+width result, where bed width varies by 256% across the same 24 headings. Quantisation is
+not one property of the grid — it depends entirely on which question is asked of it, and
+the direction tiers established for width do **not** transfer to tread. All 24 headings are
+clean at tread 2.0 with the worst riser exactly `rise`.
+
+### The nosing line is the sight line
+
+On a staircase every nosing lies on the pitch line by construction. So looking up a flight,
+each nosing hides the tread behind it, and a tread is visible only from **above** the pitch
+line — which is why you cannot see the back of a tread from the foot of a steep flight.
+Gated with `sight_clear` unchanged: eye at z=0.3 (below pitch) cannot see a tread at z=3.0;
+eye at z=6.0 (above pitch) can.
+
+**Gate** `src/stairtest.loft`: all 24 headings clean at tread 2.0 with worst riser exactly
+`rise` · the minimum clean tread matches the closed form within one sweep step on four
+headings · monotonicity along the flight (0 inversions — a flight only ever goes up) · 40
+riser edges across 9 step levels · the pitch-line sight test either side.

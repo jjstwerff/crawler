@@ -114,6 +114,47 @@ pub fn nb_r(q: integer, r: integer, d: integer) -> integer {
   r + 1
 }
 
+// ── HEIGHTS ─────────────────────────────────────────────────────────────────
+//
+// A per-CELL height, chunk-indexed exactly like a HexSet.  Everything before stairs got by
+// with height on the material (how tall a wall is); a staircase is the first thing that
+// needs the GROUND itself to have a z, because each step is a different floor.
+//
+// It is deliberately a separate structure rather than a field on HexSet: most of the world
+// is flat and should not pay for a height it never reads, and a height field is derived
+// (from a way, a contour, a terrace) exactly as the edge field is.
+pub struct Heights {
+  hz_q0: integer,
+  hz_r0: integer,
+  hz_w:  integer,
+  hz_h:  integer,
+  hz_z:  vector<float>,
+}
+
+pub fn heights_new(q0: integer, r0: integer, w: integer, h: integer) -> Heights {
+  z: vector<float> = [];
+  for i in 0..w * h { z += [0.0]; }
+  Heights { hz_q0: q0, hz_r0: r0, hz_w: w, hz_h: h, hz_z: z }
+}
+
+fn hz_index(f: Heights, q: integer, r: integer) -> integer {
+  dq = q - f.hz_q0;
+  dr = r - f.hz_r0;
+  if dq < 0 || dr < 0 || dq >= f.hz_w || dr >= f.hz_h { return -1; }
+  dr * f.hz_w + dq
+}
+
+pub fn height_set(f: Heights, q: integer, r: integer, z: float) {
+  i = hz_index(f, q, r);
+  if i >= 0 { f.hz_z[i] = z; }
+}
+
+pub fn height_get(f: Heights, q: integer, r: integer) -> float {
+  i = hz_index(f, q, r);
+  if i < 0 { return 0.0; }
+  f.hz_z[i] ?? 0.0
+}
+
 // World point -> the cell that contains it.  The exact inverse of the centre map
 // (lattice_k / lattice_m), by the standard axial-fractional + cube-round route.  Gated two
 // ways in sighttest: it must round-trip every cell of a chunk, and it must agree cell for

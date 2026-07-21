@@ -1,0 +1,217 @@
+// stairtest — STAIRS: a way whose cells carry a height, one step at a time.
+//
+// This is the first consumer that needs the GROUND to have a z. Everything before it got
+// by with height on the material — how tall a wall is. A staircase is different: each step
+// IS a floor at a different level, so the height belongs to the cell, not the edge.
+//
+// What makes it a good test of the whole 24-direction model is that the tread is quantised
+// by the CELL ROWS, and row spacing depends on the direction of travel. A tread that is
+// clean along one heading skips whole steps along another — which shows up as a DOUBLE
+// RISER between two adjacent cells. That is a real defect, not a rounding detail (it is a
+// trip hazard in the world and a discontinuity in the field), and it is what sets the
+// minimum tread per direction.
+//
+// The last part is the prettiest: on a staircase every nosing lies on the pitch line, so
+// THE NOSING LINE IS THE SIGHT LINE. Treads are visible from above it and hidden from
+// below it — which is why you cannot see the back of a tread from the foot of a steep
+// flight. That falls out of sight_clear unchanged.
+use hexform;
+use hexedge;
+use hexway;
+
+fn deg(v: float) -> float { v * 0.017453292519943295 }
+
+fn stair_track(th: float, length: float) -> Track {
+  t = track_new();
+  track_straight(t, 0.0, 0.0, length * cos(th), length * sin(th));
+  t
+}
+
+// worst height jump between two adjacent cells of the flight
+fn worst_riser(s: HexSet, f: Heights) -> float {
+  w = 0.0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        for i in 0..6 {
+          nq = nb_q(q, r, i);
+          nr = nb_r(q, r, i);
+          if hexset_get(s, nq, nr) {
+            dz = height_get(f, q, r) - height_get(f, nq, nr);
+            if dz < 0.0 { dz = 0.0 - dz; }
+            if dz > w { w = dz; }
+          }
+        }
+      }
+    }
+  }
+  w
+}
+
+fn step_levels(s: HexSet, f: Heights, rise: float) -> integer {
+  hi = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        n = (height_get(f, q, r) / rise ?? 0.0) as integer;
+        if n > hi { hi = n; }
+      }
+    }
+  }
+  hi + 1
+}
+
+fn main() {
+  println("=== story stair test ===");
+  ok = true;
+  q0 = -22; r0 = -22; gw = 45; gh = 45;
+  rise = 0.5;
+  flight = 16.0;
+  hw = 2.0;
+
+  // ── 1. every one of the 24 headings, at a generous tread ─────────────────
+  println("all 24 headings, tread 2.0, rise {rise}: (levels, worst riser)");
+  bad = 0;
+  line = "";
+  for k in 0..24 {
+    th = deg(15.0 * (k as float));
+    t = stair_track(th, flight);
+    hs = hexset_chunk(q0, r0, gw, gh);
+    way_mark(t, hw, hs);
+    hf = heights_new(q0, r0, gw, gh);
+    way_steps(t, hs, hf, rise, 2.0);
+    wr = worst_riser(hs, hf);
+    lv = step_levels(hs, hf, rise);
+    if wr > rise * 1.01 { bad = bad + 1; }
+    if k % 6 == 0 { println("   {line}"); line = ""; }
+    line = "{line}[{15 * k}d lv{lv} r{wr}] ";
+  }
+  println("   {line}");
+  println("headings with a DOUBLE riser at tread 2.0: {bad}");
+  if bad != 0 { ok = false; }
+
+  // ── 2. the minimum clean tread, and its closed form ──────────────────────
+  // Sweep the tread down until a double riser appears. Two adjacent cells are sqrt(3)
+  // apart, and their along-way parameters differ by that separation PROJECTED onto the
+  // heading. A double riser needs that difference to exceed one tread, so
+  //
+  //     min tread(theta) = sqrt(3) * max over the six neighbour directions |cos(theta - 60k)|
+  //
+  // Neighbour directions are multiples of 60 deg, so this ranges only over
+  // sqrt(3)*cos(30) = 1.50  ..  sqrt(3) = 1.73 — a spread of just 15%.
+  //
+  // That is worth stating because it is the OPPOSITE of the width result: bed width varies
+  // by 256% across the 24 headings, tread barely varies at all. Quantisation is not one
+  // property of the grid — it depends entirely on which question is asked of it.
+  println("minimum clean tread by heading (closed form: sqrt(3)*max|cos(th-60k)|):");
+  for j in 0..4 {
+    kk = 0; nm = "  0d edge     ";
+    if j == 1 { kk = 2; nm = " 30d vertex   "; }
+    if j == 2 { kk = 1; nm = " 15d off-axis "; }
+    if j == 3 { kk = 5; nm = " 75d off-axis "; }
+    th = deg(15.0 * (kk as float));
+    t = stair_track(th, flight);
+    hs = hexset_chunk(q0, r0, gw, gh);
+    way_mark(t, hw, hs);
+    mint = 0.0;
+    for i in 0..28 {
+      tr = 0.3 + (i as float) * 0.1;
+      hf = heights_new(q0, r0, gw, gh);
+      way_steps(t, hs, hf, rise, tr);
+      if worst_riser(hs, hf) > rise * 1.01 { mint = tr + 0.1; }
+    }
+    best = 0.0;
+    for n in 0..6 {
+      c = cos(th - deg(60.0 * (n as float)));
+      if c < 0.0 { c = 0.0 - c; }
+      if c > best { best = c; }
+    }
+    pred = 1.7320508075688772 * best;
+    println("   {nm}: minimum clean tread {mint}, predicted {pred}");
+    if mint <= 0.0 { ok = false; }
+    dv = pred - mint;
+    if dv < 0.0 { dv = 0.0 - dv; }
+    if dv > 0.25 { ok = false; }
+  }
+
+  // ── 3. a flight only ever goes up ────────────────────────────────────────
+  // Monotonicity along the way is the correctness property of a staircase: no cell may
+  // be lower than a cell behind it.
+  th = 0.0;
+  t = stair_track(th, flight);
+  hs = hexset_chunk(q0, r0, gw, gh);
+  way_mark(t, hw, hs);
+  hf = heights_new(q0, r0, gw, gh);
+  way_steps(t, hs, hf, rise, 2.0);
+  inv = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(hs, q, r) {
+        cx = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+        cy = ((lattice_m(q, r)) as float) * 0.5;
+        pa = way_param(t, cx, cy);
+        for i in 0..6 {
+          nq = nb_q(q, r, i);
+          nr = nb_r(q, r, i);
+          if hexset_get(hs, nq, nr) {
+            bx = ((lattice_k(nq, nr)) as float) * 0.8660254037844386;
+            by = ((lattice_m(nq, nr)) as float) * 0.5;
+            pb = way_param(t, bx, by);
+            if pb > pa && height_get(hf, nq, nr) < height_get(hf, q, r) { inv = inv + 1; }
+          }
+        }
+      }
+    }
+  }
+  println("monotonic along the flight: inversions {inv}");
+  if inv != 0 { ok = false; }
+
+  // ── 4. the nosing line IS the sight line ─────────────────────────────────
+  // Every riser is an edge whose top is the absolute z of the higher cell. Looking up the
+  // flight from below the pitch line, each nosing hides the tread behind it.
+  mt = materials_new();
+  nlev = step_levels(hs, hf, rise);
+  mat0 = 0;
+  for i in 0..nlev {
+    m = material_add(mt, true, (i as float) * rise, 1.0, 3.0, 0.2, 0.2);
+    if i == 0 { mat0 = m; }
+  }
+  e = edgeset_new(q0, r0, gw, gh);
+  risers = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(hs, q, r) {
+        for i in 0..6 {
+          nq = nb_q(q, r, i);
+          nr = nb_r(q, r, i);
+          if hexset_get(hs, nq, nr) {
+            za = height_get(hf, q, r);
+            zb = height_get(hf, nq, nr);
+            if zb > za + 0.001 {
+              lv = (zb / rise ?? 0.0) as integer;
+              edge_block_full(e, q, r, nq, nr, 1, mat0 + lv);
+              risers = risers + 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  println("riser edges: {risers} across {nlev} step levels");
+  if risers <= 0 { ok = false; }
+
+  // pitch line: rises `rise` every `tread`, so gradient = rise/tread
+  pitch = rise / 2.0 ?? 0.0;
+  tx = 13.0;
+  (tq, tqr) = hex_at(tx, 0.0);
+  ttop = height_get(hf, tq, tqr);
+  println("target at x={tx}, tread level z={ttop}; pitch {pitch}");
+  lowsee  = sight_clear(e, mt, -3.0, 0.0, 0.3, tx, 0.0, ttop, 0.5);
+  highsee = sight_clear(e, mt, -3.0, 0.0, 6.0, tx, 0.0, ttop, 0.5);
+  println("   eye below the pitch line (z=0.3): tread visible {lowsee}");
+  println("   eye above the pitch line (z=6.0): tread visible {highsee}");
+  if lowsee { ok = false; }
+  if !highsee { ok = false; }
+
+  if ok { println("=== STAIR OK ==="); } else { println("=== FAIL ==="); }
+}

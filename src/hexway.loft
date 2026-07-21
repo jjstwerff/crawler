@@ -291,3 +291,76 @@ pub fn way_stamp(t: Track, halfwidth: float, s: HexSet, e: EdgeSet,
     }
   }
 }
+
+// ── ALONG-WAY PARAMETER, AND STEPS ──────────────────────────────────────────
+
+// Arc length from the start of segment i to the point on it nearest (px,py).
+pub fn seg_param(t: Track, i: integer, px: float, py: float) -> float {
+  if (t.tk_kind[i] ?? 0) == WAY_STRAIGHT {
+    ax = t.tk_p[i * 6 + 0] ?? 0.0;
+    ay = t.tk_p[i * 6 + 1] ?? 0.0;
+    bx = t.tk_p[i * 6 + 2] ?? 0.0;
+    by = t.tk_p[i * 6 + 3] ?? 0.0;
+    vx = bx - ax;
+    vy = by - ay;
+    l2 = vx * vx + vy * vy;
+    if l2 < 0.000000001 { return 0.0; }
+    u = ((px - ax) * vx + (py - ay) * vy) / l2 ?? 0.0;
+    if u < 0.0 { u = 0.0; }
+    if u > 1.0 { u = 1.0; }
+    return u * (sqrt(l2) ?? 0.0);
+  }
+  cx = t.tk_p[i * 6 + 0] ?? 0.0;
+  cy = t.tk_p[i * 6 + 1] ?? 0.0;
+  rr = t.tk_p[i * 6 + 2] ?? 0.0;
+  a0 = t.tk_p[i * 6 + 3] ?? 0.0;
+  a1 = t.tk_p[i * 6 + 4] ?? 0.0;
+  a = atan2(py - cy, px - cx);
+  da = a - a0;
+  sweep = a1 - a0;
+  // bring da into the same turn as the sweep
+  while da < 0.0 && sweep > 0.0 { da = da + 6.283185307179586; }
+  while da > 0.0 && sweep < 0.0 { da = da - 6.283185307179586; }
+  if sweep > 0.0 && da > sweep { da = sweep; }
+  if sweep < 0.0 && da < sweep { da = sweep; }
+  ad = da; if ad < 0.0 { ad = 0.0 - ad; }
+  ad * rr
+}
+
+// Arc length from the START OF THE WAY to the point on it nearest (px,py).  This is the
+// milepost: the parameter stations, signals, steps and mileage markers are all stated in.
+pub fn way_param(t: Track, px: float, py: float) -> float {
+  best = -1;
+  bd = 1000000000.0;
+  bacc = 0.0;
+  acc = 0.0;
+  for i in 0..t.tk_n {
+    dd = seg_distance(t, i, px, py);
+    if dd < bd { bd = dd; best = i; bacc = acc; }
+    acc = acc + seg_len(t, i);
+  }
+  if best < 0 { return 0.0; }
+  bacc + seg_param(t, best, px, py)
+}
+
+// A STAIRCASE: every `tread` of travel along the way raises the ground by `rise`.
+//
+// The same routine is a terraced hillside, or a ramp at rise = 0.  What makes it a good
+// test of the whole model is that the tread is quantised by the CELL ROWS, and the row
+// spacing depends on the direction of travel (the 24-direction tiers) — so a tread that
+// is clean along one heading skips whole steps along another, which shows up as a DOUBLE
+// RISER between adjacent cells.  That is a real defect (a trip hazard), and it is what
+// sets the minimum tread per direction.
+pub fn way_steps(t: Track, s: HexSet, f: Heights, rise: float, tread: float) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        cx = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+        cy = ((lattice_m(q, r)) as float) * 0.5;
+        p = way_param(t, cx, cy);
+        n = (p / tread ?? 0.0) as integer;
+        height_set(f, q, r, (n as float) * rise);
+      }
+    }
+  }
+}
