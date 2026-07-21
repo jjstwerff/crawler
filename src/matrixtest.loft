@@ -1,0 +1,191 @@
+// matrixtest — P4: THE JUNCTION MATRIX.
+//
+// The hard part of this plan was never a single shape — it is where two shapes MEET.
+// Every scenario below is built twice (in both orders) and put through the same six
+// invariants, so a regression in any one of them names itself:
+//
+//   1 topology     the traced outline still validates ACROSS the junction
+//   2 area         sum shoelace == 12 * cells still holds for the union
+//   3 arbitration  order-independent: A-then-B == B-then-A, edge for edge
+//   4 attribution  no blocked edge left without a surface
+//   5 seal         a closed run still separates inside from outside
+//   6 matcher      the joined form still yields recoverable surfaces
+use hexform;
+use hexedge;
+use hexway;
+use hexmatch;
+
+fn scene_name(i: integer) -> text {
+  if i == 0 { return "collinear walls"; }
+  if i == 1 { return "T-junction (inner wall)"; }
+  if i == 2 { return "corner 90 deg"; }
+  if i == 3 { return "wall -> round tower (tangential)"; }
+  if i == 4 { return "two overlapping towers"; }
+  if i == 5 { return "curved wall -> straight (15 deg on-grid)"; }
+  "road crosses wall"
+}
+
+// Mark the parts of scene `i` into `hs`, in the given order. Marking only — the cut is a
+// separate phase (the P3 lesson), which is what makes order irrelevant.
+fn scene_mark(i: integer, order: integer, hs: HexSet, sf: Surfaces) -> integer {
+  a = track_new();
+  b = track_new();
+  if i == 0 {
+    track_straight(a, -18.0, 0.0, 0.0, 0.0);
+    track_straight(b, 0.0, 0.0, 18.0, 0.0);
+  }
+  if i == 1 {
+    track_straight(a, -18.0, 0.0, 18.0, 0.0);
+    track_straight(b, 0.0, 0.0, 0.0, 14.0);
+  }
+  if i == 2 {
+    track_straight(a, -16.0, 0.0, 0.0, 0.0);
+    track_straight(b, 0.0, 0.0, 0.0, 16.0);
+  }
+  if i == 3 {
+    track_arc(a, 0.0, 0.0, 7.0, 0.0, 6.283185307179586);
+    track_straight(b, 0.0, 7.0, 18.0, 7.0);
+  }
+  if i == 4 {
+    track_arc(a, -4.0, 0.0, 7.0, 0.0, 6.283185307179586);
+    track_arc(b, 4.0, 0.0, 7.0, 0.0, 6.283185307179586);
+  }
+  if i == 5 {
+    // an arc whose sweep is a multiple of 15 deg, so its end tangent is ON-GRID
+    track_arc(a, 0.0, 10.0, 10.0, -1.5707963267948966, -1.3089969389957472);
+    track_straight(b, -16.0, 0.0, 0.0, 0.0);
+  }
+  if i == 6 {
+    track_straight(a, 0.0, -16.0, 0.0, 16.0);
+    track_straight(b, -16.0, 0.0, 16.0, 0.0);
+  }
+  ia = way_surfaces(a, sf);
+  ib = way_surfaces(b, sf);
+  if order == 0 {
+    way_mark(a, 1.1, hs);
+    way_mark(b, 1.1, hs);
+  } else {
+    way_mark(b, 1.1, hs);
+    way_mark(a, 1.1, hs);
+  }
+  ia + ib
+}
+
+fn main() {
+  println("=== story junction MATRIX (plan #5 P4) ===");
+  q0 = -30; r0 = -30; w = 61; h = 61;
+  allok = true;
+  println("");
+  println("scene                                 cells topo area arb attr matcher");
+  for i in 0..7 {
+    sfa = surfaces_new();
+    mta = materials_new();
+    stone = material_add(mta, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+    ha = hexset_chunk(q0, r0, w, h);
+    scene_mark(i, 0, ha, sfa);
+    ea = edgeset_new(q0, r0, w, h);
+    cut_arb(ha, ea, sfa, sfa.sf_n, stone);
+
+    sfb = surfaces_new();
+    mtb = materials_new();
+    stone2 = material_add(mtb, true, 2.5, 1.0, 30.0, 0.0, 0.5);
+    hb = hexset_chunk(q0, r0, w, h);
+    scene_mark(i, 1, hb, sfb);
+    eb = edgeset_new(q0, r0, w, h);
+    cut_arb(hb, eb, sfb, sfb.sf_n, stone2);
+
+    // 1 + 2: topology and the area round-trip, on the UNION
+    v = trace(ha);
+    code = validate(v, hexset_count(ha));
+    topo = code == 0;
+    area = shoelace_total(v) == 12 * hexset_count(ha);
+
+    // 3: order independence, edge for edge
+    diff = 0;
+    for rr in r0..r0 + h {
+      for qq in q0..q0 + w {
+        for d in 0..6 {
+          nq = nb_q(qq, rr, d);
+          nr = nb_r(qq, rr, d);
+          if edge_surf(ea, qq, rr, nq, nr) != edge_surf(eb, qq, rr, nq, nr) { diff = diff + 1; }
+        }
+      }
+    }
+    arb = diff == 0;
+
+    // 4: every blocked edge attributed
+    orph = 0;
+    for rr2 in r0..r0 + h {
+      for qq2 in q0..q0 + w {
+        for d2 in 0..6 {
+          nq2 = nb_q(qq2, rr2, d2);
+          nr2 = nb_r(qq2, rr2, d2);
+          if edge_blocked(ea, qq2, rr2, nq2, nr2) {
+            if edge_surf(ea, qq2, rr2, nq2, nr2) <= 0 { orph = orph + 1; }
+          }
+        }
+      }
+    }
+    attr = orph == 0;
+
+    // 5: SEAL — for a form with an interior (a tower, a ring), the inside must stay
+    // separated from the outside. Flood the free cells from the chunk rim and require
+    // that no interior cell is reached. (Open wall runs have no interior; they report
+    // seal=true trivially, which the loop count makes visible.)
+    inner = 0;
+    reached = 0;
+    seen: vector<boolean> = [];
+    nn = w * h;
+    for z in 0..nn { seen += [false]; }
+    sq: vector<integer> = [];
+    sr: vector<integer> = [];
+    for z2 in 0..nn { sq += [0]; sr += [0]; }
+    top = 0;
+    for rr3 in r0..r0 + h {
+      for qq3 in q0..q0 + w {
+        onrim = qq3 == q0 || qq3 == q0 + w - 1 || rr3 == r0 || rr3 == r0 + h - 1;
+        if onrim && !hexset_get(ha, qq3, rr3) {
+          ii = (rr3 - r0) * w + (qq3 - q0);
+          if !(seen[ii] ?? true) { seen[ii] = true; sq[top] = qq3; sr[top] = rr3; top = top + 1; }
+        }
+      }
+    }
+    while top > 0 {
+      top = top - 1;
+      cq = sq[top] ?? 0;
+      cr = sr[top] ?? 0;
+      for d3 in 0..6 {
+        nq3 = nb_q(cq, cr, d3);
+        nr3 = nb_r(cq, cr, d3);
+        if nq3 >= q0 && nq3 < q0 + w && nr3 >= r0 && nr3 < r0 + h {
+          if !hexset_get(ha, nq3, nr3) {
+            i3 = (nr3 - r0) * w + (nq3 - q0);
+            if !(seen[i3] ?? true) { seen[i3] = true; sq[top] = nq3; sr[top] = nr3; top = top + 1; }
+          }
+        }
+      }
+    }
+    for rr4 in r0..r0 + h {
+      for qq4 in q0..q0 + w {
+        if !hexset_get(ha, qq4, rr4) {
+          i4 = (rr4 - r0) * w + (qq4 - q0);
+          if !(seen[i4] ?? true) { inner = inner + 1; }
+        }
+      }
+    }
+    // a form with holes (loops > 1) MUST have unreachable interior; an open run must not
+    seal = true;
+    if v.vm_loops > 1 && inner == 0 { seal = false; }
+    if v.vm_loops == 1 && inner != 0 { seal = false; }
+
+    // 6: the joined form still yields recoverable surfaces
+    f = fit_new();
+    match_loop(v, 0, f, 6);
+    mok = f.ft_n > 0;
+
+    if !topo || !area || !arb || !attr || !mok || !seal { allok = false; }
+    println("{scene_name(i)} | cells {hexset_count(ha)} loops {v.vm_loops} | topo {topo} area {area} arb {arb} attr {attr} seal {seal} (enclosed {inner}) match {f.ft_n} runs");
+  }
+
+  if allok { println("=== MATRIX OK ==="); } else { println("=== FAIL ==="); }
+}

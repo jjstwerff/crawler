@@ -200,6 +200,11 @@ pub fn edge_m(qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   lattice_m(qa, ra) + lattice_m(qb, rb)
 }
 
+// Exposed so a test can punch a hole in a wall (the negative control).
+pub fn ee_index_pub(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+  ee_index(e, qa, ra, qb, rb)
+}
+
 fn ee_index(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   k = edge_k(qa, ra, qb, rb) - e.ee_kmin;
   m = edge_m(qa, ra, qb, rb) - e.ee_mmin;

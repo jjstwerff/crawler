@@ -29,21 +29,24 @@ fn crosses(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
              + (lattice_m(q, r) as float) * 0.5 * ny];
     }
   }
-  // seed every cell well on the negative side
+  // PRE-ALLOCATED stack + INDEX WRITE (survival guide). Appending while a separate
+  // `top` pointer walks the same vector makes the two diverge after the first pop, so
+  // the pop reads a STALE entry and the flood silently truncates — which would make a
+  // leaky wall look sealed.
   stackq: vector<integer> = [];
   stackr: vector<integer> = [];
-  ns = 0;
+  for z in 0..n { stackq += [0]; stackr += [0]; }
+  top = 0;
   for r in r0..r0 + h {
     for q in q0..q0 + w {
       i = (r - r0) * w + (q - q0);
       if (side[i] ?? 0.0) < -3.0 {
         seen[i] = true;
-        stackq += [q]; stackr += [r]; ns = ns + 1;
+        stackq[top] = q; stackr[top] = r; top = top + 1;
       }
     }
   }
   got = false;
-  top = ns;
   while top > 0 {
     top = top - 1;
     cq = stackq[top] ?? 0;
@@ -57,8 +60,7 @@ fn crosses(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
         ni = (nr - r0) * w + (nq - q0);
         if !(seen[ni] ?? true) && passable(e, cq, cr, nq, nr) {
           seen[ni] = true;
-          stackq += [nq]; stackr += [nr];
-          top = top + 1;
+          stackq[top] = nq; stackr[top] = nr; top = top + 1;
         }
       }
     }
@@ -84,6 +86,31 @@ fn main() {
     }
   }
   println("1-edge wall blocks in {blocked_all}/24 headings");
+
+  // NEGATIVE CONTROL — a test that cannot fail proves nothing. Punch ONE edge out of a
+  // sealed wall and require the flood to find it. (This is what caught a broken stack in
+  // the flood itself: a truncated traversal reports "sealed" for everything.)
+  nx0 = heading_nx(0);
+  ny0 = heading_ny(0);
+  ectl = edgeset_new(Q, R, W, H);
+  edges_halfplane(ectl, Q, R, W, H, nx0, ny0, 0.0);
+  sealed_before = !crosses(ectl, Q, R, W, H, nx0, ny0);
+  holed = false;
+  for hq in Q..Q + W {
+    for hr in R..R + H {
+      for hd in 0..6 {
+        aq = nb_q(hq, hr, hd);
+        ar = nb_r(hq, hr, hd);
+        if !holed && edge_blocked(ectl, hq, hr, aq, ar) {
+          i = ee_index_pub(ectl, hq, hr, aq, ar);
+          if i >= 0 { ectl.ee_surf[i] = 0; ectl.ee_mat[i] = 0; holed = true; }
+        }
+      }
+    }
+  }
+  leaks_after = crosses(ectl, Q, R, W, H, nx0, ny0);
+  println("negative control: sealed before={sealed_before}, one edge removed -> leaks={leaks_after}");
+  if !sealed_before || !leaks_after { ok = false; }
 
   // ── BOUNCE NORMALS ────────────────────────────────────────────────────────
   // The point of storing a surface per edge: a hex edge has only 6 normals, so using
