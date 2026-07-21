@@ -155,6 +155,46 @@ pub fn height_get(f: Heights, q: integer, r: integer) -> float {
   f.hz_z[i] ?? 0.0
 }
 
+// ── LABELS ──────────────────────────────────────────────────────────────────
+//
+// A per-CELL integer, chunk-indexed exactly like Heights.  Heights answers "how high is
+// this cell"; Labels answers "whose is it".  Plan #9 (canopy-first trees) needs the second
+// because a canopy is a PARTITION under competition rather than a stamped footprint — the
+// assignment is the output, not a tie-break.
+//
+// -1 means unowned, which is a real state: a cell no crown reaches belongs to nobody.
+pub struct Labels {
+  lb_q0: integer,
+  lb_r0: integer,
+  lb_w:  integer,
+  lb_h:  integer,
+  lb_v:  vector<integer>,
+}
+
+pub fn labels_new(q0: integer, r0: integer, w: integer, h: integer) -> Labels {
+  v: vector<integer> = [];
+  for i in 0..w * h { v += [-1]; }
+  Labels { lb_q0: q0, lb_r0: r0, lb_w: w, lb_h: h, lb_v: v }
+}
+
+fn lb_index(f: Labels, q: integer, r: integer) -> integer {
+  dq = q - f.lb_q0;
+  dr = r - f.lb_r0;
+  if dq < 0 || dr < 0 || dq >= f.lb_w || dr >= f.lb_h { return -1; }
+  dr * f.lb_w + dq
+}
+
+pub fn label_set(f: Labels, q: integer, r: integer, v: integer) {
+  i = lb_index(f, q, r);
+  if i >= 0 { f.lb_v[i] = v; }
+}
+
+pub fn label_get(f: Labels, q: integer, r: integer) -> integer {
+  i = lb_index(f, q, r);
+  if i < 0 { return -1; }
+  f.lb_v[i] ?? -1
+}
+
 // World point -> the cell that contains it.  The exact inverse of the centre map
 // (lattice_k / lattice_m), by the standard axial-fractional + cube-round route.  Gated two
 // ways in sighttest: it must round-trip every cell of a chunk, and it must agree cell for

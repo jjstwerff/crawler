@@ -1,0 +1,239 @@
+// canopytest — plan #9 T1: the canopy partition.
+//
+// The gate is the design's Case A, and it is deliberately the DEGENERATE case: two equal
+// trees. If a symmetric scene does not come out symmetric, the competition step is wrong —
+// and it is wrong in a way that becomes invisible the moment the scene is asymmetric.
+//
+// It is checked in EXACT INTEGER arithmetic (hexcanopy), so "no lean" is the integer 0
+// rather than a tolerance. That matters: the float prototype gave an isolated tree a
+// spurious lean of a third of a cell, because the crown boundary passes exactly through
+// cell centres and rounding admitted one cell while rejecting its mirror.
+use hexform;
+use hexcanopy;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      hexset_set(s, q, r, true);
+    }
+  }
+}
+
+fn owned_total(s: HexSet, lb: Labels) -> integer {
+  n = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) >= 0 { n = n + 1; }
+    }
+  }
+  n
+}
+
+fn main() {
+  println("=== story canopy partition test (plan #9 T1) ===");
+  ok = true;
+  q0 = -20; r0 = -14; gw = 41; gh = 29;
+
+  // ── Case A1 — isolated pair: crowns do not touch ─────────────────────────
+  s1 = hexset_chunk(q0, r0, gw, gh);
+  fill(s1);
+  t1 = trees_new();
+  tree_add(t1, -12, 0, 10, 36, 0);
+  tree_add(t1,  12, 0, 10, 36, 1);
+  l1 = labels_new(q0, r0, gw, gh);
+  c1f = labels_new(q0, r0, gw, gh);
+  ties1 = canopy_partition(t1, s1, l1, c1f);
+  n1a = crown_count(s1, l1, 0);
+  n1b = crown_count(s1, l1, 1);
+  (ka, ma) = crown_lean(s1, l1, c1f, t1, 0);
+  (kb, mb) = crown_lean(s1, l1, c1f, t1, 1);
+  println("A1 isolated pair (R^2=36, trunks k=+-12):");
+  println("   counts {n1a} / {n1b}, ties {ties1}");
+  println("   lean A ({ka}, {ma})   lean B ({kb}, {mb})   -- exact integers");
+  if n1a != n1b { ok = false; }
+  if ties1 != 0 { ok = false; }
+  // an isolated crown is exactly balanced on its trunk: not 1e-15, but 0
+  if ka != 0 || ma != 0 || kb != 0 || mb != 0 { ok = false; }
+  if !crown_connected(s1, l1, t1, 0) { ok = false; }
+  if !crown_connected(s1, l1, t1, 1) { ok = false; }
+
+  // ── Case A2 — overlapping pair: competition, and an exact tie column ─────
+  s2 = hexset_chunk(q0, r0, gw, gh);
+  fill(s2);
+  t2 = trees_new();
+  tree_add(t2, -8, 0, 10, 64, 0);
+  tree_add(t2,  8, 0, 10, 64, 1);
+  l2 = labels_new(q0, r0, gw, gh);
+  c2f = labels_new(q0, r0, gw, gh);
+  ties2 = canopy_partition(t2, s2, l2, c2f);
+  n2a = crown_count(s2, l2, 0);
+  n2b = crown_count(s2, l2, 1);
+  (ka2, ma2) = crown_lean(s2, l2, c2f, t2, 0);
+  (kb2, mb2) = crown_lean(s2, l2, c2f, t2, 1);
+  sa2 = crown_count_strict(s2, l2, c2f, 0);
+  sb2 = crown_count_strict(s2, l2, c2f, 1);
+  println("A2 overlapping pair (R^2=64, trunks k=+-8):");
+  println("   counts {n2a} / {n2b}, contested {ties2}; won outright {sa2} / {sb2}");
+  println("   |C_A| - ties == |C_B|: {n2a - ties2} == {n2b} -> {n2a - ties2 == n2b}");
+  println("   lean A ({ka2}, {ma2})   lean B ({kb2}, {mb2})");
+  if ties2 <= 0 { ok = false; }                  // a symmetric pair MUST tie
+  if n2a - ties2 != n2b { ok = false; }          // and the rest is exactly balanced
+  if sa2 != sb2 { ok = false; }                  // outright wins are exactly equal
+  if ka2 != 0 - kb2 { ok = false; }              // leans exactly equal and opposite
+  if ma2 != 0 || mb2 != 0 { ok = false; }        // no lean across the axis of symmetry
+  if ka2 >= 0 { ok = false; }                    // A leans WEST, away from its rival
+  if kb2 <= 0 { ok = false; }                    // B leans EAST
+  println("   -> both lean AWAY from the rival, by exactly equal amounts");
+
+  // every contested cell must lie on the bisector, i.e. be equidistant from both trunks
+  offbis = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(s2, q, r) {
+        k = lattice_k(q, r);
+        m = lattice_m(q, r);
+        qa = crown_q2(t2, 0, k, m);
+        qb = crown_q2(t2, 1, k, m);
+        if qa == qb && qa < 256 {
+          if k != 0 { offbis = offbis + 1; }
+        }
+      }
+    }
+  }
+  println("   contested cells not on k=0: {offbis} (the tie set IS the bisector column)");
+  if offbis != 0 { ok = false; }
+  println("   equal-sized rivals: the biggest-tree rule cannot separate them, so the");
+  println("   stable id decides — the one scene where the physical rule has nothing to say");
+
+  // ── I-PART — a total function: every cell owned once, or by nobody ───────
+  tot = owned_total(s2, l2);
+  println("I-PART: owned {tot} == |C_A| + |C_B| = {n2a + n2b} -> {tot == n2a + n2b}");
+  if tot != n2a + n2b { ok = false; }
+
+  // ── order-freedom: ties break on the stable ID, never on array order ─────
+  // Adding the same trees in the opposite order must give the identical field. This is
+  // the property that would silently break if the tie-break used the loop index.
+  t3 = trees_new();
+  tree_add(t3,  8, 0, 10, 64, 1);
+  tree_add(t3, -8, 0, 10, 64, 0);
+  l3 = labels_new(q0, r0, gw, gh);
+  c3f = labels_new(q0, r0, gw, gh);
+  ties3 = canopy_partition(t3, s2, l3, c3f);
+  diff = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(s2, q, r) && label_get(l2, q, r) != label_get(l3, q, r) {
+        diff = diff + 1;
+      }
+    }
+  }
+  println("order-freedom: reversed insertion -> {diff} differing cells, ties {ties3}");
+  if diff != 0 { ok = false; }
+  if ties3 != ties2 { ok = false; }
+
+  // ── a three-tree scene stays a total function and stays connected ────────
+  s4 = hexset_chunk(q0, r0, gw, gh);
+  fill(s4);
+  t4 = trees_new();
+  tree_add(t4, -8,  0, 10, 64, 0);
+  tree_add(t4,  8,  0, 10, 64, 1);
+  tree_add(t4,  0, 12,  6, 49, 2);
+  l4 = labels_new(q0, r0, gw, gh);
+  c4f = labels_new(q0, r0, gw, gh);
+  ties4 = canopy_partition(t4, s4, l4, c4f);
+  c0 = crown_count(s4, l4, 0);
+  c1 = crown_count(s4, l4, 1);
+  c2 = crown_count(s4, l4, 2);
+  println("three trees: counts {c0} / {c1} / {c2}, contested {ties4}, owned {owned_total(s4, l4)}");
+  if owned_total(s4, l4) != c0 + c1 + c2 { ok = false; }
+  if c2 >= c0 { ok = false; }                    // the weaker tree wins fewer cells
+  if !crown_connected(s4, l4, t4, 0) { ok = false; }
+  if !crown_connected(s4, l4, t4, 1) { ok = false; }
+  if !crown_connected(s4, l4, t4, 2) { ok = false; }
+  // A and B are still mirror images, C sitting on their axis of symmetry — measured on
+  // outright wins, since contested cells are awarded by a separate rule
+  s40 = crown_count_strict(s4, l4, c4f, 0);
+  s41 = crown_count_strict(s4, l4, c4f, 1);
+  println("   won outright: {s40} / {s41} -> mirror pair intact: {s40 == s41}");
+  if s40 != s41 { ok = false; }
+
+  // ── the biggest tree takes contested cells, and size comes from the hexes ─
+  // Exact ties need an exact algebraic coincidence, so two DIFFERENTLY-shaped crowns
+  // essentially never contest a cell — which makes the interesting scene one where two
+  // IDENTICAL rivals tie on their bisector while one of them is crowded from behind.
+  //
+  //     C ----- A ----- | ----- B          C squeezes A; A and B still tie on the bisector
+  //
+  // A and B reach the bisector column equally, so height cannot separate them. But A has
+  // lost its western cells to C, so B is the bigger tree and takes the strip. B is given
+  // the HIGHER id deliberately: under a lowest-id rule A would win every one of them, so
+  // this scene distinguishes the two rules rather than merely exercising one.
+  s5 = hexset_chunk(q0, r0, gw, gh);
+  fill(s5);
+  t5 = trees_new();
+  tree_add(t5,  -8, 0, 10, 64, 0);      // A — crowded from the west, LOWER id
+  tree_add(t5,   8, 0, 10, 64, 1);      // B — open to the east, HIGHER id
+  tree_add(t5, -22, 0, 10, 64, 2);      // C — the crowder
+  l5 = labels_new(q0, r0, gw, gh);
+  c5f = labels_new(q0, r0, gw, gh);
+  ties5 = canopy_partition(t5, s5, l5, c5f);
+  na = crown_count_strict(s5, l5, c5f, 0);
+  nb = crown_count_strict(s5, l5, c5f, 1);
+  nc = crown_count_strict(s5, l5, c5f, 2);
+  println("crowded A vs open B (identical crowns, C squeezing A from the west):");
+  println("   won outright A {na} / B {nb} / C {nc}, contested {ties5}");
+  if ties5 <= 0 { ok = false; }
+  if nb <= na { ok = false; }                    // B really is the bigger tree
+  // The rule is PER CELL: the winner must be the largest of the trees tied AT THAT CELL.
+  // Not all seven contests are A-vs-B — four sit on the A/C bisector, and those belong to
+  // C. Checking them all against one expected id would have passed for the wrong reason.
+  sz0 = na; sz1 = nb; sz2 = nc;
+  wrong = 0;
+  ab = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if hexset_get(s5, q, r) && label_get(c5f, q, r) == 1 {
+        k = lattice_k(q, r);
+        m = lattice_m(q, r);
+        // the tied set here, and the biggest of it
+        wid = -1; wsz = -1; wp = 0; wd = 1; wq = 0;
+        for i in 0..t5.tr_n {
+          dd = t5.tr_d[i] ?? 0;
+          qq = crown_q2(t5, i, k, m);
+          if qq < dd {
+            pp = t5.tr_p[i] ?? 0;
+            id = t5.tr_id[i] ?? 0;
+            n = sz0;
+            if id == 1 { n = sz1; }
+            if id == 2 { n = sz2; }
+            if wid < 0 {
+              wid = id; wsz = n; wp = pp; wd = dd; wq = qq;
+            } else {
+              lhs = pp * (dd - qq) * wd;
+              rhs = wp * (wd - wq) * dd;
+              if lhs > rhs { wid = id; wsz = n; wp = pp; wd = dd; wq = qq; }
+              else {
+                if lhs == rhs {
+                  if n > wsz { wid = id; wsz = n; }
+                  else { if n == wsz && id < wid { wid = id; } }
+                }
+              }
+            }
+          }
+        }
+        if label_get(l5, q, r) != wid { wrong = wrong + 1; }
+        if k == 0 {
+          ab = ab + 1;
+          if label_get(l5, q, r) != 1 { wrong = wrong + 1; }   // the A/B strip goes to B
+        }
+      }
+    }
+  }
+  println("   contested cells awarded against the biggest-of-the-tied rule: {wrong}");
+  println("   of which on the A/B bisector (k=0): {ab}, all awarded to B");
+  if wrong != 0 { ok = false; }
+  if ab <= 0 { ok = false; }
+  println("   -> A holds the LOWER id and still lost the strip: size decided, not identity");
+
+  if ok { println("=== CANOPY OK ==="); } else { println("=== FAIL ==="); }
+}

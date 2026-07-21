@@ -73,27 +73,31 @@ below appears to want its own grid, that is a sign it is wrong.
 
 Two cases. The first pins the machinery; the second is the one that matters.
 
-### Case A — two equal trees, the degenerate check
+### Case A — two equal trees, the degenerate check  — **BUILT, T1**
 
-Trunks at `(0,0)` and `(12,0)` in world units, identical vigour. Crowns are radially
-symmetric, so:
+Split in two once the prototype ran: an isolated pair tests the *field*, an overlapping
+pair tests the *competition*, and conflating them hides both.
 
+Trunks are stated in **lattice coordinates** `(k, m)`, not world floats — see I-EXACT.
+
+**A1, isolated** (`k = ±12`, `R² = 36`, crowns disjoint). Measured:
 ```
-        A                             B
-        *  ·  ·  ·  · | ·  ·  ·  ·  *          | = the partition boundary
-        ·  ·  ·  ·  · | ·  ·  ·  ·  ·
-        ·  ·  ·  ·  · | ·  ·  ·  ·  ·
+   counts 37 / 37 · contested 0 · lean A (0,0) · lean B (0,0)
 ```
+The lean is the integer **0**, not a small float. That is the point of I-EXACT.
 
-Exact expected output:
-- the boundary is the **perpendicular bisector** `x = 6`, to within one cell;
-- `|C_A| = |C_B|` exactly (equal crown cell counts);
-- each crown's centroid **equals its own trunk** (no lean), to within a quantum;
-- trunk diameters equal;
-- every crown cell reaches its trunk through cells of its own tree.
+**A2, overlapping** (`k = ±8`, `R² = 64`). Measured:
+```
+   counts 83 / 80 · contested 3 · won outright 80 / 80
+   lean A (−42, 0)   lean B (+42, 0)
+```
+- the tie set is **exactly the bisector column** `k = 0` (0 contested cells off it);
+- outright wins are exactly equal, and `|C_A| − contested = |C_B|`;
+- both trees lean **away** from the rival by exactly equal and opposite amounts.
 
-If any of those is off, the competition step is wrong, and it is wrong in a way that will
-be invisible once the scene is asymmetric.
+The original draft of this case predicted "centroid equals trunk, no lean". That was wrong:
+two *overlapping* equal crowns necessarily lean apart, and only the isolated pair has zero
+lean. The prototype caught it before any loft was written.
 
 ### Case B — one suppressed neighbour, the real case
 
@@ -118,11 +122,88 @@ or should the first implementation print it for you to correct?
 
 These are the exact statements; everything else is tuning.
 
+### I-EXACT — the partition is integer arithmetic, not floating point
+Every cell centre is at `(k·√3/2, m/2)` with `k, m` integers, so a trunk placed **on the
+lattice** has an exactly representable squared distance:
+
+```
+   q2 = 3·Δk² + Δm²          (= 4·d², an exact integer)
+```
+
+A **paraboloid** crown `z = P·(1 − d²/R²)` depends on `d²` rather than `d`, so with
+`D = 4R²` the whole comparison stays integral:
+
+```
+   z_A > z_B   ⟺   P_A·(D_A − q2_A)·D_B  >  P_B·(D_B − q2_B)·D_A
+```
+
+**This is why the crown profile is a paraboloid** — not merely because it is the usual
+allometric choice, but because a cone or a dome needs `√(d²)` and drops the whole partition
+back into floating point. That settles open question 2 (§8) on its own.
+
+It is load-bearing, not tidiness. The first prototype used floats, and a crown boundary
+passes *exactly* through cell centres: rounding admitted one cell while rejecting its mirror
+image, giving an **isolated** tree a spurious lean of a third of a cell. In exact arithmetic
+that lean is `0`.
+
+### I-EXACT — the partition is integer arithmetic, not floating point
+Every cell centre is at `(k·√3/2, m/2)` with `k, m` integers, so a trunk placed **on the
+lattice** has an exactly representable squared distance:
+
+```
+   q2 = 3·Δk² + Δm²          (= 4·d², an exact integer)
+```
+
+A **paraboloid** crown `z = P·(1 − d²/R²)` depends on `d²` rather than `d`, so with
+`D = 4R²` the whole comparison stays integral:
+
+```
+   z_A > z_B   ⟺   P_A·(D_A − q2_A)·D_B  >  P_B·(D_B − q2_B)·D_A
+```
+
+**This is why the crown profile is a paraboloid** — not merely because it is the usual
+allometric choice, but because a cone or a dome needs `√(d²)` and drops the whole partition
+back into floating point. That settles open question 2 (§8) on its own.
+
+It is load-bearing, not tidiness. The first prototype used floats, and a crown boundary
+passes *exactly* through cell centres: rounding admitted one cell while rejecting its mirror
+image, giving an **isolated** tree a spurious lean of a third of a cell. In exact arithmetic
+that lean is `0`.
+
+A consequence worth knowing: exact ties need an exact algebraic coincidence, so two
+*differently shaped* crowns essentially never contest a cell. Contests are a phenomenon of
+**equal or commensurate** rivals — which is why A3 above has to construct one deliberately.
+
 ### I-PART — the partition is a total function, and order-free
 Every canopy cell belongs to **exactly one** trunk. `Σ|C_t| = |canopy|`, no cell counted
 twice, no cell unowned. Assigning the trees in any order gives the identical partition.
 (The same property gated for surfaces in §P3 — and it comes free if the rule is an
 `argmax`, because `max` is commutative.)
+
+**Contested cells go to the biggest tree, and its size is derived from the hexes it already
+holds** — a bigger crown overtops a smaller one and shades it out. That makes the rule
+self-referential (the partition sets the sizes; the sizes settle the partition), so it runs
+in two passes: assign the uncontested cells and mark the contests, size each tree from its
+*uncontested* cells, then award each contest to the largest of the trees tied there.
+
+Sizing from uncontested cells only is what keeps pass 2 order-free — a size counting
+already-awarded contests would depend on the sweep order. **This is the T6 relaxation
+problem in miniature**, and it is much better met here at two passes than first met at
+fixed-point scale.
+
+Only when the tied trees are *also* the same size does the stable id decide. Under exact
+symmetry that is a genuine coin flip which has to land somewhere, and it is why the
+symmetric pair is the degenerate case: the one scene where the physical rule has nothing to
+say. Symmetric quantities must therefore be measured on the **uncontested** set — comparing
+raw counts compares the tie-break as much as the competition.
+
+**Contested cells are an output, not an internal detail.** The hex lattice is
+mirror-symmetric about a cell-centre column (`k → −k` preserves `k ≡ r mod 2`), so a
+symmetric pair of trees *always* produces an exact tie column — it is a property of the
+scene, not a rounding artefact. Ties go to the lowest **stable id** so the partition stays
+total, but that attribution is arbitrary, so **every symmetric quantity must be measured on
+the uncontested set**. Comparing raw counts compares the tie rule as much as the
+competition. Downstream (T9's interleaved foliage) needs the contested set anyway.
 
 ### I-CROWN — the canopy is a max of crown profiles
 ```
@@ -317,9 +398,10 @@ written rather than after.
 
 1. **The concrete end-result for Case B** — plot it, or have the first run print it for
    correction? (§2)
-2. **Crown profile**: paraboloid, cone or dome? A paraboloid is the usual allometric
-   choice; the other two are already built. Does the difference matter to you visually, or
-   should we take whichever gates most cleanly?
+2. ~~**Crown profile**: paraboloid, cone or dome?~~ **ANSWERED by T1** — the paraboloid,
+   decisively: it is the only one of the three that depends on `d²` rather than `d`, so it
+   alone keeps the partition in exact integer arithmetic (I-EXACT). The other two would
+   reintroduce the rounding asymmetry T1 was built to remove.
 3. **Relaxation**: is a fixed number of iterations acceptable (cheap, deterministic), or
    must it run to a proven fixed point (correct, and a convergence proof we do not yet
    have)?

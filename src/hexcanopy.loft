@@ -1,0 +1,266 @@
+// hexcanopy — plan #9 T1: the canopy PARTITION.
+//
+// Every mechanism in plan #5 authors a form and derives a field. This runs backwards: the
+// field is primary — which hex of the forest top belongs to which trunk — and the tree is
+// derived from it. A normal mesh tree is one that never had neighbours to fight for
+// sunlight with.
+//
+// THE PARTITION IS EXACT INTEGER ARITHMETIC, and that is not an optimisation. Every cell
+// centre sits at (k*sqrt3/2, m/2) with k, m integers, so if a trunk is placed ON the
+// lattice the squared distance from it is
+//
+//     d^2 = (3*dk^2 + dm^2) / 4        ->   q2 = 3*dk^2 + dm^2   is an exact integer
+//
+// A PARABOLOID crown, z = P*(1 - d^2/R^2), depends on d^2 rather than d — so with
+// D = 4*R^2 the whole comparison stays integral:
+//
+//     z_A > z_B   <=>   P_A*(D_A - q2_A)*D_B  >  P_B*(D_B - q2_B)*D_A
+//
+// A cone or a dome would need sqrt(d^2) and drop straight back into floating point. That
+// is the deciding argument for the paraboloid, over and above its being the usual
+// allometric choice: it is the only profile of the three that keeps this exact.
+//
+// It matters because the first prototype was NOT exact, and it showed: a crown boundary
+// passes exactly through cell centres, and floating point admitted one cell while
+// rejecting its mirror image, so an isolated tree acquired a spurious lean of a third of a
+// cell. In exact arithmetic the lean of an isolated tree is 0 — not 1e-15, but 0.
+use hexform;
+
+pub struct Trees {
+  tr_k:  vector<integer>,   // trunk lattice k  (world x = k*sqrt3/2)
+  tr_m:  vector<integer>,   // trunk lattice m  (world y = m/2)
+  tr_p:  vector<integer>,   // peak height
+  tr_d:  vector<integer>,   // D = 4*R^2 — the crown reaches while q2 < D
+  tr_id: vector<integer>,   // STABLE identity: ties break on this, never on array order,
+                            // which is what makes the partition order-free (I-PART)
+  tr_n:  integer,
+}
+
+pub fn trees_new() -> Trees {
+  a: vector<integer> = []; b: vector<integer> = []; c: vector<integer> = [];
+  d: vector<integer> = []; e: vector<integer> = [];
+  Trees { tr_k: a, tr_m: b, tr_p: c, tr_d: d, tr_id: e, tr_n: 0 }
+}
+
+pub fn tree_add(t: Trees, k: integer, m: integer, peak: integer,
+                r2: integer, id: integer) -> integer {
+  t.tr_k += [k]; t.tr_m += [m]; t.tr_p += [peak]; t.tr_d += [4 * r2]; t.tr_id += [id];
+  t.tr_n = t.tr_n + 1;
+  t.tr_n - 1
+}
+
+// Exact 4*d^2 from a cell to a trunk.
+pub fn crown_q2(t: Trees, i: integer, k: integer, m: integer) -> integer {
+  dk = k - (t.tr_k[i] ?? 0);
+  dm = m - (t.tr_m[i] ?? 0);
+  3 * dk * dk + dm * dm
+}
+
+pub fn crown_count_strict(s: HexSet, lb: Labels, ct: Labels, id: integer) -> integer {
+  n = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) == id
+         && label_get(ct, q, r) != 1 { n = n + 1; }
+    }
+  }
+  n
+}
+
+// I-LEAN, in exact integer form: the SUM of lattice offsets of the owned cells from the
+// trunk.  Zero means the crown is exactly balanced on its trunk.  Reporting the sum rather
+// than the mean keeps it integral, so "no lean" is 0 and not a tolerance.
+// The canopy partition: owner(cell) = argmax over trees of the crown profile.
+//
+// This is the groin-vault operator (plan #5 section 15) with N inputs instead of 2 — max
+// for the surface, argmax for the ownership — so it inherits determinism and
+// order-independence for free, PROVIDED ties break on the stable id rather than on which
+// tree happened to be visited first.
+//
+// CONTESTED CELLS GO TO THE BIGGEST TREE, and its size is derived from the hexes it already
+// holds — a bigger crown overtops a smaller one and shades it out. That makes the rule
+// self-referential (the partition sets the sizes; the sizes settle the partition), so it
+// runs in two passes:
+//
+//   pass 1  assign every uncontested cell, and mark the contested ones
+//   pass 2  size each tree from its UNCONTESTED cells, then give each contested cell to
+//           the largest of the trees tied there
+//
+// Sizing from uncontested cells only is what keeps pass 2 order-free — a size that counted
+// already-awarded contested cells would depend on the sweep order. This is the whole T6
+// relaxation problem in miniature, and it is worth meeting here at two passes rather than
+// first meeting it at fixed-point scale.
+//
+// Only when the tied trees are ALSO the same size does the stable id decide, which under
+// exact symmetry is a genuine coin flip and has to land somewhere. That is why the
+// symmetric pair is the degenerate case: it is the one scene where the physical rule
+// cannot help.
+//
+// Returns the number of contested cells. They are not a rounding artefact: the hex lattice
+// is mirror-symmetric about a cell-centre column (k -> -k preserves k = r mod 2), so a
+// symmetric pair of trees ALWAYS produces an exact tie column.
+pub fn canopy_partition(t: Trees, s: HexSet, lb: Labels, ct: Labels) -> integer {
+  ties = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        k = lattice_k(q, r);
+        m = lattice_m(q, r);
+        bid = -1;
+        bp = 0; bd = 1; bq = 0;
+        tied = false;
+        for i in 0..t.tr_n {
+          dd = t.tr_d[i] ?? 0;
+          qq = crown_q2(t, i, k, m);
+          if qq < dd {
+            pp = t.tr_p[i] ?? 0;
+            id = t.tr_id[i] ?? 0;
+            if bid < 0 {
+              bid = id; bp = pp; bd = dd; bq = qq; tied = false;
+            } else {
+              lhs = pp * (dd - qq) * bd;
+              rhs = bp * (bd - bq) * dd;
+              if lhs > rhs {
+                bid = id; bp = pp; bd = dd; bq = qq; tied = false;
+              } else {
+                if lhs == rhs {
+                  tied = true;
+                  if id < bid { bid = id; bp = pp; bd = dd; bq = qq; }
+                }
+              }
+            }
+          }
+        }
+        label_set(lb, q, r, bid);
+        // Contested cells are an OUTPUT, not an internal detail. They go to the lowest id
+        // so the partition stays a total function, but that attribution is arbitrary — so
+        // any symmetric quantity (counts, lean) must be measured on the uncontested set,
+        // and anything downstream that cares (interleaved foliage, T9's cards) needs to
+        // know which cells they were.
+        if tied {
+          label_set(ct, q, r, 1);
+          ties = ties + 1;
+        } else {
+          label_set(ct, q, r, 0);
+        }
+      }
+    }
+  }
+
+  // ── pass 2: the biggest tree takes the contested cells ────────────────────
+  if ties > 0 {
+    sz: vector<integer> = [];
+    for i in 0..t.tr_n { sz += [crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0)]; }
+    for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+      for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+        if hexset_get(s, q, r) && label_get(ct, q, r) == 1 {
+          k = lattice_k(q, r);
+          m = lattice_m(q, r);
+          // recover the tied set at this cell, then take the largest of them
+          wid = -1;
+          wsz = -1;
+          wp = 0; wd = 1; wq = 0;
+          for i in 0..t.tr_n {
+            dd = t.tr_d[i] ?? 0;
+            qq = crown_q2(t, i, k, m);
+            if qq < dd {
+              pp = t.tr_p[i] ?? 0;
+              id = t.tr_id[i] ?? 0;
+              n = sz[i] ?? 0;
+              if wid < 0 {
+                wid = id; wsz = n; wp = pp; wd = dd; wq = qq;
+              } else {
+                lhs = pp * (dd - qq) * wd;
+                rhs = wp * (wd - wq) * dd;
+                if lhs > rhs {
+                  wid = id; wsz = n; wp = pp; wd = dd; wq = qq;
+                } else {
+                  if lhs == rhs {
+                    // tied on height: the larger crown wins, the id only if equal too
+                    if n > wsz { wid = id; wsz = n; }
+                    else { if n == wsz && id < wid { wid = id; } }
+                  }
+                }
+              }
+            }
+          }
+          label_set(lb, q, r, wid);
+        }
+      }
+    }
+  }
+  ties
+}
+
+pub fn crown_count(s: HexSet, lb: Labels, id: integer) -> integer {
+  n = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) == id { n = n + 1; }
+    }
+  }
+  n
+}
+
+// The cells this tree won OUTRIGHT.  This is the symmetric quantity: contested cells are
+// attributed by an arbitrary rule, so comparing raw counts across trees compares the rule
+// as much as the competition.
+pub fn crown_lean(s: HexSet, lb: Labels, ct: Labels, t: Trees, i: integer) -> (integer, integer) {
+  id = t.tr_id[i] ?? 0;
+  tk = t.tr_k[i] ?? 0;
+  tm = t.tr_m[i] ?? 0;
+  sk = 0;
+  sm = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) == id && label_get(ct, q, r) != 1 {
+        sk = sk + lattice_k(q, r) - tk;
+        sm = sm + lattice_m(q, r) - tm;
+      }
+    }
+  }
+  (sk, sm)
+}
+
+// Is a crown one connected piece?  (I-REACH in its cheap form — the full statement, that
+// every cell reaches the trunk through cells of its own tree, arrives with the skeleton in
+// T4.)  Flood from the trunk cell through same-labelled neighbours.
+pub fn crown_connected(s: HexSet, lb: Labels, t: Trees, i: integer) -> boolean {
+  id = t.tr_id[i] ?? 0;
+  total = crown_count(s, lb, id);
+  if total == 0 { return true; }
+  cap = hexset_w(s) * hexset_h(s);
+  fq: vector<integer> = [];
+  fr: vector<integer> = [];
+  for j in 0..cap { fq += [0]; fr += [0]; }
+  vis = hexset_chunk(hexset_q0(s), hexset_r0(s), hexset_w(s), hexset_h(s));
+  n = 0;
+  // seed at the trunk's own cell if it belongs to this tree, else at any owned cell
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if n == 0 && hexset_get(s, q, r) && label_get(lb, q, r) == id {
+        fq[0] = q; fr[0] = r; n = 1;
+        hexset_set(vis, q, r, true);
+      }
+    }
+  }
+  head = 0;
+  seen = 0;
+  while head < n {
+    cq = fq[head] ?? 0;
+    cr = fr[head] ?? 0;
+    head = head + 1;
+    seen = seen + 1;
+    for j in 0..6 {
+      nq = nb_q(cq, cr, j);
+      nr = nb_r(cq, cr, j);
+      if hexset_get(s, nq, nr) && !hexset_get(vis, nq, nr)
+         && label_get(lb, nq, nr) == id && n < cap {
+        hexset_set(vis, nq, nr, true);
+        fq[n] = nq; fr[n] = nr;
+        n = n + 1;
+      }
+    }
+  }
+  seen == total
+}
