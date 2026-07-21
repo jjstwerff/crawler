@@ -549,3 +549,50 @@ pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: inte
                        nx: float, ny: float, c: float) {
   edges_halfplane_surf(e, q0, r0, w, h, nx, ny, c, SURF_NONE);
 }
+
+// ── SIGHT ───────────────────────────────────────────────────────────────────
+//
+// Is there a clear line of sight from an eye to a target?
+//
+// Sight is blocked by OPACITY, not by solidity.  A chain-link fence is solid and
+// transparent; a hedge is permeable and opaque.  This is the first consumer to read one
+// material axis while deliberately ignoring another, and it is the whole reason a material
+// carries a vector of transmission terms rather than a single flag.
+//
+// Height matters as much as opacity: the sight line rises from eye to target, so an
+// obstruction blocks only while the line is still below its top.  A near wall hides what
+// the identical wall further along does not — which is exactly the railway sighting
+// problem, and it falls out of the geometry rather than being special-cased.
+//
+// The walk steps at 0.2 world units.  A hex inradius is sqrt(3)/2 = 0.866, so consecutive
+// samples cannot skip a cell: every cell change is a step to a NEIGHBOUR, and the edge
+// between them is exactly the one to test.
+pub fn sight_clear(e: EdgeSet, m: Materials, x0: float, y0: float, z0: float,
+                   x1: float, y1: float, z1: float, opaque_at: float) -> boolean {
+  dx = x1 - x0;
+  dy = y1 - y0;
+  dist = sqrt(dx * dx + dy * dy) ?? 0.0;
+  if dist < 0.000001 { return true; }
+  n = ((dist / 0.2 ?? 0.0) as integer) + 1;
+  (pq, pr) = hex_at(x0, y0);
+  clear = true;
+  for i in 1..n + 1 {
+    t = (i as float) / (n as float) ?? 0.0;
+    (cq, cr) = hex_at(x0 + dx * t, y0 + dy * t);
+    if cq != pq || cr != pr {
+      if clear {
+        sid = edge_surf(e, pq, pr, cq, cr);
+        if sid > 0 {
+          mid = edge_mat(e, pq, pr, cq, cr);
+          if mat_opacity(m, mid) >= opaque_at {
+            zl = z0 + (z1 - z0) * t;          // sight-line height at the crossing
+            if mat_height(m, mid) > zl { clear = false; }
+          }
+        }
+      }
+      pq = cq;
+      pr = cr;
+    }
+  }
+  clear
+}

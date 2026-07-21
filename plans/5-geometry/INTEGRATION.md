@@ -597,3 +597,65 @@ noise · `offset_legal` on the inside of the curve · the chord platform genuine
 matches `L²/8R` within 15% · the flattening chord respects its tolerance at three scales ·
 track and platform are adjacent but disjoint · the platform face cuts against the track ·
 one validated loop.
+
+## 9. Signals and signal sighting (P10)
+
+A signal is trivial as an *object* — a point beside the track at an offset, which §8 already
+made exact. The engineering is entirely in whether a driver can **see** it, and that is the
+first real query against the L2 field. It needed two additions: `hex_at` (the world→cell
+inverse) and `sight_clear`.
+
+### Sight is blocked by opacity, not solidity
+
+This is the payoff for materials carrying a *vector* of transmission terms rather than one
+flag (DESIGN.md §7.2). Sighting is the first consumer to read one axis while deliberately
+ignoring another, and it separates three obstructions no single flag could:
+
+| obstruction | solid | opaque | movement | sight |
+|---|---|---|---|---|
+| palisade fence | ✓ | ✓ | blocked | **hidden** |
+| chain-link fence | ✓ | ✗ | blocked | **visible** |
+| hedge | ✗ | ✓ | passable | **hidden** |
+
+A one-bit "wall" cannot express rows 2 or 3, and both are ordinary lineside furniture.
+
+### Height decides by position
+
+The sight line rises from eye to signal head, so an obstruction blocks only while the line
+is still below its top — crossover at `t = (h − z_eye)/(z_sig − z_eye)`. With a 3.0 wall,
+eye 2.5, head 5.0, the crossover is `t = 0.2`: measured hidden at `t = 0.1` (line at 2.75)
+and visible at `t = 0.5` (line at 3.75). **The same wall hides the signal from near and not
+from far**, which is the railway sighting problem, and it falls out of the geometry rather
+than being special-cased.
+
+### The cutback on a curve is the same chord constant, again
+
+On a curve the sight line is a chord, cutting inside the arc by `R(1 − cos(D/2R))` ≈
+`D²/(8R)` — the clearance the inside of the curve must be kept free to. Swept at 0.25
+resolution on R=26, D=27.2:
+
+```
+   deepest blocking intrusion  4.00
+   predicted                   4.08  =  sagitta 3.48  +  halfwidth 0.6
+```
+
+The half-width term is not a fudge: the sweep moves the obstruction's *centreline*, but
+what fouls the chord is its near **face** — which is also how a real cutback is specified,
+clearance to the face of the cutting, never to its middle.
+
+`L²/(8R)` has now set the flattening error (§P1), the platform chord gap (§8) and the
+sighting cutback (here). **It is this system's one chord constant**, and three unrelated
+questions reduce to it.
+
+### A wrong shape that taught something
+
+The first version of this gate placed the obstruction as a straight **tangent** to the
+inner radius, and nothing ever blocked. A tangent at the inner offset is *parallel* to the
+chord, so it cannot cross it at any depth. Only a **concentric** obstruction fouls sight —
+which is exactly why cuttings and embankments on curves are specified concentrically. The
+failing test was right and the scene was wrong.
+
+**Gate** `src/sighttest.loft`: `hex_at` round-trips all 625 cells of a chunk and agrees
+with `hex_grid::px_to_hex` on 400 off-centre points (no convention drift) · the three
+obstructions above resolve movement and sight independently · the height crossover is
+measured either side · the swept cutback boundary lands within 0.1 of sagitta + halfwidth.

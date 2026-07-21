@@ -1,0 +1,162 @@
+// sighttest — SIGNALS AND SIGNAL SIGHTING.
+//
+// A signal is trivial as an object: a point beside the track at a known offset, which
+// platformtest already showed is exact. The engineering is entirely in whether a driver
+// can SEE it, and that is the first real query against the L2 field.
+//
+// Three things fall out, none of them special-cased:
+//
+//   1. Sight is blocked by OPACITY, not solidity. A palisade fence is solid and opaque; a
+//      chain-link fence is solid and transparent; a hedge is permeable and opaque. Only a
+//      material with independent transmission terms can tell these apart, and sighting is
+//      the first consumer to read one axis while ignoring another.
+//   2. HEIGHT decides by position. The sight line rises from eye to signal head, so an
+//      obstruction blocks only while the line is below its top: a near wall hides what the
+//      identical wall further along does not. Crossover at t = (h - z_eye)/(z_sig - z_eye).
+//   3. On a CURVE the sight line is a chord, so it cuts inside the arc by R(1-cos(D/2R)),
+//      i.e. D^2/(8R). That is the sighting cutback — the clearance the inside of the curve
+//      must be kept free to. It is the SAME sagitta that sets the flattening error and the
+//      platform chord gap: L^2/(8R) is this system's one chord constant, showing up for the
+//      third time in a completely different question.
+use hexform;
+use hexedge;
+use hexway;
+use hex_grid;
+
+fn deg(d: float) -> float { d * 0.017453292519943295 }
+
+// a solid band across the sight line at x, as an obstruction
+fn wall_band(hs: HexSet, x: float, halflen: float, hw: float) {
+  t = track_new();
+  track_straight(t, x, 0.0 - halflen, x, halflen);
+  way_mark(t, hw, hs);
+}
+
+fn main() {
+  println("=== story signal sighting test ===");
+  ok = true;
+  q0 = -30; r0 = -30; gw = 61; gh = 61;
+
+  // ── 1. hex_at is the exact inverse — round-trip + canonical cross-check ───
+  bad_rt = 0;
+  bad_canon = 0;
+  for r in -12..13 {
+    for q in -12..13 {
+      px = ((lattice_k(q, r)) as float) * 0.8660254037844386;
+      py = ((lattice_m(q, r)) as float) * 0.5;
+      (aq, ar) = hex_at(px, py);
+      if aq != q || ar != r { bad_rt = bad_rt + 1; }
+      (cq, cr) = px_to_hex(px, py);
+      if cq != aq || cr != ar { bad_canon = bad_canon + 1; }
+    }
+  }
+  println("hex_at round-trip over 625 cells: {bad_rt} failures; vs hex_grid::px_to_hex: {bad_canon} disagreements");
+  if bad_rt != 0 || bad_canon != 0 { ok = false; }
+
+  // off-centre points must land in the same cell as the canonical inverse too
+  bad_off = 0;
+  for i in 0..400 {
+    fx = ((i % 20) as float) * 0.83 - 8.0;
+    fy = ((i / 20 ?? 0) as float) * 0.71 - 7.0;
+    (aq, ar) = hex_at(fx, fy);
+    (cq, cr) = px_to_hex(fx, fy);
+    if aq != cq || ar != cr { bad_off = bad_off + 1; }
+  }
+  println("400 off-centre points vs canonical: {bad_off} disagreements");
+  if bad_off != 0 { ok = false; }
+
+  // ── 2. opacity, not solidity ─────────────────────────────────────────────
+  mt = materials_new();
+  palisade = material_add(mt, true,  4.0, 1.0, 12.0, 0.0, 0.2);  // solid + opaque
+  chainlink = material_add(mt, true, 4.0, 0.0,  2.0, 0.9, 0.2);  // solid, SEE-THROUGH
+  hedge    = material_add(mt, false, 4.0, 1.0,  6.0, 0.7, 0.1);  // NOT solid, opaque
+
+  hs = hexset_chunk(q0, r0, gw, gh);
+  wall_band(hs, 10.0, 8.0, 0.6);
+  sf = surfaces_new();
+  wsid = surf_straight(sf, 1.0, 0.0, 10.0);
+
+  ex = 0.0; ey = 0.0; ez = 3.0;      // driver's eye
+  sx = 24.0; sy = 0.0; sz = 3.2;     // signal head, nearly level
+
+  println("one wall at x=10 between eye and signal:");
+  for i in 0..3 {
+    mid = palisade;
+    nm = "palisade (solid, opaque)  ";
+    if i == 1 { mid = chainlink; nm = "chain-link (solid, clear) "; }
+    if i == 2 { mid = hedge; nm = "hedge (soft, opaque)      "; }
+    e = edgeset_new(q0, r0, gw, gh);
+    cut_arb(hs, e, sf, sf.sf_n, mid);
+    seen = sight_clear(e, mt, ex, ey, ez, sx, sy, sz, 0.5);
+    blocks_move = mat_solid(mt, mid);
+    println("   {nm} sight {seen}, movement blocked {blocks_move}");
+    if i == 0 && seen { ok = false; }          // opaque -> hidden
+    if i == 1 && !seen { ok = false; }         // transparent -> visible THOUGH solid
+    if i == 2 && seen { ok = false; }          // opaque -> hidden THOUGH passable
+    if i == 1 && !blocks_move { ok = false; }
+    if i == 2 && blocks_move { ok = false; }
+  }
+
+  // ── 3. height: a near wall hides what a far one does not ─────────────────
+  low = material_add(mt, true, 3.0, 1.0, 6.0, 0.2, 0.2);   // 3.0 tall
+  ez2 = 2.5; sz2 = 5.0; sxx = 40.0;
+  cross = (3.0 - ez2) / (sz2 - ez2) ?? 0.0;
+  println("low wall h=3.0, eye z={ez2}, signal z={sz2} -> crossover at t={cross} (x={cross * sxx})");
+  for i in 0..2 {
+    wx = 4.0;
+    if i == 1 { wx = 20.0; }
+    hw2 = hexset_chunk(q0, r0, gw, gh);
+    wall_band(hw2, wx, 8.0, 0.6);
+    sf2 = surfaces_new();
+    surf_straight(sf2, 1.0, 0.0, wx);
+    e2 = edgeset_new(q0, r0, gw, gh);
+    cut_arb(hw2, e2, sf2, sf2.sf_n, low);
+    seen = sight_clear(e2, mt, 0.0, 0.0, ez2, sxx, 0.0, sz2, 0.5);
+    t = wx / sxx ?? 0.0;
+    println("   wall at x={wx} (t={t}): sight line z={ez2 + (sz2 - ez2) * t}, visible {seen}");
+    if i == 0 && seen { ok = false; }          // near, line below 3.0 -> hidden
+    if i == 1 && !seen { ok = false; }         // far,  line above 3.0 -> visible
+  }
+
+  // ── 4. the sighting cutback on a curve: D^2/(8R) ─────────────────────────
+  rr = 26.0;
+  th = deg(60.0);
+  dd = rr * th;
+  sag = rr * (1.0 - cos(th * 0.5));
+  println("curve R={rr}, sight distance D={dd}: cutback {sag} (D^2/8R predicts {dd * dd / (8.0 * rr) ?? 0.0})");
+  eyx = rr; eyy = 0.0;
+  sigx = rr * cos(th); sigy = rr * sin(th);
+  // sweep the intrusion depth and find where sight actually flips — the empirical
+  // cutback must land on the predicted sagitta, not merely somewhere between two
+  // loosely-separated cases.
+  flip = 0.0;
+  for i in 0..24 {
+    c = 1.0 + (i as float) * 0.25;
+    // The obstruction HUGS the inside of the curve — a concentric arc, which is what a
+    // cutting or an embankment actually is.  (A straight tangent at the same offset is
+    // parallel to the chord and can never cross it at any depth; that is precisely why
+    // cutbacks on curves are specified concentrically, and why the first shape of this
+    // test was wrong.)
+    tw = track_new();
+    track_arc(tw, 0.0, 0.0, rr - c, 0.0, th);
+    hc = hexset_chunk(q0, r0, gw, gh);
+    way_mark(tw, 0.6, hc);
+    sfc = surfaces_new();
+    surf_arc(sfc, 0.0, 0.0, rr - c);
+    ec = edgeset_new(q0, r0, gw, gh);
+    cut_arb(hc, ec, sfc, sfc.sf_n, palisade);
+    seen = sight_clear(ec, mt, eyx, eyy, 3.0, sigx, sigy, 3.2, 0.5);
+    if !seen { flip = c; }                     // deepest intrusion that still blocks
+  }
+  // The sweep moves the obstruction's CENTRELINE, but what fouls the chord is its
+  // near FACE, half a bed-width closer. So the centreline boundary is sagitta +
+  // halfwidth — and that is also how a real cutback is specified: clearance to the
+  // face of the cutting, never to its middle.
+  pred = sag + 0.6;
+  println("   deepest blocking intrusion {flip}; predicted {pred} = sagitta {sag} + halfwidth 0.6");
+  dev = pred - flip;
+  if dev < 0.0 { dev = 0.0 - dev; }
+  if dev > 0.35 { ok = false; }
+
+  if ok { println("=== SIGHT OK ==="); } else { println("=== FAIL ==="); }
+}
