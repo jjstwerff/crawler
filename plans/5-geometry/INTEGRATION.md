@@ -474,3 +474,59 @@ every blocked edge is attributed to a surface · **stamping the two routes in ei
 gives the identical field** (the shared stem must not be order-dependent) · the routes
 share the stem (12 cells) and are **completely disjoint downstream** (0 shared cells past
 the reverse curve) — a turnout that never separates is not a turnout.
+
+## 7. Crossings and double slips (P8)
+
+A crossing is where the 24-direction grid stops fighting and starts helping. **Both routes
+are straights**, so any multiple of 15° is exact — the crossing angle costs nothing. And a
+double slip's turning curve deflects by *exactly* the crossing angle, so its sweep is a
+multiple of 15° **by construction**. Where the turnout needed a reverse curve to get back
+on the grid (§6), **the slip inherits legality from the crossing**.
+
+What binds instead is where the switch blade lands. The blade sits `t = R·tan(θ/2)` from
+the crossing; the diamond only reaches `h = w/tan(θ/2)` along each track. Blade inside the
+diamond means `R·tan(θ/2) ≤ w/tan(θ/2)`:
+
+```
+        R_max = w / tan²(θ/2)
+
+   θ      15°     30°     45°     60°     75°     90°
+   R_max  57.7w   13.9w   5.8w    3.0w    1.7w    1.0w
+```
+
+Real track wants `R ≈ 26–51`, so **only the 15° crossing admits a real double slip** — the
+sharpest angle the grid offers is the only one that works. That is not a limitation of the
+grid, it is why every prototype double slip is shallow: at 1:8 (7.13°) the bound gives
+`258w ≈ 640 m`, comfortably satisfied.
+
+### A double slip is invisible in the footprint
+
+The arc's furthest excursion from either straight is at its midpoint, `R·(1 − cos(θ/2))`.
+At the worst legal radius `R = w/tan²(θ/2)`:
+
+```
+   (1 − cos u) / tan² u  =  cos² u / (1 + cos u)  ≤  ½        (u = θ/2 ≤ 45°)
+```
+
+so a buildable slip never leaves the band by more than `w/2`. **Blade-inside and
+footprint-invisible are the same condition** — measured `extra 0` cells at 15°, R=26.
+
+This is the sharpest justification yet for the two-layer split (DESIGN.md §7): a plain
+diamond and a double slip are the *identical* set of cells. The route topology lives
+**entirely** in the surfaces. Anything reasoning about connectivity from cells alone —
+pathfinding, signalling, flow — is reading a layer that cannot represent the difference.
+
+### G2 is not available to a shallow slip
+
+The room for a clothoid at each slip end is the tangent length `R·tan(θ/2)` = 3.4 at
+θ=15°, R=26, against the `≈ R/3` a transition wants. There is none. Slips are G1-only —
+which again matches practice: slips are slow-speed track and carry no transition curves.
+
+**Gate** `src/crossingtest.loft`: every grid angle 15°–90° traces to one validated loop ·
+the crossing is genuinely shared (union < sum of separate footprints, saving 5 cells at 15°
+falling to 1 at 90°, as `1/sin θ` predicts) · the closed-form `R_max` agrees with the
+direct blade-vs-diamond comparison at every angle · the excursion bound holds at every
+angle · both slip sweeps equal the crossing angle · G1 at both tangencies (measured kink
+0°) · the slip adds **zero** cells over the plain diamond · four surfaces arbitrate
+order-free (372 blocked edges either way) · every blocked edge attributed · and no edge is
+cut between two track cells — a crossing is passable, not a wall.

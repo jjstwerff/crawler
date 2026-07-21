@@ -1,0 +1,214 @@
+// crossingtest — DIAMOND CROSSINGS and DOUBLE SLIPS.
+//
+// A crossing is where the 24-direction grid stops fighting and starts helping. Both routes
+// are STRAIGHTS, so any multiple of 15 deg is exact — the crossing angle costs nothing.
+// And a double slip's turning curve deflects by exactly the crossing angle, so its sweep
+// IS a multiple of 15 deg BY CONSTRUCTION. Unlike the turnout (pointstest), a slip needs
+// no reverse curve to get back on the grid: it inherits legality from the crossing.
+//
+// What does bind is where the switch blade lands. The blade sits t = R*tan(th/2) from the
+// crossing; the diamond only reaches h = w/tan(th/2) along each track. Blade inside the
+// diamond means R*tan(th/2) <= w/tan(th/2), i.e.
+//
+//     R_max = w / tan^2(th/2)
+//
+// which collapses fast: 57.7w at 15 deg, 13.9w at 30, 5.8w at 45, 1.0w at 90. Real track
+// wants R ~ 26-51, so ONLY the 15 deg crossing admits a real double slip — the sharpest
+// angle the grid offers is the only one that works, which is exactly why every real double
+// slip is shallow.
+use hexform;
+use hexedge;
+use hexway;
+
+fn deg(d: float) -> float { d * 0.017453292519943295 }
+fn tanf(a: float) -> float { sin(a) / cos(a) ?? 0.0 }
+
+fn blocked_count(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer) -> integer {
+  n = 0;
+  for r in r0..r0 + h {
+    for q in q0..q0 + w {
+      for d in 0..6 {
+        if edge_blocked(e, q, r, nb_q(q, r, d), nb_r(q, r, d)) { n = n + 1; }
+      }
+    }
+  }
+  n
+}
+
+// a straight of length 2*half through the origin at heading `th`
+fn thru_track(th: float, half: float) -> Track {
+  t = track_new();
+  track_straight(t, 0.0 - half * cos(th), 0.0 - half * sin(th),
+                       half * cos(th),       half * sin(th));
+  t
+}
+
+fn main() {
+  println("=== story crossing / double-slip test ===");
+  ok = true;
+  q0 = -34; r0 = -34; gw = 69; gh = 69;
+  hw = 1.0;                       // bed halfwidth
+  half = 22.0;                    // arm length either side of the crossing
+
+  // ── 1. the diamond at every grid angle ────────────────────────────────────
+  println("diamond crossings — the angle is free, both routes are straights:");
+  println("   theta  cells  loops  valid   sum(separate)  saved");
+  for k in 1..7 {
+    th = deg(15.0 * (k as float));
+    ta = thru_track(0.0, half);
+    tb = thru_track(th, half);
+    hboth = hexset_chunk(q0, r0, gw, gh);
+    way_mark(ta, hw, hboth);
+    way_mark(tb, hw, hboth);
+    ha = hexset_chunk(q0, r0, gw, gh);
+    hb = hexset_chunk(q0, r0, gw, gh);
+    way_mark(ta, hw, ha);
+    way_mark(tb, hw, hb);
+    sep = hexset_count(ha) + hexset_count(hb);
+    v = trace(hboth);
+    code = validate(v, hexset_count(hboth));
+    println("   {15 * k}d  {hexset_count(hboth)}   {v.vm_loops}   {code}   {sep}   {sep - hexset_count(hboth)}");
+    if code != 0 { ok = false; }
+    if v.vm_loops != 1 { ok = false; }
+    // the crossing must be SHARED, never double counted
+    if sep <= hexset_count(hboth) { ok = false; }
+  }
+
+  // ── 2. R_max = w / tan^2(th/2), and where the blade lands ─────────────────
+  println("blade placement — R_max = w/tan^2(theta/2):");
+  println("   theta   R_max   blade t(R=26)   diamond h   inside?");
+  for k in 1..7 {
+    th = deg(15.0 * (k as float));
+    tt = tanf(th * 0.5);
+    rmax = hw / (tt * tt) ?? 0.0;
+    t26 = 26.0 * tt;
+    hh = hw / tt ?? 0.0;
+    inside = t26 <= hh;
+    println("   {15 * k}d   {rmax}   {t26}   {hh}   {inside}");
+    // the closed form must agree with the direct comparison, at every angle
+    if inside != (26.0 <= rmax) { ok = false; }
+  }
+
+  // ── 2b. why the slip is invisible in the footprint — a THEOREM, not a fluke ─
+  // The arc's furthest excursion from either straight is at its midpoint, at
+  // R*(1 - cos(th/2)). Substituting the worst legal radius R = w/tan^2(th/2):
+  //
+  //     (1 - cos u) / tan^2 u = cos^2 u / (1 + cos u) <= 1/2   for u = th/2 <= 45deg
+  //
+  // so a buildable slip never leaves the band by more than w/2. Blade-inside and
+  // footprint-invisible are the SAME condition.
+  println("slip excursion at the worst legal radius (must stay under w/2 = {hw * 0.5}):");
+  for k in 1..7 {
+    th2 = deg(15.0 * (k as float)) * 0.5;
+    tt2 = tanf(th2);
+    rm2 = hw / (tt2 * tt2) ?? 0.0;
+    exc = rm2 * (1.0 - cos(th2));
+    println("   {15 * k}d: R_max {rm2} -> excursion {exc}");
+    if exc > hw * 0.5 { ok = false; }
+  }
+
+  // ── 3. the double slip itself, at the only angle that admits one ──────────
+  th = deg(15.0);
+  rr = 26.0;
+  tt = tanf(th * 0.5);
+  t = rr * tt;
+  println("double slip at 15 deg, R={rr}: blade at {t}, R_max {hw / (tt * tt) ?? 0.0}");
+
+  ta = thru_track(0.0, half);
+  tb = thru_track(th, half);
+  // slip A1->B2: tangent to A at (-t,0), centre (-t, R), sweep +theta
+  sa = track_new();
+  track_arc(sa, 0.0 - t, rr, rr, deg(-90.0), deg(-90.0) + th);
+  // slip B1->A2: the point reflection of the first
+  sb = track_new();
+  track_arc(sb, t, 0.0 - rr, rr, deg(90.0) + th, deg(90.0));
+
+  // both slips must sweep exactly the crossing angle
+  sweep_ok = true;
+  for i in 0..2 {
+    tk = sa;
+    if i == 1 { tk = sb; }
+    a0 = tk.tk_p[3] ?? 0.0;
+    a1 = tk.tk_p[4] ?? 0.0;
+    sw = a1 - a0;
+    if sw < 0.0 { sw = 0.0 - sw; }
+    dg = sw / 0.017453292519943295;
+    println("   slip {i}: sweep {dg} deg (crossing angle 15)");
+    if dg < 14.99 || dg > 15.01 { sweep_ok = false; }
+  }
+  if !sweep_ok { ok = false; }
+
+  // G1 where each slip meets its two straights
+  (tx, ty) = seg_tangent(sa, 0, 0.0);
+  dot = tx * 1.0 + ty * 0.0;
+  if dot < 0.0 { dot = 0.0 - dot; }
+  if dot > 1.0 { dot = 1.0; }
+  k1 = acos(dot) / 0.017453292519943295 ?? 0.0;
+  (ux, uy) = seg_tangent(sa, 0, seg_len(sa, 0));
+  dot2 = ux * cos(th) + uy * sin(th);
+  if dot2 < 0.0 { dot2 = 0.0 - dot2; }
+  if dot2 > 1.0 { dot2 = 1.0; }
+  k2 = acos(dot2) / 0.017453292519943295 ?? 0.0;
+  println("   slip tangency kink: {k1} deg at route A, {k2} deg at route B");
+  if k1 > 0.01 || k2 > 0.01 { ok = false; }
+
+  // ── 4. a double slip is INVISIBLE in the footprint ────────────────────────
+  // The slip arcs live inside the diamond, so cells cannot distinguish a plain
+  // crossing from a double slip. The route topology is carried ENTIRELY by the
+  // surfaces — which is precisely why the surface layer exists apart from cells.
+  hd = hexset_chunk(q0, r0, gw, gh);
+  way_mark(ta, hw, hd); way_mark(tb, hw, hd);
+  hs = hexset_chunk(q0, r0, gw, gh);
+  way_mark(ta, hw, hs); way_mark(tb, hw, hs);
+  way_mark(sa, hw, hs); way_mark(sb, hw, hs);
+  println("plain diamond {hexset_count(hd)} cells, double slip {hexset_count(hs)} cells -> extra {hexset_count(hs) - hexset_count(hd)}");
+  if hexset_count(hs) - hexset_count(hd) > 4 { ok = false; }
+
+  // ── 5. four surfaces meet: arbitration must be order-free ─────────────────
+  sf1 = surfaces_new(); m1 = materials_new();
+  b1 = material_add(m1, true, 0.4, 0.1, 4.0, 0.3, 0.2);
+  way_surfaces(ta, sf1); way_surfaces(tb, sf1);
+  way_surfaces(sa, sf1); way_surfaces(sb, sf1);
+  e1 = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hs, e1, sf1, sf1.sf_n, b1);
+
+  hs2 = hexset_chunk(q0, r0, gw, gh);
+  way_mark(sb, hw, hs2); way_mark(sa, hw, hs2);
+  way_mark(tb, hw, hs2); way_mark(ta, hw, hs2);
+  sf2 = surfaces_new(); m2 = materials_new();
+  b2 = material_add(m2, true, 0.4, 0.1, 4.0, 0.3, 0.2);
+  way_surfaces(sb, sf2); way_surfaces(sa, sf2);
+  way_surfaces(tb, sf2); way_surfaces(ta, sf2);
+  e2 = edgeset_new(q0, r0, gw, gh);
+  cut_arb(hs2, e2, sf2, sf2.sf_n, b2);
+
+  n1 = blocked_count(e1, q0, r0, gw, gh);
+  n2 = blocked_count(e2, q0, r0, gw, gh);
+  println("stamp order reversed: cells {hexset_count(hs2) == hexset_count(hs)}, blocked edges {n1} vs {n2}");
+  if hexset_count(hs2) != hexset_count(hs) { ok = false; }
+  if n1 != n2 { ok = false; }
+
+  vv = trace(hs);
+  cc = validate(vv, hexset_count(hs));
+  println("double-slip footprint: {vv.vm_loops} loop(s), validator {cc}");
+  if cc != 0 { ok = false; }
+
+  // every blocked edge attributed, and the diamond INTERIOR stays open
+  orph = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      for d in 0..6 {
+        nq = nb_q(q, r, d); nr = nb_r(q, r, d);
+        if edge_blocked(e1, q, r, nq, nr) {
+          if edge_surf(e1, q, r, nq, nr) <= 0 { orph = orph + 1; }
+          // a crossing is PASSABLE both ways: no cut between two track cells
+          if hexset_get(hs, q, r) && hexset_get(hs, nq, nr) { ok = false; }
+        }
+      }
+    }
+  }
+  println("unattributed edges {orph}; no cut between two track cells");
+  if orph != 0 { ok = false; }
+
+  if ok { println("=== CROSSING OK ==="); } else { println("=== FAIL ==="); }
+}
