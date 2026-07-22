@@ -398,6 +398,34 @@ subtracting it would hard-code one host's answer.
 **Ask:** have `gl_window_width`/`gl_window_height` report the **framebuffer** size, or add
 `gl_drawable_width`/`gl_drawable_height`. A camera cannot be correct without it.
 
+## G4 — the compile gate fails INTERMITTENTLY, then passes unchanged
+
+`sev:medium` · `wa:partial` · `area:toolchain` · `hit-by:crawler` — observed twice on
+2026-07-22, both times self-healing.
+
+`make test`'s step 14 (compile gate: parse + bytecode) failed with no source change, and
+passed on an immediate re-run of the identical tree. Neither failure reproduced under
+`make check`.
+
+1. **Session start.** `loft: library 'hex_field' failed to build native (cdylib compile
+   failed … error[E0463]: can't find crate for 'typenum')`. The toolchain refused to fall
+   back to interpretation — correctly, it says so explicitly — and the whole gate went red.
+   The next run was green with no intervention.
+2. **Session end.** `FAIL: compile` with no error text captured at all in the log. `make
+   check` immediately after: clean. `make test` immediately after: EXIT=0.
+
+**Why it matters more than a retry:** a gate that is intermittently red trains the reader to
+re-run instead of read, which is exactly how a real failure gets waved through. It also cost
+a bad call here — a commit was made on a red gate on the assumption it was this flake, which
+happened to be true and should not have been assumed.
+
+**Suspicion (unverified):** a race or staleness in the per-library native cdylib build /
+program cache — the first failure names a cdylib compile, and `LOFT_NO_CACHE=1` is the known
+lever for the sibling `--lib` staleness bug (#322, not re-verified on 2026.7.2).
+
+**Ask:** make the compile gate's failure output always include the diagnostic, and make a
+cdylib build failure retryable rather than fatal to the whole run.
+
 ## G2 — "expected Camera, got Camera" on a cross-module struct return
 
 `sev:low` · `wa:clean` · `area:types` · `hit-by:crawler`
