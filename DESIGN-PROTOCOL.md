@@ -137,6 +137,31 @@ already live in the engineering-rigor skill — same move, one level apart.
   end-state makes the invariant unavoidable.
 - **Cost:** a one-line fix behind a large discovery cost.
 
+### Case 3 — the passability chokepoint (crawler, plan #11 P1)
+- **Domain:** invariant chokepoint / refactor under a "nothing may change" contract.
+- **Described first as:** a counted, finished job — the plan already carried the measurement
+  ("13 sites, N is small and local"), so the work read as *apply the collapse*.
+- **How the model struggled:** it didn't, at the step everyone watches. The trap was one step
+  earlier: **an inherited count that had never been re-run.** Re-measuring found 32 sites, not
+  13 — no test sites counted, `tile_solid` missed entirely, and the solidity rule written out
+  three times with one copy **disagreeing** (`sim_blink` used `!= 1`).
+- **What unblocked it:** two things, both cheap. (1) Re-running the grep instead of trusting
+  the number a previous session wrote down — the whole correction cost one command. (2) The
+  **negative control that stayed green**: shrinking the rule to `t == 1` failed nothing, so a
+  10-line probe counted the tile kinds in the seeded world — 153 boulders, 79 fence posts,
+  live and ungated. That turned "the refactor is safe" into "the refactor is safe *and* the
+  suite could not have told you otherwise."
+- **Mechanism (hypothesis):** a measurement recorded in a plan **stops being read as a
+  measurement** — it reads as settled fact, and its cost was paid by someone else, so nobody
+  re-pays it. Counts are the cheapest thing in the repo to re-derive and the most expensive
+  to inherit wrong: they are what decides whether a chokepoint is "nearly there" or not.
+  Corollary for negative controls: **a control that does not fire is a finding, not a
+  formality** — it is the only instrument that reports a gate's *blind spot* rather than its
+  verdict, and the reflex to "well, the code is right anyway" discards exactly that signal.
+- **Cost:** two greps and a 10-line probe, against a class of bug (a field model that
+  silently drops a tile kind) that the very next phase's harness was built to catch and
+  would have passed.
+
 ## Case template (append new chases)
 
 ```

@@ -5,6 +5,99 @@
 > third concern: what each phase actually *discovered*, which is neither intent nor design and
 > was crowding both.
 
+## P1 result — one passability predicate, measured 2026-07-22
+
+Pure refactor. `make test` output is **byte-identical over 1018 lines** except one added
+line (the new solidity gate below). The blueprint gate asked for *"the passability call
+graph, before/after, with the 13 sites named"* — the graph is below, and **the count was
+wrong in three ways**, which is why the phase measured before it moved.
+
+### What the estimate got wrong
+
+`DESIGN.md`'s I-TRUTH note said *"`is_blocked_move` has 5 call sites, all in `sim.loft`;
+`is_wall` 6 in `sim` + 2 in `wallgeo`"* — 13 sites. Measured:
+
+| claim | measured | |
+|---|---|---|
+| `is_blocked_move` — 5, all in `sim.loft` | 5, but **3 in `sim` + 2 in `selftest`** | the tests were never counted |
+| `is_wall` — 6 in `sim` | **5** in `sim` | plus **9 in tests**, also uncounted |
+| — | — | **`tile_solid` (7 sites) was missed entirely** |
+
+So the real surface was **32 sites**, not 13, and — the finding that mattered — the
+solidity rule `t == 1 \|\| t == 4 \|\| t == 5` was written out **three independent times**,
+one of which **disagreed**:
+
+| copy | where | rule |
+|---|---|---|
+| 1 | `is_wall` | `1 \|\| 4 \|\| 5` |
+| 2 | `tile_solid` — generation-time, on the bare tile array | `1 \|\| 4 \|\| 5` |
+| 3 | `sim_blink` (`sim.loft:1199`) | **`!= 1` only** — blink can land you inside a boulder or a fence post |
+
+### The call graph
+
+**Before** — two data readers, but the *rule* and the *query* both restated per caller:
+
+```
+s.tiles ──> tile_at ──┬─> is_wall (rule inline) ──┬─> is_blocked_move ──> pos_blocked, compute_flow, flow_step, selftest×2
+                      │                           ├─> wallgeo×2, compute_flow, sim_bolt, npc_passable, tests×9
+                      │                           └─> pos_blocked (same-hex branch, redundant)
+                      └─> sim_blink  (rule restated as != 1 — DISAGREES)
+raw tiles[] ────────────> tile_solid (rule inline, 2nd copy) ──> 7 placement sites
+s.walls ──> edge_wall_raw ─┬─> edge_wall ──> is_blocked_move
+                           └─> wallgeo (edge GEOMETRY, not passability — left alone)
+```
+
+**After** — one rule, one query, everything else a spelling of it:
+
+```
+                       solid_kind(t)              <- THE RULE, stated once (2 callers)
+                            │
+s.tiles ──> tile_at ──> field_blocked(s,q,r,dir)  <- THE PREDICATE (3 callers)
+s.walls ──> edge_wall ──────┘                        dir = DIR_HEX -> the hex itself
+                            │                        dir = 0..5    -> the step out of it
+                            ├─> is_wall          (16 sites, unchanged spelling)
+                            └─> is_blocked_move  (5 sites, unchanged spelling)
+raw tiles[] ──> tile_solid ──> solid_kind         (7 sites — generation, no Sim exists yet)
+```
+
+`field_blocked`'s domain is `(hex, direction)` — deliberately the exact domain **P2's
+differential harness enumerates**. P2 swaps this one body and no caller changes.
+
+Also removed: `pos_blocked`'s same-hex branch (`if aq == bq && ar == br { is_wall(bq,br) }`).
+It was already redundant — `hex_neighbor_dir(a,a,a,a)` returns `-1`, so
+`is_blocked_move(s,a,a,a,a) ≡ is_wall(s,a,a)` exactly.
+
+### The negative controls — one fired, one did NOT, and that was the phase's real finding
+
+| control | expected | result |
+|---|---|---|
+| drop the edge-wall term from `field_blocked` | red | **red** — `selftest` (kernel self-test) |
+| shrink `solid_kind` to `t == 1` | red | **GREEN — the whole suite stayed green** |
+
+The second control passing is the plan's own lesson 3 arriving on schedule: *the failure
+mode is never a check that fails, it is one that passes for the wrong reason.* Probed it
+instead of assuming — the depth-0 seed-777 surface carries **153 boulders (tile 4) and 79
+fence posts (tile 5)**, so the rule's other two arms are live in the very world the tests
+generate, and **no gate observed them**. A field model that silently dropped tiles 4 and 5
+would have passed P2's differential harness.
+
+Closed in `surfacetest.loft`: every tile-4/5 hex must report `is_wall`, and
+`is_blocked_move` must block entry from every open neighbour — with `nsolid > 100` so the
+assertion can never pass vacuously. Now `solidity: boulders+posts=232 is-wall=true
+blocks-entry=true`, and control 2 goes red.
+
+### Left standing, deliberately
+
+- **`sim_blink`'s `!= 1`** is the one site that asks the passability question with a
+  different rule. Routing it through the chokepoint **changes behaviour** (blink would stop
+  landing on boulders and fence posts), so it does not belong in a phase whose contract is
+  "`make test` unchanged". It is a one-line fix, and it wants a ruling: is landing inside a
+  fence a bug (almost certainly) or tolerated? → **P2 or a standalone fix.**
+- **`wallgeo`'s `edge_wall_raw`** stays a direct `s.walls` reader. It asks *"what wall
+  geometry exists on this canonical edge"*, not *"may I pass"* — the two differ whenever a
+  destination hex is solid with no edge wall between. Conflating them would be wrong; it is
+  the renderer's concern and belongs to P3/P3b.
+
 ## P5, restated — the seam that has never been connected
 
 **CORRECTED 2026-07-22, by reading the code instead of trusting the description.** My first

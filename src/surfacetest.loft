@@ -4,6 +4,7 @@
 // cleared ground, the spawning crystal + knot stand west. The dungeon entrance is NOT
 // here: it opens from the rain-shadow desert, windows to the north (see traveltest).
 use sim;
+use hex_grid;
 
 fn main() {
   println("=== story surface test (depth-0 desert + entrance) ===");
@@ -28,16 +29,35 @@ fn main() {
 
   // the dungeon entrance is NOT in town any more — it opens from the rain-shadow
   // desert, windows away (traveltest walks there); the home window carries none
+  // …and the SOLIDITY RULE's other two arms are gated here. Boulders (4) and
+  // fence posts (5) fill their hex exactly as rock (1) does, and only this world
+  // has any: 153 + 79 of them. Before plan #11 P1 they were UNGATED — shrinking
+  // the rule to `t == 1` left the whole suite green — so a field model that
+  // dropped them would have passed P2's differential harness unnoticed.
   noent = true;
+  nsolid = 0;
+  solid_ok = true;      // is_wall calls them solid …
+  step_ok = true;       // … and is_blocked_move agrees from every open neighbour
   for er in 0..101 {
     for eq in 0..101 {
-      if tile_at(surf, eq, er) == 2 { noent = false; }
+      t = tile_at(surf, eq, er);
+      if t == 2 { noent = false; }
+      if t == 4 || t == 5 {
+        nsolid += 1;
+        if !is_wall(surf, eq, er) { solid_ok = false; }
+        for bd in 0..6 {
+          (bq, br) = hex_neighbor(eq, er, bd);
+          if !is_wall(surf, bq, br) && !is_blocked_move(surf, bq, br, eq, er) { step_ok = false; }
+        }
+      }
     }
   }
+  solids_live = nsolid > 100 && solid_ok && step_ok;   // > 100 so it can never pass vacuously
 
   println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} no-town-entrance={noent} wilds-fit={wilds_fit}");
   println("town: npcs={npcs0} day={at_day} alive-after-60-ticks={alive_still}");
+  println("solidity: boulders+posts={nsolid} is-wall={solid_ok} blocks-entry={step_ok}");
   ok = d0 == 0 && openc && kinds_live && knot && nostair && noent && wilds_fit
-    && populated_town && at_day && alive_still;
+    && populated_town && at_day && alive_still && solids_live;
   if ok { println("=== SURFACE OK ==="); } else { println("=== FAIL ==="); }
 }

@@ -16,13 +16,22 @@ dependency order: a later one is worthless if an earlier one is false.
 happen here"*; swapping the implementation under it changes **no answer** in any existing
 world.
 
-> *Measured before designing (protocol step 2 — count the re-assertion sites):*
-> `is_blocked_move` has **5** call sites, all in `sim.loft`; `is_wall` **6** in `sim` +
-> **2** in `wallgeo`; `tile_at` is broader but read-only. So N is small and local — the
-> chokepoint is nearly there already, and P1 exists to finish it **before** anything is
-> swapped underneath. `Sim` also already stores 3 canonical edge walls per hex
-> (`s.walls` / `edge_wall_raw`), so `EdgeSet` is a *richer version of a structure the
-> kernel already has*, not a foreign model bolted alongside it.
+> *Estimated before designing (protocol step 2 — count the re-assertion sites):*
+> `is_blocked_move` **5** call sites all in `sim.loft`; `is_wall` **6** in `sim` + **2** in
+> `wallgeo`; `tile_at` broader but read-only — 13 in all. **P1 measured it: 32**, because
+> the estimate counted no test sites, missed `tile_solid` entirely (7 sites), and — the
+> part that mattered — the solidity rule was written out **three times**, one of them
+> disagreeing. Corrected graph and the two negative controls: [`RESULTS.md`](RESULTS.md)
+> → *P1 result*. The conclusion survives the correction (N is small and local) but the
+> estimate itself did not, which is the reason P1 ran before P2 rather than beside it.
+>
+> `Sim` also already stores 3 canonical edge walls per hex (`s.walls` / `edge_wall_raw`),
+> so `EdgeSet` is a *richer version of a structure the kernel already has*, not a foreign
+> model bolted alongside it.
+>
+> **P1 landed the chokepoint:** `field_blocked(s, q, r, dir)` in `sim.loft` — `dir =
+> DIR_HEX` asks about the hex, `0..5` about the step out of it. Its domain is exactly what
+> P2's differential harness enumerates.
 
 **I-STAND — everything drawn stands where the kernel says it stands, at its true metric
 size.** The renderer holds no world state of its own; screen position is a pure projection

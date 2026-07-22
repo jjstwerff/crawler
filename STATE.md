@@ -7,16 +7,16 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → THE NEXT ACTION IS PLAN #11 **P1**
-> Collapse the passability sites into one predicate. **Pure refactor; `make test` must stay
-> byte-identical.** `is_blocked_move` has exactly 5 call sites (all in `sim.loft`), `is_wall` 6
-> + 2 in `wallgeo`, and **zero** qualified call sites — measured, not guessed. It is the
-> chokepoint **P2** needs before the field goes under the kernel, and P2 → P3 → P4 is the
+> ## → THE NEXT ACTION IS PLAN #11 **P2**
+> Put the hex field under the kernel. The chokepoint **P1 built** is
+> `field_blocked(s, q, r, dir)` in `sim.loft` — swap that one body and no caller changes.
+> P2's gate is a differential harness in `src/fieldtest.loft`: for one seeded world, every
+> `(hex, direction)` answer from the old model beside the new one. P2 → P3 → P4 is the
 > playable 3D milestone.
 >
-> **This session produced a great deal of design and no playable change.** That was the right
-> call — P0 found a world its own player could not stand up in — but P1 should run before
-> anything else opens.
+> **Carry P1's finding into P2's harness:** the surface world has 153 boulders and 79 fence
+> posts whose solidity **no gate observed** until P1 added one. Enumerate depth 0, not just a
+> dungeon — a differential harness that never visits a tile kind cannot diff it.
 
 ## The design position — eight statements, and they compose
 
@@ -55,7 +55,7 @@ carry.
 | **#5 geometry** | active — points, crossings/slips, level crossings, platforms, signals, bridges/tunnels, stairs, spiral stairs, roofs, cones, arches, domes, vaults, the matcher | 20 |
 | **#9 canopy trees** | **T1–T10 all done** | 10 |
 | **#10 props** | **P1–P9 all done** (P9 scored 4/6, both failures understood) | 6 |
-| **#11 3D world** | **ACTIVE — P0 done**, P1 next | — |
+| **#11 3D world** | **ACTIVE — P0, P1 done**, P2 next | 1 |
 
 Plus the render path (`src/scenemesh.loft`, `src/figure.loft`, `tools/glbview.py`), the scale
 contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracted** to
@@ -117,7 +117,11 @@ extended the lesson: **a first-person camera found a world too small for its own
 **3. The failure mode is never a check that fails — it is one that passes for the wrong
 reason.** Hence a **negative control** in every phase. Same session: the town ring's `0.866`
 was the **reciprocal** of the right constant, so every village in the game was 33% wider than
-tall — and a squashed ring still looks like a ring.
+tall — and a squashed ring still looks like a ring. **Plan #11 P1 paid this back immediately:
+one of its two controls did not fire.** Shrinking the solidity rule to `t == 1` left the whole
+suite green, though the surface world carries 232 boulders and fence posts — so the rule's
+other two arms had never been gated at all. *A negative control that stays green is a result,
+not a formality.*
 
 **4. Read the code before writing the claim.** Twice in one session a confident structural claim
 was contradicted by the source — *"build new, extract settled"* (unbuildable: a stencil **is** a

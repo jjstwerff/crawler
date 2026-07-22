@@ -252,8 +252,10 @@ pub fn tile_at(s: Sim, q: integer, r: integer) -> integer {
   if ti < len(tiles) { tiles[ti] } else { 1 }
 }
 
-pub fn is_wall(s: Sim, q: integer, r: integer) -> boolean {
-  t = tile_at(s, q, r);
+// The solidity RULE, stated once: which hex kinds fill their hex completely.
+// 1 = rock, 4 = boulder, 5 = fence post. Used on a Sim through field_blocked
+// and on a bare tile array through tile_solid (generation, before a Sim exists).
+fn solid_kind(t: integer) -> boolean {
   t == 1 || t == 4 || t == 5
 }
 
@@ -274,14 +276,42 @@ pub fn edge_wall(s: Sim, q: integer, r: integer, dir: integer) -> integer {
   edge_wall_raw(s, oq, owr, oe)
 }
 
-// Is a single-hex step from (q1,r1) to (q2,r2) blocked? Blocked if the
-// target is a solid full-hex wall (or out of bounds), or an edge wall sits
-// on the shared edge.
+// ── The passability chokepoint (plan #11 P1 — invariant I-TRUTH) ──────
+//
+// THE one predicate: does the field forbid this?  `dir` selects the question —
+// DIR_HEX asks whether the hex itself is solid, 0..5 whether the step out of
+// (q,r) that way is blocked, by the destination hex or by a wall on the edge
+// between them.  It is the only place that turns stored world data into a
+// passability answer, and its domain (hex, direction) is what plan #11 P2's
+// differential harness enumerates: P2 swaps this body for the hex field, and
+// no caller changes.  Everything below is a spelling of this call.
+pub const DIR_HEX = -1;                    // "the hex itself", not a step out of it
+
+pub fn field_blocked(s: Sim, q: integer, r: integer, dir: integer) -> boolean {
+  tq = q;
+  tr = r;
+  if dir >= 0 {
+    (fbq, fbr) = hex_neighbor(q, r, dir);  // the hex the step lands in
+    tq = fbq;
+    tr = fbr;
+  }
+  if solid_kind(tile_at(s, tq, tr)) { return true; }
+  if dir < 0 { return false; }
+  edge_wall(s, q, r, dir) != 0
+}
+
+// Does a solid full-hex wall (or the off-map edge) fill this hex?
+pub fn is_wall(s: Sim, q: integer, r: integer) -> boolean {
+  field_blocked(s, q, r, DIR_HEX)
+}
+
+// Is a single-hex step from (q1,r1) to (q2,r2) blocked?  Non-adjacent pairs —
+// including (q1,r1) == (q2,r2) — have no shared edge, so they reduce to the
+// destination's own solidity.
 pub fn is_blocked_move(s: Sim, q1: integer, r1: integer, q2: integer, r2: integer) -> boolean {
-  if is_wall(s, q2, r2) { return true; }
   bd = hex_neighbor_dir(q1, r1, q2, r2);
-  if bd < 0 { return false; }
-  edge_wall(s, q1, r1, bd) != 0
+  if bd < 0 { return field_blocked(s, q2, r2, DIR_HEX); }
+  field_blocked(s, q1, r1, bd)
 }
 
 // Can the player's centre at (fromx,fromy) advance so its probe point lands at
@@ -292,8 +322,7 @@ fn pos_blocked(s: Sim, fromx: float, fromy: float, tox: float, toy: float) -> bo
   (bq, br) = px_to_hex(tox, toy);
   if enemy_blocks(s, bq, br) { return true; }
   if water_blocked(s, bq, br) { return true; }
-  if aq == bq && ar == br { return is_wall(s, bq, br); }
-  is_blocked_move(s, aq, ar, bq, br)
+  is_blocked_move(s, aq, ar, bq, br)   // same hex / non-adjacent -> the target's solidity
 }
 
 // Open water (lake/sea) blocks walking on the surface; rivers stay fordable.
@@ -2833,14 +2862,15 @@ fn occupied_hex(enemies: vector<Enemy>, q: integer, r: integer) -> boolean {
   found
 }
 
-// Is (q,r) solid rock or off-map in this tile array?
+// Is (q,r) solid rock or off-map in this tile array?  The generation-time
+// spelling of field_blocked(.., DIR_HEX): same solid_kind rule, but on the bare
+// tile array, because no Sim exists yet while the level is being stamped.
 fn tile_solid(tiles: vector<integer>, w: integer, h: integer, q: integer, r: integer) -> boolean {
   if q < 0 || r < 0 || q >= w || r >= h { return true; }
   ti = r * w + q;
   solid = true;
   if ti < len(tiles) {
-    tv = tiles[ti] ?? 1;
-    solid = tv == 1 || tv == 4 || tv == 5;
+    solid = solid_kind(tiles[ti] ?? 1);
   }
   solid
 }
