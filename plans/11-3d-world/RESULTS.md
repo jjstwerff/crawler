@@ -389,6 +389,68 @@ the world, not the renderer.
 - Actors are **flat colours**, not sprites — the texture atlas rides with P8.
 - A decorated window is still ~6.5% tall until `graphics` exposes the drawable (G3).
 
+## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
+
+The section below stands, with **two corrections found by reading the source instead of the
+table**. Both make the phase smaller and safer than it was described.
+
+**1. Nothing needs inventing — the machinery is already built and gated.** The table reads
+like four layers of new work. It is three wiring points:
+
+| already exists | gated by |
+|---|---|
+| `hexmatch` recovers arcs from cells — a round tower collapses to ~1 arc at the right radius | `matchtest` (plan #5 P2) |
+| `tag_edges(s, f, first_surf, e, mat)` writes fitted surfaces onto an `EdgeSet` | `matchtest` |
+| `surf_arc(sf, cx, cy, r)` — exact radial normals, no facets | `edgetest`, `jointest` |
+| `edge_block_arb` — nearest-surface arbitration where two parts meet | `jointest` (order-free) |
+
+What is actually missing: `Sim` carries no `Surfaces` (`grep -c` → **0**), `build_field`
+(`sim.loft:325`) calls bare `edge_block` so it never learns WHICH thing blocks, and `view3d`
+(`view3d.loft:110`) extrudes a flat quad per blocked edge from `hex_edge_corners`.
+
+**2. RECORD, do not infer — and the matcher becomes the CHECK.** The builder knows its centre
+and radius exactly (`stamp_round_tower(…, cx, cy, rad)`), so it records them via `surf_arc`.
+Fitting them back out of cells would be inference where exact parameters are in hand, which
+is precisely the approximation an exact-invariant domain forbids. The matcher then earns a
+better job: an **independent second derivation** that must agree with the recorded one.
+
+**3. The claim "no verifiable midpoint until the renderer" is wrong, and that de-risks this.**
+There is no *visible* midpoint — a recorded arc still draws as six flat quads — but there is a
+**checkable** one: *the recorded arc and the matcher-fitted arc agree*. That is gateable with
+no renderer at all, which means the phase HAS a safe stopping point after step A.
+
+### The invariant
+
+> **A tower built at radius `r` is recovered as ONE arc surface of radius `r`, and is drawn
+> from that surface rather than from its cells.**
+
+### The plotted end-result, in the units the gate will use
+
+`rad = 2` hexes. `SCALE.md`: one hex step = 1.5 m, so the radius is **3.0 m** — and in world
+units `2·√3 = 3.464`, since one hex step is `√3` world units. The door is **one hex gap** at
+`(cx, cy + rad)` — the only ring cell with `tq == cx` and `tr > cy` (verified by walking the
+builder's loop, not by reading its comment). Its clear width in metres is what P5 owes.
+
+### Steps, each with what would have to break
+
+| | step | gate | the negative control that must FIRE |
+|---|---|---|---|
+| **A1** | `stamp_round_tower` appends `(cq, cr, rad)` to a flat `vector<integer>` | existing gates stay green | — (pure addition) |
+| **A2** | `build_field(solid, walls, w, h, towers, sf)` creates an arc per tower and tags its ring edges with `edge_block_arb` **before** the generic pass, so first-writer-wins leaves them alone | `towertest`: recorded r == fitted r | perturb the recorded radius by 10% → the agreement check must go RED |
+| **A3** | `Sim` carries `surfs: Surfaces` (+ `feats: Features`) | full gate green | — |
+| **B** | `view3d` reads `edge_surf`; an arc edge draws as curve, not facet | eye-height render at 8 m | a straight wall must NOT curve — render a wall and a tower in one frame |
+
+**Ordering note that is load-bearing:** arcs must be tagged **before** the generic
+`edge_block` pass. `edge_block` is first-writer-wins, so it will leave real surfaces alone;
+the reverse order would let `SURF_NONE` claim the ring and the arcs would win only by the
+accident that `surf_distance` returns 1e6 for an out-of-range id. Correct by construction
+beats correct by accident.
+
+**The B-step control is the one to design carefully.** "The tower curves" is not enough — a
+renderer that curves *everything* passes it. The frame must contain a straight wall and a
+tower, and the straight must stay straight. That is the P4 tautology lesson applied before
+the fact rather than after.
+
 ## P5 — what remains, blueprinted rather than half-built (2026-07-22)
 
 Two items are left: **towers are hexagons** and **doors are gaps**. Both look like finishing
