@@ -348,6 +348,49 @@ directly *and* through a struct parameter). If `u16` becomes index-assignable, n
 1.7× of the P6 minimisation. `src/edgetest.loft` already asserts the footprint, so the
 gain shows up as a gate change rather than a claim.
 
+## G1 — `gl_clear` does not say whether it clears DEPTH, and `gl_create_window` does not say whether there IS one
+
+`sev:low` · `wa:partial` · `area:graphics` · `hit-by:crawler` — **not yet reproduced, because
+this box has no display and no `xvfb`.** Written up so it is not rediscovered.
+
+`graphics::gl_clear(color)` is documented as *"Clear the screen with an RGBA color"* and says
+nothing about the depth buffer; `gl_create_window` does not document whether the context is
+created with a depth attachment at all. Crawler's plan #11 P3 pass is the FIRST consumer in
+the repo to `gl_enable(GL_DEPTH_TEST)` — every other pass (`gpushot`, `gpuatlas`, `observe`,
+`postprobe`, `worldprobe`) only ever *disables* it, so the question has never been asked.
+
+**Symptom to expect if it bites:** the first frame is correct and every later frame is wrong
+(nothing new draws, or the world z-fights), because stale depth is never cleared.
+
+**Workaround in place (partial):** enable depth test and `gl_depth_mask(true)` *before*
+`gl_clear`, which is the ordering under which a combined clear would take effect. If the
+implementation clears colour only, this does not help and the API needs a depth-clear.
+
+**Ask:** document what `gl_clear` clears, and whether `gl_create_window` requests a depth
+buffer — or add `gl_clear_depth()`.
+
+## G2 — "expected Camera, got Camera" on a cross-module struct return
+
+`sev:low` · `wa:clean` · `area:types` · `hit-by:crawler`
+
+A `pub fn` in module B returning a struct type defined in module A fails to type-check with a
+diagnostic that prints the SAME name on both sides:
+
+```
+error: expected Camera, got Camera on return from block
+error: expected Camera, got Camera on argument 1 of call to cam_mat4
+```
+
+`view3d.loft` does `use hexscene;` and declares `pub fn view3d_camera(...) -> Camera`, whose
+body returns `camera_new(...)` — `hexscene`'s own constructor. The unqualified `Camera` in the
+signature resolves to something the checker treats as distinct from `hexscene::Camera`.
+
+**Workaround (clean, VERIFIED):** qualify the type in the signature —
+`-> hexscene::Camera`. The body needs no change.
+
+**The cost is the diagnostic, not the fix.** "expected X, got X" gives the reader nothing to
+act on; printing the fully-qualified names on both sides would make it self-explanatory.
+
 ## Filed
 
 *(nothing yet — move entries here with their issue numbers)*

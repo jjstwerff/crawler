@@ -7,18 +7,22 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → THE NEXT ACTION IS PLAN #11 **P3** — first-person 3D
-> The kernel half is done. P2 put passability on an edge field; **P2b** made movement a
-> swept path, so the same walk at 64/16/4 frames ends **bit-identically** and a fall-sized
-> step can no longer cross a wall. What is left for the playable milestone is the *view*.
+> ## → PLAN #11 **P3 IS BUILT — press `V` in `make play` and tell me what you see**
+> First-person 3D: floor and walls extruded from the edge field, drawn through the
+> `hexscene` camera whose round-trip is gated headless (`scenetest`). `V` toggles between it
+> and the 2D plan view; both render the same kernel state, and 2D retires in P9.
 >
-> P3's gate is a projection round-trip (a hex centre → a pixel → the same hex), pure maths,
-> **no GL needed**. Build it as the **`hexscene`** package, not crawler-internal — the
-> in-world editor draws the same field. Then P4 (boards through the presentation seam) is
-> "the game is 3D and you can play it".
+> **It has never been displayed.** This box has no display and no `xvfb`, so the frame is
+> unverified — the camera maths, the matrix agreement and the field are all gated, the
+> *picture* is not. Expect to find something.
 >
-> **Watch loft#392** — a `fn -> vector<single>` whose result reaches `gl_upload_vertices`
-> aborts silently, no output and no PNG. Inline the buffer loop in the caller.
+> **Most likely first defect:** depth. `gl_clear` is documented as colour-only and nothing in
+> this repo had ever enabled `GL_DEPTH_TEST` before, so the window may carry no depth buffer.
+> If frame 1 looks right and later frames do not, that is it — LOFT-HANDOFF.md → G1.
+>
+> **By design, not missing:** no monsters (actors are boards, P4) and no HUD (P9).
+>
+> Then **P4** — boards through the presentation seam — is the playable milestone.
 
 ## The design position — eight statements, and they compose
 
@@ -57,7 +61,7 @@ carry.
 | **#5 geometry** | active — points, crossings/slips, level crossings, platforms, signals, bridges/tunnels, stairs, spiral stairs, roofs, cones, arches, domes, vaults, the matcher | 20 |
 | **#9 canopy trees** | **T1–T10 all done** | 10 |
 | **#10 props** | **P1–P9 all done** (P9 scored 4/6, both failures understood) | 6 |
-| **#11 3D world** | **ACTIVE — P0, P1, P2, P2b done**, P3 next | 3 |
+| **#11 3D world** | **ACTIVE — P0–P2b done; P3 built, unseen** | 3 |
 
 Plus the render path (`src/scenemesh.loft`, `src/figure.loft`, `tools/glbview.py`), the scale
 contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracted** to

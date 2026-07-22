@@ -1,0 +1,161 @@
+// view3d — the first-person pass (plan #11 P3). The world the kernel says is there,
+// seen from eye height, through the `hexscene` camera whose round-trip is gated headless
+// in `scenetest`.
+//
+// Deliberately a SEPARATE path from `view.loft` rather than surgery on it: the 2D view is
+// one monolithic function (world -> post -> HUD) and it still works, so this adds a
+// complete alternative and leaves it alone. `V` toggles. 3D replaces 2D for good in
+// plan #11 P9, not here.
+//
+// SCOPE, so the frame is not read as broken: this draws the WORLD — floor and walls.
+// Actors are boards through the presentation seam and are plan #11 P4; the full HUD comes
+// with P9. A first-person frame with no monsters in it is this phase working, not failing.
+//
+// EXTRACTION: the geometry half (field -> floor + wall triangles) is generic and belongs
+// in `hex_scene` with the camera; the COLOURS and HEIGHTS below are crawler's and stay.
+// That split is stated in EXTRACTION.md -> "The runtime half".
+use graphics;
+use sim;
+use hex_grid;
+use hexscene;
+
+WALL3D_H = 3.2;          // world units ~ 2.77 m: a room you can stand up in (SCALE.md)
+EYE3D_Z  = 1.847;        // 1.6 m eye height at 0.866 m per world unit
+
+V3VERT = `
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aCol;
+uniform mat4 uMVP;
+out vec3 vCol;
+out float vDepth;
+void main() {{
+  vec4 p = uMVP * vec4(aPos, 1.0);
+  gl_Position = p;
+  vCol = aCol;
+  vDepth = p.w;
+}}
+`;
+
+V3FRAG = `
+#version 330 core
+in vec3 vCol;
+in float vDepth;
+out vec4 FragColor;
+uniform vec3 uFog;
+void main() {{
+  // Distance fade: the near field is lit, the far field sinks into the air colour.
+  // Cheap stand-in for the horizon P6 derives from the hex world.
+  float f = clamp(vDepth / 42.0, 0.0, 1.0);
+  f = f * f;
+  FragColor = vec4(mix(vCol, uFog, f), 1.0);
+}}
+`;
+
+pub fn make_view3d_shader() -> integer {
+  graphics::gl_create_shader(V3VERT, V3FRAG)
+}
+
+// Floor tone per hex. Warm aged stone underfoot (CLAUDE.md: light floor, dark walls), with
+// the surface's terrain kind tinting it so the overland still reads as country rather than
+// as one flat plane.
+fn floor_rgb3(s: Sim, q: integer, r: integer) -> (float, float, float) {
+  k = sim_tile_kind(s, q, r);
+  if k == K_GRASS { return (0.42, 0.52, 0.30); }
+  if k == K_FIELD { return (0.62, 0.56, 0.31); }
+  if k == K_ROAD  { return (0.55, 0.50, 0.42); }
+  if k == K_RIVER { return (0.24, 0.38, 0.50); }
+  if k == K_LAKE  { return (0.20, 0.33, 0.46); }
+  if k == K_SEA   { return (0.16, 0.28, 0.42); }
+  if k == K_SCREE { return (0.52, 0.50, 0.46); }
+  (0.72, 0.68, 0.55)                                  // aged travertine, the dungeon floor
+}
+
+// Build the level's 3D scene and upload it. Returns (vao, vertex count).
+//
+// The buffer is built INLINE here and handed straight to gl_upload_vertices — never
+// returned from a helper. loft#392: a `fn(...) -> vector<single>` whose result reaches
+// gl_upload_vertices SILENTLY ABORTS the program once the real pipeline is in context —
+// no output, no error, exit 0. This shape is the documented workaround, not a style choice.
+pub fn build_scene3d(s: Sim) -> (integer, integer) {
+  buf: vector<single> = [];
+  n = 0;
+  zf = 0.0 as single;
+  hf = WALL3D_H as single;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      if !field_blocked(s, q, r, DIR_HEX) {
+        // FLOOR — a hexagon fan at z = 0.
+        (fr3, fg3, fb3) = floor_rgb3(s, q, r);
+        fr = fr3 as single;
+        fg = fg3 as single;
+        fb = fb3 as single;
+        (cx, cy) = hex_to_px(q, r);
+        cxs = cx as single;
+        cys = cy as single;
+        for kc in 0..6 {
+          (kax, kay) = hex_corner_px(q, r, kc);
+          (kbx, kby) = hex_corner_px(q, r, (kc + 1) % 6 ?? 0);
+          buf += [cxs, cys, zf, fr, fg, fb];
+          buf += [kax as single, kay as single, zf, fr, fg, fb];
+          buf += [kbx as single, kby as single, zf, fr, fg, fb];
+          n += 3;
+        }
+        // WALLS — one quad per blocked edge, raised from the floor. Emitted from the
+        // OPEN side only, so each face is built once and faces the cell you can stand in.
+        for d in 0..6 {
+          if field_blocked(s, q, r, d) {
+            (e0, e1) = hex_edge_corners(d);
+            (w0x, w0y) = hex_corner_px(q, r, e0);
+            (w1x, w1y) = hex_corner_px(q, r, e1);
+            // Face tone varies with the edge direction so corners read as corners
+            // instead of one flat mass — the only lighting this pass has.
+            sh = 0.62 + 0.10 * cos((d as float) * 1.0471975511965976);
+            wr = (0.30 * sh) as single;
+            wg = (0.285 * sh) as single;
+            wb = (0.26 * sh) as single;
+            ax = w0x as single;
+            ay = w0y as single;
+            bx = w1x as single;
+            by = w1y as single;
+            buf += [ax, ay, zf, wr, wg, wb];
+            buf += [bx, by, zf, wr, wg, wb];
+            buf += [bx, by, hf, wr, wg, wb];
+            buf += [ax, ay, zf, wr, wg, wb];
+            buf += [bx, by, hf, wr, wg, wb];
+            buf += [ax, ay, hf, wr, wg, wb];
+            n += 6;
+          }
+        }
+      }
+    }
+  }
+  (graphics::gl_upload_vertices(buf, 6), n)
+}
+
+// The camera for this frame — a pure function of kernel state, which is I-STAND: the
+// renderer holds no position of its own, it reads the one the kernel moved.
+pub fn view3d_camera(s: Sim, vw: float, vh: float) -> hexscene::Camera {
+  camera_new(s.px, s.py, EYE3D_Z, s.heading, 0.0, 1.0471975511965976, vw, vh)
+}
+
+pub fn view3d_frame(s: Sim, prog: integer, vao: integer, nverts: integer,
+                    vw: float, vh: float) {
+  // Depth state BEFORE the clear: gl_clear is documented as clearing colour and says
+  // nothing about depth, and nothing in this repo had ever enabled depth testing before
+  // (every other pass disables it), so the window may not even carry a depth attachment.
+  // If the frame is right on the first draw and wrong after, this is the first place to
+  // look — see LOFT-HANDOFF.md -> G1.
+  graphics::gl_enable(graphics::GL_DEPTH_TEST);
+  graphics::gl_depth_mask(true);
+  graphics::gl_clear(graphics::rgba(96, 112, 138, 255));      // the air colour
+  c = view3d_camera(s, vw, vh);
+  m = cam_mat4(c, 0.05, 400.0);
+  graphics::gl_use_shader(prog);
+  graphics::gl_set_uniform_mat4(prog, "uMVP", m);
+  graphics::gl_set_uniform_vec3(prog, "uFog", 0.376, 0.439, 0.541);
+  if nverts > 0 { graphics::gl_draw(vao, nverts); }
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+}

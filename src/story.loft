@@ -13,6 +13,7 @@ use graphics;
 use sim;
 use wallgeo;
 use view;
+use view3d;     // plan #11 P3: the first-person 3D pass (V toggles)
 use itemfx;
 use bundles;   // bundle_activate — the quick-start class kit (generated registry)
 use framekey;    // scene_key — the idle skip (redraw only when the frame would differ)
@@ -36,6 +37,7 @@ KEY_1   = 49;       // '1'..'9' — in play: use quick-slot N; char page: spend 
 KEY_Q   = 113;      // 'q' — quick-slot active Q (fire the launcher)
 KEY_E   = 101;      // 'e' — quick-slot active E (spell — later)
 KEY_ENTER = 13;     // Enter — equip the selected item in the inventory hub
+KEY_V   = 118;      // 'v' — toggle the FIRST-PERSON 3D view (plan #11 P3)
 KEY_N   = 110;      // 'n' — NEXT WORLD: re-scan bundles (drop-ins included), new seed,
                     //   restart into it (K5 v1 — the restart is the loading beat)
 
@@ -66,6 +68,11 @@ struct GameWorld {
   wivbo:   integer not null,           // per-level floor instance buffer (loc5/6/7)
   wallvao: integer not null,
   walln:   integer not null,
+  s3prog:  integer not null,           // plan #11 P3: first-person 3D pass
+  s3vao:   integer not null,
+  s3n:     integer not null,
+  mode3d:  boolean not null,
+  v_was:   boolean not null,
   w_was:   boolean not null,           // edge-triggers (wait/grab/pages/slots/hub/crystal)
   g_was:   boolean not null,
   c_was:   boolean not null,
@@ -145,6 +152,15 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     engine_host::stop();
     return;
   }
+  // V: first-person 3D <-> the 2D plan view. Both render the same kernel state; 3D
+  // replaces 2D for good in plan #11 P9, so until then the toggle is how they are compared.
+  v_down = graphics::gl_key_pressed(KEY_V);
+  if v_down && !w.v_was {
+    w.mode3d = !w.mode3d;
+    println("story: view = {if w.mode3d { \"first-person 3D\" } else { \"2D plan\" }}");
+  }
+  w.v_was = v_down;
+
   if graphics::gl_key_pressed(KEY_N) {
     println("story: next world — re-scanning bundles ...");
     // K5 "next world": re-scan the bundle manifests (drop-ins get wired), leave
@@ -296,6 +312,10 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
       graphics::gl_delete_vao(w.wallvao);
       w.wallvao = build_walls_vbo(w.s, w.walls);
       w.walln = len(w.walls) * 6;
+      graphics::gl_delete_vao(w.s3vao);
+      (n3v, n3n) = build_scene3d(w.s);   // hoisted: never inline a call into a field write
+      w.s3vao = n3v;
+      w.s3n = n3n;
     }
   }
   }
@@ -334,8 +354,14 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
       w.hud.itex = hud_rebuild_items(w.hud, w.s);
       w.last_known = kn;
     }
-    view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln, postprog, postfbo, posttex);
-    draw_msglog(painter, w.s, w.hud, w.ml);
+    if w.mode3d {
+      // The world only: actors are boards through the presentation seam (P4) and the
+      // full HUD comes with P9. Toggle back with V for the 2D plan view.
+      view3d_frame(w.s, w.s3prog, w.s3vao, w.s3n, WIN_W as float, WIN_H as float);
+    } else {
+      view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln, postprog, postfbo, posttex);
+      draw_msglog(painter, w.s, w.hud, w.ml);
+    }
     if w.page_open { draw_charpage(painter, w.s, w.hud, w.pg); }
     else if w.inv_open { draw_invpage(painter, w.s, w.hud, w.pg_inv, w.inv_cursor); }
     else if w.crys_open { draw_crystalpage(painter, w.s, w.hud, w.pg_crys, w.crys_col, w.crys_cur); }
@@ -389,11 +415,14 @@ fn main() {
   boot_pump(painter, 4, 4);
   wallvao = build_walls_vbo(s, walls);   // wall-stroke VBO (rebuilt with the level)
   walln = len(walls) * 6;
+  s3prog = make_view3d_shader();         // plan #11 P3: the first-person pass
+  (s3vao, s3n) = build_scene3d(s);       // per-level 3D scene (floor + walls)
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
   w = GameWorld {
     s: s, walls: walls, hud: hud, ml: ml, last_total: last_total, last_known: last_known,
     wvao: wvao, wivbo: wivbo, wallvao: wallvao, walln: walln,
+    s3prog: s3prog, s3vao: s3vao, s3n: s3n, mode3d: false, v_was: false,
     w_was: false, g_was: false, c_was: false, spend_was: false, qs_was: false,
     i_was: false, iu_was: false, id_was: false, iq_was: false, ie_was: false,
     ient_was: false, cu_was: false, cd_was: false, ca_was: false, cdd_was: false,
