@@ -85,7 +85,7 @@ fn main() {
     nm = "palisade (solid, opaque)  ";
     if i == 1 { mid = chainlink; nm = "chain-link (solid, clear) "; }
     if i == 2 { mid = hedge; nm = "hedge (soft, opaque)      "; }
-    e = edgeset_new(q0, r0, gw, gh);
+    e = collider_new(q0, r0, gw, gh);
     cut_arb(hs, e, sf, sf.sf_n, mid);
     seen = sight_clear(e, mt, ex, ey, ez, sx, sy, sz, 0.5);
     blocks_move = mat_solid(mt, mid);
@@ -109,7 +109,7 @@ fn main() {
     wall_band(hw2, wx, 8.0, 0.6);
     sf2 = surfaces_new();
     surf_straight(sf2, 1.0, 0.0, wx);
-    e2 = edgeset_new(q0, r0, gw, gh);
+    e2 = collider_new(q0, r0, gw, gh);
     cut_arb(hw2, e2, sf2, sf2.sf_n, low);
     seen = sight_clear(e2, mt, 0.0, 0.0, ez2, sxx, 0.0, sz2, 0.5);
     t = wx / sxx ?? 0.0;
@@ -143,7 +143,7 @@ fn main() {
     way_mark(tw, 0.6, hc);
     sfc = surfaces_new();
     surf_arc(sfc, 0.0, 0.0, rr - c);
-    ec = edgeset_new(q0, r0, gw, gh);
+    ec = collider_new(q0, r0, gw, gh);
     cut_arb(hc, ec, sfc, sfc.sf_n, palisade);
     seen = sight_clear(ec, mt, eyx, eyy, 3.0, sigx, sigy, 3.2, 0.5);
     if !seen { flip = c; }                     // deepest intrusion that still blocks

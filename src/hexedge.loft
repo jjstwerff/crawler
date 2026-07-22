@@ -1,5 +1,18 @@
 // hexedge — collision as an EDGE SET (plan #5, decision 2026-07-21).
 //
+// NAMING (2026-07-22): the type is `EdgeCollider`, not `EdgeSet`, because `hex_field` now
+// has an `EdgeSet` of its own — a material-only edge grid for STENCILS THAT CARRY WALLS,
+// i.e. the AUTHORING layer. This is the COLLISION layer: the same edge identity and the
+// same storage trick, plus a surface id per edge, materials, features, `passable`,
+// `collide` and `sweep_path`. Two levels of one idea, and the names now say which is which.
+//
+// They are meant to converge, and this rename is not that convergence — it unblocks the
+// build without pretending the question is settled. `EXTRACTION.md` -> "The runtime half"
+// schedules it after plan #11 P5, when surfaces go on edges and Features/Materials stop
+// moving; extracting a model still in motion costs two migrations. The library's edge key
+// (doubled midpoint), canonical slot set {0,2,3} and type widths are already identical —
+// they were ported from here — so the eventual merge is a lift, not a redesign.
+//
 // THE MODEL.  Collision is a set of blocked hex EDGES, not blocked cells.  Movement from
 // hex A to hex B is legal iff the edge they share is not blocked.  This was settled by
 // measurement: a 1-unit-thick wall blocks in
@@ -183,7 +196,7 @@ pub fn mat_bounce(m: Materials, id: integer) -> float {
 //   u8, i32, integer, single  all work
 // So the surface id is i32 and the material u8: 5 bytes a slot, where the natural
 // u16 + u8 would have been 3.  i32 is the widest safe choice, not a preference.
-pub struct EdgeSet {
+pub struct EdgeCollider {
   ee_q0:      integer,
   ee_r0:      integer,
   ee_w:       integer,
@@ -196,14 +209,14 @@ pub struct EdgeSet {
 }
 
 // An edge layer over the same bounded chunk as its HexSet — never a global graph.
-pub fn edgeset_new(q0: integer, r0: integer, w: integer, h: integer) -> EdgeSet {
+pub fn collider_new(q0: integer, r0: integer, w: integer, h: integer) -> EdgeCollider {
   gw = w + 2;
   gh = h + 2;
   cells: vector<i32> = [];
   mats: vector<u8> = [];
   n = gw * gh * 3;
   for i in 0..n { cells += [0 as i32? ?? 0]; mats += [0 as u8? ?? 0]; }
-  EdgeSet { ee_q0: q0, ee_r0: r0, ee_w: w, ee_h: h, ee_gw: gw, ee_gh: gh,
+  EdgeCollider { ee_q0: q0, ee_r0: r0, ee_w: w, ee_h: h, ee_gw: gw, ee_gh: gh,
             ee_surf: cells, ee_mat: mats, ee_count: 0 }
 }
 
@@ -217,7 +230,7 @@ pub fn edge_m(qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
 }
 
 // Exposed so a test can punch a hole in a wall (the negative control).
-pub fn ee_index_pub(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+pub fn ee_index_pub(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   ee_index(e, qa, ra, qb, rb)
 }
 
@@ -232,7 +245,7 @@ fn dir_from(qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
 
 // Storage index: (cell, canonical direction).  Opposite pairs are {0,1} {2,5} {3,4}, so
 // the canonical set is {0,2,3} — exactly one of an edge's two cells sees it that way.
-fn ee_index(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+fn ee_index(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   d = dir_from(qa, ra, qb, rb);
   if d < 0 { return -1; }
   cq = qa; cr = ra; slot = 0;
@@ -250,7 +263,7 @@ fn ee_index(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> i
 
 // Block an edge, recording WHICH surface blocks it (surf 0 = a bare blocker with no
 // recoverable normal — allowed, but it cannot be bounced off correctly).
-pub fn edge_block_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+pub fn edge_block_surf(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer,
                        surf: integer) {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return; }
@@ -276,7 +289,7 @@ pub fn edge_point(qa: integer, ra: integer, qb: integer, rb: integer) -> (float,
 // THE RULE: the surface whose geometry is NEAREST the edge's contact point wins; ties
 // break to the LOWER surface id. Both halves matter — nearest is what a ball should
 // actually bounce off, and the tie-break is what makes it deterministic.
-pub fn edge_block_arb(e: EdgeSet, sf: Surfaces, qa: integer, ra: integer,
+pub fn edge_block_arb(e: EdgeCollider, sf: Surfaces, qa: integer, ra: integer,
                       qb: integer, rb: integer, surf: integer, mat: integer) {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return; }
@@ -415,7 +428,7 @@ pub fn surf_param(s: Surfaces, id: integer, px: float, py: float) -> float {
 // Apply every feature to the edge layer: an edge whose contact point falls inside a
 // feature's interval takes that feature's material.  The SURFACE is untouched — which is
 // why the body never fragments and the matcher still sees one wall.
-pub fn apply_features(e: EdgeSet, sf: Surfaces, f: Features,
+pub fn apply_features(e: EdgeCollider, sf: Surfaces, f: Features,
                       q0: integer, r0: integer, w: integer, h: integer) -> integer {
   hits = 0;
   for r in r0..r0 + h {
@@ -448,14 +461,14 @@ pub fn apply_features(e: EdgeSet, sf: Surfaces, f: Features,
 }
 
 // Record BOTH halves: which surface (geometry) and which material (physics).
-pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+pub fn edge_block_full(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer,
                        surf: integer, mat: integer) {
   edge_block_surf(e, qa, ra, qb, rb, surf);
   i = ee_index(e, qa, ra, qb, rb);
   if i >= 0 { e.ee_mat[i] = mat as u8? ?? 0; }
 }
 
-pub fn edge_mat(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+pub fn edge_material(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return 0; }
   (e.ee_mat[i] ?? 0) as integer
@@ -465,22 +478,22 @@ pub fn edge_mat(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) 
 // the top of the range: blocked, but collide() will report no usable normal.
 pub const SURF_NONE = 65535;
 
-pub fn edge_block(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) {
+pub fn edge_block(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer) {
   edge_block_surf(e, qa, ra, qb, rb, SURF_NONE);
 }
 
-pub fn edge_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
+pub fn edge_surf(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer) -> integer {
   i = ee_index(e, qa, ra, qb, rb);
   if i < 0 { return 0; }
   (e.ee_surf[i] ?? 0) as integer
 }
 
-pub fn edge_blocked(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
+pub fn edge_blocked(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
   edge_surf(e, qa, ra, qb, rb) != 0
 }
 
 // THE COLLISION RESPONSE QUERY: blocked?, and the EXACT outward normal to bounce off.
-pub fn collide(e: EdgeSet, s: Surfaces,
+pub fn collide(e: EdgeCollider, s: Surfaces,
                qa: integer, ra: integer, qb: integer, rb: integer) -> (boolean, float, float) {
   id = edge_surf(e, qa, ra, qb, rb);
   if id == 0 { return (false, 0.0, 0.0); }
@@ -490,11 +503,11 @@ pub fn collide(e: EdgeSet, s: Surfaces,
 }
 
 // THE collision query.  Everything else is construction.
-pub fn passable(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
+pub fn passable(e: EdgeCollider, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean {
   !edge_blocked(e, qa, ra, qb, rb)
 }
 
-pub fn edge_count(e: EdgeSet) -> integer { e.ee_count }
+pub fn edge_count(e: EdgeCollider) -> integer { e.ee_count }
 
 // ── SWEPT MOVEMENT (plan #11 P2b — invariant I-CROSS) ────────────────────────
 //
@@ -522,7 +535,7 @@ pub fn edge_count(e: EdgeSet) -> integer { e.ee_count }
 //
 // EXTRACTION: this belongs with `passable`/`collide` and travels with them when hexedge
 // is packaged — every consumer that moves a body over the field needs it.
-pub fn sweep_path(e: EdgeSet, x0: float, y0: float, x1: float, y1: float)
+pub fn sweep_path(e: EdgeCollider, x0: float, y0: float, x1: float, y1: float)
     -> (float, integer, integer, integer) {
   vx = x1 - x0;
   vy = y1 - y0;
@@ -580,7 +593,7 @@ pub fn sweep_path(e: EdgeSet, x0: float, y0: float, x1: float, y1: float)
 
 // A THIN wall: the cut between the cells of `s` and everything else.  One edge thick,
 // and it separates by construction — in every one of the 24 headings.
-pub fn edges_cut(s: HexSet, e: EdgeSet) {
+pub fn edges_cut(s: HexSet, e: EdgeCollider) {
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
     for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
       if hexset_get(s, q, r) {
@@ -597,7 +610,7 @@ pub fn edges_cut(s: HexSet, e: EdgeSet) {
 // A SOLID body: every edge incident to an occupied cell, so the cells cannot be entered
 // at all.  This is the cell model expressed in the edge primitive — which is the point:
 // one collision layer serves both.
-pub fn edges_solid(s: HexSet, e: EdgeSet) {
+pub fn edges_solid(s: HexSet, e: EdgeCollider) {
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
     for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
       if hexset_get(s, q, r) {
@@ -609,7 +622,7 @@ pub fn edges_solid(s: HexSet, e: EdgeSet) {
 
 // Block every edge a straight line crosses: the wall runs along `n·p = c` in world
 // units, with n the unit normal.  A thin wall in ANY heading, one edge thick.
-pub fn edges_halfplane_surf(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+pub fn edges_halfplane_surf(e: EdgeCollider, q0: integer, r0: integer, w: integer, h: integer,
                             nx: float, ny: float, c: float, surf: integer) {
   for r in r0..r0 + h {
     for q in q0..q0 + w {
@@ -627,7 +640,7 @@ pub fn edges_halfplane_surf(e: EdgeSet, q0: integer, r0: integer, w: integer, h:
 }
 
 // Back-compat: a halfplane wall with no surface recorded.
-pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+pub fn edges_halfplane(e: EdgeCollider, q0: integer, r0: integer, w: integer, h: integer,
                        nx: float, ny: float, c: float) {
   edges_halfplane_surf(e, q0, r0, w, h, nx, ny, c, SURF_NONE);
 }
@@ -649,7 +662,7 @@ pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: inte
 // The walk steps at 0.2 world units.  A hex inradius is sqrt(3)/2 = 0.866, so consecutive
 // samples cannot skip a cell: every cell change is a step to a NEIGHBOUR, and the edge
 // between them is exactly the one to test.
-pub fn sight_clear(e: EdgeSet, m: Materials, x0: float, y0: float, z0: float,
+pub fn sight_clear(e: EdgeCollider, m: Materials, x0: float, y0: float, z0: float,
                    x1: float, y1: float, z1: float, opaque_at: float) -> boolean {
   dx = x1 - x0;
   dy = y1 - y0;
@@ -665,7 +678,7 @@ pub fn sight_clear(e: EdgeSet, m: Materials, x0: float, y0: float, z0: float,
       if clear {
         sid = edge_surf(e, pq, pr, cq, cr);
         if sid > 0 {
-          mid = edge_mat(e, pq, pr, cq, cr);
+          mid = edge_material(e, pq, pr, cq, cr);
           if mat_opacity(m, mid) >= opaque_at {
             zl = z0 + (z1 - z0) * t;          // sight-line height at the crossing
             if mat_height(m, mid) > zl { clear = false; }

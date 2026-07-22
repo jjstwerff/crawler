@@ -23,7 +23,7 @@ use hexway;
 fn deg(d: float) -> float { d * 0.017453292519943295 }
 fn tanf(a: float) -> float { sin(a) / cos(a) ?? 0.0 }
 
-fn blocked_count(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer) -> integer {
+fn blocked_count(e: EdgeCollider, q0: integer, r0: integer, w: integer, h: integer) -> integer {
   n = 0;
   for r in r0..r0 + h {
     for q in q0..q0 + w {
@@ -169,7 +169,7 @@ fn main() {
   b1 = material_add(m1, true, 0.4, 0.1, 4.0, 0.3, 0.2);
   way_surfaces(ta, sf1); way_surfaces(tb, sf1);
   way_surfaces(sa, sf1); way_surfaces(sb, sf1);
-  e1 = edgeset_new(q0, r0, gw, gh);
+  e1 = collider_new(q0, r0, gw, gh);
   cut_arb(hs, e1, sf1, sf1.sf_n, b1);
 
   hs2 = hexset_chunk(q0, r0, gw, gh);
@@ -179,7 +179,7 @@ fn main() {
   b2 = material_add(m2, true, 0.4, 0.1, 4.0, 0.3, 0.2);
   way_surfaces(sb, sf2); way_surfaces(sa, sf2);
   way_surfaces(tb, sf2); way_surfaces(ta, sf2);
-  e2 = edgeset_new(q0, r0, gw, gh);
+  e2 = collider_new(q0, r0, gw, gh);
   cut_arb(hs2, e2, sf2, sf2.sf_n, b2);
 
   n1 = blocked_count(e1, q0, r0, gw, gh);

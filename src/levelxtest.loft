@@ -64,7 +64,7 @@ fn main() {
   g2 = surf_straight(sf, bx, by, 0.0 - gap);
   println("barrier surfaces {g1} and {g2} at +/-{gap} along the road");
 
-  e = edgeset_new(q0, r0, gw, gh);
+  e = collider_new(q0, r0, gw, gh);
   cut_arb(hs, e, sf, sf.sf_n, bed);
 
   // the crossing must be PASSABLE: no cut between two way cells

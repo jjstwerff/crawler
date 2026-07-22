@@ -17,7 +17,7 @@ fn heading_ny(k: integer) -> float {
 }
 
 // Can anything walk from the far side of the wall to the near side?
-fn crosses(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+fn crosses(e: EdgeCollider, q0: integer, r0: integer, w: integer, h: integer,
            nx: float, ny: float) -> boolean {
   side: vector<float> = [];
   seen: vector<boolean> = [];
@@ -76,7 +76,7 @@ fn main() {
   for k in 0..24 {
     nx = heading_nx(k);
     ny = heading_ny(k);
-    e = edgeset_new(Q, R, W, H);
+    e = collider_new(Q, R, W, H);
     edges_halfplane(e, Q, R, W, H, nx, ny, 0.0);
     if crosses(e, Q, R, W, H, nx, ny) {
       println("  heading {k * 15} deg: LEAKS ({edge_count(e)} edges)");
@@ -92,7 +92,7 @@ fn main() {
   // the flood itself: a truncated traversal reports "sealed" for everything.)
   nx0 = heading_nx(0);
   ny0 = heading_ny(0);
-  ectl = edgeset_new(Q, R, W, H);
+  ectl = collider_new(Q, R, W, H);
   edges_halfplane(ectl, Q, R, W, H, nx0, ny0, 0.0);
   sealed_before = !crosses(ectl, Q, R, W, H, nx0, ny0);
   holed = false;
@@ -122,7 +122,7 @@ fn main() {
   for k2 in 0..24 {
     nx2 = heading_nx(k2);
     ny2 = heading_ny(k2);
-    e2 = edgeset_new(Q, R, W, H);
+    e2 = collider_new(Q, R, W, H);
     sid = surf_straight(sfs, nx2, ny2, 0.0);
     edges_halfplane_surf(e2, Q, R, W, H, nx2, ny2, 0.0, sid);
     // probe every blocked edge and compare against the true wall normal
@@ -148,7 +148,7 @@ fn main() {
   // an ARC surface: the normal is radial, so it is exact at EVERY contact point
   asfs = surfaces_new();
   aid = surf_arc(asfs, 0.0, 0.0, 5.0);
-  ae = edgeset_new(Q, R, W, H);
+  ae = collider_new(Q, R, W, H);
   aring = hexset_chunk(Q, R, W, H);
   hexdisk_into(aring, 0, 0, 3);
   arc_ok = true;
@@ -181,7 +181,7 @@ fn main() {
   // the edge model subsumes the cell model: a solid body cannot be entered
   s = hexset_chunk(Q, R, W, H);
   hexdisk_into(s, 0, 0, 3);
-  es = edgeset_new(Q, R, W, H);
+  es = collider_new(Q, R, W, H);
   edges_solid(s, es);
   solid_ok = !passable(es, 0, 0, 1, 0) && !passable(es, 4, 0, 3, 0);
   println("solid body seals (edges_solid): {solid_ok}");
@@ -189,7 +189,7 @@ fn main() {
   // a ring cut: the tower wall as a thin cut, interior sealed from outside
   ring = hexset_chunk(Q, R, W, H);
   hexdisk_into(ring, 0, 0, 3);
-  ec = edgeset_new(Q, R, W, H);
+  ec = collider_new(Q, R, W, H);
   edges_cut(ring, ec);
   cut_ok = edge_count(ec) > 0 && !passable(ec, 3, 0, 4, 0);
   println("ring cut seals the boundary: {cut_ok}");
@@ -203,16 +203,16 @@ fn main() {
   stone = material_add(mats, true,  2.5, 1.0, 30.0, 0.0, 0.55);
   hedge = material_add(mats, true,  1.2, 0.7,  6.0, 0.35, 0.10);
   lowwall = material_add(mats, true, 0.5, 0.15, 4.0, 0.0, 0.40);
-  me = edgeset_new(Q, R, W, H);
+  me = collider_new(Q, R, W, H);
   msf = surfaces_new();
   wid = surf_straight(msf, 0.0, 1.0, 0.0);
   edge_block_full(me, 0, 0, 1, 0, wid, stone);
   edge_block_full(me, 1, 0, 2, 0, wid, hedge);
   edge_block_full(me, 2, 0, 3, 0, wid, lowwall);
 
-  ms = edge_mat(me, 0, 0, 1, 0);
-  mh = edge_mat(me, 1, 0, 2, 0);
-  ml = edge_mat(me, 2, 0, 3, 0);
+  ms = edge_material(me, 0, 0, 1, 0);
+  mh = edge_material(me, 1, 0, 2, 0);
+  ml = edge_material(me, 2, 0, 3, 0);
   println("one edge, many consumers — each reads a different property:");
   println("  stone : solid={mat_solid(mats, ms)} sight={mat_opacity(mats, ms)} sound={mat_sound(mats, ms)}dB water={mat_perm(mats, ms)} bounce={mat_bounce(mats, ms)}");
   println("  hedge : solid={mat_solid(mats, mh)} sight={mat_opacity(mats, mh)} sound={mat_sound(mats, mh)}dB water={mat_perm(mats, mh)} bounce={mat_bounce(mats, mh)}");
@@ -225,7 +225,7 @@ fn main() {
   // L2 is a per-region CACHE, so its size is a real cost. `size` reports the actual
   // byte footprint, so assert it rather than reasoning about it — this is what stops
   // the structure quietly growing back.
-  fe = edgeset_new(0, 0, 32, 32);
+  fe = collider_new(0, 0, 32, 32);
   fbytes = size(fe.ee_surf) + size(fe.ee_mat);
   ideal = 3 * 34 * 34 * 3;      // 3 slots/cell over a haloed 34x34 grid, u16+u8
   println("footprint 32x32 chunk: {fbytes} B  (minimised target {ideal} B, {fbytes / ideal ?? 0}x)");

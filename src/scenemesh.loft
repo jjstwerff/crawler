@@ -57,7 +57,7 @@ fn shared_corners(qa: integer, ra: integer, qb: integer, rb: integer,
 }
 
 // Every blocked edge becomes a wall panel — this IS the collision layer, drawn.
-pub fn mesh_walls(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+pub fn mesh_walls(e: EdgeCollider, q0: integer, r0: integer, w: integer, h: integer,
                   z0: float, z1: float) -> Mesh {
   ms = mesh("walls");
   cor: vector<integer> = [];

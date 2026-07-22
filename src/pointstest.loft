@@ -23,7 +23,7 @@ fn cell_x(q: integer, r: integer) -> float {
   (lattice_k(q, r) as float) * 0.4330127018922193
 }
 
-fn blocked_count(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer) -> integer {
+fn blocked_count(e: EdgeCollider, q0: integer, r0: integer, w: integer, h: integer) -> integer {
   n = 0;
   for r in r0..r0 + h {
     for q in q0..q0 + w {
@@ -119,7 +119,7 @@ fn main() {
   way_surfaces(div, sf);
   way_mark(thru, 1.0, hs);
   way_mark(div, 1.0, hs);
-  e = edgeset_new(q0, r0, w, h);
+  e = collider_new(q0, r0, w, h);
   cut_arb(hs, e, sf, sf.sf_n, bed);
   v = trace(hs);
   code = validate(v, hexset_count(hs));
@@ -151,7 +151,7 @@ fn main() {
   way_surfaces(thru, sf2);
   way_mark(div, 1.0, hs2);
   way_mark(thru, 1.0, hs2);
-  e2 = edgeset_new(q0, r0, w, h);
+  e2 = collider_new(q0, r0, w, h);
   cut_arb(hs2, e2, sf2, sf2.sf_n, bed2);
   same_cells = hexset_count(hs2) == hexset_count(hs);
   println("stamp order swapped: same footprint {same_cells}, same blocked edges {blocked_count(e2, q0, r0, w, h) == blocked_count(e, q0, r0, w, h)}");

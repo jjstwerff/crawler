@@ -60,7 +60,7 @@ fn main() {
   mats = materials_new();
   stone = material_add(mats, true, 2.5, 1.0, 30.0, 0.0, 0.5);
   first = fit_surfaces(ft, sf);
-  e = edgeset_new(Q, R, W, H);
+  e = collider_new(Q, R, W, H);
   tag_edges(tw, ft, first, e, stone);
   tagged = 0; untagged = 0; badn = 0; radial = 0;
   for r in R..R + H {

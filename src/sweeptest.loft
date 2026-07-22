@@ -17,7 +17,7 @@ use hex_field;
 // The ORACLE: march the segment in tiny substeps and report whether any hex transition
 // crosses a blocked edge. Deliberately a different algorithm from sweep_path() — a reference
 // that shares its method proves only that the code equals itself.
-fn march_blocked(e: EdgeSet, x0: float, y0: float, x1: float, y1: float) -> boolean {
+fn march_blocked(e: EdgeCollider, x0: float, y0: float, x1: float, y1: float) -> boolean {
   (cq, cr) = hex_at(x0, y0);
   hit = false;
   for i in 1..2001 {
@@ -34,7 +34,7 @@ fn march_blocked(e: EdgeSet, x0: float, y0: float, x1: float, y1: float) -> bool
 
 // Walk a segment in `n` equal pieces, stopping where the field stops us — exactly what a
 // frame loop does. Returns the fraction of the whole walk achieved.
-fn walk_in_pieces(e: EdgeSet, x0: float, y0: float, x1: float, y1: float, n: integer) -> float {
+fn walk_in_pieces(e: EdgeCollider, x0: float, y0: float, x1: float, y1: float, n: integer) -> float {
   px = x0;
   py = y0;
   done = 0.0;
@@ -76,7 +76,7 @@ fn main() {
 
   for k in 0..12 {
     a = (k as float) * 15.0 * 0.017453292519943295;
-    e = edgeset_new(Q, R, W, H);
+    e = collider_new(Q, R, W, H);
     edges_halfplane(e, Q, R, W, H, 0.0 - sin(a), cos(a), 0.0);
 
     for i in 1..120 {
@@ -126,12 +126,12 @@ fn main() {
   // A gate that cannot fail proves nothing. Sweep a segment straight through a sealed
   // wall and require BOTH the oracle and sweep_path to stop it; then remove the field and
   // require both to let it through.
-  ec = edgeset_new(Q, R, W, H);
+  ec = collider_new(Q, R, W, H);
   edges_halfplane(ec, Q, R, W, H, 1.0, 0.0, 0.0);      // wall on the y axis
   (cf0, _, _, cd0) = sweep_path(ec, -4.0, 0.3, 4.0, 0.3);   // crosses it head on
   cf = cf0 ?? 0.0;
   ctl_stops = (cd0 ?? -1) >= 0 && cf < 0.9 && march_blocked(ec, -4.0, 0.3, 4.0, 0.3);
-  eo = edgeset_new(Q, R, W, H);                        // …and with no wall at all
+  eo = collider_new(Q, R, W, H);                        // …and with no wall at all
   (of0, _, _, od0) = sweep_path(eo, -4.0, 0.3, 4.0, 0.3);
   ctl_passes = (od0 ?? -1) < 0 && (of0 ?? 0.0) > 0.999 && !march_blocked(eo, -4.0, 0.3, 4.0, 0.3);
   println("negative control: sealed stops it={ctl_stops} (at {cf}), no wall lets it pass={ctl_passes}");

@@ -59,7 +59,7 @@ fn main() {
   mt = materials_new();
   stone = material_add(mt, true, 4.0, 1.0, 20.0, 0.0, 0.2);
   surf_straight(sf, 0.0, 1.0, 0.0);
-  ed = edgeset_new(q0, r0, gw, gh);
+  ed = collider_new(q0, r0, gw, gh);
   cut_arb(solid, ed, sf, sf.sf_n, stone);
 
   // ── a tree, from the canopy model ────────────────────────────────────────

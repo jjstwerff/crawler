@@ -196,7 +196,7 @@ pub fn fit_distance(f: Fit, i: integer, px: float, py: float) -> float {
 // Tag every boundary edge of `s` with the recovered surface NEAREST it — the same
 // arbitration rule hexway uses, so cell-authored and curve-authored content behave
 // identically downstream. This is the whole point of P2.
-pub fn tag_edges(s: HexSet, f: Fit, first_surf: integer, e: EdgeSet, mat: integer) {
+pub fn tag_edges(s: HexSet, f: Fit, first_surf: integer, e: EdgeCollider, mat: integer) {
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
     for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
       if hexset_get(s, q, r) {

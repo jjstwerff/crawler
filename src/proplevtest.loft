@@ -24,7 +24,7 @@ fn main() {
   mta = materials_new();
   stone = material_add(mta, true, 4.0, 1.0, 20.0, 0.0, 0.2);
   way_surfaces(wall, sfa);
-  ea = edgeset_new(q0, r0, gw, gh);
+  ea = collider_new(q0, r0, gw, gh);
   cut_arb(arch, ea, sfa, sfa.sf_n, stone);
   println("architecture: {hexset_count(arch)} cells on L_ARCH");
 
@@ -54,7 +54,7 @@ fn main() {
   mtb = materials_new();
   stone2 = material_add(mtb, true, 4.0, 1.0, 20.0, 0.0, 0.2);
   way_surfaces(wall, sfb);
-  eb = edgeset_new(q0, r0, gw, gh);
+  eb = collider_new(q0, r0, gw, gh);
   cut_arb(arch2, eb, sfb, sfb.sf_n, stone2);
   println("architecture re-derived with props present: identical {edgeset_equal(ea, eb)}");
   if !edgeset_equal(ea, eb) { ok = false; }

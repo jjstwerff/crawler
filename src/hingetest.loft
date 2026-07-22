@@ -85,7 +85,7 @@ fn main() {
   way_mark(wl, 0.6, arch);
   sf = surfaces_new();
   way_surfaces(wl, sf);
-  ed = edgeset_new(q0, r0, gw, gh);
+  ed = collider_new(q0, r0, gw, gh);
   cut_arb(arch, ed, sf, sf.sf_n, door);
   ssum = 0; msum = 0;
   for i in 0..len(ed.ee_surf) {

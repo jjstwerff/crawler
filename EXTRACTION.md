@@ -867,6 +867,21 @@ two share only the field types they both read.
    the shape of `Features`/`Materials` stops moving. Extracting a model that is still
    changing costs two migrations. Its gate travels with it: `edgetest` is already
    contract-shaped (24 headings, a negative control), `sweeptest` likewise.
+
+   > **It started arriving from the other side on 2026-07-22.** `hex_field` gained its own
+   > `EdgeSet` — material-only, for stencils that carry walls, i.e. the **authoring** layer —
+   > which collided with crawler's on three names (`EdgeSet`, `edgeset_new`, `edge_mat`)
+   > across 21 files, and `--lib` reads the working tree so it broke the consumer build
+   > mid-session. Crawler's is now **`EdgeCollider`**: it is the **collision** layer, and the
+   > names say which is which. **That rename is not the convergence** — it unblocks the build
+   > without pretending the question is settled. The two already share the edge key (doubled
+   > midpoint), the canonical slot set `{0,2,3}` and the type widths, because those were
+   > ported from here, so the merge is a lift rather than a redesign. The open question is
+   > which layer owns `Surfaces`, and that is still P5's to answer.
+   >
+   > *Process note:* two agents on one `--lib` working tree means a sibling commit can turn a
+   > green consumer red with no local change. Cheap mitigation: when a build breaks with no
+   > local edit, `git log --oneline -3` in the sibling BEFORE debugging.
 3. **The extrusion** — after P3 ships a view worth reusing. Do not extract a renderer that has
    never rendered.
 

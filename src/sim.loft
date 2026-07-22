@@ -6,7 +6,7 @@
 
 use hex_grid;
 use hex_field;        // HexSet — the solid cell set the edge field is sealed from (plan #11 P2)
-use hexedge;          // EdgeSet + passable() — THE crossing predicate (plan #5's edge model)
+use hexedge;          // EdgeCollider + passable() — THE crossing predicate (plan #5's edge model)
 use gen;
 use monsters;
 use items;
@@ -144,9 +144,9 @@ pub struct Sim {
   // build_field(), then it is the only thing field_blocked reads. Both sources stay:
   // `tiles` because its other consumers ask about CONTENT (stairs, cave mouths, quest
   // features) not passage, and `walls` because it is still the edge authoring surface
-  // until fences move onto an EdgeSet of their own.
+  // until fences move onto an EdgeCollider of their own.
   solid:   HexSet,                     //   cell occupancy — what fills a hex
-  field:   EdgeSet,                    //   the crossing layer — what a path may not cross
+  field:   EdgeCollider,                    //   the crossing layer — what a path may not cross
   seen:    vector<integer> not null,   // FOV memory: 1 = hex ever seen (revealed map; lost on death)
   vis:     vector<integer> not null,   // FOV current: 1 = hex visible this frame (recomputed)
   px:      float not null,
@@ -322,8 +322,8 @@ fn build_solid(tiles: vector<integer>, w: integer, h: integer) -> HexSet {
 // the old predicate asked only about the DESTINATION, so a step *out of* a wall was
 // permitted. That difference is only reachable from inside a wall, which I-CROSS makes
 // unreachable — and `fieldtest` reports the count rather than hiding it.
-fn build_field(solid: HexSet, walls: vector<integer>, w: integer, h: integer) -> EdgeSet {
-  e = edgeset_new(0, 0, w, h);
+fn build_field(solid: HexSet, walls: vector<integer>, w: integer, h: integer) -> EdgeCollider {
+  e = collider_new(0, 0, w, h);
   for r in 0..h {
     for q in 0..w {
       here = hexset_get(solid, q, r);
