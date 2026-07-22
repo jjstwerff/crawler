@@ -29,14 +29,34 @@ the **scale contract** (`SCALE.md`, `src/scale.loft`, gated).
    on the lattice; six rotations are the identity). → `EXTRACTION.md`
 5. **The village is the subject**, not the castle (landscape composition).
 
+## The direction, decided 2026-07-22 — plan #11
+
+The stack built by #5/#9/#10 was **not consumed by the game**: `story`/`view`/`sim` import
+`wallgeo` + `worldmesh` and none of `hexform`/`hexedge`/`hexway`/`hexcanopy`/`hexprim` —
+those had only offline GLB scenes as consumers. The decision closes that gap and changes
+the renderer at the same time, because they are one job: **the game moves into
+first-person 3D and the field becomes the world the player stands in.**
+→ **`plans/11-3d-world/`**
+
+Taken with it: 3D **replaces** the 2D view (reversing CLAUDE.md's "2D is first-class, 3D is
+additive" — the docs are reconciled in P9); actors are **camera-facing boards** carrying the
+existing top-down PNGs for now, deliberately wrong-looking, and boards are a **waypoint**
+toward animated meshes; **backgrounds and the air box render from the hex world**, never a
+backdrop. Priority is a functional game, so the playable milestone is P4.
+
 ## Open, and whose call it is
 
 - **Plan #10 P9 leftovers** — the cart is a placement fix; the doors need a **second shot**,
   because a raised camera cannot show a door (roofs occlude their own walls). Not a props
-  bug.
+  bug. *(A first-person eye-height camera may simply dissolve this one — plan #11 P0.)*
 - **Library extraction** — six packages designed (`hexfield`, `hexways`, `hexforms`,
-  `hexgrow`, `hexprops`, `hexscene`), order fixed, **not started**. Deliberately after plan
-  #10, which is now done — so this is the next natural block. → `EXTRACTION.md`
+  `hexgrow`, `hexprops`, `hexscene`), order fixed, **not started**. Now deliberately
+  **after plan #11 P5**: the DoD wants a second consumer, and the game becomes exactly that
+  — an API cut against a real consumer beats one cut against a demo scene. → `EXTRACTION.md`
+- **Stale docs** — `ROADMAP.md` still says "Immediate next step: G1 — nice walls" and
+  `DESIGN.md §18a`'s "Now" list shows G1–G4 + FOV unchecked; all shipped weeks ago
+  (`d1ecc56` = "M-Core complete"). Issues #9/#10 also still carry `status:active` /
+  `status:future` while their work is done. Reconciled in plan #11 P9.
 - **`mesh_trunk` not migrated** to `prim_drum` (P1): it is a six-segment taper whose surface
   equals a one-segment taper, so migrating changes tessellation. A real change, wanting its
   own visible step.
