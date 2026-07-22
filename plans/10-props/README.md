@@ -183,10 +183,26 @@ So props are **present and correct** but **not yet shown**. The composition regr
 the landscape passes: the camera moved close enough to clutter the frame, which is a framing
 fault rather than a modelling one.
 
-**Next pass, named:** give chimneys their own material and about half their size; move the
-camera back to the pass-8 framing and place the cart and a door where the eye path reaches
-them; then run the loop properly with predicates frozen first, as `build/INTENT-landscape.md`
-does. Recording this as unfinished rather than claiming a pass on one look.
+### Second pass — predicates frozen first, then scored
+
+`build/INTENT-props.md` freezes six predicates *before* the fixes, and scores **3 pass,
+3 fail**:
+
+- **pass** — chimneys (own material; the fault was *contrast*, not size, so halving them
+  alone would not have worked), the fence, and prop coverage at ≈0.53% of frame.
+- **fail** — doors (0.01%, on walls facing away), the cart (out of frame), and the castle's
+  dominance: **stone 9.83% against roofs 17.59%**, measured by material id.
+
+**Doors and the cart are placement, not mechanism** — both are finishable in one pass.
+
+**The dominance failure is a decision, not a bug.** It is the same regression the landscape
+work recorded at its own pass 9: once a village exists, its roofs out-mass the castle. Either
+the castle is the subject and the village shrinks or moves down-slope, or the village is the
+subject and predicate 6 is the wrong predicate. That wants deciding **before** a pass, the
+way the hill-versus-sky question was — not resolved by nudging a camera until the number
+turns green.
+
+**P9 stays open** on that decision plus two placements.
 
 ---
 

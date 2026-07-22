@@ -185,6 +185,9 @@ fn main() {
   m_door = add_material(sc, material_color("door", 0.36, 0.22, 0.13));
   m_iron = add_material(sc, material_color("iron", 0.24, 0.23, 0.24));
   m_fence = add_material(sc, material_color("fence", 0.44, 0.36, 0.25));
+  // A chimney needs its OWN material: sharing the roof's made it merge with what it stands
+  // on, which is a contrast failure rather than a size one — though it was also too big.
+  m_chim = add_material(sc, material_color("chimney", 0.70, 0.66, 0.58));
 
   for i in 0..4 {
     gi = add_mesh(sc, mesh_ground(ground, i, 4));
@@ -340,9 +343,9 @@ fn main() {
                                 hz, hz + m(2.0), m(0.95), m(0.07), hang + 1.5707963267948966, ajar));
     add_node(sc, node_at("door", dl, m_door, mat4_identity()));
     ridge = seat_plane(0.0, 0.0, 1.0, hz + m(2.9) * 0.52 + m(2.9) * 1.05 * 0.75);
-    chi = add_mesh(sc, mesh_seated_prism(ridge, hx - cos(hang) * m(1.2), hy - sin(hang) * m(1.2),
-                                         hz + m(2.9) * 0.52 + m(2.9) * 1.05 + m(1.1), m(0.42), 6));
-    add_node(sc, node_at("chimney", chi, m_roof, mat4_identity()));
+    chi = add_mesh(sc, mesh_seated_prism(ridge, hx - cos(hang) * m(1.1), hy - sin(hang) * m(1.1),
+                                         hz + m(2.9) * 0.52 + m(2.9) * 1.05 + m(0.85), m(0.24), 6));
+    add_node(sc, node_at("chimney", chi, m_chim, mat4_identity()));
   }
 
   // a fence along the near field boundary, posts plumb on the slope
@@ -352,12 +355,12 @@ fn main() {
 
   // a handcart standing on the road — the P2 part-list, placed
   crt = parts_new();
-  part_box(crt, 0.0, 0.0, 0.55, 1.30, 0.72, 0.40);
-  part_drum(crt, 0.0, -0.42, 0.32, 0.0, 1.0, 0.0, 0.32, 0.32, 0.07);
-  part_drum(crt, 0.0,  0.35, 0.32, 0.0, 1.0, 0.0, 0.32, 0.32, 0.07);
-  part_box(crt, 0.78, -0.26, 0.52, 0.95, 0.06, 0.06);
-  part_box(crt, 0.78,  0.26, 0.52, 0.95, 0.06, 0.06);
-  cart_x = 9.0; cart_y = -17.0;
+  part_box(crt, 0.0, 0.0, 0.95, 2.20, 1.25, 0.70);
+  part_drum(crt, 0.0, -0.72, 0.56, 0.0, 1.0, 0.0, 0.56, 0.56, 0.12);
+  part_drum(crt, 0.0,  0.60, 0.56, 0.0, 1.0, 0.0, 0.56, 0.56, 0.12);
+  part_box(crt, 1.35, -0.45, 0.90, 1.60, 0.10, 0.10);
+  part_box(crt, 1.35,  0.45, 0.90, 1.60, 0.10, 0.10);
+  cart_x = 15.0; cart_y = -24.0;
   cart_z = terrain(cart_x, cart_y);
   for cpi in 0..parts_count(crt) {
     pm = add_mesh(sc, part_mesh(crt, cpi, cart_x, cart_y, cart_z, 12));
