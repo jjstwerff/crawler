@@ -913,6 +913,9 @@ Exact invariants, in the style of the rest:
 ### The seam, again
 
 **Mechanism library-side, content consumer-side** — the stencil *format*, the rotation, the
-stamp and the merge are `hexfield`; *which* stencils exist is bundle content. That is the
-third place this same seam has appeared (prop kinds, species parameters, stencils), which is
-strong evidence it is the right one and should be settled once rather than three times.
+stamp and the merge are `hexfield`; *which* stencils exist is bundle content.
+
+That was the third appearance of this seam (prop kinds, species parameters, stencils), and it
+is now **settled once**: *a library's enumerations are of mechanisms and are closed; a
+bundle's enumerations are of things and are open* — **BUNDLE.md → "The library/content seam"**.
+All three instances take that answer, and plan #10's open question 3 is closed by it.

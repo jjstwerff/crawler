@@ -548,3 +548,40 @@ the DP straightener is parked on a loft fix — render-only, never blocking the 
     region; do motifs span zones/depths or stay within one?
 12. **Secret-edge model** — how "hidden" is stored + discovered (per-link flag +
     reveal routine), and how a found link persists (ties to L1 persistence).
+
+## The library/content seam — settled once (2026-07-22)
+
+The same question arrived three times — prop kinds (plan #10), species parameters (plan #9),
+stencil sets (EXTRACTION.md) — and all three get one answer.
+
+> **A library's enumerations are of MECHANISMS and are closed.
+> A bundle's enumerations are of THINGS and are open.**
+
+Or, shorter: **the library ships verbs, the bundle ships nouns.**
+
+| | library (closed, small, changes rarely) | bundle (open, large, changes constantly) |
+|---|---|---|
+| props | `PRIM_DRUM`, `PRIM_BOX`, `PRIM_GABLE`, part-list assembly, seats, hinge/wheel/linkage state | *cart* = these five parts with these params; *streetlamp* = these two |
+| trees | crown profile, partition, pipe model, sky fraction | *oak* = paraboloid, R 8, P 20, shade-tolerant |
+| stencils | stamp, rotate, reflect, merge | the actual room, house and tower patterns |
+
+A `kind` is therefore **an opaque integer at the library boundary**, resolved bundle-side into
+`(mechanism, parameters)`. The library never holds a table of kinds; it holds the small fixed
+set of mechanisms those kinds are built from.
+
+### The test, which is this file's existing standing check
+
+**Can a stranger add a new prop, species or stencil by editing only bundle files?**
+
+- *yes* → the seam is right;
+- *no, it needs a new primitive* → that is a genuine mechanism gap, and a library change is
+  correct. It should be **rare**, and each one is worth a moment's suspicion: "the tower
+  primitive was over-specified, not the wheel under-served" (PROPS §Class 1) was exactly such
+  a case, and the fix was to generalise a mechanism rather than add one.
+
+### Why it matters that this is settled before plan #10 P5
+
+P5 derives placement — every opening gets a door, every ridge a chimney. Written without the
+seam decided, it would reach for a hard-coded catalogue of what goes where, and that
+catalogue is content. With it decided, P5 derives *which mechanism* applies and the bundle
+says *which thing* that is.
