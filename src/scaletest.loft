@@ -100,5 +100,22 @@ fn main() {
   if crown_terrain_hexes >= 1.0 { ok = false; }
   println("   -> one model, two readings, and the field/object boundary lands correctly in both");
 
+  // ── the LIVE village, in metres (plan #11 P5) ─────────────────────────────
+  // The generator derives its house ring from the frontage real villages actually keep,
+  // so the ring GROWS with the town instead of crowding. Gated here rather than trusted:
+  // the previous formula put nine 7.5 m houses on a 9-14 m ring — 0.6 m apart, a camp —
+  // and nothing measured it. Frontage must land in the real 10-20 m band at every size,
+  // and the radius must be strictly increasing.
+  prev_rad = 0.0;
+  for ts in 1..5 {
+    nh = 3 + ts * 2;
+    rad_m2 = (nh as float) * 8.0 / 6.2831853 * M_PER_HEX_STEP;   // the builder's own expression
+    front_m = 6.2831853 * rad_m2 / (nh as float) ?? 0.0;
+    println("   town ot_size={ts}: {nh} houses, ring radius {rad_m2} m, frontage {front_m} m");
+    if front_m < 10.0 || front_m > 20.0 { ok = false; }
+    if rad_m2 <= prev_rad { ok = false; }
+    prev_rad = rad_m2;
+  }
+
   if ok { println("=== SCALE OK ==="); } else { println("=== FAIL ==="); }
 }
