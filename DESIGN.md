@@ -89,6 +89,53 @@ hazards, and the lose-the-dive stakes (#5) — never in stat-gates, RNG instakil
 permadeath tax. The identity in one line: **Zelda's exploration + capability feel,
 Souls-grade fair challenge, no permadeath.**
 
+0. **BOUNDED SIMULATION — depth in the derivation, shallow at the interface.** *(user,
+   2026-07-22, and the authority over every later pillar when they conflict.)* Dwarf Fortress
+   is hard to get into **not by design**: its simulation is exposed directly, so the player
+   must learn the *model* before they can play the *game*. That is the trap, and it is
+   entered one reasonable feature at a time.
+
+   The rule that prevents it: **a derived system buys COHERENCE, not mechanics.** The canopy
+   may run a competition model — the player sees "a wood, thicker on the north slope". A
+   village may be scored from terrain, roads and water — the player sees "a village where a
+   village makes sense". Arbitrarily deep derivation is welcome, because it costs the player
+   nothing to look at.
+
+   **The measurable form: count the verbs.** The player's action vocabulary is a budget, and
+   it is small — **15 keys bound today** (~11 gameplay, 4 meta), which is Doom-to-Souls
+   territory and where it stays. Angband has 40+; DF is effectively unbounded through nested
+   menus. So every new simulation faces one question: **does this add something the player
+   must learn?**
+   - **No** → it is free, however deep. Build it as deep as it wants to be.
+   - **Yes** → it must *displace* something, or earn its slot against the onboarding budget
+     (#8's one-mechanic-first-per-floor). "It is realistic" is not an argument; realism is a
+     property of the derivation, never a licence for a verb.
+
+   **The budget is NET, not frozen** (user, 2026-07-22): we can build more, but carefully, and
+   we look for what to drop *at the same time*. Adding without pruning is how the budget is
+   lost — never in one decision, always in ten reasonable ones. So a verb audit runs whenever
+   verbs are added. The standing one (2026-07-22, read off `story.loft`):
+
+   | binding | what it is | verdict |
+   |---|---|---|
+   | `.` and Space | both wait | **alias — keep.** An alias costs nothing to *learn* |
+   | `1`–`9` + `Q` + `E` | numbered quickslots *plus* two named ones | **collapse the concept** — three ways to use an item is one too many |
+   | `C` and `I` | character page *and* inventory page | **merge** — the hub already shows carried \| equipped |
+   | `G` grab, gold auto | items manual, gold automatic | **an inconsistency to learn** — auto-pick-up drops the verb *and* the rule |
+   | `N` next world | a host/dev action | **not a player verb** — move out of the play key space |
+
+   ⇒ **15 keys → ~11, and three fewer concepts**, losing nothing a player would miss.
+
+   **The rule paying off, concretely:** plan #11 P5 turns doors from gaps in a wall into real
+   openings with hinges, leaves and clear widths — a large simulation deepening — and it costs
+   **zero verbs**, because doors are **bump-to-open** (already specified in §18a). Deep
+   derivation, unchanged interface. That is the shape every new system should have.
+
+   Corollary — **legibility beats fidelity at the interface.** Where a correct simulation and
+   a readable one disagree in what the *player* is shown, readability wins and the deviation
+   is recorded (`SCALE.md` → the real-measurement rule already carries the same shape: ship
+   correct, let the consumer depart deliberately).
+
 1. **Procedural, never authored.** Content is generated; hand-designed set-pieces are
    moros's path (§3 Non-Goals). crawler's richness comes from procedural variety +
    systemic mechanics, not authored layouts.

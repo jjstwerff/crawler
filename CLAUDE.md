@@ -78,6 +78,13 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   **names are original** — NEVER use Tolkien (Angband, Morgoth, Sauron, balrog,
   Nazgûl, ent; use "halfling" not "hobbit") or Zelazny/Amber (Oberon, Amberites,
   Trumps) names.
+- **BOUNDED SIMULATION — depth in the derivation, shallow at the interface** (DESIGN §3a
+  pillar 0, the authority over the others). Dwarf Fortress is hard to get into *not by
+  design*; the trap is entered one reasonable feature at a time. A derived system buys
+  **coherence, not mechanics**: derive as deep as you like, but ask of every one — *does this
+  add something the player must learn?* If yes it must displace something. **The budget is
+  measurable: 15 keys bound today** (~11 gameplay), Doom-to-Souls territory, and it stays
+  there. "It is realistic" justifies the derivation, never a new verb.
 - **Follow Angband logic, tune for accessibility.** Reproduce real Angband (4.2 core
   + ZAngband wilderness/realms) *systems/mechanics* faithfully — but the *curve*,
   *death model* (checkpoint respawn, not permadeath), and *class weight* are
