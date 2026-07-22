@@ -410,6 +410,12 @@ All siblings under `/home/jurjens/workspace/`:
   package); crawler keeps the golden-JSON diff vs the Python oracle as its consumer check.
   The in-world editor is the second consumer — `EXTRACTION.md` → *The editor as the second
   consumer*.
+- **The world is DERIVED, and `overland` owns the deriving.** It decides *where* a settlement
+  is, its size, its field ring (`ot_fld`), its roads and its ruins — scored from terrain. The
+  geometry stack (#5/#9/#10) is a **consumer** of that: it builds what the scorer placed, at
+  real measurements (`SCALE.md`). **We integrate with that system; we do not rewrite it** —
+  no settlement logic in the field model, no second scorer, and the seam runs one way only
+  (plan #11 P5).
 - `overland.loft` — the contract WILDERNESS (OVERLAND.md §12-13): the example world's
   vertex/side/corner/edge contracts + zonation -> terrain kinds; the depth-0 surface is a
   101×101 window of it (15 natural m per walked hex); `ovmap.loft` prints it as a ZAngband

@@ -82,7 +82,7 @@ check must go red.
 | **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | Blocked on P2 |
 | **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | Blocked on P3 |
 | **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | Blocked on P3 |
-| **P5** — the stack in the generator: round towers, real doors, heights | M | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres | Blocked on P2 |
+| **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | Blocked on P2 |
 | **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |
 | **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
 | **P6d** — the blend band where near geometry meets the sky-box | M | silhouette agreement at the switch distance; no pop, no ghost | Blocked on P6 |
@@ -92,6 +92,40 @@ check must go red.
 
 **The playable milestone is P4.** P0–P4 is "the game is 3D and you can play it"; everything
 after enriches it. That ordering is deliberate — *a functional game first*.
+
+## P5, restated — the seam that has never been connected
+
+Both halves of a derived world already exist and have never met (found 2026-07-22):
+
+- **`overland.loft` decides WHERE.** A scored settlement list with a formation threshold
+  (`bs = 1.2` — below it no town forms), enforced spacing, size from score, **`ot_fld`, the
+  farmers' cut** (a field radius per town), roads between towns, roadside waystations, the
+  keep sited *above* its town, and **ruins derived from the scorer's runners-up** — the sites
+  the living world rejected, which were inhabited once. It renders as map characters.
+- **Plans #5/#9/#10 decide WHAT.** Walls, roofs, arches, vaults, doors and windows as surface
+  intervals, props derived from buildings, canopy-first trees. Demonstrated only on a
+  **hand-placed** village in `land.loft`.
+
+So P5 is not "add round towers" — it is **connecting the scorer to the builder**, so a village
+exists because the terrain supports one, and is *made of* the geometry stack at real
+measurements. The pieces that make this cheap: `ot_fld` already gives the ring the fields and
+the orchard belong in; the roads already exist as `K_ROAD`; and plan #10 P5 already
+demonstrated *derived* furnishing ("a village furnishes itself" — one door per opening).
+
+> **We do NOT write that system — we integrate with it** (user, 2026-07-22). `overland` stays
+> the sole authority on *where* a settlement is, how big, and what ground it claims. The
+> geometry stack is a **consumer of its output**, never a second opinion about placement.
+> No settlement logic moves into the field model; no second scorer is written; the seam is
+> one-directional.
+>
+> This is the kernel/view split one level out, and it takes the same two checks:
+> **the builder is a pure function of the overland's output** — the same `OvTown` yields the
+> same village, every time — and the **negative control**: delete the builder entirely and the
+> overland's own output must be *bit-identical*, because nothing downstream may feed back into
+> placement. `overlandtest` is the regression net that proves it, unchanged.
+
+The check that matters is the one a hand-placed scene cannot pass: **the same seed must
+produce the same village, and a village must appear only where the score allows one.**
 
 ## P0 result — measured 2026-07-22
 
@@ -146,6 +180,26 @@ hit rather than an impression to match.
    exists. So the target frame as written **cannot be fully plotted yet** — two of its three
    elements do not exist. That is a legitimate P0 outcome: the blueprint found what is
    missing before any code was written for it.
+
+### Corrected the same day (user ruling: measurements are real by default)
+
+`SCALE.md` → *The default is REAL — stylisation is the implementer's choice*. The scene now
+carries the dimensions of the actual things, and the corrections were **derived, not tuned**:
+
+| | was | now |
+|---|---|---|
+| cottage eaves | 1.51 m | **2.40 m** (wall plate, single-storey vernacular) |
+| cottage ridge | 4.55 m | **4.49 m** — now *derived*: 45° pitch over the roof depth |
+| door leaf | 1.45 × 1.05 m | **1.95 × 0.85 m** — 0.20 m head clearance for the figure |
+| landscape tree | 7–11 m, 6–9 m spread | **13–20 m**, crown radius **0.42 × h**, trunk **h/22** |
+| orchard | — | **5–7 m on a 9.5 m grid**, crown radius 0.46 × h |
+
+**The orchard needs no new mechanism, which is the interesting part.** A trunk is an item in a
+hex and the canopy is a field above it (plan #9), so *trunks on a regular lattice have
+uncontested canopies* — no competition, hence no lean, equal crowns, uniform bole — while
+scattered trunks contest their cells and the partition produces the lean and raised bole that
+read as grown. **Planted vs grown is a placement pattern, not a second routine.** The scene
+still uses stand-in geometry for both; P7 wires plan #9's real model behind them.
 
 ### One process note, kept because it nearly bit
 

@@ -89,6 +89,41 @@ architecture scale.
 the gate.** A threshold with no real-world size attached cannot be checked, and this
 document exists because a dozen of them accumulated that way.
 
+## The default is REAL — stylisation is the implementer's choice
+
+**User ruling, 2026-07-22.** Houses, castles and trees ship with the measurements of the
+actual things. A game built on this engine **may** choose a stylised version — squat cottages,
+toy castles, lollipop trees — but that is *its* decision, taken deliberately, and the default
+it departs from is correct.
+
+This is the same seam as everywhere else in the project, one level down: **the library ships
+the true measurement (the mechanism); the consumer ships the departure from it (the content).**
+A stylised world built on correct numbers can always be measured; a stylised world built on
+guessed numbers cannot be corrected, because nothing records what it was departing *from*.
+
+The reference dimensions in use (`src/land.loft`, and the anchor for anything new):
+
+| thing | real | note |
+|---|---|---|
+| door leaf | **1.95 × 0.85 m**, 45 mm | a 1.75 m figure walks through upright |
+| cottage eaves (wall plate) | **2.4 m** | single-storey vernacular |
+| cottage roof | **45°** pitch → ridge ≈ 4.5–4.8 m | thatch runs 50–55°; scale the one number |
+| mature landscape tree | **13–20 m**, crown radius ≈ 0.42 × h, trunk ≈ h/22 | oak / ash / lime, open-grown |
+| traditional orchard tree | **5–7 m** on a **9–10 m grid**, crown radius ≈ 0.46 × h | standard fruit stock, pre-industrial |
+| mural tower | 8–9 m across, 11–14 m tall | + a 1.6 m battlement course |
+| keep | 15–17 m across, 13–18 m tall | + a 2.2 m battlement course |
+
+**How this gets caught.** Not by eye. The failure that produced this rule — 1.51 m eaves and a
+1.45 m door against a 1.75 m figure — survived a full plan (#10 P9, scored 4/6) because every
+camera was raised. It died in the first hour of an **eye-height** camera plus arithmetic
+(plan #11 P0). So: state new dimensions **in metres**, against the real object, and check them
+from 1.6 m.
+
+**A known future deviation, recorded now so it is a decision and not a drift.** A first-person
+hex roguelike may want doorways *wider* than 0.85 m for tactical readability. If crawler takes
+that, it is crawler's stylisation choice under this rule — written down, with the real number
+still here to depart from.
+
 ## Open work — two readings, or a ladder?
 
 The contract fixes **two** readings (1.5 m architecture, 15 m terrain) and one dial,

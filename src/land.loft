@@ -121,17 +121,26 @@ fn mesh_ground(s: HexSet, tint: integer, ntint: integer) -> Mesh {
 
 // a house: walls to the eaves, then a gable roof — the profile x distance table, section 13
 fn add_house(sc: Scene, cuw: integer, cur: integer, wallm: integer, roofm: integer,
-             x: float, y: float, w: float, d: float, hgt: float, ang: float) {
+             x: float, y: float, w: float, d: float, eaves: float, ang: float) {
   z = terrain(x, y);
-  // A COTTAGE IS MOSTLY ROOF. The walls were as tall as the roof was deep, so the houses
-  // read as grey boxes with a red lid. Low eaves and a tall pitch is what says "dwelling".
-  wallh = hgt * 0.52;
+  // REAL DIMENSIONS (user ruling 2026-07-22): the engine ships true measurements and a game
+  // implementer may stylise; we do not stylise by default. `eaves` is the WALL PLATE height,
+  // authored in metres by the caller, not a fraction of some other number.
+  //
+  // A cottage is still mostly roof — but that is achieved by the PITCH, not by shrinking the
+  // wall below head height. The previous `wallh = hgt * 0.52` gave 1.51 m eaves and a 1.45 m
+  // door against a 1.75 m figure: you had to stoop to enter and could not stand at any wall.
+  // Only an eye-height camera showed it (plan #11 P0).
   add_node(sc, node_at("house", cuw, wallm,
-    mat4_trs(x, y, z + wallh * 0.5, ang, w, d, wallh)));
+    mat4_trs(x, y, z + eaves * 0.5, ang, w, d, eaves)));
   // The eaves overhung 1.20x the wall, which from any raised camera hid the wall — and
   // with it every door in the village. A cottage eave projects a little; it does not
   // cantilever over the whole elevation.
-  gi = add_mesh(sc, mesh_gable(x, y, z + wallh, w * 1.06, d * 1.10, hgt * 1.05, ang));
+  // The roof is DERIVED from a 45-degree pitch over the roof's own depth (overhang
+  // included) — which is what a real slate or tile cottage roof is. Thatch runs steeper
+  // (50-55 deg); a game wanting thatch scales this one number.
+  rd = d * 1.10;
+  gi = add_mesh(sc, mesh_gable(x, y, z + eaves, w * 1.06, rd, rd * 0.5, ang));
   add_node(sc, node_at("roof", gi, roofm, mat4_identity()));
 }
 
@@ -247,7 +256,7 @@ fn main() {
     hx = 2.0 + (i as float) * 5.0 - 1.6 * cos((i as float) * 1.7);
     hy = -6.0 + 4.2 * sin((i as float) * 2.1);
     add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
-              m(6.0), m(4.4), m(3.4), 0.4 * ((i as float) - 2.0));
+              m(6.0), m(4.4), m(2.4), 0.4 * ((i as float) - 2.0));
   }
 
   // ── the path: from the front of the frame up to the hamlet ───────────────
@@ -275,17 +284,52 @@ fn main() {
     if !inpath {
       tz = terrain(tx, ty);
       v = 0.62 + 0.52 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
-      th = m(7.0) * v + m(3.0);
-      cr = 3.1 * v + 1.5;
+      // REAL DIMENSIONS: a mature open-grown hedgerow/landscape tree (oak, ash, lime) is
+      // 13-20 m tall with a crown spread about equal to its height, and a trunk roughly
+      // height/22 across. Crown radius and trunk are DERIVED from height, not tuned — the
+      // old 7-11 m with a 6-9 m spread was orchard-sized and read as one.
+      th = m(12.0) * v + m(6.0);
+      cr = th * 0.42;
       lm = m_leaf;
       if i % 3 == 1 { lm = m_leaf2; }
       lean = 0.35 * ((((i * 3) % 5) as float) / 4.0 - 0.5) ?? 0.0;
+      td = th / 22.0 ?? 0.5;
       add_node(sc, node_at("trunk", cu_bark,
-        m_bark, mat4_trs(tx, ty, tz + th * 0.32, lean, 0.55 + 0.3 * v, 0.55 + 0.3 * v, th * 0.66)));
+        m_bark, mat4_trs(tx, ty, tz + th * 0.32, lean, td, td, th * 0.66)));
       ci = add_mesh(sc, mesh_crown(tx + lean * th * 0.5, ty, tz + th * 0.50,
                                    tz + th * (0.92 + 0.22 * v), cr, 5, 11));
       add_node(sc, node_at("crown", ci, lm, mat4_identity()));
     }
+  }
+
+  // ── the orchard: the SAME tree, planted instead of grown ─────────────────
+  // An orchard reads as an orchard because it is in ROWS. That is the inversion of the
+  // scattered-trees note above: there, regularity was the signature of abstraction; here it
+  // is the signature of cultivation, and it is what tells the eye "someone planted this".
+  //
+  // In the real model (plan #9) this needs NO new mechanism, only a different placement: a
+  // trunk is an item in a hex and the canopy is a field above it, so trunks on a REGULAR
+  // lattice have uncontested canopies — no competition, hence no lean, equal crowns, uniform
+  // crown base — while scattered trunks contest their cells and the partition produces the
+  // lean and the raised bole that read as grown. Same routine, two outcomes.
+  //
+  // REAL DIMENSIONS: a traditional standard fruit tree is 5-7 m tall on a 9-10 m grid, with
+  // a crown radius of 2.5-3.5 m and a short clear bole. Modern bush orchards are half that
+  // and much denser; this is the pre-industrial kind that belongs beside a village.
+  for oi in 0..12 {
+    orow = oi / 4;
+    ocol = oi % 4;
+    ox = -34.0 + (ocol as float) * m(9.5);
+    oy = -34.0 + (orow as float) * m(9.5);
+    oz = terrain(ox, oy);
+    ov = 0.90 + 0.14 * (((oi * 3) % 4) as float) / 3.0 ?? 0.0;   // planted stock varies little
+    oh = m(6.0) * ov;
+    ocr = oh * 0.46;                       // a fruit tree is broader for its height
+    otd = oh / 16.0 ?? 0.3;                // and thicker-boled, because it is kept short
+    add_node(sc, node_at("trunk", cu_bark, m_bark,
+      mat4_trs(ox, oy, oz + oh * 0.22, 0.0, otd, otd, oh * 0.44)));
+    oc = add_mesh(sc, mesh_crown(ox, oy, oz + oh * 0.38, oz + oh * 1.02, ocr, 5, 9));
+    add_node(sc, node_at("crown", oc, m_leaf2, mat4_identity()));
   }
 
   // ── the road: wider than the footpath, continuous, through the village ───
@@ -336,7 +380,7 @@ fn main() {
     hy = ry + side * 0.55;
     hang = 0.6 + 0.25 * ((i as float) - 3.0);
     add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
-              m(5.2), m(3.8), m(2.9), hang);
+              m(5.2), m(3.8), m(2.4), hang);
     // PROPS, derived from the building rather than placed by hand: a door in the front
     // wall and a chimney on the ridge. Each house differs because the seed does.
     hz = terrain(hx, hy);
@@ -345,10 +389,11 @@ fn main() {
     dface = 0.0 - 0.93;
     dw = m(3.8) * 0.5;
     ajar = 0.35 + 0.75 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
-    // and the leaf has to FIT the wall it is in: the wall is 0.52 of the house height, so
-    // a 2.1 m door was taller than its own opening and buried in the roof.
+    // A REAL door leaf: 1.95 m tall, 0.85 m wide, 45 mm thick. It fits the 2.4 m wall with
+    // 0.45 m of head above it, which is what a doorway in a real cottage looks like — and a
+    // 1.75 m figure walks through it upright.
     dl = add_mesh(sc, mesh_leaf(hx + cos(dface) * dw, hy + sin(dface) * dw,
-                                hz, hz + m(2.9) * 0.50, m(1.05), m(0.10),
+                                hz, hz + m(1.95), m(0.85), m(0.045),
                                 dface + 1.5707963267948966, ajar));
     add_node(sc, node_at("door", dl, m_door, mat4_identity()));
     ridge = seat_plane(0.0, 0.0, 1.0, hz + m(2.9) * 0.52 + m(2.9) * 1.05 * 0.75);
