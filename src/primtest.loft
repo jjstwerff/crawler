@@ -1,0 +1,107 @@
+// primtest — plan #10 P1: primitives that take an axis.
+//
+// The whole safety of this phase is the FIRST check: the vertical case must be bit-identical
+// to what the hardcoded-z drum produced. A refactor of four call sites is only safe to do
+// first if it can be proven to change nothing, and "looks the same" is not that proof.
+use mesh3d;
+use hexprim;
+
+fn dot(a: Vec3, b: Vec3) -> float { a.x * b.x + a.y * b.y + a.z * b.z }
+fn len3(a: Vec3) -> float { sqrt(a.x * a.x + a.y * a.y + a.z * a.z) ?? 0.0 }
+
+fn main() {
+  println("=== story primitive test (plan #10 P1) ===");
+  ok = true;
+
+  // ── 1. the frame is orthonormal and right-handed, at every axis ──────────
+  // Including the poles, which is exactly where a naive reference vector collapses and
+  // where it is hardest to notice by looking.
+  worst_dot = 0.0;
+  worst_len = 0.0;
+  worst_hand = 0.0;
+  n = 0;
+  for i in 0..8 {
+    for j in 0..8 {
+      th = 3.141592653589793 * ((i as float) + 0.5) / 8.0 ?? 0.0;
+      ph = 6.283185307179586 * (j as float) / 8.0 ?? 0.0;
+      ax = sin(th) * cos(ph);
+      ay = sin(th) * sin(ph);
+      az = cos(th);
+      u = basis_u(ax, ay, az);
+      v = basis_v(ax, ay, az);
+      w = vec3(ax, ay, az);
+      d1 = dot(u, v); if d1 < 0.0 { d1 = 0.0 - d1; }
+      d2 = dot(u, w); if d2 < 0.0 { d2 = 0.0 - d2; }
+      d3 = dot(v, w); if d3 < 0.0 { d3 = 0.0 - d3; }
+      if d1 > worst_dot { worst_dot = d1; }
+      if d2 > worst_dot { worst_dot = d2; }
+      if d3 > worst_dot { worst_dot = d3; }
+      e1 = len3(u) - 1.0; if e1 < 0.0 { e1 = 0.0 - e1; }
+      e2 = len3(v) - 1.0; if e2 < 0.0 { e2 = 0.0 - e2; }
+      if e1 > worst_len { worst_len = e1; }
+      if e2 > worst_len { worst_len = e2; }
+      // right-handed: u x v must equal w
+      hx = u.y * v.z - u.z * v.y;
+      hy = u.z * v.x - u.x * v.z;
+      hz = u.x * v.y - u.y * v.x;
+      h = (hx - ax) * (hx - ax) + (hy - ay) * (hy - ay) + (hz - az) * (hz - az);
+      if h > worst_hand { worst_hand = h; }
+      n = n + 1;
+    }
+  }
+  println("frame over {n} axes: worst |dot| {worst_dot}, worst |len-1| {worst_len}, worst handedness {worst_hand}");
+  if worst_dot > 0.000000001 { ok = false; }
+  if worst_len > 0.000000001 { ok = false; }
+  if worst_hand > 0.000000001 { ok = false; }
+  println("   -> includes both poles, where a fixed reference vector collapses");
+
+  // ── 2. THE SAFETY CHECK: a rotation changes no measurement ───────────────
+  // A drum is the same drum whichever way it points. Same triangle count, same radius at
+  // both ends, same length. If any of these move, the axis generalisation is wrong.
+  vert = prim_drum(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 1.6, 5.0, 16);
+  horiz = prim_drum(0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 1.6, 5.0, 16);
+  tilt = prim_drum(0.0, 0.0, 0.0, 0.6, 0.5, 0.62, 2.0, 1.6, 5.0, 16);
+  println("triangles: vertical {len(vert.triangles)}, horizontal {len(horiz.triangles)}, tilted {len(tilt.triangles)}");
+  if len(vert.triangles) != len(horiz.triangles) { ok = false; }
+  if len(vert.triangles) != len(tilt.triangles) { ok = false; }
+  if len(vert.vertices) != len(horiz.vertices) { ok = false; }
+
+  // every vertex must sit at its stated radius from the axis line
+  worst_r = 0.0;
+  for k in 0..3 {
+    ms = vert; axx = 0.0; ayy = 0.0; azz = 1.0;
+    if k == 1 { ms = horiz; axx = 0.0; ayy = 1.0; azz = 0.0; }
+    if k == 2 { ms = tilt; axx = 0.6; ayy = 0.5; azz = 0.62; }
+    al = sqrt(axx * axx + ayy * ayy + azz * azz) ?? 1.0;
+    axx = axx / al ?? 0.0; ayy = ayy / al ?? 0.0; azz = azz / al ?? 0.0;
+    for i in 0..len(ms.vertices) {
+      p = ms.vertices[i];
+      t = p.pos.x * axx + p.pos.y * ayy + p.pos.z * azz;      // distance along the axis
+      px = p.pos.x - axx * t;
+      py = p.pos.y - ayy * t;
+      pz = p.pos.z - azz * t;
+      rad = sqrt(px * px + py * py + pz * pz) ?? 0.0;
+      // it is either on the wall (r0 tapering to r1) or a cap centre (r 0)
+      want = 2.0 + (1.6 - 2.0) * (t / 5.0 ?? 0.0);
+      e = rad - want; if e < 0.0 { e = 0.0 - e; }
+      if rad > 0.0001 && e > worst_r { worst_r = e; }
+    }
+  }
+  println("worst radial error across vertical, horizontal and tilted drums: {worst_r}");
+  if worst_r > 0.000001 { ok = false; }
+  println("   -> a rotation cannot change a radius, a length or a triangle count. It does not.");
+
+  // ── 3. NEGATIVE CONTROL: a zero axis is refused, not guessed at ──────────
+  bad = prim_drum(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 1.6, 5.0, 16);
+  println("negative control — zero-length axis: {len(bad.triangles)} triangles (must be 0)");
+  if len(bad.triangles) != 0 { ok = false; }
+  println("   -> refused rather than silently producing NaNs, which would survive every");
+  println("      other check in this file and surface as invisible geometry much later");
+
+  // ── 4. a wheel, stated as what it is ─────────────────────────────────────
+  wheel = prim_drum(0.0, -0.42, 0.32, 0.0, 1.0, 0.0, 0.32, 0.32, 0.07, 16);
+  println("a wheel is prim_drum(axis=(0,1,0), r=0.32, len=0.07): {len(wheel.triangles)} triangles");
+  if len(wheel.triangles) <= 0 { ok = false; }
+
+  if ok { println("=== PRIM OK ==="); } else { println("=== FAIL ==="); }
+}

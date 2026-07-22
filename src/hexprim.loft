@@ -1,0 +1,100 @@
+// hexprim — plan #10 P1: primitives that take an AXIS.
+//
+// Every primitive in this project bakes the vertical axis in: the ring is swept in x,y and
+// the length runs along z. That is the plan-view assumption of the whole stack — a
+// footprint on hexes, extruded upward — and it is exactly right for walls, towers, roofs
+// and trees. It stops dead at the first object whose principal axis is not vertical.
+//
+// A wheel is a drum on its side. Phrased that way the diagnosis is obvious: the TOWER
+// primitive was over-specified, not the wheel under-served. Taking an axis instead of a
+// z-range retires wheels, axles, gutters and ladder rails in one change, and the vertical
+// case is just axis = (0,0,1).
+//
+// The gate for this phase is BIT-IDENTITY on that vertical case, which is what makes a
+// refactor of four call sites safe to do first.
+use mesh3d;
+
+// A stable orthonormal right-handed frame from one direction.
+//
+// The reference vector must not be parallel to the axis or the cross product collapses —
+// so it is chosen by looking at which component of the axis is smallest, which cannot be
+// the dominant one. Without a shared helper every caller invents this and they disagree
+// near the poles, which is exactly where it is hardest to notice.
+pub fn basis_u(ax: float, ay: float, az: float) -> Vec3 {
+  // pick the reference away from the axis's dominant component
+  rx = 0.0; ry = 0.0; rz = 1.0;
+  aax = ax; if aax < 0.0 { aax = 0.0 - aax; }
+  aay = ay; if aay < 0.0 { aay = 0.0 - aay; }
+  aaz = az; if aaz < 0.0 { aaz = 0.0 - aaz; }
+  if aaz >= aax && aaz >= aay { rx = 1.0; ry = 0.0; rz = 0.0; }
+  ux = ay * rz - az * ry;
+  uy = az * rx - ax * rz;
+  uz = ax * ry - ay * rx;
+  l = sqrt(ux * ux + uy * uy + uz * uz) ?? 0.0;
+  if l < 0.000000001 { return vec3(1.0, 0.0, 0.0); }
+  vec3(ux / l ?? 0.0, uy / l ?? 0.0, uz / l ?? 0.0)
+}
+
+pub fn basis_v(ax: float, ay: float, az: float) -> Vec3 {
+  u = basis_u(ax, ay, az);
+  vx = ay * u.z - az * u.y;
+  vy = az * u.x - ax * u.z;
+  vz = ax * u.y - ay * u.x;
+  l = sqrt(vx * vx + vy * vy + vz * vz) ?? 0.0;
+  if l < 0.000000001 { return vec3(0.0, 1.0, 0.0); }
+  vec3(vx / l ?? 0.0, vy / l ?? 0.0, vz / l ?? 0.0)
+}
+
+// A drum about an arbitrary axis: the ring is swept in the plane perpendicular to it, and
+// the length runs along it.  axis (0,0,1) is a tower; (0,1,0) is a wheel; thin and long is
+// an axle; half of it is a gutter.
+//
+// `base` is the centre of the near end, not the middle — so a tower rising from the ground
+// and a wheel hanging off an axle are stated the same way.
+pub fn prim_drum(bx: float, by: float, bz: float,
+                 ax: float, ay: float, az: float,
+                 r0: float, r1: float, length: float, sides: integer) -> Mesh {
+  ms = mesh("drum");
+  uu = vec2(0.0, 0.0);
+  al = sqrt(ax * ax + ay * ay + az * az) ?? 0.0;
+  if al < 0.000000001 { return ms; }         // a zero axis is refused, not guessed at
+  nx = ax / al ?? 0.0;
+  ny = ay / al ?? 0.0;
+  nz = az / al ?? 0.0;
+  u = basis_u(nx, ny, nz);
+  v = basis_v(nx, ny, nz);
+  ex = bx + nx * length;
+  ey = by + ny * length;
+  ez = bz + nz * length;
+  for s in 0..sides {
+    a0 = 6.283185307179586 * ((s as float) / (sides as float) ?? 0.0);
+    a1 = 6.283185307179586 * (((s + 1) as float) / (sides as float) ?? 0.0);
+    c0 = cos(a0); s0 = sin(a0);
+    c1 = cos(a1); s1 = sin(a1);
+    n0 = vec3(u.x * c0 + v.x * s0, u.y * c0 + v.y * s0, u.z * c0 + v.z * s0);
+    p0 = add_vertex(ms, vertex(vec3(bx + r0 * (u.x * c0 + v.x * s0),
+                                    by + r0 * (u.y * c0 + v.y * s0),
+                                    bz + r0 * (u.z * c0 + v.z * s0)), n0, uu));
+    p1 = add_vertex(ms, vertex(vec3(bx + r0 * (u.x * c1 + v.x * s1),
+                                    by + r0 * (u.y * c1 + v.y * s1),
+                                    bz + r0 * (u.z * c1 + v.z * s1)), n0, uu));
+    p2 = add_vertex(ms, vertex(vec3(ex + r1 * (u.x * c1 + v.x * s1),
+                                    ey + r1 * (u.y * c1 + v.y * s1),
+                                    ez + r1 * (u.z * c1 + v.z * s1)), n0, uu));
+    p3 = add_vertex(ms, vertex(vec3(ex + r1 * (u.x * c0 + v.x * s0),
+                                    ey + r1 * (u.y * c0 + v.y * s0),
+                                    ez + r1 * (u.z * c0 + v.z * s0)), n0, uu));
+    add_quad(ms, p0, p1, p2, p3);
+    // the far cap
+    nc = vec3(nx, ny, nz);
+    cc = add_vertex(ms, vertex(vec3(ex, ey, ez), nc, uu));
+    t0 = add_vertex(ms, vertex(vec3(ex + r1 * (u.x * c0 + v.x * s0),
+                                    ey + r1 * (u.y * c0 + v.y * s0),
+                                    ez + r1 * (u.z * c0 + v.z * s0)), nc, uu));
+    t1 = add_vertex(ms, vertex(vec3(ex + r1 * (u.x * c1 + v.x * s1),
+                                    ey + r1 * (u.y * c1 + v.y * s1),
+                                    ez + r1 * (u.z * c1 + v.z * s1)), nc, uu));
+    add_triangle(ms, cc, t0, t1);
+  }
+  ms
+}

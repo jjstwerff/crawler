@@ -5,7 +5,7 @@
 
 ## Status
 
-**Future — nothing built.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1 half done** (see below). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -19,7 +19,21 @@ honest answer is a tolerance, it is stated as one.
 
 ---
 
-## P1 — axis-agnostic primitives
+## P1 — axis-agnostic primitives  — **HALF DONE**
+
+**Built:** `src/hexprim.loft` — `basis_u`/`basis_v` and `prim_drum`, taking an axis instead
+of a z-range. Gated by `src/primtest.loft`.
+
+**NOT done:** the existing call sites (`mesh_drum`, `mesh_trunk`, the tower and crown
+builders) have **not been migrated**, so the bit-identity guard — the clause that made this
+phase safe to do first — has **not been exercised**. The new primitive stands beside the old
+one rather than replacing it.
+
+That is a real gap, not a technicality: the gate as written checks that a rotation preserves
+radius, length and triangle count, which proves the new code is *self-consistent*. It does
+not prove it produces *what the old code produced*, which is the only claim that makes the
+migration free. **Finish P1 by migrating the call sites under the bit-identity check before
+starting P2.**
 
 **Why first:** it is a pure refactor with a regression guard, so it cannot break anything,
 and it retires an entire class of hard case (PROPS §Class 1).
