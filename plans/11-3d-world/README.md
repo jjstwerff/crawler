@@ -15,7 +15,10 @@ Decisions taken with the user (2026-07-22): **first-person at eye height**; **3D
 the 2D view** once it reaches parity; **one front view per actor**, loader ready for
 `_r0..r7`; **boards carry the existing top-down PNGs for now** (wrong-looking, accepted —
 actors were never the focus); **boards are a waypoint** toward animated meshes; **the
-background and air box render from the hex world**, not from a backdrop.
+background and air box render from the hex world**, not from a backdrop; and **normal
+gameplay defaults to the parallax sky-box** — the full terrain projection is a flight/fall
+regime, so the displaced raster (**I-DISPLACE**) leaves the normal-play path entirely and
+travels with the flight/orbit pass.
 
 ## Goal
 
@@ -57,8 +60,7 @@ an earlier one is false.
 | **P4** | a board of height *h* m and a wall of height *h* m at the same distance, side by side | I-STAND (metric parity) | a GL frame + pixel span assertion (`make probe`) |
 | **P6** | the boundary ring sampled from both readings, heights diffed | I-HORIZON | headless numeric test + a rendered horizon |
 | **P6b** | for a walk of known length: which layers re-rendered, and the worst parallax error each frame | I-PARALLAX | headless numeric test (pure camera math) + a pop-free walk |
-| **P6c** | one distant building **and** one distant tree from the same displaced raster, plotted beside the near geometry at the switch distance | I-DISPLACE (+ the trees claim, to break) | a Python probe — **the cheapest medium, before any loft** |
-| **P6d** | the same structure crossing its switch distance, frame by frame | I-AGREE | silhouette diff + a walk-through with no pop and no ghost |
+| **P6d** | the same structure crossing the near/sky-box switch, frame by frame | I-AGREE | silhouette diff + a walk-through with no pop and no ghost |
 
 Phases **P5, P7, P8, P9** have no new exact-invariant surface of their own — they reuse
 gates that already exist (the matcher's arc recovery, the props/canopy gates, the sprite
@@ -82,8 +84,7 @@ check must go red.
 | **P5** — the stack in the generator: round towers, real doors, heights | M | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres | Blocked on P2 |
 | **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |
 | **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
-| **P6c** — displaced height raster: vertical walls from a heightfield | MH | Python probe first; then triangle-area (no-fold) + silhouette gates | Blocked on P6 |
-| **P6d** — the blend band between representations | M | silhouette agreement at the switch distance, then a pop-free, ghost-free crossing | Blocked on P6c |
+| **P6d** — the blend band where near geometry meets the sky-box | M | silhouette agreement at the switch distance; no pop, no ghost | Blocked on P6 |
 | **P7** — props + trees in the live world | M | existing plan #9/#10 gates, now on generated worlds | Blocked on P5 |
 | **P8** — sprites redrawn side-on | H | the sprite recognition bar (CLAUDE.md), re-stated for elevation views | Blocked on P4 |
 | **P9** — 2D retires; docs reconciled | S | `make test` green without `view.loft` | Blocked on P3–P6 |
@@ -145,12 +146,13 @@ deliverable and the boards are just its first implementation.
    P6. The constraint is fixed: it derives from the hex world, never from a fixed backdrop.
 4. **Does the 2D view survive as the automap?** P9 retires it as *the* renderer; whether a
    plan view returns as a map/editor screen is a separate, later call.
-5. **Where do the switch distances sit, and are they one dial or several?** Near geometry →
-   cards → displaced raster → cached layers is four representations and three switches. The
-   *rule* is fixed (a representation is used where its smallest meaningful feature is at
-   least one sample — `resolvable_m()`); the *distances* fall out of it once P6c measures
-   what the eye actually accepts. Resist tuning them independently: three dials that drift
-   apart is how a world stops agreeing with itself.
+5. **Where do the switch distances sit, and are they one dial or several?** For normal play
+   it is near geometry → cards → cached layers: three representations, two switches (the
+   displaced raster is a third switch only in the flight regime). The *rule* is fixed — a
+   representation is used where its smallest meaningful feature is at least one sample,
+   `resolvable_m()` — and the *distances* fall out of it once P6d measures what the eye
+   actually accepts. Resist tuning them independently: dials that drift apart is how a world
+   stops agreeing with itself.
 6. **How many air-box layers, at what distances?** The validity rule (I-PARALLAX) is fixed;
    the *number* of layers is a cost trade — more layers means more textures but rarer
    re-renders each. Settle it in P6b by measuring re-render counts on a real walk, not by

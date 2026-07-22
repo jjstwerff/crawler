@@ -52,6 +52,29 @@ The rule is a computed threshold, not a tuning knob, which is what makes it chec
 and it is the same idea as the existing idle-skip digest (`framekey.loft`), one level out:
 *don't redraw what could not have changed.*
 
+### The two regimes, decided by I-PARALLAX alone
+
+**Normal gameplay defaults to the parallax sky-box. The full terrain projection is a
+flight/fall regime** (user, 2026-07-22) — and this needs **no new rule and no mode flag**,
+because I-PARALLAX already computes it. The cache-validity time is `pixel_angle · d / speed`:
+
+| layer | walking (1.5 m/s) | flying (100 m/s) | orbit (7800 m/s) |
+|---|---|---|---|
+| 2 km | 0.6 s | 8 ms | 0.1 ms |
+| 10 km | 2.8 s | 42 ms | 0.5 ms |
+| 50 km | 13.9 s | 208 ms | 2.7 ms |
+
+Walking, a cached layer holds for **seconds**, so the sky-box is **faithful rather than a
+cheat**: from 1.6 m of eye height, distant terrain genuinely *is* a slowly-changing
+silhouette, and a layer is an honest sampling of it. Flying, the same cache dies every
+frame — caching is then pointless, and the real geometry must be projected. One criterion,
+two regimes, and nothing to keep in sync.
+
+**Consequence for the order of work:** the displaced raster below is *not* on the
+normal-gameplay path. A person standing on the ground never needs it, so it travels with the
+flight/orbit pass, and normal play needs only the near field, the world texture and the
+cached layers.
+
 **I-DISPLACE — a vertical face is made by moving points sideways, and the mesh never
 folds.** The far field is a height raster whose vertices are displaced *horizontally* onto
 feature lines, so a wall becomes a vertical quad with no extra geometry: real depth, real
