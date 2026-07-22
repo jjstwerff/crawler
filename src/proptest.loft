@@ -1,0 +1,98 @@
+// proptest — plan #10 P2: the part-list.
+//
+// The cart is built HERE, not in the library. Per BUNDLE.md's settled seam, hexpart knows
+// PART_BOX and PART_DRUM and nothing about carts; what a cart *is* — which parts, which
+// dimensions — is content. This file standing in for a bundle is the seam being exercised
+// rather than asserted.
+use mesh3d;
+use hexprim;
+use hexpart;
+
+// CONTENT: a handcart, from PROPS §Class 3.
+fn build_cart(seed: float) -> Parts {
+  p = parts_new();
+  w = 1.2 + 0.10 * seed;
+  part_box(p, 0.0, 0.0, 0.55, w, 0.70, 0.40);                          // body
+  part_drum(p, 0.0, -0.42, 0.32, 0.0, 1.0, 0.0, 0.32, 0.32, 0.07);     // wheel L
+  part_drum(p, 0.0,  0.35, 0.32, 0.0, 1.0, 0.0, 0.32, 0.32, 0.07);     // wheel R
+  part_drum(p, 0.0, -0.45, 0.32, 0.0, 1.0, 0.0, 0.04, 0.04, 0.90);     // axle
+  part_box(p, 0.75, -0.25, 0.50, 0.90, 0.06, 0.06);                    // shaft L
+  part_box(p, 0.75,  0.25, 0.50, 0.90, 0.06, 0.06);                    // shaft R
+  p
+}
+
+fn main() {
+  println("=== story part-list test (plan #10 P2) ===");
+  ok = true;
+
+  cart = build_cart(0.0);
+  println("cart: {parts_count(cart)} parts built from {parts_kinds(cart)} primitive kinds");
+  if parts_count(cart) != 6 { ok = false; }
+  if parts_kinds(cart) != 2 { ok = false; }
+  println("   -> six parts, two mechanisms. The wheel stopped being special the moment the");
+  println("      cart stopped being one object.");
+
+  // ── 1. composition is exact: a part's world box is its local box, offset ─
+  // This is the check that a mis-composed transform cannot survive. If the anchor were
+  // applied twice, or in the wrong order, every part would still LOOK like a cart.
+  worst = 0.0;
+  for a in 0..3 {
+    ox = 0.0; oy = 0.0; oz = 0.0;
+    if a == 1 { ox = 12.5; oy = -7.25; oz = 3.0; }
+    if a == 2 { ox = -104.0; oy = 61.5; oz = -18.75; }
+    for i in 0..parts_count(cart) {
+      m0 = part_mesh(cart, i, 0.0, 0.0, 0.0, 12);
+      m1 = part_mesh(cart, i, ox, oy, oz, 12);
+      if len(m0.vertices) != len(m1.vertices) { ok = false; }
+      for v in 0..len(m0.vertices) {
+        p0 = m0.vertices[v].pos;
+        p1 = m1.vertices[v].pos;
+        e = (p1.x - p0.x - ox) * (p1.x - p0.x - ox)
+          + (p1.y - p0.y - oy) * (p1.y - p0.y - oy)
+          + (p1.z - p0.z - oz) * (p1.z - p0.z - oz);
+        if e > worst { worst = e; }
+      }
+    }
+  }
+  println("anchor composition: worst deviation^2 from a pure offset {worst} (3 anchors, all parts)");
+  // Not exactly zero, and it should not be: the anchors reach |104|, so representing
+  // (p + o) - p costs about one epsilon at that magnitude — 8e-15 absolute, 8e-17
+  // relative, which is float representation rather than a composition error. The bound is
+  // set at 1e-12 absolute, six orders above the noise and far below any real mistake.
+  if worst > 0.000000000001 { ok = false; }
+  println("   -> exact, so an anchor applied twice or in the wrong order would show here");
+
+  // ── 2. NEGATIVE CONTROL: an identity anchor must land at the origin ──────
+  // Without this the check above passes for a transform that is consistently wrong.
+  m = part_mesh(cart, 0, 0.0, 0.0, 0.0, 12);
+  cx = 0.0; cy = 0.0; cz = 0.0;
+  for v in 0..len(m.vertices) {
+    cx = cx + m.vertices[v].pos.x;
+    cy = cy + m.vertices[v].pos.y;
+    cz = cz + m.vertices[v].pos.z;
+  }
+  nv = len(m.vertices) as float;
+  cx = cx / nv ?? 0.0; cy = cy / nv ?? 0.0; cz = cz / nv ?? 0.0;
+  println("negative control — body centroid under an identity anchor: ({cx}, {cy}, {cz})");
+  println("   its declared local position is (0, 0, 0.55)");
+  if cz < 0.549 || cz > 0.551 { ok = false; }
+  if cx > 0.001 || cx < -0.001 { ok = false; }
+
+  // ── 3. the wheels are a rotation apart, not a different model ────────────
+  wl = part_mesh(cart, 1, 0.0, 0.0, 0.0, 12);
+  ax = part_mesh(cart, 3, 0.0, 0.0, 0.0, 12);
+  println("wheel {len(wl.triangles)} triangles, axle {len(ax.triangles)} — same primitive, same count: {len(wl.triangles) == len(ax.triangles)}");
+  if len(wl.triangles) != len(ax.triangles) { ok = false; }
+  println("   -> a wheel and an axle differ only in radius and length. One mechanism.");
+
+  // ── 4. determinism, and that the seed actually varies something ──────────
+  a1 = build_cart(0.0);
+  a2 = build_cart(0.0);
+  b1 = build_cart(1.0);
+  same = (a1.pt_a[0] ?? 0.0) == (a2.pt_a[0] ?? 0.0);
+  diff = (a1.pt_a[0] ?? 0.0) != (b1.pt_a[0] ?? 0.0);
+  println("determinism: same seed identical {same}, different seed differs {diff}");
+  if !same || !diff { ok = false; }
+
+  if ok { println("=== PART OK ==="); } else { println("=== FAIL ==="); }
+}

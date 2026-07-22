@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1, P2 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -48,7 +48,7 @@ identical to a one-segment taper, so moving it to `prim_drum` would change the t
 That is a real change, not a free one, and it belongs in its own step where the difference is
 visible rather than smuggled in under a bit-identity banner it would not satisfy.
 
-## P2 — the part-list
+## P2 — the part-list  — **DONE**, `src/proptest.loft`
 
 A prop becomes a two-level tree: an anchor transform plus parts, each with its own local
 transform. `mesh3d`'s `Node` + `Mat4` already provides it; this phase is the discipline of

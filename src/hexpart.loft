@@ -1,0 +1,89 @@
+// hexpart — plan #10 P2: a prop is a PART-LIST.
+//
+// A cart is not a primitive with an awkward axis. It is a body, two wheels, an axle and two
+// shafts, each with its own frame relative to the cart's. Trying to make it one generator is
+// what made the wheel look like a special case in the first place (PROPS §Class 3).
+//
+// Two levels, no more: an anchor, and parts in the anchor's frame.
+//
+// THE GRANULARITY RULE (PROPS §Part 4): split where something moves independently, merge
+// where it does not. A wheel, a door leaf and a con-rod each earn a part because each will
+// later carry its own state; a window's frame and reveal do not, because they never move
+// relative to the wall. Getting this wrong in either direction is expensive — merge too far
+// and animation is impossible, split too far and every prop pays for degrees of freedom it
+// does not have.
+//
+// Per BUNDLE.md's settled seam, this file is MECHANISM: it knows PART_BOX and PART_DRUM and
+// nothing about carts. What a cart *is* — which parts, which dimensions — is content, and
+// lives with the caller.
+use mesh3d;
+use hexprim;
+
+pub const PART_BOX  = 1;
+pub const PART_DRUM = 2;
+
+pub struct Parts {
+  pt_kind: vector<integer>,
+  pt_px:   vector<float>,   pt_py: vector<float>,   pt_pz: vector<float>,
+  pt_ax:   vector<float>,   pt_ay: vector<float>,   pt_az: vector<float>,
+  pt_a:    vector<float>,   pt_b:  vector<float>,   pt_c:  vector<float>,
+  pt_n:    integer,
+}
+
+pub fn parts_new() -> Parts {
+  k: vector<integer> = [];
+  a: vector<float> = []; b: vector<float> = []; c: vector<float> = [];
+  d: vector<float> = []; e: vector<float> = []; f: vector<float> = [];
+  g: vector<float> = []; h: vector<float> = []; i: vector<float> = [];
+  Parts { pt_kind: k, pt_px: a, pt_py: b, pt_pz: c, pt_ax: d, pt_ay: e, pt_az: f,
+          pt_a: g, pt_b: h, pt_c: i, pt_n: 0 }
+}
+
+pub fn part_box(p: Parts, px: float, py: float, pz: float,
+                w: float, d: float, h: float) -> integer {
+  p.pt_kind += [PART_BOX];
+  p.pt_px += [px]; p.pt_py += [py]; p.pt_pz += [pz];
+  p.pt_ax += [0.0]; p.pt_ay += [0.0]; p.pt_az += [1.0];
+  p.pt_a += [w]; p.pt_b += [d]; p.pt_c += [h];
+  p.pt_n = p.pt_n + 1;
+  p.pt_n - 1
+}
+
+pub fn part_drum(p: Parts, px: float, py: float, pz: float,
+                 ax: float, ay: float, az: float,
+                 r0: float, r1: float, length: float) -> integer {
+  p.pt_kind += [PART_DRUM];
+  p.pt_px += [px]; p.pt_py += [py]; p.pt_pz += [pz];
+  p.pt_ax += [ax]; p.pt_ay += [ay]; p.pt_az += [az];
+  p.pt_a += [r0]; p.pt_b += [r1]; p.pt_c += [length];
+  p.pt_n = p.pt_n + 1;
+  p.pt_n - 1
+}
+
+// One part, emitted at an anchor.  Kept per-part rather than merged, because PROPS §Part 4
+// requires the parts to stay separate nodes: animated state must never be geometry, so a
+// wheel has to be able to turn by a matrix rather than by a rebuild.
+pub fn part_mesh(p: Parts, i: integer, ox: float, oy: float, oz: float,
+                 sides: integer) -> Mesh {
+  px = ox + (p.pt_px[i] ?? 0.0);
+  py = oy + (p.pt_py[i] ?? 0.0);
+  pz = oz + (p.pt_pz[i] ?? 0.0);
+  if (p.pt_kind[i] ?? 0) == PART_BOX {
+    return prim_box(px, py, pz, p.pt_a[i] ?? 0.0, p.pt_b[i] ?? 0.0, p.pt_c[i] ?? 0.0);
+  }
+  prim_drum(px, py, pz, p.pt_ax[i] ?? 0.0, p.pt_ay[i] ?? 0.0, p.pt_az[i] ?? 1.0,
+            p.pt_a[i] ?? 0.0, p.pt_b[i] ?? 0.0, p.pt_c[i] ?? 0.0, sides)
+}
+
+pub fn parts_count(p: Parts) -> integer { p.pt_n }
+
+// Distinct primitive kinds in use — the measure of how much MECHANISM a prop costs, as
+// against how many parts it has.
+pub fn parts_kinds(p: Parts) -> integer {
+  b = 0; d = 0;
+  for i in 0..p.pt_n {
+    if (p.pt_kind[i] ?? 0) == PART_BOX { b = 1; }
+    if (p.pt_kind[i] ?? 0) == PART_DRUM { d = 1; }
+  }
+  b + d
+}

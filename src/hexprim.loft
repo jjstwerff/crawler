@@ -103,3 +103,41 @@ pub fn prim_drum(bx: float, by: float, bz: float,
   }
   ms
 }
+
+// A box about a local frame.  The second primitive the whole prop vocabulary needs — a
+// cart is a box, two drums and a shaft, and that is the entire mechanism list for it.
+pub fn prim_box(cx: float, cy: float, cz: float,
+                w: float, d: float, h: float) -> Mesh {
+  ms = mesh("box");
+  uu = vec2(0.0, 0.0);
+  hw = w * 0.5; hd = d * 0.5; hh = h * 0.5;
+  for f in 0..6 {
+    nx = 0.0; ny = 0.0; nz = 0.0;
+    if f == 0 { nx = 1.0; }
+    if f == 1 { nx = 0.0 - 1.0; }
+    if f == 2 { ny = 1.0; }
+    if f == 3 { ny = 0.0 - 1.0; }
+    if f == 4 { nz = 1.0; }
+    if f == 5 { nz = 0.0 - 1.0; }
+    n = vec3(nx, ny, nz);
+    // the two in-face directions
+    ux = 0.0; uy = 1.0; uz = 0.0;
+    vx = 0.0; vy = 0.0; vz = 1.0;
+    if f == 2 || f == 3 { ux = 1.0; uy = 0.0; uz = 0.0; vx = 0.0; vy = 0.0; vz = 1.0; }
+    if f == 4 || f == 5 { ux = 1.0; uy = 0.0; uz = 0.0; vx = 0.0; vy = 1.0; vz = 0.0; }
+    ex = cx + nx * hw; ey = cy + ny * hd; ez = cz + nz * hh;
+    su = hd; sv = hh;
+    if f == 2 || f == 3 { su = hw; sv = hh; }
+    if f == 4 || f == 5 { su = hw; sv = hd; }
+    p0 = add_vertex(ms, vertex(vec3(ex - ux * su - vx * sv, ey - uy * su - vy * sv,
+                                    ez - uz * su - vz * sv), n, uu));
+    p1 = add_vertex(ms, vertex(vec3(ex + ux * su - vx * sv, ey + uy * su - vy * sv,
+                                    ez + uz * su - vz * sv), n, uu));
+    p2 = add_vertex(ms, vertex(vec3(ex + ux * su + vx * sv, ey + uy * su + vy * sv,
+                                    ez + uz * su + vz * sv), n, uu));
+    p3 = add_vertex(ms, vertex(vec3(ex - ux * su + vx * sv, ey - uy * su + vy * sv,
+                                    ez - uz * su + vz * sv), n, uu));
+    add_quad(ms, p0, p1, p2, p3);
+  }
+  ms
+}
