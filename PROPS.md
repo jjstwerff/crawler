@@ -229,3 +229,88 @@ none of them wants a CSG kernel.
 - **Seats on curved surfaces.** A chimney on a *conical* tower roof meets a curve, not a
   plane. The recovered-form machinery (plan #5 §14) can hand back the cone, so the seat
   generalises from a plane to a surface — but no generator is written for that yet.
+
+---
+
+# Part 3 — props live on their own LEVEL
+
+The mechanism already exists and is gated: **a level is the topological sheet a thing sits
+on** (plan #5 §10). Two ways at different levels occupy the same cells and **never
+arbitrate** — that is how a road crosses a railway, and how a canopy sits over an understory
+(plan #9 T7). The `FieldCache` key is already `(chunk, level, version)`.
+
+**Props go on a level of their own.** That is the right home, and it settles more than
+storage.
+
+## What the level buys, concretely
+
+### 1. No arbitration with the built field
+A cart standing in a gateway does not fight the gate's surface for that cell. A fence
+crossing a field boundary does not merge with it. A lamp against a wall does not become part
+of the wall. **Same cells, different sheets, no contest** — the exact guarantee the bridge
+gate proved, now reused a third time.
+
+Without it, every prop placement would be an arbitration problem, and `cut_arb`'s
+nearest-wins rule would start deciding whether a wall or a barrel owns an edge. That is a
+question nobody should have to answer.
+
+### 2. Invalidation follows change frequency
+This is the part that makes it more than tidy filing. The cache is keyed by level, so
+**moving a cart invalidates the cart's level and nothing else** — the wall geometry, the roof
+surfaces and the recovered forms are untouched.
+
+Which suggests splitting props by *how often they change*, not by what they are:
+
+| level | holds | changes |
+|---|---|---|
+| `L_FIXED` | doors, windows, chimneys, drainpipes, fences, lamps | when a building changes |
+| `L_MOVABLE` | carts, wagons, barrels, troughs | constantly |
+
+A wagon rolling through a village then rebuilds one small field and leaves the village
+alone. **Invalidation granularity is a design choice, and the level key is where it is
+expressed.**
+
+### 3. It answers "do props affect the field?" — yes, on their own level
+Open question 2 above. A prop writes materials to **its** level's `EdgeSet`, and a consumer
+merges the levels it cares about:
+
+- **movement** merges architecture + fixed + movable — a cart does block you;
+- **sight** merges architecture + fixed, and reads the prop's own `opacity` — a fence blocks
+  movement but not sight, which is exactly the palisade/chain-link distinction `sighttest`
+  already gates;
+- **structure** reads architecture alone — a barrel is not load-bearing.
+
+So the physics/picture guarantee extends to props unchanged, and it does so **without** a
+prop ever being able to corrupt the building it leans against.
+
+### 4. Several props on one hex
+A level is a *sheet*, not a slot, so it does not limit one prop per cell. Within the prop
+level the records are a **bucketed list** — cell → first prop, then a next-pointer chain —
+and the sub-cell offsets (Part 1) keep them visually distinct. A lamp and a trough on one
+hex is one cell, one level, two records.
+
+## Placement, now answered
+
+Open question 1 was hand-placed versus derived. With levels in hand, **derived** is clearly
+right: the prop level is a *derived* field, exactly like the L2 edge field — a pure function
+of the architecture level plus a seed. So:
+
+```
+   architecture level  ──derive──▶  L_FIXED   (every opening gets a door, every
+                                               ridge a chimney, every boundary a fence)
+```
+
+That means **a village furnishes itself**, it is reproducible from a seed, and it costs no
+authored data at all. `L_MOVABLE` stays authored, because where a cart *is* is a fact about
+the world rather than a consequence of the buildings.
+
+And because the derivation is a pure function of a level that has its own version, the
+furnishings rebuild exactly when the buildings change and never otherwise.
+
+## The revised rule
+
+> **A prop is a part-list in a local frame, seated on the surface it meets, recorded on a
+> level chosen by how often it changes.**
+
+Parts 1 and 2 said what a prop *is*. This says where it *lives*, and in doing so retires
+both open questions: placement is derived, and props affect the field on their own sheet.
