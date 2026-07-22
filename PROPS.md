@@ -108,3 +108,124 @@ Nothing here needs a modelling tool.
 3. **Kind as an integer, or a bundle key?** `BUNDLE.md`'s standing check says content lives
    bundle-side and mechanism engine-side. A prop kind is content; the generator is
    mechanism. Getting that seam right is what stops this becoming a hard-coded catalogue.
+
+---
+
+# Part 2 — the awkward cases, and why a wheel is the general one
+
+A wheel is a drum on its side, and today that cannot be expressed. Chasing it turns up
+**three** classes of hard case, not one, and the wheel is the cheapest of the three to fix.
+
+## The diagnosis
+
+Every primitive in the codebase **bakes the vertical axis in**: `mesh_drum`, `mesh_trunk`,
+`mesh_crown` and `mesh_gable` all sweep `cos/sin` in *x,y* and run their length along *z*.
+And the convenience transform, `mat4_trs(tx,ty,tz, ry, sx,sy,sz)`, offers **only a rotation
+about Y** — so a sideways drum cannot be expressed at the primitive level *or* at the
+transform level.
+
+That is not an accident. It is the plan-view assumption of the whole stack showing through:
+a footprint on hexes, extruded upward. It is exactly right for walls, towers, roofs and
+trees — everything built so far — and it stops dead at the first object whose principal axis
+is not vertical.
+
+## Class 1 — a non-vertical axis (wheels, axles, gutters, ladders)
+
+**Fix: primitives take an AXIS, not a z-range.**
+
+```
+   mesh_drum(centre, axis, r0, r1, length, sides)
+```
+
+with the ring swept in the plane perpendicular to `axis`. The vertical case is `axis =
+(0,0,1)` and nothing about towers changes. A wheel is `axis = (0,1,0)`. An axle is the same
+primitive, thinner and longer. A gutter is a half-drum with a horizontal axis. A ladder rail
+is a thin box along a tilted axis.
+
+**One generalisation retires the whole class** — and the user's phrasing is the proof: if a
+wheel is "a tower mounted sideways," then the tower primitive was over-specified, not the
+wheel under-served.
+
+Needed alongside it: `basis_from_axis(axis, roll)` — a stable orthonormal frame from one
+vector, picking a reference that is not parallel to it. Without that, every caller
+re-derives the same perpendiculars and they disagree at the poles.
+
+## Class 2 — a prop meeting a surface at an angle
+
+Harder, and not solved by axes. A **chimney through a pitched roof** must have its base cut
+on the roof plane. A **fence on a slope** needs each panel to follow the ground while its
+posts stay vertical. A **drainpipe** runs from the eave to the ground, so its *length* is a
+consequence of where it is placed.
+
+**Fix: give the generator a SEAT — the plane (or the height function) it meets — and let it
+parameterise, not intersect.**
+
+```
+   mesh_chimney(seat_plane, h, flue, seed)      // base cut on the plane
+   mesh_fence(a, b, ground_fn, posts, seed)     // posts plumb, rails follow
+   mesh_drainpipe(top, ground_fn, seed)         // length derived, not given
+```
+
+This is the difference between *fitting* and *booleaning*. A boolean needs a CSG kernel and
+produces geometry nobody specified; a seat is four numbers the generator already wants. And
+the seats all exist already: roof planes come from the profile×distance table (plan #5 §13),
+the ground from `terrain`/`Heights`, wall planes from the recovered surfaces (P2).
+
+**This class is where the real work is.** Class 1 is a signature change; class 2 is a
+parameter every generator must be written to respect.
+
+## Class 3 — a prop that is an assembly
+
+A cart is not a primitive with an awkward axis. It is **a body, two wheels, an axle and a
+shaft**, each with its own frame relative to the cart's. Trying to make it one generator is
+what makes the wheel look like a special case in the first place.
+
+**Fix: a prop is a small tree of PARTS.**
+
+```
+   prop  = anchor transform + [ part, part, ... ]
+   part  = (primitive, local transform, params)
+```
+
+Two levels, no more. `mesh3d` already provides exactly this — `Node` carries a `Mat4`, and
+`mat4_mul` composes — so the assembly is a scene-graph node with children, which glTF then
+exports natively. **Nothing new is needed except the discipline of using it.**
+
+Worked through, the cart:
+
+```
+   cart
+   ├─ body      box            local (0, 0, 0.55)                 1.2 × 0.7 × 0.4
+   ├─ wheel L   drum axis Y    local (0, −0.42, 0.32)  r 0.32, len 0.07
+   ├─ wheel R   drum axis Y    local (0, +0.42, 0.32)  r 0.32, len 0.07
+   ├─ axle      drum axis Y    local (0, 0, 0.32)      r 0.04, len 0.90
+   └─ shafts    2 × box        local (0.75, ±0.25, 0.5)
+```
+
+Five parts, two primitives, one seed. A wagon is the same list with four wheels and a longer
+body. **The wheel stops being special the moment the cart stops being one object.**
+
+## What this changes in the code
+
+| change | size | why |
+|---|---|---|
+| `mesh_drum` takes an axis + a basis helper | small | retires class 1 entirely |
+| every generator takes a seat parameter | medium | class 2, and it must be designed in, not retrofitted |
+| props become part-lists, exported as child nodes | small | class 3; `mesh3d` already supports it |
+| `mat4_trs` is Y-rotation-only | — | assemblies need `mat4_mul` of a real basis instead |
+
+## The rule this yields
+
+**A prop is a part-list in a local frame, seated on the surface it meets.** Every awkward
+case seen so far is one of: the wrong axis (fix the primitive), the wrong seat (pass the
+plane), or the wrong granularity (split into parts). None of them wants a model file, and
+none of them wants a CSG kernel.
+
+## Still open
+
+- **Rotating parts.** A wheel that turns, a weathervane, a mill sail — the part frame would
+  need to be time-varying. That is animation, deliberately out of scope here, but the
+  part-list is the right place for it to arrive later.
+- **Seats on curved surfaces.** A chimney on a *conical* tower roof meets a curve, not a
+  plane. The recovered-form machinery (plan #5 §14) can hand back the cone, so the seat
+  generalises from a plane to a surface — but no generator is written for that yet.
