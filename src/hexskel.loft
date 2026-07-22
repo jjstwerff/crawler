@@ -530,8 +530,19 @@ pub fn card_pos_y(sk: Skeleton, j: integer, jitter: float) -> float {
   node_y(sk, j) + (hash01(lattice_k(q, r), lattice_m(q, r), 2) - 0.5) * jitter
 }
 
-// One card per node too thin to mesh, oriented along its own branch and sitting inside the
+// Cards for every node too thin to mesh, oriented along its own branch and filling the
 // canopy interval at its cell.
+//
+// NOT one card per cell.  A single card per cell placed near the middle of its interval
+// collapses the whole crown into a plate — visible the moment foliage was first drawn — and
+// it is wrong for the physics too: T10 calibrates on cards met per unit of canopy PATH, so
+// a deep interval must carry proportionally more of them than a shallow one.
+//
+// So the count follows the depth, and the cards spread through the interval rather than
+// clustering at its middle.  One rule fixes the silhouette and the opacity together.
+pub const CARD_DZ = 1.1;      // vertical spacing between cards, world units
+pub const CARD_MAX = 6;
+
 pub fn cards_place(sk: Skeleton, top: Heights, base: Heights,
                    nmin: integer, jitter: float) -> Cards {
   cd = cards_new();
@@ -539,30 +550,41 @@ pub fn cards_place(sk: Skeleton, top: Heights, base: Heights,
     if (sk.sk_load[j] ?? 0) < nmin {
       q = sk.sk_q[j] ?? 0;
       r = sk.sk_r[j] ?? 0;
-      px = card_pos_x(sk, j, jitter);
-      py = card_pos_y(sk, j, jitter);
-      // A card is a SPRAY at the outer end of a branch, and a spray points outward — so
-      // its heading is taken from the trunk to the card, not from the last path step.
-      // Both are continuous once the card is offset within its cell; measured over the
-      // same 81 cards, outward gives 34 of 36 heading bins, the local parent-to-child
-      // step gives 21, and a blend of the two 29. Outward is both the richest and the
-      // one that describes what is drawn on the card.
-      dx = px - node_x(sk, 0);
-      dy = py - node_y(sk, 0);
-      ln = sqrt(dx * dx + dy * dy) ?? 0.0;
-      ux = 1.0; uy = 0.0;
-      if ln > 0.000001 { ux = dx / ln ?? 0.0; uy = dy / ln ?? 0.0; }
       zb = height_get(base, q, r);
       zt = height_get(top, q, r);
-      cd.cd_x += [px]; cd.cd_y += [py];
-      cd.cd_z += [zb + (zt - zb) * (0.25 + 0.5 * hash01(lattice_k(q, r), lattice_m(q, r), 3))];
-      cd.cd_dx += [ux]; cd.cd_dy += [uy];
-      cd.cd_size += [zt - zb];
-      cd.cd_q += [q]; cd.cd_r += [r];
-      cd.cd_n = cd.cd_n + 1;
+      depth = zt - zb;
+      nc = ((depth / CARD_DZ ?? 0.0) as integer) + 1;
+      if nc > CARD_MAX { nc = CARD_MAX; }
+      if nc < 1 { nc = 1; }
+      lk = lattice_k(q, r);
+      lm = lattice_m(q, r);
+      for c in 0..nc {
+        // spread through the interval, each card jittered within its own slice
+        f = ((c as float) + 0.20 + 0.60 * hash01(lk, lm, 11 + c)) / (nc as float) ?? 0.5;
+        px = node_x(sk, j) + (hash01(lk, lm, 21 + c) - 0.5) * jitter;
+        py = node_y(sk, j) + (hash01(lk, lm, 31 + c) - 0.5) * jitter;
+        dx = px - node_x(sk, 0);
+        dy = py - node_y(sk, 0);
+        ln = sqrt(dx * dx + dy * dy) ?? 0.0;
+        ux = 1.0; uy = 0.0;
+        if ln > 0.000001 { ux = dx / ln ?? 0.0; uy = dy / ln ?? 0.0; }
+        cd.cd_x += [px]; cd.cd_y += [py];
+        cd.cd_z += [zb + depth * f];
+        cd.cd_dx += [ux]; cd.cd_dy += [uy];
+        cd.cd_size += [depth / (nc as float) ?? depth];
+        cd.cd_q += [q]; cd.cd_r += [r];
+        cd.cd_n = cd.cd_n + 1;
+      }
     }
   }
   cd
+}
+
+// How many NODES carry cards (as opposed to how many cards there are).
+pub fn carded_nodes(sk: Skeleton, nmin: integer) -> integer {
+  n = 0;
+  for j in 0..sk.sk_n { if (sk.sk_load[j] ?? 0) < nmin { n = n + 1; } }
+  n
 }
 
 pub fn cards_heading_bins(cd: Cards, bins: integer) -> integer {

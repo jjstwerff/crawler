@@ -917,9 +917,21 @@ at the base. Everything in it is derived — the partition sets the crown, compe
 the bole, the pipe model sets every radius, the whorl budget sets where branches form, and
 the cards hang off the branches that resulted.
 
-**Still to fix, and visible:** the foliage is too **flat** — a disc rather than a rounded
-crown. The cards sit between 0.25 and 0.75 of each cell's canopy interval, and after
-competition raises the bole that interval is shallow, so they collapse into a plate. Real
-crowns are deep. The fix is to spread cards through the interval rather than around its
-middle, and to place more than one per cell where the interval is deep — which is also what
-T10's calibration expects, since `c` counts cards per unit of canopy path.
+### The flat crown, fixed
+
+The first foliage render gave a **disc**: one card per cell placed near the middle of its
+interval, and once competition raises the bole that interval is shallow, so the whole crown
+collapsed into a plate.
+
+**Not one card per cell.** The count follows the canopy **depth** — one per `CARD_DZ` of
+interval, capped at `CARD_MAX` — and each spreads through its own slice rather than
+clustering at the middle. One rule fixes the silhouette and the physics together, because
+T10 calibrates on cards met per unit of canopy *path*: a deep interval must carry
+proportionally more of them than a shallow one. 40 cards became 216 on the same tree, and
+the crown reads as a rounded canopy with volume.
+
+It also repaired the T10 **negative control**, which had quietly stopped proving anything.
+It thinned the canopy by dropping every other *card* — but with several cards per cell,
+nearly every cell still carried one, so it compared two almost identical fields (ratio
+1.3×). Thinned by **cell** instead, which is what a ray actually sees, it separates them by
+28×. A control that survives a change to the thing it controls is not a control.

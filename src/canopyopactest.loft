@@ -116,10 +116,19 @@ fn main() {
   println("   -> what is drawn and what is simulated are the same number, once calibrated");
 
   // ── 3. NEGATIVE CONTROL — a sparser canopy must FAIL the calibration ─────
+  // Thin the canopy by CELLS, not by cards. Dropping every other card leaves nearly every
+  // cell still carrying one — several cards sit in each — so the control would compare two
+  // almost identical fields and prove nothing. The quantity a ray sees is which cells hold
+  // foliage at all.
   sparse = labels_new(q0, r0, gw, gh);
   keep = 0;
   for j in 0..cd.cd_n {
-    if j % 2 == 0 { label_set(sparse, cd.cd_q[j] ?? 0, cd.cd_r[j] ?? 0, 1); keep = keep + 1; }
+    cq = cd.cd_q[j] ?? 0;
+    cr = cd.cd_r[j] ?? 0;
+    if (cq + cr) % 2 == 0 {
+      if label_get(sparse, cq, cr) != 1 { keep = keep + 1; }
+      label_set(sparse, cq, cr, 1);
+    }
   }
   alpha = 0.4;
   k = extinction_for(cbar, alpha);
@@ -137,7 +146,7 @@ fn main() {
   // Compared as a RATIO, not a difference: transmittances this deep in a canopy are
   // fractions of a percent, so an absolute gap would look small however wrong it was.
   ratio = tsparse / tfield ?? 1.0;
-  println("negative control — {keep} of {cd.cd_n} cards kept: field {tfield}, cards {tsparse}, ratio {ratio}x");
+  println("negative control — {keep} cells kept of {cd.cd_n} cards: field {tfield}, cards {tsparse}, ratio {ratio}x");
   if ratio <= 3.0 { ok = false; }
   println("   -> the check fires. The agreement above was measured, not assumed.");
 

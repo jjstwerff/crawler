@@ -71,7 +71,7 @@ fn main() {
   flat = cards_place(sk, top, bas, nmin, 0.0);
   bins_jit = cards_heading_bins(cd, 36);
   bins_flat = cards_heading_bins(flat, 36);
-  println("cards: {cd.cd_n} of {sk.sk_n} nodes are below the mesh threshold");
+  println("cards: {cd.cd_n} across {carded_nodes(sk, nmin)} of {sk.sk_n} nodes below the mesh threshold");
   println("   outward basis, cell centres:      {bins_flat} of 36 heading bins");
   println("   outward basis, sub-cell offset:   {bins_jit} of 36 heading bins");
   println("   (segment bases, for contrast: fork-cut {heading_bins(br, 36)}, axes {heading_bins(ax, 36)})");
@@ -109,8 +109,11 @@ fn main() {
 
   // ── 6. mesh and cards partition the skeleton exactly ─────────────────────
   meshed = mesh_nodes(sk, nmin);
-  println("mesh {meshed} + cards {cd.cd_n} == nodes {sk.sk_n}: {meshed + cd.cd_n == sk.sk_n}");
-  if meshed + cd.cd_n != sk.sk_n { ok = false; }
+  carded = carded_nodes(sk, nmin);
+  println("mesh {meshed} + carded nodes {carded} == nodes {sk.sk_n}: {meshed + carded == sk.sk_n}");
+  println("   cards themselves: {cd.cd_n} — more than one per node, scaled to canopy depth");
+  if meshed + carded != sk.sk_n { ok = false; }
+  if cd.cd_n <= carded { ok = false; }        // a deep crown must carry more than one each
 
   // ── 7. determinism — the same world renders the same tree ───────────────
   cd2 = cards_place(sk, top, bas, nmin, 0.9);
