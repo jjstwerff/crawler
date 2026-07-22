@@ -42,9 +42,10 @@ extracted 2026-07-22), `src/scenemesh.loft`,
 
 ## The design
 
-Seven invariants, in **[`DESIGN.md`](DESIGN.md)** — the seam (**I-TRUTH**), the camera
-(**I-STAND**), the two-scale world (**I-HORIZON**), and the four that make the far field
-cheap, continuous and paintable (**I-PARALLAX**, **I-DISPLACE**, **I-AGREE**, **I-PAINT**).
+Eight invariants, in **[`DESIGN.md`](DESIGN.md)** — the seam (**I-TRUTH**), what a wall
+stops (**I-CROSS**), the camera (**I-STAND**), the two-scale world (**I-HORIZON**), and the
+four that make the far field cheap, continuous and paintable (**I-PARALLAX**,
+**I-DISPLACE**, **I-AGREE**, **I-PAINT**).
 That file also holds the arithmetic fixing their reach, and the flight/orbit axis this
 design must not foreclose. They are listed in dependency order: a later one is worthless if
 an earlier one is false.
@@ -56,6 +57,7 @@ an earlier one is false.
 | **P0** | **the** target frame: first-person at eye 1.6 m at the plan #10 village gate — a round tower that is *round*, a door in its opening, a board 4 m ahead — with a metre table beside it (tower radius, door clear width/height, board apparent height at 4 m) | all seven, as the picture they must reproduce | `tools/glbview.py` at eye height — **no engine code** |
 | **P1** | the passability call graph, before/after, with the 13 sites named | I-TRUTH (chokepoint form) | a grep table in the phase commit — **done; there were 32, not 13** ([`RESULTS.md`](RESULTS.md)) |
 | **P2** | for one seeded world: every `(hex, direction)` answer from the old model beside the new one | I-TRUTH (equality form) | a differential harness in `src/fieldtest.loft` |
+| **P2b** | one walk, taken at 60 fps and again in four steps and again in one leap — the SAME set of walls stops it | I-CROSS (dt-independence) | headless: replay one path at several step lengths, diff the blocked set |
 | **P3** | a hex centre projected to a pixel, unprojected back to the same hex | I-STAND | pure-math headless test — **no GL needed** |
 | **P3b** | one field/wood boundary drawn into the world texture, beside the traced loop it came from and the geometry under it | I-PAINT | rasterise the traced loop, diff against the loop — **exact, both sides are integer** |
 | **P4** | a board of height *h* m and a wall of height *h* m at the same distance, side by side | I-STAND (metric parity) | a GL frame + pixel span assertion (`make probe`) |
@@ -79,6 +81,7 @@ check must go red.
 | **P0** — the target frame + its metre table | S | `glbview.py` PNG + the table; user confirms or amends | **DONE** |
 | **P1** — one passability predicate (pure refactor) | S | `make test` unchanged; the site table | **DONE** — `field_blocked(s,q,r,dir)` |
 | **P2** — the field under the kernel | M | `src/fieldtest.loft` differential: old ≡ new over every (hex,dir) | **NEXT** |
+| **P2b** — movement becomes a swept path, not a probe point | M | the same walk at 1/4/16× step length blocks on the same walls | Blocked on P2 |
 | **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | Blocked on P2 |
 | **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | Blocked on P3 |
 | **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | Blocked on P3 |

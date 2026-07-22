@@ -1,4 +1,4 @@
-# Plan 11 — the design: seven invariants and what they cost
+# Plan 11 — the design: eight invariants and what they cost
 
 > The **plan** (status, phases, order, risks) is [`README.md`](README.md). This file holds
 > the design it executes: the invariants, the arithmetic that fixes their reach, and the
@@ -7,14 +7,65 @@
 
 ## The invariants
 
-Seven, because this plan has seven distinct exact-invariant surfaces — the seam, the camera,
-the two-scale world, and the four that make the far field cheap, continuous and paintable.
-Each phase in [`README.md`](README.md) names which one it asserts. They are listed in
-dependency order: a later one is worthless if an earlier one is false.
+Eight, because this plan has eight distinct exact-invariant surfaces — the seam, **what a
+wall stops**, the camera, the two-scale world, and the four that make the far field cheap,
+continuous and paintable. Each phase in [`README.md`](README.md) names which one it asserts.
+They are listed in dependency order: a later one is worthless if an earlier one is false.
 
 **I-TRUTH — the field is the only passability truth.** One predicate answers *"can this
 happen here"*; swapping the implementation under it changes **no answer** in any existing
 world.
+
+> The field's primitive is the **edge**, not the cell. A cell being solid is a *derived*
+> reading of it (all its boundaries impassable), which is why the predicate's domain is
+> `(hex, direction)` and `DIR_HEX` is the convenience arm, not the truth. I-CROSS below is
+> why that ordering matters rather than being a matter of taste.
+
+**I-CROSS — a wall stops you because your PATH crossed it, never because you were found
+inside it.** (User ruling, 2026-07-22.) Passability is a property of the **trajectory**
+between two positions, not of either position. We never ask *"is the character inside an
+object"* — we ask *"does the path it took cross a boundary it may not cross"*.
+
+Two consequences, and the second is the one with teeth:
+
+1. **"Inside a wall" stops being a state to detect and recover from.** It becomes a state
+   that cannot be *reached*, because reaching it requires a crossing, and the crossing is
+   what we measure. There is no push-out, no un-stick, no "if embedded, nudge to the
+   nearest open hex" — that whole family of corrections exists only to serve a model that
+   asks the wrong question.
+2. **The answer must not depend on `dt`.** Dropping frames must not change which walls stop
+   you; neither must moving fast — *falling* is the case that matters, and it is exactly
+   when a wall most needs to hold. **This is not an optimisation and not robustness
+   hardening: it is whether a wall is a wall.** A test whose verdict changes with frame rate
+   has not answered the question, it has sampled it.
+
+> *Measured on the current model before adopting this (a fine 200-substep march as the
+> oracle, over 26 028 paths from open hexes on the depth-0 surface):*
+>
+> | step | frame it stands for | paths a trajectory blocks | **missed by today's point-sample** |
+> |---|---|---|---|
+> | 0.10 u | 60 fps | 0 | 0 |
+> | 0.60 u | 10 fps | 0 | 0 |
+> | 1.00 u | — | 1892 | 0 |
+> | 1.50 u | a 4 fps hitch | 2261 | **361 — 16 %** |
+> | 3.00 u | a fall | 2696 | **1443 — 54 %** |
+>
+> The zero rows are **not** evidence of correctness: from a hex centre a 0.6 u move usually
+> crosses no boundary at all (the apothem is 0.866 u), so there is nothing to miss. The
+> comparison only becomes meaningful once the step can cross an edge — and from there the
+> miss rate climbs with step length, which is the dependence I-CROSS forbids. At a fall,
+> **more than half** the walls in the player's way stop nothing.
+
+**Where the current model asks the wrong question:** `pos_blocked` / `sim_step`
+(`sim.loft`) advance the player by sampling **one probe point** per axis, one radius ahead,
+and asking `is_blocked_move(hex(centre), hex(probe))`. Both the axis separation and the
+single probe are point tests, and `is_blocked_move` **skips the edge check entirely** when
+the two hexes are not adjacent (`hex_neighbor_dir < 0`) — so a long step is not merely
+approximated, it is unchecked. That is the site P2/P3 replace with a segment-versus-boundary
+test. What stays legitimate is the *discontinuous* case: a **teleport** has no trajectory,
+so `field_blocked(.., DIR_HEX)` is the only question available to it and the right one
+(`sim_blink`). Hex-locked AI (`compute_flow` / `flow_step`) is likewise a genuine cell-and-
+edge graph walk, not a swept body.
 
 > *Estimated before designing (protocol step 2 — count the re-assertion sites):*
 > `is_blocked_move` **5** call sites all in `sim.loft`; `is_wall` **6** in `sim` + **2** in

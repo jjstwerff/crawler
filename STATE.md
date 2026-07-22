@@ -17,6 +17,12 @@ first-person 3D and the hex field becomes the world the player stands in.
 > **Carry P1's finding into P2's harness:** the surface world has 153 boulders and 79 fence
 > posts whose solidity **no gate observed** until P1 added one. Enumerate depth 0, not just a
 > dungeon — a differential harness that never visits a tile kind cannot diff it.
+>
+> **And build the field around EDGES, not filled cells** — decision 6 / plan #11 **I-CROSS**.
+> Movement is a swept path tested against boundaries, so the same walk must block on the same
+> walls whether it is taken in 16 frames or one leap. **P2b** is that gate; today's model
+> misses 54% of walls at a fall-sized step. Getting the primitive right in P2 is what makes
+> P2b a gate rather than a rewrite.
 
 ## The design position — eight statements, and they compose
 
@@ -74,8 +80,15 @@ contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracte
 5. **3D replaces the 2D view** (plan #11 P9); actors are camera-facing **boards** carrying the
    existing top-down PNGs for now — deliberately wrong — on the way to **glTF humanoid (VRM)**
    meshes. The presentation **seam** is what makes that swap free.
-6. **`overland` owns settlement placement. We integrate with it; we never rewrite it.**
-7. **The village is the subject**, not the castle (landscape composition).
+6. **Passability is a property of the TRAJECTORY, never of a position.** We never ask *"is
+   the character inside an object"* — we ask *"did its path cross a boundary it may not
+   cross"*. So "inside a wall" is not a state to detect and push out of; it is a state that
+   cannot be reached. And the answer **must not depend on `dt`** — dropped frames and fast
+   motion (falling) must stop on the same walls. **That is not an optimisation**; it is
+   whether a wall is a wall. Measured on today's point-sample model: at a fall-sized step it
+   misses **54%** of the walls in the way. → plan #11 **I-CROSS**
+7. **`overland` owns settlement placement. We integrate with it; we never rewrite it.**
+8. **The village is the subject**, not the castle (landscape composition).
 
 ## Open, and whose call it is
 
