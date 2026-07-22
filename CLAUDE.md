@@ -397,6 +397,13 @@ All siblings under `/home/jurjens/workspace/`:
 
 ## Where things are
 
+- **`hex_field`** (LIB, `loft-libs-world`) — the exact-integer field core: `HexSet`,
+  `VecMap`, `trace`/`validate`, `Labels`, `Heights`. **Was `src/hexform.loft`; extracted
+  2026-07-22 and the crawler copy DELETED** (46 files switched `use hexform` → `use
+  hex_field`; zero qualified call sites). Its gate travels with it (`loft test` in the
+  package); crawler keeps the golden-JSON diff vs the Python oracle as its consumer check.
+  The in-world editor is the second consumer — `EXTRACTION.md` → *The editor as the second
+  consumer*.
 - `overland.loft` — the contract WILDERNESS (OVERLAND.md §12-13): the example world's
   vertex/side/corner/edge contracts + zonation -> terrain kinds; the depth-0 surface is a
   101×101 window of it (15 natural m per walked hex); `ovmap.loft` prints it as a ZAngband

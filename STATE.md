@@ -1,7 +1,9 @@
 # STATE.md — where things stand (2026-07-22)
 
-Branch **`combat`**, everything pushed, **36 gates green** (`make test`). Written as a
-handoff: what exists, what was decided, what is open.
+Branch **`combat`**, **the full gate green** (`make test` — run it, don't trust a count;
+the table in `tools/run_tests.sh` is the roster). Written as a handoff: what exists, what
+was decided, what is open. **Read `plans/11-3d-world/` next** — the game is moving into
+first-person 3D and the field becomes the world.
 
 ## What got built
 
@@ -59,8 +61,32 @@ backdrop. Priority is a functional game, so the playable milestone is P4.
   `*test.loft` touching the stack, **zero** import `sim`/`bundles`/content — the one
   non-stack import is `sighttest`'s `hex_grid`, already an upstream package. So the gates are
   library-shaped already; what's missing is `loft.toml`, entry modules, standalone runners
-  and per-package READMEs. **The `hexfield` skeleton is the one thing blocking the second
-  agent from starting**, and it is hours, not days.
+  and per-package READMEs. **`hex_field` 0.1.0 has LANDED** — the package is in
+  `loft-libs-world`, its contract gate passes standalone (`loft test`: 6 tests incl. a
+  negative control), crawler consumes it, and `src/hexform.loft` is **deleted**. The second
+  agent is unblocked.
+
+- **`mesh_trunk` not migrated** to `prim_drum` (P1): it is a six-segment taper whose surface
+  equals a one-segment taper, so migrating changes tessellation. A real change, wanting its
+  own visible step.
+- **Plan #5 `vm_surf`** — render-side attribution; the one genuine gap in DESIGN.md §7.2b.
+  Physics is complete without it.
+- **LOFT-HANDOFF.md H1/H2** still unfiled upstream.
+
+### What landing it taught (worth carrying)
+
+**"Build new, extract settled" was unbuildable as written, and building it said so.** A
+stencil *is* a small field, so it needs `HexSet`/`Labels`/`Heights` — an empty package
+unblocks nobody. The core went first instead, and two measurements made that the *low-risk*
+move rather than a compromise: `hexform` **imports nothing at all**, and it is the most
+heavily gated module in the stack (900 points against a Python oracle). **The principle
+sharpens: split by how SETTLED the code is, not by whether it is new.**
+
+The migration itself was 46 `use` lines and nothing else — crawler calls these functions
+bare, so there were **zero** qualified call sites. Measured before starting, not discovered
+during. And the proof it is the package doing the work is `formtest`'s golden diff:
+**points matched: 900**, byte-identity against the reference implementation, through the
+library.
 
 ## Docs reconciled 2026-07-22 (they had drifted badly)
 
@@ -71,12 +97,6 @@ M-Core shipped at `d1ecc56`) · `DESIGN.md` §18a (stale-banner: the gate in
 and the verification channels survive, the 2D tiers do not) · `STENCILS.md` (unparked: it is
 the editor's first deliverable) · `SCALE.md` (open work: two readings want to become a
 ladder) · issues **#9/#10 → `status:finished`**, **#7 → `status:future`**.
-- **`mesh_trunk` not migrated** to `prim_drum` (P1): it is a six-segment taper whose surface
-  equals a one-segment taper, so migrating changes tessellation. A real change, wanting its
-  own visible step.
-- **Plan #5 `vm_surf`** — render-side attribution; the one genuine gap in DESIGN.md §7.2b.
-  Physics is complete without it.
-- **LOFT-HANDOFF.md H1/H2** still unfiled upstream.
 
 ## Three things worth carrying forward
 

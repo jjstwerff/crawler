@@ -756,7 +756,7 @@ Six packages, dependencies strictly downward:
 ```
    hex_grid (upstream, exists)
         │
-   hexfield ──────────┬──────────────┬───────────────┐
+   hex_field ──────────┬──────────────┬───────────────┐
         │             │              │               │
    hexways        hexforms       hexgrow         hexprops
         └─────────────┴──────┬───────┴───────────────┘
@@ -765,15 +765,15 @@ Six packages, dependencies strictly downward:
 
 | package | holds | why separable |
 |---|---|---|
-| **`hexfield`** | `HexSet`, `VecMap`, trace/validate, `Labels`, `Heights`, `EdgeSet`, `Surfaces`, `Materials`, `FieldCache`, **levels**, **stencils** | the L1/L2 model; everything sits on it |
+| **`hex_field`** ✅ **0.1.0 LANDED** (core; the rest follows) | `HexSet`, `VecMap`, trace/validate, `Labels`, `Heights` — **shipped**; `EdgeSet`, `Surfaces`, `Materials`, `FieldCache`, **levels**, **stencils** to come | the L1/L2 model; everything sits on it |
 | **`hexways`** | `Track`, offsets, `way_mark`/`cut_arb`, `way_param`, junctions | roads/rails/paths; useful with no buildings at all |
 | **`hexforms`** | the matcher, roofs, vaults, the profile×distance table | architecture; useful with no ways at all |
 | **`hexgrow`** | canopy partition, crown profiles, skeleton, pipe model, sky fraction | vegetation; needs `way_param` for mileposts |
 | **`hexprops`** | primitives with axes, part-lists, seats, state | plan #10; needs forms for its seats |
 | **`hexscene`** | field → triangles → GLB | the only package that knows `mesh3d`/`glb` |
 
-**A consumer takes what it needs.** A farming game wants `hexfield + hexgrow`. A railway game
-wants `hexfield + hexways`. A castle-builder wants `hexfield + hexforms + hexprops`. Only
+**A consumer takes what it needs.** A farming game wants `hex_field + hexgrow`. A railway game
+wants `hex_field + hexways`. A castle-builder wants `hex_field + hexforms + hexprops`. Only
 `hexscene` is required by all of them, and only if they render through glTF.
 
 ## The one thing that must NOT travel: metres
@@ -834,7 +834,7 @@ Bottom-up, and **not before plan #10 lands** — extracting a stack while its to
 still moving costs two migrations instead of one.
 
 ```
-   1. hexfield    the base; nothing else can move first
+   1. hex_field   the base; nothing else can move first   ✅ CORE LANDED 2026-07-22
    2. hexways     smallest dependent, proves the split works
    3. hexforms    the matcher travels with it
    4. hexgrow     needs way_param, so after hexways
@@ -848,7 +848,7 @@ than on the largest.
 
 ## Honest risks
 
-- **`hexfield` is big.** It may want splitting again (cells vs edges vs cache). Deciding that
+- **`hex_field` is big.** It may want splitting again (cells vs edges vs cache). Deciding that
   before step 1 is premature; deciding it after step 2 is informed.
 - **The canopy's contested-cell rule reaches into `Trees`**, which is arguably content.
   Whether species parameters are library or consumer is the same seam as prop kinds and
@@ -857,7 +857,7 @@ than on the largest.
   without the exporter — which argues for splitting it in two later, but not yet.
 
 
-## Stencils — and why they belong in `hexfield`
+## Stencils — and why they belong in `hex_field`
 
 A stencil is a **reusable piece of authored field** — a room, a house footprint, a tower
 plan, a village block — stamped into a world at a position and an orientation. crawler
@@ -913,7 +913,7 @@ Exact invariants, in the style of the rest:
 ### The seam, again
 
 **Mechanism library-side, content consumer-side** — the stencil *format*, the rotation, the
-stamp and the merge are `hexfield`; *which* stencils exist is bundle content.
+stamp and the merge are `hex_field`; *which* stencils exist is bundle content.
 
 That was the third appearance of this seam (prop kinds, species parameters, stencils), and it
 is now **settled once**: *a library's enumerations are of mechanisms and are closed; a
@@ -942,15 +942,25 @@ standalone runner and a README per package.
 
 ### Sequencing — build new, extract settled
 
-Extracting `hexfield` *while* plan #11 P2 puts the field under `Sim` is exactly the
+Extracting `hex_field` *while* plan #11 P2 puts the field under `Sim` is exactly the
 "two migrations instead of one" trap this document already warns about. The resolution is to
 split by **age of the code**, not by module:
 
-- **New routines land in the package now** — the stencil mechanism (designed above,
-  unimplemented) and the **document format** (does not exist at all). New code *adds* API, so
-  concurrent work cannot collide with P2.
-- **Settled crawler modules migrate after P2**, when the kernel has shown what it actually
-  needs — so the API is cut once, informed by two consumers, instead of guessed from one.
+- **The settled CORE went first — corrected by building it (2026-07-22).** "New code only"
+  was unbuildable: a stencil *is* a small field, so it needs `HexSet`/`Labels`/`Heights`, and
+  an empty package unblocks nobody. Two measurements said the core was the low-risk move
+  rather than a compromise: **`hexform` imports nothing at all**, and it is the most heavily
+  gated module in the stack (18 forms / 900 points against a Python oracle), while plan #11 P2
+  exercises `hexedge`/collision rather than `HexSet`. **So the principle sharpens: split by
+  how SETTLED the code is, not by whether it is new.**
+- **New routines build on it** — the stencil mechanism (designed above, unimplemented) and the
+  **document format** (does not exist at all). New code *adds* API, so it cannot collide.
+- **The modules P2 will exercise migrate after P2** — `EdgeSet`, `Surfaces`, `Materials`, the
+  region cache, levels — so their API is cut once, informed by two consumers.
+
+> **Naming: the family is `hex_*` with an underscore** (`hex_grid`, `hex_world`,
+> `hex_terrain`), so the package is **`hex_field`**, not `hexfield` as earlier drafts of this
+> document had it. Corrected here rather than frozen into something others `use`.
 
 ### What the editor may rely on
 
