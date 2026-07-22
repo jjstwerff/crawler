@@ -95,7 +95,38 @@ after enriches it. That ordering is deliberate — *a functional game first*.
 
 ## P5, restated — the seam that has never been connected
 
-Both halves of a derived world already exist and have never met (found 2026-07-22):
+**CORRECTED 2026-07-22, by reading the code instead of trusting the description.** My first
+statement of this — "both halves exist and have never met" — was **wrong**. `sim.loft` already
+integrates them: it reads `ovw.ov_towns[0]`, takes `ot_size`, and derives `nhouse = 3 +
+tsize*2` houses in a ring with doors facing the square, round towers at `tsize >= 2`, and a
+town wall with road-gates at `tsize >= 3` (`sim.loft:3005-3030`). The seam is wired and gated
+by `traveltest` / `surfacetest` / `overlandtest`.
+
+So P5 is **not** connecting two unconnected halves — it is **replacing the builder half of a
+working integration**, which is a smaller job with a stronger regression net and a different
+risk. What is primitive is the builder, not the seam:
+
+| | overland says | `sim` builds today | the stack would build |
+|---|---|---|---|
+| where | scored site, spacing, size | ✓ consumed | unchanged — **it stays the authority** |
+| houses | `ot_size` → count | tile stamp, rectangle, no height | walls, real eaves, 45° roofs, props |
+| doors | — | a **gap** in the wall (`v = 0`) | a `Features` interval — a real opening |
+| towers | — | `stamp_round_tower` = **a hexagon** | the matcher's true arc |
+| fields | `ot_fld`, `K_FIELD` | tile kinds | worked ground, the orchard in the ring |
+
+**Two consequences the earlier text missed:**
+
+1. **P5 is coupled to P2.** Today's builder writes into `Sim.tiles` — exactly what P2 replaces
+   with the field. P5 swaps a builder whose *substrate is changing underneath it*, so P5
+   strictly follows P2 and its first act is to re-point the existing builder, not to write a
+   new one.
+2. **The live generator is cramped in metres too.** `hrad = 6.0 + 3.5·…` hexes puts 5–9 houses
+   in a **9–14 m radius** with ~7.5 × 6 m houses; real villages space houses 10–20 m apart. The
+   same correction just applied to `land.loft` is owed to the generator — and *that* one the
+   player walks through.
+
+The original (partly wrong) framing, kept because the WHERE/WHAT split is still the right way
+to see it:
 
 - **`overland.loft` decides WHERE.** A scored settlement list with a formation threshold
   (`bs = 1.2` — below it no town forms), enforced spacing, size from score, **`ot_fld`, the
