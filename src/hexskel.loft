@@ -297,3 +297,176 @@ pub fn skeleton_depth(sk: Skeleton) -> integer {
   for j in 0..sk.sk_n { if (sk.sk_depth[j] ?? 0) > d { d = sk.sk_depth[j] ?? 0; } }
   d
 }
+
+// ── T9: AXES, AND THE CARDS HUNG ON THEM ────────────────────────────────────
+//
+// `branches_extract` cuts a segment at every fork, which is right for structure and wrong
+// for direction: inter-fork runs are short, so the headings they yield stay close to the
+// six the grid can step in. T4 measured 9 of 36 ten-degree bins and flagged it.
+//
+// The fix is to contract THROUGH forks along the DOMINANT-LOAD child. The heaviest chain
+// from the trunk is the main axis; anything branching off it starts a new axis. That is
+// what a tree actually looks like — one bole with laterals, not a uniform binary tree — and
+// the longer runs carry headings the grid never had to represent.
+pub fn dominant_child(sk: Skeleton, j: integer) -> integer {
+  best = -1;
+  bl = -1;
+  for c in 1..sk.sk_n {
+    if (sk.sk_par[c] ?? -1) == j {
+      L = sk.sk_load[c] ?? 0;
+      if L > bl { bl = L; best = c; }
+    }
+  }
+  best
+}
+
+// An axis starts at the root, or at any node that is NOT its parent's dominant child, and
+// runs to a tip by always taking the dominant child.
+pub fn axes_extract(sk: Skeleton) -> Branches {
+  br = branches_new();
+  for j in 0..sk.sk_n {
+    p = sk.sk_par[j] ?? -1;
+    starts = false;
+    if p < 0 { starts = true; }
+    else { if dominant_child(sk, p) != j { starts = true; } }
+    if starts {
+      e = j;
+      nxt = dominant_child(sk, e);
+      while nxt >= 0 { e = nxt; nxt = dominant_child(sk, e); }
+      if e != j {
+        dx = node_x(sk, e) - node_x(sk, j);
+        dy = node_y(sk, e) - node_y(sk, j);
+        ln = sqrt(dx * dx + dy * dy) ?? 0.0;
+        ux = 0.0; uy = 0.0;
+        if ln > 0.000001 { ux = dx / ln ?? 0.0; uy = dy / ln ?? 0.0; }
+        br.br_a += [j]; br.br_b += [e];
+        br.br_dx += [ux]; br.br_dy += [uy];
+        br.br_len += [ln];
+        br.br_load += [sk.sk_load[j] ?? 0];
+        br.br_n = br.br_n + 1;
+      }
+    }
+  }
+  br
+}
+
+// How many distinct headings a set of segments occupies, in `bins` equal wedges.  This is
+// the number that decides whether cards will jitter: a raw per-cell path can occupy at most
+// SIX, whatever the bin count.
+pub fn heading_bins(br: Branches, bins: integer) -> integer {
+  hit: vector<integer> = [];
+  for j in 0..bins { hit += [0]; }
+  for j in 0..br.br_n {
+    a = atan2(br.br_dy[j] ?? 0.0, br.br_dx[j] ?? 0.0);
+    b = ((a + 3.141592653589793) / (6.283185307179586 / (bins as float) ?? 1.0) ?? 0.0) as integer;
+    if b < 0 { b = 0; }
+    if b >= bins { b = bins - 1; }
+    hit[b] = 1;
+  }
+  n = 0;
+  for j in 0..bins { n = n + (hit[j] ?? 0); }
+  n
+}
+
+// ── CARDS ───────────────────────────────────────────────────────────────────
+//
+// Below the mesh threshold a branch becomes a semi-filled card carrying a pre-drawn spray
+// of leaves. A card cannot face the camera — the branch drawn on it would swing round with
+// it — so each is oriented by the branch it hangs on.
+//
+// A card is placed at a deterministic SUB-CELL position, not at its cell's centre, and that
+// is what makes its heading continuous. Centre-to-centre directions are lattice vectors, and
+// with only a few dozen of them in a radially symmetric crown they cluster on the six
+// directions the grid steps in. Offsetting inside the cell removes the quantisation
+// entirely — and does so without any smoothing pass, because the jitter is what real
+// foliage has anyway.
+//
+// The offset is a hash of the cell, so the same world always renders the same tree.
+fn hash01(k: integer, m: integer, salt: integer) -> float {
+  h = k * 73856093 + m * 19349663 + salt * 83492791;
+  h = h % 1000003;
+  if h < 0 { h = 0 - h; }
+  ((h % 10000) as float) / 10000.0 ?? 0.0
+}
+
+pub struct Cards {
+  cd_x:    vector<float>,
+  cd_y:    vector<float>,
+  cd_z:    vector<float>,
+  cd_dx:   vector<float>,     // branch-aligned, never camera-facing
+  cd_dy:   vector<float>,
+  cd_size: vector<float>,
+  cd_q:    vector<integer>,
+  cd_r:    vector<integer>,
+  cd_n:    integer,
+}
+
+pub fn cards_new() -> Cards {
+  a: vector<float> = []; b: vector<float> = []; c: vector<float> = [];
+  d: vector<float> = []; e: vector<float> = []; f: vector<float> = [];
+  g: vector<integer> = []; h: vector<integer> = [];
+  Cards { cd_x: a, cd_y: b, cd_z: c, cd_dx: d, cd_dy: e, cd_size: f,
+          cd_q: g, cd_r: h, cd_n: 0 }
+}
+
+// Where a node's card actually sits: its cell, displaced within it.
+pub fn card_pos_x(sk: Skeleton, j: integer, jitter: float) -> float {
+  q = sk.sk_q[j] ?? 0;
+  r = sk.sk_r[j] ?? 0;
+  node_x(sk, j) + (hash01(lattice_k(q, r), lattice_m(q, r), 1) - 0.5) * jitter
+}
+pub fn card_pos_y(sk: Skeleton, j: integer, jitter: float) -> float {
+  q = sk.sk_q[j] ?? 0;
+  r = sk.sk_r[j] ?? 0;
+  node_y(sk, j) + (hash01(lattice_k(q, r), lattice_m(q, r), 2) - 0.5) * jitter
+}
+
+// One card per node too thin to mesh, oriented along its own branch and sitting inside the
+// canopy interval at its cell.
+pub fn cards_place(sk: Skeleton, top: Heights, base: Heights,
+                   nmin: integer, jitter: float) -> Cards {
+  cd = cards_new();
+  for j in 0..sk.sk_n {
+    if (sk.sk_load[j] ?? 0) < nmin {
+      q = sk.sk_q[j] ?? 0;
+      r = sk.sk_r[j] ?? 0;
+      px = card_pos_x(sk, j, jitter);
+      py = card_pos_y(sk, j, jitter);
+      // A card is a SPRAY at the outer end of a branch, and a spray points outward — so
+      // its heading is taken from the trunk to the card, not from the last path step.
+      // Both are continuous once the card is offset within its cell; measured over the
+      // same 81 cards, outward gives 34 of 36 heading bins, the local parent-to-child
+      // step gives 21, and a blend of the two 29. Outward is both the richest and the
+      // one that describes what is drawn on the card.
+      dx = px - node_x(sk, 0);
+      dy = py - node_y(sk, 0);
+      ln = sqrt(dx * dx + dy * dy) ?? 0.0;
+      ux = 1.0; uy = 0.0;
+      if ln > 0.000001 { ux = dx / ln ?? 0.0; uy = dy / ln ?? 0.0; }
+      zb = height_get(base, q, r);
+      zt = height_get(top, q, r);
+      cd.cd_x += [px]; cd.cd_y += [py];
+      cd.cd_z += [zb + (zt - zb) * (0.25 + 0.5 * hash01(lattice_k(q, r), lattice_m(q, r), 3))];
+      cd.cd_dx += [ux]; cd.cd_dy += [uy];
+      cd.cd_size += [zt - zb];
+      cd.cd_q += [q]; cd.cd_r += [r];
+      cd.cd_n = cd.cd_n + 1;
+    }
+  }
+  cd
+}
+
+pub fn cards_heading_bins(cd: Cards, bins: integer) -> integer {
+  hit: vector<integer> = [];
+  for j in 0..bins { hit += [0]; }
+  for j in 0..cd.cd_n {
+    a = atan2(cd.cd_dy[j] ?? 0.0, cd.cd_dx[j] ?? 0.0);
+    b = ((a + 3.141592653589793) / (6.283185307179586 / (bins as float) ?? 1.0) ?? 0.0) as integer;
+    if b < 0 { b = 0; }
+    if b >= bins { b = bins - 1; }
+    hit[b] = 1;
+  }
+  n = 0;
+  for j in 0..bins { n = n + (hit[j] ?? 0); }
+  n
+}

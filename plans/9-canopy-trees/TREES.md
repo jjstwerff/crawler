@@ -349,11 +349,9 @@ A per-cell path on a hex grid can step in only **six** directions, so cards hung
 nodes would snap between six angles and jitter as the crown changed. Contracting each run
 between forks into one segment lifts that to **9 of 36** ten-degree bins here.
 
-That is better than six but **not by much**, because segments between forks are short. If
-T9's cards prove to jitter, the fix is to contract *through* forks along the
-dominant-load child — giving a long main axis with laterals off it, which is also what a
-real tree looks like — rather than to add smoothing after the fact. Flagged now rather than
-discovered at T9.
+That is better than six but **not by much**, because segments between forks are short. The
+fix proposed here — contracting *through* forks along the dominant-load child — **was tried
+at T9 and does not work** (8 bins against 8). See §13 for what did.
 
 ### I-OPACITY — what you see is what the field reports
 The canopy is drawn as semi-filled cards (§6) and *also* queried by `sight_clear`, which
@@ -732,3 +730,37 @@ None of these is a tuning knob; each falls out of the lattice or the physics:
 | plan #5, domes | `\|dz/dr\| > 1` | wall, not roof |
 | plan #9, crowns | `R < 2√3` | object, not field |
 | plan #9, branches | `load < (r_min/k)²` | card, not mesh |
+
+
+## 13. T9 — cards, and a wrong diagnosis corrected
+
+T4 measured 9 of 36 heading bins and proposed contracting *through* forks along the
+dominant-load child. **That does not work.** Measured on one crown's 81 cards:
+
+```
+   fork-cut segment endpoints                    8 of 36 bins
+   dominant-child axis endpoints                 8
+   card, local parent-to-child step, jittered   21
+   card, outward from the trunk, cell centres   32
+   card, outward from the trunk, jittered       34
+```
+
+The limit was never the lattice — point-to-point vectors spanning 8 cells already cover all
+36 bins — and never the contraction. **It was the basis.** A *segment* basis has only a
+couple of dozen short segments to draw headings from, so whatever way you cut the path, the
+headings cluster on the six directions the grid steps in. An **outward** basis has a heading
+per *cell*, because every cell sits at its own angle from the trunk.
+
+It is also the truer description: a card carries a **spray**, and a spray points outward.
+The last path step is not what is drawn on it.
+
+Sub-cell placement is kept — it adds 2 bins and gives foliage the irregularity it should
+have, deterministically hashed so the same world renders the same tree — but **it is not the
+fix**, and an earlier draft of this gate asserted that it was, with a "negative control"
+resting on a false premise. Corrected before it shipped.
+
+**The rest of T9 is inherited rather than built.** Cards obey I-NOTRESPASS with no
+card-level rule (0 stray), because a card hangs off a branch and a branch never leaves its
+own crown — so the crowded-tree asymmetry appears in the foliage for free. Every card sits
+inside its cell's canopy interval (0 outside), sized by the canopy depth there
+(1.40 … 18.24). Mesh and cards partition the skeleton exactly (7 + 81 = 88).

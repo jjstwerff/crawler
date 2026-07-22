@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — T1–T8 done**, gated in `make test`. The design is settled enough to build against:
+**Active — T1–T9 done**, gated in `make test`. The design is settled enough to build against:
 **[TREES.md](TREES.md)** is the document; this README is the phase tracker.
 
 ## Goal
@@ -41,7 +41,7 @@ architecture.
 | **T6** | relaxation to convergence | **DONE** — `src/canopyrelaxtest.loft` |
 | **T7** | levels: canopy over understory | **DONE** — `src/canopylighttest.loft` |
 | **T8** | object/field split below the resolution floor | **DONE** — `src/canopyfloortest.loft` |
-| **T9** | branch-aligned cards | |
+| **T9** | branch-aligned cards | **DONE** — `src/canopycardtest.loft` |
 | **T10** | opacity calibration (I-OPACITY) | |
 
 **T10 is the real work remaining.** T1–T6 are done; T7–T9 are mostly reuse of plan #5.

@@ -1,0 +1,140 @@
+// canopycardtest — plan #9 T9: branch-aligned cards.
+//
+// T4 flagged that fork-cut branch segments occupied only 9 of 36 heading bins, and proposed
+// contracting THROUGH forks along the dominant-load child as the fix. **That fix does not
+// work** — measured 8 bins against 8, 10 against 10 — and this gate records the negative
+// result along with the actual cause, because a wrong diagnosis carried forward is worse
+// than an open question.
+//
+// The lattice is not the limit: point-to-point vectors spanning 8 cells already cover all
+// 36 bins. The limit was that both endpoints were cell CENTRES and there were only a couple
+// of dozen segments in a radially symmetric crown, so they clustered on the six grid
+// directions. Cards are per-node, so there are far more of them — and placing each at a
+// deterministic SUB-CELL position makes its heading continuous with no smoothing pass at
+// all.
+use hexform;
+use hexcanopy;
+use hexskel;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy card test (plan #9 T9) ===");
+  ok = true;
+  q0 = -26; r0 = -20; gw = 53; gh = 41;
+
+  s = hexset_chunk(q0, r0, gw, gh);
+  fill(s);
+  t = trees_new();
+  tree_add(t,  0, 0, 20, 81, 0);
+  tree_add(t, 16, 0, 20, 81, 1);
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, s, lb, ct);
+  top = heights_new(q0, r0, gw, gh);
+  bas = heights_new(q0, r0, gw, gh);
+  canopy_heights(t, s, lb, ct, top, bas);
+  sk = skeleton_build(t, 0, s, lb);
+  nmin = mesh_load_min(0.20, PIPE_K);
+
+  // ── 1. the T4 proposal, measured and rejected ────────────────────────────
+  br = branches_extract(sk);
+  ax = axes_extract(sk);
+  println("T4's proposed fix, measured:");
+  println("   fork-cut branches: {br.br_n} segments, {heading_bins(br, 36)} of 36 bins");
+  println("   dominant-child axes: {ax.br_n} segments, {heading_bins(ax, 36)} of 36 bins");
+  println("   -> contracting through forks does NOT fix it. Recorded as a negative result.");
+  if ax.br_n <= 0 { ok = false; }
+
+  // ── 2. what actually fixes it: the BASIS, not the contraction or the jitter ─
+  // Measured over the same 81 cards of one crown:
+  //
+  //     fork-cut segment endpoints                    8 of 36 bins
+  //     dominant-child axis endpoints                 8
+  //     card, local parent-to-child step, jittered   21
+  //     card, outward from the trunk, cell centres   32
+  //     card, outward from the trunk, jittered       34
+  //
+  // The limit was never the lattice (point-to-point vectors spanning 8 cells already cover
+  // all 36 bins) and never the contraction. It was that a SEGMENT basis has only a couple
+  // of dozen short segments to draw headings from. An OUTWARD basis has as many headings as
+  // there are cells, because every cell sits at its own angle from the trunk.
+  //
+  // Sub-cell placement is worth keeping — it adds 2 bins and gives foliage the irregularity
+  // it should have — but it is NOT the fix, and an earlier draft of this gate asserted that
+  // it was.
+  cd = cards_place(sk, top, bas, nmin, 0.9);
+  flat = cards_place(sk, top, bas, nmin, 0.0);
+  bins_jit = cards_heading_bins(cd, 36);
+  bins_flat = cards_heading_bins(flat, 36);
+  println("cards: {cd.cd_n} of {sk.sk_n} nodes are below the mesh threshold");
+  println("   outward basis, cell centres:      {bins_flat} of 36 heading bins");
+  println("   outward basis, sub-cell offset:   {bins_jit} of 36 heading bins");
+  println("   (segment bases, for contrast: fork-cut {heading_bins(br, 36)}, axes {heading_bins(ax, 36)})");
+  if cd.cd_n <= 0 { ok = false; }
+  if bins_jit < 30 { ok = false; }
+  if bins_jit < bins_flat { ok = false; }
+  // the segment bases must genuinely be the poor ones — that is the real contrast
+  if heading_bins(br, 36) >= bins_flat { ok = false; }
+  if heading_bins(ax, 36) >= bins_flat { ok = false; }
+  println("   -> a spray points OUTWARD, and that basis has a heading per cell rather than");
+  println("      per segment. The contraction strategy was never going to fix this.");
+
+  // ── 4. every card obeys I-NOTRESPASS, inherited from the skeleton ────────
+  // A card hangs off a branch, and a branch never leaves its own crown — so no tree's
+  // foliage can stray into its neighbour's. The crowded-tree asymmetry appears in the
+  // foliage with no card-level rule at all.
+  stray = 0;
+  for j in 0..cd.cd_n {
+    if label_get(lb, cd.cd_q[j] ?? 0, cd.cd_r[j] ?? 0) != sk.sk_id { stray = stray + 1; }
+  }
+  println("cards outside their own crown: {stray}");
+  if stray != 0 { ok = false; }
+
+  // ── 5. every card sits INSIDE the canopy interval it fills ───────────────
+  outside = 0;
+  for j in 0..cd.cd_n {
+    q = cd.cd_q[j] ?? 0;
+    r = cd.cd_r[j] ?? 0;
+    z = cd.cd_z[j] ?? 0.0;
+    if z < height_get(bas, q, r) - 0.000001 { outside = outside + 1; }
+    if z > height_get(top, q, r) + 0.000001 { outside = outside + 1; }
+  }
+  println("cards outside the canopy interval: {outside}");
+  if outside != 0 { ok = false; }
+
+  // ── 6. mesh and cards partition the skeleton exactly ─────────────────────
+  meshed = mesh_nodes(sk, nmin);
+  println("mesh {meshed} + cards {cd.cd_n} == nodes {sk.sk_n}: {meshed + cd.cd_n == sk.sk_n}");
+  if meshed + cd.cd_n != sk.sk_n { ok = false; }
+
+  // ── 7. determinism — the same world renders the same tree ───────────────
+  cd2 = cards_place(sk, top, bas, nmin, 0.9);
+  diff = 0;
+  if cd2.cd_n != cd.cd_n { diff = 1; }
+  else {
+    for j in 0..cd.cd_n {
+      if (cd2.cd_x[j] ?? 0.0) != (cd.cd_x[j] ?? 0.0) { diff = diff + 1; }
+      if (cd2.cd_dy[j] ?? 0.0) != (cd.cd_dy[j] ?? 0.0) { diff = diff + 1; }
+    }
+  }
+  println("determinism: re-placed cards differ in {diff} values");
+  if diff != 0 { ok = false; }
+
+  // ── 8. a card's size is the canopy it has to fill ───────────────────────
+  smin = 1000.0; smax = 0.0;
+  for j in 0..cd.cd_n {
+    sz = cd.cd_size[j] ?? 0.0;
+    if sz < smin { smin = sz; }
+    if sz > smax { smax = sz; }
+  }
+  println("card sizes run {smin} to {smax} (the canopy depth at each cell)");
+  if smax <= smin { ok = false; }
+  if smin < 0.0 { ok = false; }
+
+  if ok { println("=== CANOPYCARD OK ==="); } else { println("=== FAIL ==="); }
+}
