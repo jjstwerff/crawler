@@ -1,0 +1,105 @@
+// propgentest — plan #10 P5: the village furnishes itself.
+//
+// The prop level is a pure function of the architecture plus a seed, so nothing here is
+// authored. The invariant that matters is EXACTLY ONE door per opening: an opening is a
+// single hole in a wall, and a derivation that placed two — or none — would be wrong in a
+// way that only shows when someone tries to walk through it.
+use hexform;
+use hexedge;
+use hexplace;
+use hexderive;
+
+fn main() {
+  println("=== story derived-placement test (plan #10 P5) ===");
+  ok = true;
+  q0 = -20; r0 = -16; gw = 41; gh = 33;
+
+  // ── an architecture with openings: three walls, seven doors and windows ──
+  sf = surfaces_new();
+  s1 = surf_straight(sf, 0.0, 1.0, 0.0);        // a wall along x
+  s2 = surf_straight(sf, 1.0, 0.0, 4.0);        // a wall along y
+  s3 = surf_arc(sf, 0.0, 0.0, 6.0);             // a round tower
+  ft = features_new();
+  feature_add(ft, s1, -6.0, -4.5, 0.0, 2.1, 1, 3);
+  feature_add(ft, s1,  1.0,  2.2, 0.0, 2.1, 1, 3);
+  feature_add(ft, s1,  5.0,  5.7, 1.0, 1.8, 2, 4);
+  feature_add(ft, s2, -3.0, -1.8, 0.0, 2.1, 1, 3);
+  feature_add(ft, s2,  2.5,  3.1, 1.0, 1.8, 2, 4);
+  feature_add(ft, s3,  1.5,  2.6, 0.0, 2.1, 1, 3);
+  feature_add(ft, s3,  9.0, 10.1, 1.0, 1.8, 2, 4);
+  println("architecture: {sf.sf_n - 1} surfaces carrying {ft.fe_n} openings");
+
+  // ── 1. exactly one prop per opening — none missed, none doubled ──────────
+  ps = propset_new(L_FIXED, q0, r0, gw, gh);
+  placed = derive_openings(sf, ft, ps, 3, 1234);
+  println("derived: {placed} props for {ft.fe_n} openings, total on the level {prop_total(ps)}");
+  if placed != ft.fe_n { ok = false; }
+  if prop_total(ps) != ft.fe_n { ok = false; }
+  println("   -> exactly one, which is the only count a hole in a wall can have");
+
+  // ── 2. every prop sits ON its surface, not near it ───────────────────────
+  // This is P3's residual idea applied to placement: a door 20 cm off the wall it belongs
+  // to renders plausibly and is wrong.
+  worst = 0.0;
+  for fi in 0..ft.fe_n {
+    sid = ft.fe_surf[fi] ?? -1;
+    px = prop_world_x(ps, fi);
+    py = prop_world_y(ps, fi);
+    d = surf_distance(sf, sid, px, py);
+    if d < 0.0 { d = 0.0 - d; }
+    if d > worst { worst = d; }
+  }
+  println("worst distance from a prop to the surface it was derived from: {worst}");
+  if worst > 0.000000001 { ok = false; }
+  println("   -> on the wall, not near it. The sub-cell offset is carrying the placement,");
+  println("      which is exactly what it exists for.");
+
+  // and each lands inside its own opening's interval, not merely on the surface
+  outside = 0;
+  for fj in 0..ft.fe_n {
+    sid2 = ft.fe_surf[fj] ?? -1;
+    t = surf_param(sf, sid2, prop_world_x(ps, fj), prop_world_y(ps, fj));
+    lo = ft.fe_s0[fj] ?? 0.0;
+    hi = ft.fe_s1[fj] ?? 0.0;
+    if t < lo - 0.000001 || t > hi + 0.000001 { outside = outside + 1; }
+  }
+  println("props landing outside their own opening's interval: {outside}");
+  if outside != 0 { ok = false; }
+
+  // ── 3. determinism: same architecture, same seed, same furniture ─────────
+  ps2 = propset_new(L_FIXED, q0, r0, gw, gh);
+  derive_openings(sf, ft, ps2, 3, 1234);
+  diff = 0;
+  for fk in 0..prop_total(ps) {
+    if (ps.pp_q[fk] ?? 0) != (ps2.pp_q[fk] ?? 0) { diff = diff + 1; }
+    if (ps.pp_seed[fk] ?? 0) != (ps2.pp_seed[fk] ?? 0) { diff = diff + 1; }
+    if (ps.pp_scale[fk] ?? 0.0) != (ps2.pp_scale[fk] ?? 0.0) { diff = diff + 1; }
+  }
+  ps3 = propset_new(L_FIXED, q0, r0, gw, gh);
+  derive_openings(sf, ft, ps3, 3, 9999);
+  varied = 0;
+  for fm in 0..prop_total(ps) {
+    if (ps.pp_seed[fm] ?? 0) != (ps3.pp_seed[fm] ?? 0) { varied = varied + 1; }
+  }
+  println("determinism: same seed differs in {diff} fields; a new seed varies {varied} of {prop_total(ps)}");
+  if diff != 0 { ok = false; }
+  if varied != prop_total(ps) { ok = false; }
+  println("   -> reproducible from the architecture and a seed, with no authored data");
+
+  // ── 4. NEGATIVE CONTROL: remove one opening, lose exactly one door ───────
+  // Without this, "one per opening" could hold while the derivation ignored the openings
+  // entirely and placed a fixed number.
+  ft2 = features_new();
+  for fn2 in 0..ft.fe_n - 1 {
+    feature_add(ft2, ft.fe_surf[fn2] ?? 0, ft.fe_s0[fn2] ?? 0.0, ft.fe_s1[fn2] ?? 0.0,
+                ft.fe_z0[fn2] ?? 0.0, ft.fe_z1[fn2] ?? 0.0,
+                ft.fe_kind[fn2] ?? 0, ft.fe_mat[fn2] ?? 0);
+  }
+  ps4 = propset_new(L_FIXED, q0, r0, gw, gh);
+  fewer = derive_openings(sf, ft2, ps4, 3, 1234);
+  println("negative control — one opening removed: {fewer} props, was {placed}");
+  if fewer != placed - 1 { ok = false; }
+  println("   -> the derivation follows the architecture rather than counting to seven");
+
+  if ok { println("=== PROPGEN OK ==="); } else { println("=== FAIL ==="); }
+}

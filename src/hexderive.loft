@@ -1,0 +1,60 @@
+// hexderive — plan #10 P5: the prop level DERIVED from the architecture.
+//
+// The prop level is a pure function of the architecture level plus a seed, exactly as the
+// L2 edge field is a pure function of the L1 world. So a village FURNISHES ITSELF: every
+// wall opening gets a door, and nothing about that is authored data.
+//
+// Per BUNDLE.md's settled seam, this file decides WHERE and WHICH MECHANISM; the caller
+// supplies WHICH THING as an opaque `kind`. The library never holds a catalogue — that is
+// the difference between a mechanism that furnishes any world and a hard-coded list that
+// furnishes one.
+use hexform;
+use hexedge;
+use hexplace;
+
+// Deterministic per-site variation, so two doors on one wall differ without two door
+// models existing. The same hash T9 uses to place foliage cards.
+fn site_hash(a: integer, b: integer, salt: integer) -> integer {
+  h = a * 73856093 + b * 19349663 + salt * 83492791;
+  h = h % 1000003;
+  if h < 0 { h = 0 - h; }
+  h
+}
+
+// Every opening on every surface receives exactly one prop, at the middle of its interval.
+//
+// Exactly one: an opening is a single hole in a wall, and a derivation that placed two
+// doors in it — or none — would be wrong in a way that only shows when someone tries to
+// walk through. So the count is the invariant, not an approximation of it.
+pub fn derive_openings(sf: Surfaces, ft: Features, ps: PropSet,
+                       kind: integer, seed: integer) -> integer {
+  placed = 0;
+  for fi in 0..ft.fe_n {
+    sid = ft.fe_surf[fi] ?? -1;
+    if sid > 0 {
+      s0 = ft.fe_s0[fi] ?? 0.0;
+      s1 = ft.fe_s1[fi] ?? 0.0;
+      mid = (s0 + s1) * 0.5;
+      (wx, wy) = surf_point(sf, sid, mid);
+      (pq, pr) = hex_at(wx, wy);
+      hs = site_hash(sid, fi, seed);
+      // the sub-cell offset places the prop where the OPENING is, not at the cell's centre
+      ox = wx - ((lattice_k(pq, pr)) as float) * 0.8660254037844386;
+      oy = wy - ((lattice_m(pq, pr)) as float) * 0.5;
+      yaw = atan2(sf.sf_b[sid] ?? 0.0, sf.sf_a[sid] ?? 1.0);
+      sc = 0.92 + 0.16 * ((hs % 100) as float) / 100.0 ?? 0.0;
+      prop_add(ps, pq, pr, kind, hs, ox, oy, yaw, sc);
+      placed = placed + 1;
+    }
+  }
+  placed
+}
+
+// A prop's world position, recovered from its cell and sub-cell offset.
+pub fn prop_world_x(ps: PropSet, i: integer) -> float {
+  ((lattice_k(ps.pp_q[i] ?? 0, ps.pp_r[i] ?? 0)) as float) * 0.8660254037844386
+    + (ps.pp_ox[i] ?? 0.0)
+}
+pub fn prop_world_y(ps: PropSet, i: integer) -> float {
+  ((lattice_m(ps.pp_q[i] ?? 0, ps.pp_r[i] ?? 0)) as float) * 0.5 + (ps.pp_oy[i] ?? 0.0)
+}

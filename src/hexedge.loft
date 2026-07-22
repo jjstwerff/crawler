@@ -596,3 +596,25 @@ pub fn sight_clear(e: EdgeSet, m: Materials, x0: float, y0: float, z0: float,
   }
   clear
 }
+
+// The inverse of surf_param: where along a surface does this parameter land?
+//
+// surf_param answers "where is this point on that surface"; derived placement needs the
+// other direction — a Feature states an INTERVAL in surface parameters (plan #5 P5), and
+// putting a door there means turning that interval back into a position. Without this the
+// only way to place a door on an existing opening is to search for it.
+pub fn surf_point(s: Surfaces, id: integer, t: float) -> (float, float) {
+  if id <= 0 || id >= s.sf_n { return (0.0, 0.0); }
+  if (s.sf_kind[id] ?? 0) == 1 {
+    nx = s.sf_a[id] ?? 0.0;
+    ny = s.sf_b[id] ?? 0.0;
+    c = s.sf_c[id] ?? 0.0;
+    // the foot of the perpendicular, then t along the surface's own direction
+    return (c * nx - t * ny, c * ny + t * nx);
+  }
+  cx = s.sf_a[id] ?? 0.0;
+  cy = s.sf_b[id] ?? 0.0;
+  r = s.sf_c[id] ?? 1.0;
+  a = t / r ?? 0.0;
+  (cx + r * cos(a), cy + r * sin(a))
+}

@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1–P4 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1–P5 done.** P6–P9 remain (state, and the render pass). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -95,7 +95,7 @@ Props recorded on their own level. `FieldCache` is already keyed `(chunk, level,
 - several props on one cell via the bucketed list, with the chain walked in a
   deterministic order.
 
-## P5 — derived placement
+## P5 — derived placement  — **DONE**, `src/propgentest.loft`
 
 The prop level becomes a **pure function of the architecture level plus a seed**: every wall
 opening gets a door, every ridge a chimney, every field boundary a fence.
