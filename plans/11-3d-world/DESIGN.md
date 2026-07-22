@@ -85,6 +85,41 @@ This is the over-engineering test passing cleanly (`CLAUDE.md`): thin-geometry c
 hard part, every consumer of `hex_field` needs it, and a small team cannot afford to debug
 physics jank. Solve it once in the lattice and no one downstream pays it again.
 
+### The specific mechanism: an over-reduced point, and two corrections that compose
+
+(User, 2026-07-22.) *A person normally gets reduced to a single point where they stand, and
+moving against a wall **and** a step easily brings that point outside normal geometry.*
+
+That is the whole bug in one sentence, and the conjunction is doing the work. Each correction
+is individually small and individually defensible — the wall's push-out shifts the position a
+little, the step's ground resolution snaps it a little — but they fire in the **same frame**,
+on a position that has been reduced to one point, and **neither correction is checking the
+constraint the other one maintains**. Their composition lands the point on the far side of a
+boundary that nothing was watching. The wall-and-step corner is where two thin features meet,
+which is exactly why that corner is the classic place to leave the world.
+
+Two structural properties answer it, and both are already true here:
+
+- **Nothing corrects the position, so corrections cannot compose.** Under I-CROSS a position
+  changes only by a move that was *accepted*; a rejected crossing means the move does not
+  happen, or is clamped **to the boundary it failed to cross**. There is no second,
+  independent nudge with its own opinion. The failure needs two corrections to interact; the
+  model has zero.
+- **The plane is a PARTITION, not a mesh — so there is no outside to get to.** `px_to_hex`
+  is total (pure arithmetic and rounding, verified: no failure case, no "off the mesh"), so
+  every point in the plane is in exactly one hex, and beyond the map `tile_at` answers **1 —
+  rock, not void**. A triangle mesh has cracks between faces and a region outside itself; a
+  lattice partition has neither. *There is nowhere for "outside normal geometry" to be.*
+
+> **The bar is normal play, not impossibility** (user: *"I do not despise speed runners,
+> however normal players should not fall through the world all the time"*). So this is
+> deliberately **not** a mandate to build clamping, anti-cheat or out-of-bounds recovery
+> machinery — that machinery is the composing-corrections failure, reintroduced. Getting out
+> of the world should stay possible and *earned*; what must never happen is the ordinary
+> player leaving it by walking into a corner. Which is the testable form: **the failure must
+> require deliberate effort, not arise from a walk.** P2b's dt sweep is that test — a player
+> who drops frames is not trying to escape.
+
 > **Found while writing this down: the fence is currently a FILLED CELL.** Both placements
 > write `tiles[i] = 5` — the farmers' fences along the roads (`sim.loft:3015`) and the
 > livestock pen (`sim.loft:3656`). At 1.5 m per hex that is a 1.5 m thick barrier: not a
@@ -105,6 +140,12 @@ physics jank. Solve it once in the lattice and no one downstream pays it again.
 > rule (a step is crossable only within a step-up bound, else the boundary is impassable)
 > belongs with the layer axis, open question 2. **Do not read I-CROSS as covering stairs
 > yet — it covers the plane, and the plane is what P2 builds.**
+>
+> The partition argument does carry upward, though, and it is the reason *falling through the
+> world* is the tractable half: falling needs a **hole in the floor's domain**, and a per-cell
+> height over a total partition has none — every point in the plane has exactly one hex, and
+> that hex has a height. So the vertical work is about **which steps may be crossed**, not
+> about plugging voids. That is a much smaller question than the one Bethesda was answering.
 
 **Where the current model asks the wrong question:** `pos_blocked` / `sim_step`
 (`sim.loft`) advance the player by sampling **one probe point** per axis, one radius ahead,

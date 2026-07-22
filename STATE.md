@@ -91,6 +91,14 @@ contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracte
    barrier tunnels, and its push-out is ambiguous enough to resolve to the *wrong side*. On
    the exact-integer lattice a wall is a 1-D boundary, so that whole family is
    **unrepresentable rather than handled**. → plan #11 **I-CROSS**
+   The mechanism: a person is normally reduced to **one point**, and a wall **and** a step
+   apply two independent corrections in the same frame — neither checking what the other
+   maintains — which composes the point across a boundary nothing was watching. Here nothing
+   corrects a position (so corrections cannot compose) and the plane is a **partition, not a
+   mesh** (`px_to_hex` is total; beyond the map is *rock*, not void), so there is nowhere for
+   "outside geometry" to be. **The bar is normal play, not impossibility** — speedrunners
+   getting out is fine and should stay *earned*; we build no clamping or OOB-recovery
+   machinery, since that machinery **is** the composing-corrections bug.
    - *Consequence found while writing it down:* **the fence is currently a filled cell**
      (`tiles[i] = 5`) — a 1.5 m thick barrier, the thin thing thickened until a point-sample
      model could see it. It becomes an edge feature in P2; `s.walls` already has the
