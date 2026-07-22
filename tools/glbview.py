@@ -116,7 +116,7 @@ def collect(g, bin_):
     return tris
 
 
-def render(tris, size, eye, target, up, fov, bg, sun):
+def render(tris, size, eye, target, up, fov, bg, sun, sm=None, bias=0.05):
     W, H = size
     fwd = [target[i] - eye[i] for i in range(3)]
     fl = math.dist(eye, target) or 1.0
@@ -190,8 +190,111 @@ def render(tris, size, eye, target, up, fov, bg, sun):
                 z = w0 * pa[2] + w1 * pb[2] + w2 * pc[2]
                 if z < zbuf[y][x]:
                     zbuf[y][x] = z
-                    px[x, y] = rgb
+                    if sm is None:
+                        px[x, y] = rgb
+                    else:
+                        # perspective-correct world position, so the shadow lookup lands
+                        # where the surface actually is rather than where affine screen
+                        # interpolation would put it
+                        ia, ib, ic = w0 / pa[2], w1 / pb[2], w2 / pc[2]
+                        den = ia + ib + ic
+                        wp = [(ia * a[k] + ib * b[k] + ic * c[k]) / den for k in range(3)]
+                        vis = shadow_factor(sm, wp, bias)
+                        # the shadow removes the KEY only; sky fill still reaches into it,
+                        # which is why a real shadow is coloured rather than black
+                        s2 = amb + 0.26 * sky
+                        kr2 = s2 * 0.82 + 0.56 * lam * 1.16 * vis
+                        kg2 = s2 * 0.90 + 0.56 * lam * 1.00 * vis
+                        kb2 = s2 * 1.15 + 0.56 * lam * 0.74 * vis
+                        px[x, y] = (int(max(0, min(255, col[0] * 255 * kr2))),
+                                    int(max(0, min(255, col[1] * 255 * kg2))),
+                                    int(max(0, min(255, col[2] * 255 * kb2))))
     return img, drawn
+
+
+
+# ── SHADOW PASS ──────────────────────────────────────────────────────────────
+#
+# Colour temperature alone could not carry "late afternoon" — the landscape stayed flat and
+# overcast through three passes, and the intent file named cast shadows as the missing lever
+# rather than a nice-to-have. A shadow proves the sun and the object share a world, which is
+# the "coherent world" the skill says realness actually lives in.
+#
+# Standard shadow mapping, sized to the scene: a depth-only orthographic pass from the
+# light (directional, so orthographic is exact), then a depth compare per shaded pixel.
+
+def _norm(v):
+    l = math.hypot(*v) or 1.0
+    return [c / l for c in v]
+
+
+def _cross(a, b):
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+
+def build_shadow_map(tris, sun, res=768):
+    """Depth from the light's point of view. `sun` points TOWARD the light."""
+    f = _norm([-c for c in sun])                     # the way light travels
+    up = [0, 0, 1] if abs(f[2]) < 0.9 else [0, 1, 0]
+    r = _norm(_cross(f, up))
+    u = _cross(r, f)
+    pts = [p for t in tris for p in t[:3]]
+    if not pts:
+        return None
+    xs = [sum(p[i] * r[i] for i in range(3)) for p in pts]
+    ys = [sum(p[i] * u[i] for i in range(3)) for p in pts]
+    x0, x1 = min(xs), max(xs)
+    y0, y1 = min(ys), max(ys)
+    pad = max(x1 - x0, y1 - y0) * 0.02 + 1e-6
+    x0 -= pad; x1 += pad; y0 -= pad; y1 += pad
+    sx = (res - 1) / (x1 - x0)
+    sy = (res - 1) / (y1 - y0)
+    depth = [[1e30] * res for _ in range(res)]
+    for a, b, c, _col in tris:
+        P = []
+        for p in (a, b, c):
+            P.append((( sum(p[i] * r[i] for i in range(3)) - x0) * sx,
+                      ( sum(p[i] * u[i] for i in range(3)) - y0) * sy,
+                        sum(p[i] * f[i] for i in range(3))))
+        d = (P[1][1] - P[2][1]) * (P[0][0] - P[2][0]) + (P[2][0] - P[1][0]) * (P[0][1] - P[2][1])
+        if abs(d) < 1e-12:
+            continue
+        mnx = max(0, int(min(P[0][0], P[1][0], P[2][0])))
+        mxx = min(res - 1, int(max(P[0][0], P[1][0], P[2][0])) + 1)
+        mny = max(0, int(min(P[0][1], P[1][1], P[2][1])))
+        mxy = min(res - 1, int(max(P[0][1], P[1][1], P[2][1])) + 1)
+        for yy in range(mny, mxy + 1):
+            row = depth[yy]
+            for xx in range(mnx, mxx + 1):
+                px, py = xx + 0.5, yy + 0.5
+                w0 = ((P[1][1] - P[2][1]) * (px - P[2][0]) + (P[2][0] - P[1][0]) * (py - P[2][1])) / d
+                w1 = ((P[2][1] - P[0][1]) * (px - P[2][0]) + (P[0][0] - P[2][0]) * (py - P[2][1])) / d
+                w2 = 1 - w0 - w1
+                if w0 < 0 or w1 < 0 or w2 < 0:
+                    continue
+                z = w0 * P[0][2] + w1 * P[1][2] + w2 * P[2][2]
+                if z < row[xx]:
+                    row[xx] = z
+    return (r, u, f, x0, y0, sx, sy, res, depth)
+
+
+def shadow_factor(sm, p, bias):
+    """0 = fully shadowed, 1 = lit.  Four taps, so the edge is not a staircase."""
+    if sm is None:
+        return 1.0
+    r, u, f, x0, y0, sx, sy, res, depth = sm
+    lx = (sum(p[i] * r[i] for i in range(3)) - x0) * sx
+    ly = (sum(p[i] * u[i] for i in range(3)) - y0) * sy
+    lz = sum(p[i] * f[i] for i in range(3))
+    lit = 0
+    for dx, dy in ((0.0, 0.0), (0.9, 0.0), (0.0, 0.9), (0.9, 0.9)):
+        xi, yi = int(lx + dx), int(ly + dy)
+        if xi < 0 or yi < 0 or xi >= res or yi >= res:
+            lit += 1
+            continue
+        if lz <= depth[yi][xi] + bias:
+            lit += 1
+    return lit / 4.0
 
 
 def triple(s):
@@ -208,12 +311,15 @@ def main():
     ap.add_argument("--size", default="900x620")
     ap.add_argument("--bg", default="30,34,40")
     ap.add_argument("--sun", type=triple, default=(0.4, 0.6, -0.7))
+    ap.add_argument("--shadow", type=int, default=0, help="shadow-map resolution, 0 = off")
+    ap.add_argument("--bias", type=float, default=0.06)
     a = ap.parse_args()
     W, H = (int(v) for v in a.size.split("x"))
     g, bin_ = load_glb(a.glb)
     tris = collect(g, bin_)
+    sm = build_shadow_map(tris, a.sun, a.shadow) if a.shadow else None
     img, drawn = render(tris, (W, H), a.eye, a.target, a.up, a.fov,
-                        tuple(int(v) for v in a.bg.split(",")), a.sun)
+                        tuple(int(v) for v in a.bg.split(",")), a.sun, sm, a.bias)
     img.save(a.png)
     print(f"{a.glb}: {len(tris)} triangles, {drawn} rasterised -> {a.png} ({W}x{H})")
 

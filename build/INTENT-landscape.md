@@ -151,3 +151,33 @@ its own.
   mostly roof.
 - **Ground is 6.4 m of relief against a 6.8 m target** — the one predicate that has never
   passed.
+
+---
+
+## Pass 4 — the shadow pass
+
+Colour temperature alone could not carry late afternoon, so the renderer grew the lever it
+was missing: standard shadow mapping — a depth-only orthographic pass from the light
+(directional, so orthographic is exact), then a depth compare per shaded pixel with
+four-tap filtering and perspective-correct world reconstruction.
+
+**The shadow removes the key light only.** Sky fill still reaches into it, so a shadow comes
+out cool and blue rather than black — which is what a real shadow does, and it is why the
+image now reads as *late afternoon* rather than *dim*.
+
+### It immediately exposed a fault it inherited
+
+**The sun had been pointing underground** — every `--sun` used so far had a negative z. The
+original `abs(N·L)` shading made the sign irrelevant, so the error was invisible for three
+passes and quietly flattened every one of them. The moment the key became directional and
+cast shadows, the whole scene went black and the cause was obvious.
+
+That is the third tool fault in this exercise that no amount of scene editing would have
+found, and the second that an earlier "convenience" in the renderer was actively hiding.
+
+**Affect after pass 4:** long shadows raking left, warm stone, cool grass in shade. This is
+the late-afternoon target — the first pass where the feeling matches the intent rather than
+approximating it.
+
+**Remaining:** the towers still merge with the keep, houses are roofs on over-tall walls,
+and relief is 6.4 m against the 6.8 m target — the predicate that has never passed.
