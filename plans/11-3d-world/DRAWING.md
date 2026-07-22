@@ -174,31 +174,55 @@ draw_opening_side(cells, rect, side, t0, t1)     t in [0,1] along that side
 draw_window_side (cells, rect, side, t0, t1, sill, head)
 ```
 
-An interval is what makes flipping exact. Under a mirror, side *i* maps to its mirror side and
-`t → 1 − t`, so an opening at `[0.4, 0.6]` maps to `[0.4, 0.6]` — the same door, in the same
-place, on the mirrored wall. A door pinned to `qq == ww / 2` cannot do that, because `ww / 2`
-rounds and the rounding does not mirror.
+### `t` is measured in the OUTWARD frame — that is the whole trick
 
-### The invariant, and it is exact
+A side is stored as an ordered pair `(A, B)` chosen so the **outward normal keeps a fixed
+handedness**: `n` is always 90° clockwise from `B − A`. `t` runs from `A` to `B`, which is
+what an observer standing outside the wall reads left-to-right.
 
-> **Drawing commutes with orientation.** For every one of the 12 orientations `g`:
+That single convention is what makes a flip read correctly, and it is worth being exact about
+because the obvious alternative is wrong:
+
+| | naive: mirror the coordinates | correct: mirror the frame |
+|---|---|---|
+| window at `t = 0.2`, door at `t = 0.5` | window → `0.8`, door → `0.5` | endpoints `A`/`B` swap, `t` unchanged |
+| the observer outside sees | **door now left of window** | window still left of door |
+| reads as | a mirrored photograph | the same house, facing the other way |
+
+Under a mirror the handedness of the plane reverses, so keeping `n` 90° clockwise from `B − A`
+forces `A` and `B` to **swap**. The feature keeps its `t`, lands on the mirrored wall, and the
+facade still reads in the same order. A door pinned to a cell (`qq == ww / 2`) can do none of
+this: `ww / 2` rounds, and rounding does not mirror.
+
+### The invariant — two halves, and they are different on purpose
+
+> **1. The footprint commutes with orientation.** For every one of the 12 orientations `g`:
 >
->     draw(g · spec)  ==  g · draw(spec)
+>     footprint(g · spec)  ==  g · footprint(spec)
+>
+> **2. The facade order is invariant.** For every `g` and every side, the features read in the
+> outward frame appear in the SAME sequence.
 
-That is what "a flipped house reads the same" means precisely, and it is checkable by exact
-set equality rather than by eye. A house drawn mirrored must be cell-for-cell identical to the
-mirror of the house drawn straight — and, because the walls carry stored edges, **edge-for-edge
-identical too**.
+The massing mirrors, so the house fits a mirrored site. The detailing does **not**, so it
+still reads as a house. Only the first half is an equivariance; asking for both from one
+equation is what produced the mirrored-photograph bug.
 
-**Gate:** for all 12 orientations, `draw(g·spec)` equals `g·draw(spec)` on cells **and** on
-edges. Compare with `edgeset_count_all` and `edgeset_equal`, not `edgeset_count` — the halo
-matters. That is not a guess: rotating a walled ring lost 8 of its 18 stored edges because a
-rim edge is owned by a cell *outside* the extent, and the in-chunk count could not tell "the
-wall was lost" from "the wall moved into the halo" (`hex_field` `8308180`).
+**Gate:** for all 12 orientations, `footprint(g·spec)` equals `g·footprint(spec)` on cells
+**and** on edges — compare with `edgeset_count_all` and `edgeset_equal`, not `edgeset_count`,
+because the halo matters. That is not a guess: rotating a walled ring lost 8 of its 18 stored
+edges because a rim edge is owned by a cell *outside* the extent, and the in-chunk count could
+not tell "the wall was lost" from "the wall moved into the halo" (`hex_field` `8308180`).
+Then, separately: place a window at `t = 0.2` and a door at `t = 0.5` on one side, render all
+12 orientations, and read the order off each — it must be window-then-door every time.
 
-**Negative control:** index-space rasterisation must FAIL this. Draw the house the old way at
-an odd `y0` and the equality has to break — if it passes, the test is not seeing parity and
-proves nothing.
+**Two negative controls, and both have to fire:**
+
+- Index-space rasterisation must FAIL the footprint half. Draw the house the old way at an odd
+  `y0` and the equality has to break, or the test is not seeing parity at all.
+- **Mirroring `t` must FAIL the order half.** Implement the naive `t → 1 − t` and the mirrored
+  facade must come back door-then-window. Without this control the order check passes trivially
+  on a symmetric facade — which is why the fixture is deliberately asymmetric (`0.2` and `0.5`,
+  not `0.25` and `0.75`).
 
 ## The fit — class is read, parameters are detected
 
@@ -253,7 +277,8 @@ of snapped to one of six hex-edge directions — the reason the surface layer ex
 
 | | gate | negative control |
 |---|---|---|
-| **orientation** | `draw(g·spec) == g·draw(spec)` for all 12, cells **and** edges | the index-space rectangle must fail it at odd `y0` |
+| **footprint** | `footprint(g·spec) == g·footprint(spec)` for all 12, cells **and** edges | the index-space rectangle must fail it at odd `y0` |
+| **facade order** | window `t=0.2` before door `t=0.5`, read in the outward frame, at all 12 | naive `t → 1 − t` must come back door-then-window |
 | rasterise | `draw_tower(rad 2)` marks the same 12 cells as today | a 10% radius change moves the marked set |
 | shape | `rad 8` fits **one arc** where today it fits six straights | perturb the radius 10% → the fitted radius must follow |
 | octagon | an octagonal tower fits **8 faces**, not 1 arc | draw it with the round type → it fits 1 arc, proving the type is what decides |
