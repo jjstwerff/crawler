@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1–P8 done.** Only P9 (the render pass) remains. The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1–P8 done, P9 partly.** See P9 for what is and is not finished. The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -147,7 +147,7 @@ you.
 - both dead centres are reached and passed without a sign flip or a NaN;
 - **negative control:** perturb the con-rod length by 1% and the constancy check fires.
 
-## P9 — render, and a draw-skill pass
+## P9 — render, and a draw-skill pass  — **PARTLY DONE**
 
 Props drawn in the landscape scene, then the `draw` skill's loop: freeze intent, block in,
 measure on the cheap channel, look, critique cold, iterate.
@@ -157,6 +157,36 @@ honest kind, as in `build/INTENT-landscape.md`.
 
 **Carry forward from that exercise:** measure by **material id at render time**, never by
 classifying output pixels. A cheap channel that guesses is not a cheap channel.
+
+### Done
+
+- **`glbview --stats` reports coverage per MATERIAL**, counted at render time from the
+  material the GLB actually carries. The landscape exercise classified output pixels into
+  "stone" and "roof" by colour, mis-binned shaded maroon as ground, and passed a predicate
+  on a number nobody should have trusted. The renderer already knows which triangle carries
+  which material; counting those is a fact, inferring them from pixels is a guess wearing a
+  fact's clothes.
+- **Props drawn from the field**: a door in every house's front wall at a per-house angle, a
+  chimney seated on every ridge, a fence with plumb posts on the slope, a cart from the P2
+  part-list. All 36 gates green.
+
+### NOT done — and the honest reason
+
+The **draw-skill loop was not run to convergence.** One render was taken and critiqued cold:
+
+> *Recognition:* stone towers on a hill, red-roofed cottages, a road, ploughed fields, a
+> fence, chimneys. The fence reads. The chimneys read as *posts* rather than chimneys —
+> they are too large and share the roof's material, so they merge with what they stand on.
+> The doors are mostly occluded by roofs, and the cart is not visible at all.
+
+So props are **present and correct** but **not yet shown**. The composition regressed from
+the landscape passes: the camera moved close enough to clutter the frame, which is a framing
+fault rather than a modelling one.
+
+**Next pass, named:** give chimneys their own material and about half their size; move the
+camera back to the pass-8 framing and place the cart and a door where the eye path reaches
+them; then run the loop properly with predicates frozen first, as `build/INTENT-landscape.md`
+does. Recording this as unfinished rather than claiming a pass on one look.
 
 ---
 

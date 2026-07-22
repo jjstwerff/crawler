@@ -8,6 +8,11 @@ use hexedge;
 use hexway;
 use hexroof;
 use hexprim;
+use hexpart;
+use hexseat;
+use hexhinge;
+use hexwheel;
+use hexlink;
 use hexcanopy;
 use hexskel;
 use scenemesh;
@@ -177,6 +182,9 @@ fn main() {
   m_leaf2 = add_material(sc, material_color("leaf2", 0.28, 0.44, 0.22));
   m_path = add_material(sc, material_color("path", 0.60, 0.55, 0.44));
   m_skin = add_material(sc, material_color("skin", 0.80, 0.60, 0.45));
+  m_door = add_material(sc, material_color("door", 0.36, 0.22, 0.13));
+  m_iron = add_material(sc, material_color("iron", 0.24, 0.23, 0.24));
+  m_fence = add_material(sc, material_color("fence", 0.44, 0.36, 0.25));
 
   for i in 0..4 {
     gi = add_mesh(sc, mesh_ground(ground, i, 4));
@@ -320,8 +328,42 @@ fn main() {
     if i % 2 == 1 { side = 0.0 - 6.6; }
     hx = rx + side * 0.85;
     hy = ry + side * 0.55;
+    hang = 0.6 + 0.25 * ((i as float) - 3.0);
     add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
-              m(5.2), m(3.8), m(2.9), 0.6 + 0.25 * ((i as float) - 3.0));
+              m(5.2), m(3.8), m(2.9), hang);
+    // PROPS, derived from the building rather than placed by hand: a door in the front
+    // wall and a chimney on the ridge. Each house differs because the seed does.
+    hz = terrain(hx, hy);
+    dw = m(5.2) * 0.5;
+    ajar = 0.15 + 0.55 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
+    dl = add_mesh(sc, mesh_leaf(hx + cos(hang) * dw, hy + sin(hang) * dw,
+                                hz, hz + m(2.0), m(0.95), m(0.07), hang + 1.5707963267948966, ajar));
+    add_node(sc, node_at("door", dl, m_door, mat4_identity()));
+    ridge = seat_plane(0.0, 0.0, 1.0, hz + m(2.9) * 0.52 + m(2.9) * 1.05 * 0.75);
+    chi = add_mesh(sc, mesh_seated_prism(ridge, hx - cos(hang) * m(1.2), hy - sin(hang) * m(1.2),
+                                         hz + m(2.9) * 0.52 + m(2.9) * 1.05 + m(1.1), m(0.42), 6));
+    add_node(sc, node_at("chimney", chi, m_roof, mat4_identity()));
+  }
+
+  // a fence along the near field boundary, posts plumb on the slope
+  fseat = seat_plane(0.205, -0.132, 1.0, 6.0);
+  fen = add_mesh(sc, mesh_seated_fence(fseat, -2.0, -26.0, 16.0, -20.0, 9, m(1.2), m(0.07), 2));
+  add_node(sc, node_at("fence", fen, m_fence, mat4_identity()));
+
+  // a handcart standing on the road — the P2 part-list, placed
+  crt = parts_new();
+  part_box(crt, 0.0, 0.0, 0.55, 1.30, 0.72, 0.40);
+  part_drum(crt, 0.0, -0.42, 0.32, 0.0, 1.0, 0.0, 0.32, 0.32, 0.07);
+  part_drum(crt, 0.0,  0.35, 0.32, 0.0, 1.0, 0.0, 0.32, 0.32, 0.07);
+  part_box(crt, 0.78, -0.26, 0.52, 0.95, 0.06, 0.06);
+  part_box(crt, 0.78,  0.26, 0.52, 0.95, 0.06, 0.06);
+  cart_x = 9.0; cart_y = -17.0;
+  cart_z = terrain(cart_x, cart_y);
+  for cpi in 0..parts_count(crt) {
+    pm = add_mesh(sc, part_mesh(crt, cpi, cart_x, cart_y, cart_z, 12));
+    mm = m_fence;
+    if cpi == 1 || cpi == 2 { mm = m_iron; }
+    add_node(sc, node_at("cart", pm, mm, mat4_identity()));
   }
 
   add_figure(sc, 8.0, -19.0, terrain(8.0, -19.0), m_skin);

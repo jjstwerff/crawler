@@ -102,10 +102,11 @@ def collect(g, bin_):
                 pos = read_accessor(g, bin_, prim["attributes"]["POSITION"])
                 idx = (read_accessor(g, bin_, prim["indices"]) if "indices" in prim
                        else list(range(len(pos))))
-                col = colour(prim.get("material"))
+                mi = prim.get("material")
+                col = colour(mi)
                 wp = [xform(m, p) for p in pos]
                 for k in range(0, len(idx) - 2, 3):
-                    tris.append((wp[idx[k]], wp[idx[k + 1]], wp[idx[k + 2]], col))
+                    tris.append((wp[idx[k]], wp[idx[k + 1]], wp[idx[k + 2]], col, mi))
         for c in nd.get("children", []):
             walk(c, m)
 
@@ -145,7 +146,7 @@ def render(tris, size, eye, target, up, fov, bg, sun, sm=None, bias=0.05):
         return ((cx * f / aspect / cz + 1) * 0.5 * W, (1 - cy * f / cz) * 0.5 * H, cz)
 
     drawn = 0
-    for a, b, c, col in tris:
+    for a, b, c, col, _mi in tris:
         pa, pb, pc = project(a), project(b), project(c)
         if not (pa and pb and pc):
             continue
@@ -250,7 +251,7 @@ def build_shadow_map(tris, sun, res=768):
     sx = (res - 1) / (x1 - x0)
     sy = (res - 1) / (y1 - y0)
     depth = [[1e30] * res for _ in range(res)]
-    for a, b, c, _col in tris:
+    for a, b, c, _col, _m in tris:
         P = []
         for p in (a, b, c):
             P.append((( sum(p[i] * r[i] for i in range(3)) - x0) * sx,
@@ -297,6 +298,67 @@ def shadow_factor(sm, p, bias):
     return lit / 4.0
 
 
+def material_coverage(tris, size, eye, target, up, fov, sun):
+    """Pixels per MATERIAL, measured at render time.
+
+    The landscape exercise measured composition by classifying output pixels into "stone"
+    and "roof" by colour, and the classifier mis-binned shaded maroon as ground — so a
+    predicate passed on a number nobody should have trusted. The renderer knows exactly
+    which triangle carries which material, because it read them from the GLB. Counting
+    those is a fact; inferring them from pixels is a guess wearing a fact's clothes.
+    """
+    W, H = size
+    fwd = [target[i] - eye[i] for i in range(3)]
+    fl = math.dist(eye, target) or 1.0
+    fwd = [c / fl for c in fwd]
+    right = [fwd[1] * up[2] - fwd[2] * up[1], fwd[2] * up[0] - fwd[0] * up[2],
+             fwd[0] * up[1] - fwd[1] * up[0]]
+    rl = math.hypot(*right) or 1.0
+    right = [c / rl for c in right]
+    cup = [right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2],
+           right[0] * fwd[1] - right[1] * fwd[0]]
+    f = 1.0 / math.tan(math.radians(fov) / 2)
+    aspect = W / H
+    zbuf = [[1e30] * W for _ in range(H)]
+    mbuf = [[None] * W for _ in range(H)]
+
+    def project(p):
+        d = [p[i] - eye[i] for i in range(3)]
+        cx = sum(d[i] * right[i] for i in range(3))
+        cy = sum(d[i] * cup[i] for i in range(3))
+        cz = sum(d[i] * fwd[i] for i in range(3))
+        if cz <= 0.01:
+            return None
+        return ((cx * f / aspect / cz + 1) * 0.5 * W, (1 - cy * f / cz) * 0.5 * H, cz)
+
+    for a, b, c, _col, mi in tris:
+        pa, pb, pc = project(a), project(b), project(c)
+        if not (pa and pb and pc):
+            continue
+        x0 = max(0, int(min(pa[0], pb[0], pc[0])));  x1 = min(W - 1, int(max(pa[0], pb[0], pc[0])) + 1)
+        y0 = max(0, int(min(pa[1], pb[1], pc[1])));  y1 = min(H - 1, int(max(pa[1], pb[1], pc[1])) + 1)
+        d = ((pb[1] - pc[1]) * (pa[0] - pc[0]) + (pc[0] - pb[0]) * (pa[1] - pc[1]))
+        if abs(d) < 1e-12 or x1 < x0 or y1 < y0:
+            continue
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                sx, sy = x + 0.5, y + 0.5
+                w0 = ((pb[1] - pc[1]) * (sx - pc[0]) + (pc[0] - pb[0]) * (sy - pc[1])) / d
+                w1 = ((pc[1] - pa[1]) * (sx - pc[0]) + (pa[0] - pc[0]) * (sy - pc[1])) / d
+                w2 = 1 - w0 - w1
+                if w0 < 0 or w1 < 0 or w2 < 0:
+                    continue
+                z = w0 * pa[2] + w1 * pb[2] + w2 * pc[2]
+                if z < zbuf[y][x]:
+                    zbuf[y][x] = z
+                    mbuf[y][x] = mi
+    counts = {}
+    for row in mbuf:
+        for v in row:
+            counts[v] = counts.get(v, 0) + 1
+    return counts, W * H
+
+
 def triple(s):
     return tuple(float(v) for v in s.split(","))
 
@@ -313,6 +375,8 @@ def main():
     ap.add_argument("--sun", type=triple, default=(0.4, 0.6, -0.7))
     ap.add_argument("--shadow", type=int, default=0, help="shadow-map resolution, 0 = off")
     ap.add_argument("--bias", type=float, default=0.06)
+    ap.add_argument("--stats", action="store_true",
+                    help="report pixel coverage per MATERIAL, measured not guessed")
     a = ap.parse_args()
     W, H = (int(v) for v in a.size.split("x"))
     g, bin_ = load_glb(a.glb)
@@ -322,6 +386,14 @@ def main():
                         tuple(int(v) for v in a.bg.split(",")), a.sun, sm, a.bias)
     img.save(a.png)
     print(f"{a.glb}: {len(tris)} triangles, {drawn} rasterised -> {a.png} ({W}x{H})")
+    if a.stats:
+        counts, total = material_coverage(tris, (W, H), a.eye, a.target, a.up, a.fov, a.sun)
+        mats = g.get("materials", [])
+        rows = sorted(counts.items(), key=lambda kv: -kv[1])
+        print("  material coverage (measured at render time, not classified from pixels):")
+        for mi, n in rows:
+            nm = "sky" if mi is None else mats[mi].get("name", f"mat{mi}") if mi < len(mats) else f"mat{mi}"
+            print(f"    {nm:<22} {100.0 * n / total:6.2f}%")
 
 
 if __name__ == "__main__":
