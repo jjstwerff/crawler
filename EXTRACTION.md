@@ -879,9 +879,37 @@ two share only the field types they both read.
    > ported from here, so the merge is a lift rather than a redesign. The open question is
    > which layer owns `Surfaces`, and that is still P5's to answer.
    >
+   > **The "lift, not a redesign" claim is now GATED, not read** (2026-07-22, `src/mergetest.loft`).
+   > Reading the two index functions side by side agrees they are the same permutation; this
+   > plan has three times been punished for a check that passed for the wrong reason, so the
+   > claim is tested instead: one distinct value per edge written through **both** layers and
+   > read back from **both** of an edge's cells, over a chunk that **spans the origin** (a `-1`
+   > sentinel once collided with real cells there and reported "no hit" for every wall) and
+   > **including the halo** (`hex_field`'s own comment records a negative control that failed
+   > to fail in exactly those slots). Distinct values come from a **counter in canonical order,
+   > not a hash**, so two edges sharing a slot cannot hide behind a birthday collision.
+   > Result: 0 disagreements over 49 haloed cells × 6 directions, 147 non-zero slots == 147
+   > writes that landed (injective), and the negative control corrupts one edge and reports
+   > **exactly 2** — the edge seen from both its cells. A 0 there would have meant the
+   > comparison was blind.
+   >
+   > **Three differences the claim does NOT cover, found by reading the sources whole.** Each
+   > is migration work, not a rename:
+   >
+   > | | crawler | `hex_field` | consequence |
+   > |---|---|---|---|
+   > | write semantics | `edge_block_surf` is **first-writer-wins** (`if surf == 0`) and keeps an O(1) `ee_count` | `edge_set_mat` **overwrites unconditionally**; `edgeset_count` *walks* the grid | first-writer-wins is load-bearing — `edge_block_arb`'s nearest-surface arbitration is layered on it. Adopting the library's setter silently changes which surface owns a junction. |
+   > | namespace | `edge_surf`, `edge_block`, `edge_material`, `edge_count` | `edge_mat`, `edge_set_mat`, `edgeset_count` | `use hex_field` imports **unqualified** — that is what forced the `EdgeSet`→`EdgeCollider` rename. The name map must be decided **up front**, not discovered at compile time. |
+   > | index access | `apply_features` and `edge_block_arb` write `ee_mat[idx]` / `ee_surf[idx]` **directly by index** | `eg_index` is **private** | this is the hard blocker, not a nicety: crawler cannot build accessors on storage it cannot address. Either `pub` it, or export enough get/set pairs that crawler never needs it. |
+   >
    > *Process note:* two agents on one `--lib` working tree means a sibling commit can turn a
    > green consumer red with no local change. Cheap mitigation: when a build breaks with no
-   > local edit, `git log --oneline -3` in the sibling BEFORE debugging.
+   > local edit, `git log --oneline -3` in the sibling BEFORE debugging. **And the same hazard
+   > exists one level up, in `git` itself:** two agents in ONE repo share the index, so an
+   > `add` staged by one is swept into the other's `commit` — it happened on 2026-07-22
+   > (`a0a3c2e` carries `mergetest.loft` under a LOFT-HANDOFF message that has nothing to do
+   > with it). Files survive, the message is lost. Stage and commit in **one** command, or
+   > commit explicit paths — never leave work staged across a tool call.
 3. **The extrusion** — after P3 ships a view worth reusing. Do not extract a renderer that has
    never rendered.
 
