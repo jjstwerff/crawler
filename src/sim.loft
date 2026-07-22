@@ -5,6 +5,8 @@
 // turning costs no distance and therefore no time.  NO graphics dependency.
 
 use hex_grid;
+use hex_field;        // HexSet — the solid cell set the edge field is sealed from (plan #11 P2)
+use hexedge;          // EdgeSet + passable() — THE crossing predicate (plan #5's edge model)
 use gen;
 use monsters;
 use items;
@@ -138,6 +140,13 @@ pub struct Sim {
   rmin:    integer not null,
   tiles:   vector<integer> not null,   // hex kind: 0 floor, 1 solid full-hex wall
   walls:   vector<integer> not null,   // edge walls: idx = hex*3 + edge(0=N,1=NE,2=SE)
+  // THE passability field (plan #11 P2). Derived from `tiles` + `walls` at build time by
+  // build_field(), then it is the only thing field_blocked reads. Both sources stay:
+  // `tiles` because its other consumers ask about CONTENT (stairs, cave mouths, quest
+  // features) not passage, and `walls` because it is still the edge authoring surface
+  // until fences move onto an EdgeSet of their own.
+  solid:   HexSet,                     //   cell occupancy — what fills a hex
+  field:   EdgeSet,                    //   the crossing layer — what a path may not cross
   seen:    vector<integer> not null,   // FOV memory: 1 = hex ever seen (revealed map; lost on death)
   vis:     vector<integer> not null,   // FOV current: 1 = hex visible this frame (recomputed)
   px:      float not null,
@@ -269,13 +278,6 @@ pub fn edge_wall_raw(s: Sim, q: integer, r: integer, edge: integer) -> integer {
   if ei < len(ws) { ws[ei] } else { 0 }
 }
 
-// Wall value on the edge leaving (q,r) in direction `dir` (resolves the
-// canonical owner: dirs 3,4,5 read the neighbour's edge).
-pub fn edge_wall(s: Sim, q: integer, r: integer, dir: integer) -> integer {
-  (oq, owr, oe) = hex_canon_edge(q, r, dir);
-  edge_wall_raw(s, oq, owr, oe)
-}
-
 // ── The passability chokepoint (plan #11 P1 — invariant I-TRUTH) ──────
 //
 // THE one predicate: does the field forbid this?  `dir` selects the question —
@@ -288,16 +290,58 @@ pub fn edge_wall(s: Sim, q: integer, r: integer, dir: integer) -> integer {
 pub const DIR_HEX = -1;                    // "the hex itself", not a step out of it
 
 pub fn field_blocked(s: Sim, q: integer, r: integer, dir: integer) -> boolean {
-  tq = q;
-  tr = r;
-  if dir >= 0 {
-    (fbq, fbr) = hex_neighbor(q, r, dir);  // the hex the step lands in
-    tq = fbq;
-    tr = fbr;
+  if dir < 0 {
+    // off the map is rock, not void — the plane stays a total partition (I-CROSS)
+    if q < s.qmin || r < s.rmin || q >= s.qmin + s.lw || r >= s.rmin + s.lh { return true; }
+    return hexset_get(s.solid, q, r);
   }
-  if solid_kind(tile_at(s, tq, tr)) { return true; }
-  if dir < 0 { return false; }
-  edge_wall(s, q, r, dir) != 0
+  (fbq, fbr) = hex_neighbor(q, r, dir);
+  !passable(s.field, q, r, fbq, fbr)
+}
+
+// ── Building the field (plan #11 P2) ─────────────────────────────────────────
+//
+// Both halves are DERIVED from what the generator already wrote, so the world builders
+// are untouched and the differential harness (`src/fieldtest.loft`) can prove the answers
+// are the ones we had. `tiles` keeps its other job — stairs, cave mouths, quest features
+// are CONTENT questions, not passage — and stops being read for passability.
+
+fn build_solid(tiles: vector<integer>, w: integer, h: integer) -> HexSet {
+  hs = hexset_chunk(0, 0, w, h);
+  for r in 0..h {
+    for q in 0..w {
+      ti = r * w + q;
+      if solid_kind(tiles[ti] ?? 1) { hexset_set(hs, q, r, true); }
+    }
+  }
+  hs
+}
+
+// Seal the edges. An edge is blocked when EITHER of its cells is filled (or lies off the
+// map), plus every stored edge wall. Note this is deliberately not quite the old answer:
+// the old predicate asked only about the DESTINATION, so a step *out of* a wall was
+// permitted. That difference is only reachable from inside a wall, which I-CROSS makes
+// unreachable — and `fieldtest` reports the count rather than hiding it.
+fn build_field(solid: HexSet, walls: vector<integer>, w: integer, h: integer) -> EdgeSet {
+  e = edgeset_new(0, 0, w, h);
+  for r in 0..h {
+    for q in 0..w {
+      here = hexset_get(solid, q, r);
+      for d in 0..6 {
+        (nq, nr) = hex_neighbor(q, r, d);
+        off = nq < 0 || nr < 0 || nq >= w || nr >= h;
+        if here || off || hexset_get(solid, nq, nr) { edge_block(e, q, r, nq, nr); }
+      }
+      for ce in 0..3 {                       // the stored canonical edge walls
+        wi = (r * w + q) * 3 + ce;
+        if wi < len(walls) && (walls[wi] ?? 0) != 0 {
+          (wq, wr) = hex_neighbor(q, r, ce);
+          edge_block(e, q, r, wq, wr);
+        }
+      }
+    }
+  }
+  e
 }
 
 // Does a solid full-hex wall (or the off-map edge) fill this hex?
@@ -2781,9 +2825,12 @@ pub fn sim_new() -> Sim {
     cr: 200, cg: 60, cb: 50, glyph: "r", key: "giant_rat", name: "training rat", alive: true };
   enemies: vector<Enemy> = [e0];
 
+  fsolid = build_solid(tiles, w, h);          // hoisted: never inline a struct-returning
+  ffield = build_field(fsolid, walls, w, h);  //   call into a literal (survival guide)
   s = Sim {
     tkind: zeros(w * h),
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
+    solid: fsolid, field: ffield,
     seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
@@ -4040,9 +4087,12 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     }
   }
 
+  gsolid = build_solid(tiles, w, h);
+  gfield = build_field(gsolid, walls, w, h);
   s = Sim {
     tkind: tk,
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
+    solid: gsolid, field: gfield,
     seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,

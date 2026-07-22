@@ -7,22 +7,18 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → THE NEXT ACTION IS PLAN #11 **P2**
-> Put the hex field under the kernel. The chokepoint **P1 built** is
-> `field_blocked(s, q, r, dir)` in `sim.loft` — swap that one body and no caller changes.
-> P2's gate is a differential harness in `src/fieldtest.loft`: for one seeded world, every
-> `(hex, direction)` answer from the old model beside the new one. P2 → P3 → P4 is the
-> playable 3D milestone.
+> ## → THE NEXT ACTION IS PLAN #11 **P2b**
+> Movement becomes a **swept path**, not a probe point. P2 put the kernel on an edge field
+> (`Sim.field`, an `EdgeSet`), so the crossing predicate `passable()` is already there and
+> `collide()` already returns the **exact** surface normal for the slide. What remains is
+> `pos_blocked` / `sim_step`: they still sample one probe point per axis, and skip the edge
+> test entirely for non-adjacent hexes.
 >
-> **Carry P1's finding into P2's harness:** the surface world has 153 boulders and 79 fence
-> posts whose solidity **no gate observed** until P1 added one. Enumerate depth 0, not just a
-> dungeon — a differential harness that never visits a tile kind cannot diff it.
+> **The gate is dt-independence** (I-CROSS): the same walk taken in 16 frames, 4 frames and
+> one leap must block on the same walls. Today it does not — at a fall-sized step the point
+> sample misses **54%** of them.
 >
-> **And build the field around EDGES, not filled cells** — decision 6 / plan #11 **I-CROSS**.
-> Movement is a swept path tested against boundaries, so the same walk must block on the same
-> walls whether it is taken in 16 frames or one leap. **P2b** is that gate; today's model
-> misses 54% of walls at a fall-sized step. Getting the primitive right in P2 is what makes
-> P2b a gate rather than a rewrite.
+> P3 (first-person 3D) is unblocked and can run beside it.
 
 ## The design position — eight statements, and they compose
 
@@ -61,7 +57,7 @@ carry.
 | **#5 geometry** | active — points, crossings/slips, level crossings, platforms, signals, bridges/tunnels, stairs, spiral stairs, roofs, cones, arches, domes, vaults, the matcher | 20 |
 | **#9 canopy trees** | **T1–T10 all done** | 10 |
 | **#10 props** | **P1–P9 all done** (P9 scored 4/6, both failures understood) | 6 |
-| **#11 3D world** | **ACTIVE — P0, P1 done**, P2 next | 1 |
+| **#11 3D world** | **ACTIVE — P0, P1, P2 done**, P2b next | 2 |
 
 Plus the render path (`src/scenemesh.loft`, `src/figure.loft`, `tools/glbview.py`), the scale
 contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracted** to
@@ -101,8 +97,9 @@ contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracte
    machinery, since that machinery **is** the composing-corrections bug.
    - *Consequence found while writing it down:* **the fence is currently a filled cell**
      (`tiles[i] = 5`) — a 1.5 m thick barrier, the thin thing thickened until a point-sample
-     model could see it. It becomes an edge feature in P2; `s.walls` already has the
-     structure. Fences were the site of both bugs found today, which is not a coincidence.
+     model could see it. **P2 put the kernel on an `EdgeSet`, so the machinery is now in
+     place**; the fence moves onto it when `hexedge`'s materials carry it (P5). Fences were
+     the site of both bugs found today, which is not a coincidence.
 7. **`overland` owns settlement placement. We integrate with it; we never rewrite it.**
 8. **The village is the subject**, not the castle (landscape composition).
 

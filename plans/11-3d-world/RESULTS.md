@@ -114,6 +114,82 @@ world generator stops producing fences.
   destination hex is solid with no edge wall between. Conflating them would be wrong; it is
   the renderer's concern and belongs to P3/P3b.
 
+## P2 result — the field under the kernel, 2026-07-22
+
+`make test` green. The kernel's passability now comes from an **edge field**; `Sim.tiles` is
+no longer read for passage once a `Sim` exists.
+
+### The blueprint found the work already done — in this repo
+
+The plan said P2 would need an `EdgeSet` and I opened by reporting that `hex_field` has none
+(true — `validate` demands `shoelace == 12·cells` and one outer loop, so a zero-area barrier
+is not a form). **That was the wrong conclusion from a true fact.** `src/hexedge.loft` is a
+620-line edge model, gated by `edgetest.loft` in `make test` today, with `passable()`,
+`collide()` returning the *exact* surface normal, materials, `apply_features` for openings
+and `sight_clear`. It has 27 consumers — and `sim.loft` was not one of them.
+
+Its headline gate is the thin-geometry argument, already proven here before it was raised:
+**a one-EDGE-thick wall separates in all 24 headings; a one-CELL-thick wall manages 6.**
+
+So P2 was wiring, not invention. `edges_solid`'s own comment states the bridge: *"the cell
+model expressed in the edge primitive — one collision layer serves both."*
+
+> **Third time this session a confident structural claim died on contact with the code**
+> (`STATE.md` lesson 4). Worse than the other two: two questions were put to the user about
+> sequencing work that already existed. The tell was available and ignored — `hex_field`'s
+> own comment says a height field is derived *"exactly as the edge field is"*, which names an
+> edge field that the library does not contain, i.e. one that lives somewhere else.
+
+### What landed
+
+`Sim` gains two derived fields, built once at construction from what the generator already
+wrote, so no world builder changed:
+
+| | | from |
+|---|---|---|
+| `Sim.solid` | `HexSet` — cell occupancy | `solid_kind` over `tiles` |
+| `Sim.field` | `EdgeSet` — the crossing layer | every edge with a filled/off-map endpoint, plus every stored `walls` edge |
+
+`field_blocked` reads them and nothing else: `DIR_HEX` → `hexset_get` (off-map answers
+*rock*, keeping the plane a total partition), `0..5` → `!passable(s.field, …)`. `edge_wall`
+had no callers left and is deleted.
+
+**Open question 1 is answered, with data rather than a guess: `Sim.tiles` survives — as
+CONTENT.** Its remaining readers ask about stairs, cave mouths, quest features and plain
+floor, never about passage. `tile_solid` still reads the bare array during generation,
+before a `Sim` exists.
+
+### The differential harness, and the one difference it found
+
+`src/fieldtest.loft` spells the **old** model out from first principles and never calls
+`field_blocked` to get it, so it stays the frozen definition of *the answer we had*. Built
+and proven green **before** the swap, so its teeth were known.
+
+| world | blocked | open | edge-decided | mismatches | stepping out of a wall |
+|---|---|---|---|---|---|
+| demo `sim_new()` | 612 | 2034 | **6** | **0** | 232 |
+| surface (777,0) | 3182 | 58024 | 0 | **0** | 1382 |
+| dungeon (777,1) | 7488 | 2598 | 0 | **0** | 670 |
+| dungeon (777,2) | 7614 | 2472 | 0 | **0** | 642 |
+
+**Zero mismatches from any reachable position**, across ~135 000 (hex, direction) answers.
+
+The one difference is characterised, not hidden: an EdgeSet edge has no direction, so it
+cannot forbid entering a wall while permitting the step back out — which the old
+destination-only predicate did. Every single mismatch had a **solid source hex**; that was
+checked by classifying them, not assumed. Under I-CROSS that state is unreachable, so the
+new answer is the better one, and the harness *counts and prints* the cases rather than
+folding them into the pass.
+
+The demo world is swept first and never dropped: its 3-edge stub on hex (12,7) is the
+**only** edge wall in the game — every generated world has zero — so without it the
+predicate's edge arm is swept but never exercised. It contributes the 6 edge-decided
+answers. The sweep also fails on under 100 blocked *or* under 100 open answers, so it
+cannot pass by seeing only one kind.
+
+**Negative controls — all three fire.** Drop the stored edge walls (demo: 6 mismatches) ·
+leave the map perimeter unsealed · flip one cell of the solid set.
+
 ## P5, restated — the seam that has never been connected
 
 **CORRECTED 2026-07-22, by reading the code instead of trusting the description.** My first

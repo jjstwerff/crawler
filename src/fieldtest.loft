@@ -1,0 +1,90 @@
+// fieldtest — the differential harness for plan #11 P2: the field under the kernel.
+//
+// P2 swaps what backs the kernel's ONE passability predicate (field_blocked, plan #11 P1)
+// from `Sim.tiles` + `Sim.walls` to an edge field. The gate is equality: for every
+// (hex, direction) in a seeded world, the new answer must equal the old one.
+//
+// So this file spells the OLD model out from first principles — tile solidity plus a
+// stored canonical edge wall — and never calls field_blocked to get it. That reference
+// does not change when the substrate does, which is the whole point: it is the frozen
+// definition of "the answer we had", and it keeps its teeth across the swap.
+//
+// Anti-vacuous by construction (the plan #11 P1 lesson — a control that cannot fire is
+// not a check): every world must contribute a substantial number of BLOCKED answers and
+// a substantial number of OPEN ones, or the run fails even with zero mismatches.
+use sim;
+use hex_grid;
+
+// ── the reference: the model as it stood before P2, written out once ──────────
+// Deliberately duplicated rather than shared. A reference that calls the thing it
+// verifies proves only that the code equals itself.
+fn ref_solid(s: Sim, q: integer, r: integer) -> boolean {
+  t = tile_at(s, q, r);
+  t == 1 || t == 4 || t == 5
+}
+
+fn ref_blocked(s: Sim, q: integer, r: integer, dir: integer) -> boolean {
+  if dir < 0 { return ref_solid(s, q, r); }
+  (nq, nr) = hex_neighbor(q, r, dir);
+  if ref_solid(s, nq, nr) { return true; }
+  (oq, owr, oe) = hex_canon_edge(q, r, dir);
+  edge_wall_raw(s, oq, owr, oe) != 0
+}
+
+// One world, every (hex, direction) including DIR_HEX. Returns the mismatch count;
+// prints the tallies that prove the sweep was not vacuous.
+fn sweep(s: Sim, name: text) -> integer {
+  bad = 0;
+  fromwall = 0;     // mismatches whose SOURCE hex is solid — the characterised difference
+  nblocked = 0;
+  nopen = 0;
+  nedge = 0;        // answers that turn on a stored edge wall, not on cell solidity
+  for r in s.rmin..s.rmin + s.lh {
+    for q in s.qmin..s.qmin + s.lw {
+      if ref_blocked(s, q, r, DIR_HEX) != field_blocked(s, q, r, DIR_HEX) { bad += 1; }
+      for d in 0..6 {
+        want = ref_blocked(s, q, r, d);
+        got = field_blocked(s, q, r, d);
+        if want != got {
+          // The edge model has no direction, so it cannot allow a step OUT of a wall
+          // that it forbids INTO one. Only reachable from inside a wall (I-CROSS), so
+          // it is counted and named, never folded into the pass.
+          if ref_solid(s, q, r) { fromwall += 1; } else { bad += 1; }
+        }
+        if want { nblocked += 1; } else { nopen += 1; }
+        (nq, nr) = hex_neighbor(q, r, d);
+        if want && !ref_solid(s, nq, nr) { nedge += 1; }
+      }
+    }
+  }
+  println("  {name}: blocked={nblocked} open={nopen} edge-decided={nedge} mismatches={bad} (stepping-out-of-a-wall: {fromwall})");
+  // a sweep that saw only one kind of answer has not compared anything
+  if nblocked < 100 || nopen < 100 { bad += 1000000; }
+  bad
+}
+
+fn main() {
+  println("=== story field test (plan #11 P2: old model == new, every hex and direction) ===");
+
+  total = 0;
+  // sim_new() FIRST and never dropped: it holds the only edge walls in the game — a
+  // 3-edge stub on hex (12,7). Every generated world has zero, so without this world
+  // the edge arm of the predicate is swept but never exercised.
+  d = sim_new();
+  total += sweep(d, "demo   (sim_new)");
+  edge_arm = 0;
+  for e in 0..3 {
+    if edge_wall_raw(d, 12, 7, e) != 0 { edge_arm += 1; }
+  }
+
+  s0 = sim_new_gen(777, 0);
+  total += sweep(s0, "surface(777,0)  ");
+  s1 = sim_new_gen(777, 1);
+  total += sweep(s1, "dungeon(777,1)  ");
+  s2 = sim_new_gen(777, 2);
+  total += sweep(s2, "dungeon(777,2)  ");
+
+  println("edge walls present in the demo world: {edge_arm}/3");
+  ok = total == 0 && edge_arm == 3;
+  if ok { println("=== FIELD OK ==="); } else { println("=== FAIL ==="); }
+}
