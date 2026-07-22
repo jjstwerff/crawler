@@ -341,3 +341,60 @@ Eight passes. The faults divided:
 - **One spec bug**: two predicates that could not both hold.
 
 Throughout all of it, the 28 numeric gates were green and had an opinion on none of them.
+
+
+---
+
+## Pass 9 — new intent: a village with a road and fields
+
+Added **before** building, as three more predicates. The existing ten stand unchanged.
+
+11. A **road** runs through the village and on toward the castle, visibly **wider than the
+    footpath**, and it is continuous — no gaps.
+12. At least **five fields**, quadrilateral, in **visibly different tints**, adjacent to the
+    village and separated by boundaries rather than merging into one green mass.
+13. The **village is larger than the hamlet** (more houses) and sits **lower on the hill**,
+    with houses **fronting the road** rather than scattered.
+
+**Target feeling, unchanged and now load-bearing:** settled, inhabited, worked. Fields are
+what turn a landscape into a *farmed* one — the strongest cue that people live here rather
+than merely built here.
+
+
+### Pass 9 — cold critique of the new elements
+
+**Recognition:** a road climbs from the lower right through a dense cluster of red-roofed
+buildings to a stone keep on the crest, with tilled patches on the low ground either side.
+It reads as **an inhabited, worked landscape** — which is the target feeling, and the fields
+are what carry it.
+
+**Scoring the three new predicates honestly:**
+
+| # | predicate | verdict |
+|---|---|---|
+| 11 | road, wider than the footpath, continuous | **pass** |
+| 12 | ≥5 fields, different tints, separated | **partial** — 5 exist, ~3 legible; the rest are occluded by the village and read muddy |
+| 13 | village larger than the hamlet, lower, fronting the road | **fail** — it **merged** with the hamlet into one crowded mass |
+
+**Predicate 13 is the real failure, and it is a placement fault, not a modelling one.** The
+village was laid along the road between `f = 0.30` and `f = 0.74`, which runs straight into
+the ground the hamlet already occupies. Two settlements at one address read as one
+overcrowded one — and worse, the roofs now merge into a single red field that competes with
+the castle for the eye.
+
+**A composition regression the predicates did not catch:** the castle was the focal point
+through eight passes and is no longer. The new mass is larger, brighter and lower in frame,
+so the eye lands there first. Predicate 1 says the keep is "in the upper-left third and the
+tallest thing" — still literally true, so it passes, while the *composition* it was written
+to protect has quietly broken. That is failure-mode #3 from the skill: **checks that don't
+cover the intent.**
+
+**Named fixes for the next pass:**
+- Move the village **down the road**, clear of the hamlet — they should be two settlements
+  with worked ground between them, which is also what makes the road worth having.
+- Thin the roofs: fewer, more spaced houses read as a village; this many touching reads as a
+  refugee camp.
+- Fields want **boundaries** (hedge or wall lines), not just tint changes, and should sit on
+  open ground where they are not occluded.
+- Predicate 1 needs restating in terms of **visual dominance**, not height and position —
+  the current wording passes while the thing it protects fails.
