@@ -1,0 +1,112 @@
+// hexscene — the camera the world is seen through (plan #11 P3, invariant I-STAND).
+//
+// I-STAND: everything drawn stands where the kernel says it stands, at its true metric
+// size. The renderer holds NO world state of its own — a screen position is a pure
+// projection of kernel state — so this module is pure functions over an explicit Camera
+// and nothing else. It has no dependency at all: not on `Sim`, not on `graphics`, not
+// even on the hex grid. That is deliberate, and it is what makes the invariant testable
+// without a GL context and the package extractable by a file move.
+//
+// EXTRACTION: this is plan #11's `hexscene`, destined for `loft-libs-graphics/hex_scene/`
+// (loft-libs-world's README assigns hex-to-screen projection to that chunk). It is built
+// here first because the consumer is here — "build new, extract settled" — but it is
+// written package-clean from the start so extraction moves a file rather than untangling
+// one. The in-world editor is the second consumer and needs exactly this.
+//
+// CONVENTION: the world is Z-UP. The hex plane is (x,y) — `hex_grid::hex_to_px` — and
+// height is z, matching `scenemesh::mesh_floor` and `tools/glbview.py --up 0,0,1`. `yaw`
+// is the kernel's own heading: 0 faces +x, and forward is (cos yaw, sin yaw) in plane.
+
+pub struct Camera {
+  cx:    float,          // eye, world units
+  cy:    float,
+  cz:    float,
+  yaw:   float,          // radians; 0 = +x. The kernel's heading, unchanged.
+  pitch: float,          // radians; + tilts up
+  fovy:  float,          // radians, VERTICAL field of view
+  vw:    float,          // viewport, pixels
+  vh:    float,
+}
+
+pub fn camera_new(cx: float, cy: float, cz: float, yaw: float, pitch: float,
+                  fovy: float, vw: float, vh: float) -> Camera {
+  Camera { cx: cx, cy: cy, cz: cz, yaw: yaw, pitch: pitch, fovy: fovy, vw: vw, vh: vh }
+}
+
+// The orthonormal basis. right = forward x worldUp, up = right x forward — so for a
+// level camera facing +x the basis is right = -y, up = +z, which is what a Z-up world
+// gives you. Only ONE definition of the basis exists, and both project and unproject
+// read it: a round-trip that used two spellings would verify nothing.
+pub fn cam_forward(c: Camera) -> (float, float, float) {
+  cp = cos(c.pitch);
+  (cos(c.yaw) * cp, sin(c.yaw) * cp, sin(c.pitch))
+}
+
+pub fn cam_right(c: Camera) -> (float, float, float) {
+  // forward x (0,0,1) = (fy, -fx, 0), whose length is cos(pitch) — normalise by the
+  // planar part, which is why a straight-down camera has no defined right (see below).
+  (sin(c.yaw), 0.0 - cos(c.yaw), 0.0)
+}
+
+pub fn cam_up(c: Camera) -> (float, float, float) {
+  sp = sin(c.pitch);
+  (0.0 - cos(c.yaw) * sp, 0.0 - sin(c.yaw) * sp, cos(c.pitch))
+}
+
+// World point -> pixel, plus the depth along the view direction. `depth <= 0` means the
+// point is behind the camera and the pixel is meaningless.
+pub fn project(c: Camera, wx: float, wy: float, wz: float) -> (float, float, float) {
+  (fx, fy, fz) = cam_forward(c);
+  (rx, ry, rz) = cam_right(c);
+  (ux, uy, uz) = cam_up(c);
+  dx = wx - c.cx;
+  dy = wy - c.cy;
+  dz = wz - c.cz;
+  vz = dx * fx + dy * fy + dz * fz;
+  if vz <= 0.000001 { return (0.0, 0.0, 0.0 - 1.0); }
+  vx = dx * rx + dy * ry + dz * rz;
+  vy = dx * ux + dy * uy + dz * uz;
+  th = tan(c.fovy * 0.5);
+  asp = c.vw / c.vh ?? 1.0;
+  nx = vx / (vz * th * asp) ?? 0.0;
+  ny = vy / (vz * th) ?? 0.0;
+  ((nx + 1.0) * 0.5 * c.vw, (1.0 - ny) * 0.5 * c.vh, vz)
+}
+
+// Pixel -> the point where that ray meets the horizontal plane z = gz, plus the ray
+// parameter. `t <= 0` means the ray never reaches the plane ahead of the camera — which
+// is the ordinary case for any pixel ABOVE the horizon, not an error. A caller that
+// ignores the sign will happily "unproject" the sky onto the ground behind it.
+pub fn unproject_plane(c: Camera, sx: float, sy: float, gz: float) -> (float, float, float) {
+  (fx, fy, fz) = cam_forward(c);
+  (rx, ry, rz) = cam_right(c);
+  (ux, uy, uz) = cam_up(c);
+  th = tan(c.fovy * 0.5);
+  asp = c.vw / c.vh ?? 1.0;
+  nx = (2.0 * sx / c.vw ?? 0.0) - 1.0;
+  ny = 1.0 - (2.0 * sy / c.vh ?? 0.0);
+  ax = nx * th * asp;
+  ay = ny * th;
+  dx = fx + rx * ax + ux * ay;
+  dy = fy + ry * ax + uy * ay;
+  dz = fz + rz * ax + uz * ay;
+  if dz > 0.0 - 0.000001 && dz < 0.000001 { return (0.0, 0.0, 0.0 - 1.0); }
+  t = (gz - c.cz) / dz ?? 0.0 - 1.0;
+  if t <= 0.0 { return (0.0, 0.0, 0.0 - 1.0); }
+  (c.cx + dx * t, c.cy + dy * t, t)
+}
+
+// The screen row where the ground plane vanishes. Pixels above it never meet the plane
+// ahead of the camera, so it is the exact boundary of where unproject_plane is defined —
+// worth having as a function rather than a magic number in each caller.
+pub fn horizon_y(c: Camera) -> float {
+  th = tan(c.fovy * 0.5);
+  if c.pitch > 0.0 - 0.000001 && c.pitch < 0.000001 { return c.vh * 0.5; }
+  // the ray with dz = 0: fz + uz*ay = 0  ->  ay = -fz/uz
+  (fx, fy, fz) = cam_forward(c);
+  (ux, uy, uz) = cam_up(c);
+  if uz > 0.0 - 0.000001 && uz < 0.000001 { return c.vh * 0.5; }
+  ay = (0.0 - fz) / uz ?? 0.0;
+  ny = ay / th ?? 0.0;
+  (1.0 - ny) * 0.5 * c.vh
+}

@@ -1,0 +1,109 @@
+// scenetest — the camera contract (plan #11 P3, invariant I-STAND).
+//
+// THE GATE the plan names: a hex centre projected to a pixel, unprojected back, must land
+// in the SAME hex. Pure maths — no GL context, no window, no Xvfb. That is the point of
+// keeping the camera free of `graphics`: the invariant that decides whether the world is
+// drawn where the kernel says it is can be checked headlessly, every run.
+//
+// The round-trip is only DEFINED for pixels below the horizon (a ray above it never meets
+// the ground ahead of the camera). The test therefore skips those explicitly and counts
+// what it skipped, so "0 failures" can never mean "0 tested".
+use hexscene;
+use hex_grid;
+
+fn main() {
+  println("=== story scene test (plan #11 P3: hex -> pixel -> the same hex) ===");
+
+  tested = 0;
+  behind = 0;
+  above = 0;
+  bad = 0;
+  worst = 0.0;
+
+  // A spread of cameras: eye height 1.6 m (0.866 world units per metre => 1.847), a few
+  // headings, and pitches from level to steeply down. Level is the interesting one — most
+  // of the screen is then above the horizon and the defined region is a thin band.
+  for ci in 0..12 {
+    ex = 20.0 + (ci as float) * 0.37;
+    ey = 15.0 - (ci as float) * 0.29;
+    yaw = (ci as float) * 0.5235987755982988;          // 30 deg apart
+    pitch = 0.0 - (((ci % 4 ?? 0) as float) * 0.15);   // 0, -0.15, -0.30, -0.45 rad
+    c = camera_new(ex, ey, 1.847, yaw, pitch, 1.0471975511965976, 1024.0, 576.0);
+
+    for r in 0..24 {
+      for q in 0..24 {
+        (hx, hy) = hex_to_px(q, r);
+        (sx, sy, depth) = project(c, hx, hy, 0.0);
+        if depth <= 0.0 {
+          behind += 1;
+        } else if sx < 0.0 || sx >= 1024.0 || sy < 0.0 || sy >= 576.0 {
+          behind += 1;                                  // off-screen: not this gate's claim
+        } else if sy <= horizon_y(c) {
+          above += 1;                                   // no ground hit: correctly undefined
+        } else {
+          (bx, by, t) = unproject_plane(c, sx, sy, 0.0);
+          if t <= 0.0 {
+            above += 1;
+          } else {
+            tested += 1;
+            (rq, rr) = px_to_hex(bx, by);
+            if rq != q || rr != r { bad += 1; }
+            e = sqrt((bx - hx) * (bx - hx) + (by - hy) * (by - hy)) ?? 0.0;
+            if e > worst { worst = e; }
+          }
+        }
+      }
+    }
+  }
+
+  println("round-trip: tested={tested} same-hex-failures={bad} worst position error={worst}");
+  println("  (skipped: {behind} behind/off-screen, {above} above the horizon — both correctly undefined)");
+
+  // ── NEGATIVE CONTROL ──────────────────────────────────────────────────────
+  // A round trip through the SAME camera is nearly self-proving, so perturb it: unproject
+  // through a camera turned away and require the hexes to stop matching. Without this the
+  // gate would pass for an identity function.
+  //
+  // The FIRST attempt used 0.02 rad and fired on 0 of 172 hexes — at these distances that
+  // shifts the ground point by ~0.2 units against a hex circumradius of 1.0, so almost
+  // every point rounds back into the hex it came from. A control has to perturb by more
+  // than the quantisation it is being read through, or it reports "no change" for a
+  // camera that genuinely moved.
+  cc = camera_new(20.0, 15.0, 1.847, 0.4, 0.0 - 0.25, 1.0471975511965976, 1024.0, 576.0);
+  cw = camera_new(20.0, 15.0, 1.847, 0.4 + 0.15, 0.0 - 0.25, 1.0471975511965976, 1024.0, 576.0);
+  ctl_tested = 0;
+  ctl_moved = 0;
+  for r2 in 0..24 {
+    for q2 in 0..24 {
+      (hx2, hy2) = hex_to_px(q2, r2);
+      (sx2, sy2, d2) = project(cc, hx2, hy2, 0.0);
+      if d2 > 0.0 && sx2 >= 0.0 && sx2 < 1024.0 && sy2 > horizon_y(cc) && sy2 < 576.0 {
+        (bx2, by2, t2) = unproject_plane(cw, sx2, sy2, 0.0);
+        if t2 > 0.0 {
+          ctl_tested += 1;
+          (rq2, rr2) = px_to_hex(bx2, by2);
+          if rq2 != q2 || rr2 != r2 { ctl_moved += 1; }
+        }
+      }
+    }
+  }
+  println("negative control: camera turned 0.15 rad -> {ctl_moved}/{ctl_tested} hexes move");
+
+  // The camera must also PLACE things at true metric size (the other half of I-STAND):
+  // two posts of equal height at equal distance must subtend equal pixel spans, and one
+  // twice as far must subtend half. Checked against the projection, not assumed.
+  cm = camera_new(0.0, 0.0, 1.847, 0.0, 0.0, 1.0471975511965976, 1024.0, 576.0);
+  (_, ay1, _) = project(cm, 8.0, 0.0, 0.0);
+  (_, ay2, _) = project(cm, 8.0, 0.0, 1.0);
+  (_, by1, _) = project(cm, 16.0, 0.0, 0.0);
+  (_, by2, _) = project(cm, 16.0, 0.0, 1.0);
+  span_near = abs(ay1 - ay2);
+  span_far = abs(by1 - by2);
+  ratio = span_near / span_far ?? 0.0;
+  metric_ok = ratio > 1.999 && ratio < 2.001;
+  println("metric parity: 1-unit post spans {span_near}px at 8u, {span_far}px at 16u — ratio {ratio}");
+
+  ok = bad == 0 && tested > 500 && ctl_tested > 50 && ctl_moved > (ctl_tested / 2 ?? 0)
+    && metric_ok && worst < 0.000001;
+  if ok { println("=== SCENE OK ==="); } else { println("=== FAIL ==="); }
+}
