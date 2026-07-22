@@ -1,0 +1,104 @@
+// scaletest — the world's scale, checked rather than asserted.
+//
+// Two readings of one hex grid: architecture at 1.5 m per hex step, terrain at 15 natural m
+// per walked hex — the same hex, compressed 10x, which is the standard overland-game
+// illusion. Until this gate existed the two lived in separate documents with no arithmetic
+// between them, and plan #5 stated no metres at all. That meant every threshold it derived
+// was unfalsifiable: 8.4 world units is neither right nor wrong until you know what a world
+// unit is.
+//
+// So this converts each one and checks it against what the real thing measures. It also
+// pins the one place the answer comes out WRONG — a staircase — because a limitation that
+// is merely written down drifts, and one that is gated cannot.
+use hex_grid;
+use scale;
+
+fn inrange(v: float, lo: float, hi: float) -> boolean { v >= lo && v <= hi }
+
+fn main() {
+  println("=== story scale test (the units contract) ===");
+  ok = true;
+
+  // ── 1. the constants must agree with each other ──────────────────────────
+  derived = M_PER_HEX_STEP / HEX_LEN ?? 0.0;
+  e = derived - M_PER_WU; if e < 0.0 { e = 0.0 - e; }
+  println("1 hex step = {M_PER_HEX_STEP} m over HEX_LEN {HEX_LEN} wu -> {derived} m/wu (stated {M_PER_WU})");
+  if e > 0.0000001 { ok = false; }
+  println("   hex circumradius {wu_to_m(1.0)} m, hex width {wu_to_m(HEX_LEN)} m");
+  if wu_to_m(HEX_LEN) < 1.4999 || wu_to_m(HEX_LEN) > 1.5001 { ok = false; }
+
+  // the terrain reading is the SAME hex, ten times larger — OV_STEP is the one dial
+  println("terrain: one walked hex = {wu_to_terrain_m(HEX_LEN)} natural m (OV_STEP)");
+  if wu_to_terrain_m(HEX_LEN) < 14.999 || wu_to_terrain_m(HEX_LEN) > 15.001 { ok = false; }
+
+  // ── 2. every threshold in plans #5 and #9, in metres ─────────────────────
+  println("plan thresholds converted, against what the real thing measures:");
+  n = 0;
+  for i in 0..9 {
+    wu = 1.0; lo = 0.8; hi = 1.1; nm = "door quantum (single door)      ";
+    if i == 1 { wu = 2.0; lo = 1.5; hi = 2.0; nm = "double door (two cut edges)     "; }
+    if i == 2 { wu = 1.5; lo = 1.0; hi = 1.6; nm = "platform edge to track centre   "; }
+    if i == 3 { wu = 8.4; lo = 5.0; hi = 9.0; nm = "round tower radius (keep)       "; }
+    if i == 4 { wu = 2.5; lo = 1.5; hi = 2.5; nm = "driver's eye height             "; }
+    if i == 5 { wu = 5.0; lo = 3.0; hi = 6.0; nm = "signal head height              "; }
+    if i == 6 { wu = 8.0; lo = 5.0; hi = 10.0; nm = "mature crown radius (oak)       "; }
+    if i == 7 { wu = 3.4641016151377544; lo = 2.0; hi = 4.0; nm = "crown FIELD floor (plan #9 T8)  "; }
+    if i == 8 { wu = 7.27; lo = 5.0; hi = 9.0; nm = "dome radius                     "; }
+    m = wu_to_m(wu);
+    good = inrange(m, lo, hi);
+    println("   {nm} {wu} wu = {m} m  [{lo}..{hi}]  {good}");
+    if !good { ok = false; }
+    n = n + 1;
+  }
+  println("   {n} thresholds, all landing where the real object does");
+
+  // ── 3. THE ONE THAT DOES NOT — a staircase is sub-grid ───────────────────
+  // Plan #5's stair work derived a minimum tread of sqrt(3) world units. In metres that is
+  // 1.50 — five times a real stair's going of 0.25-0.30 m. So a domestic staircase CANNOT
+  // be a field at architecture scale, exactly as a domestic spiral stair could not, and for
+  // the same reason: its defining dimension is below one hex step.
+  //
+  // This is gated rather than merely written down, because a limitation in prose drifts and
+  // a limitation in a test cannot.
+  min_tread_wu = HEX_LEN;
+  min_tread_m = wu_to_m(min_tread_wu);
+  real_going = 0.28;
+  println("STAIRS: grid minimum tread {min_tread_wu} wu = {min_tread_m} m");
+  println("   a real stair's going is {real_going} m -> the grid is {min_tread_m / real_going ?? 0.0}x too coarse");
+  if resolvable_m(real_going) { ok = false; }        // a real stair must NOT resolve
+  if !resolvable_m(min_tread_m) { ok = false; }      // the grid minimum must
+  println("   -> a domestic staircase is an OBJECT at architecture scale, like a spiral");
+  println("      stair and a sapling. Only MONUMENTAL stepped work resolves as a field:");
+  for j in 0..3 {
+    g = 1.5; nm2 = "cathedral / temple steps  ";
+    if j == 1 { g = 2.4; nm2 = "amphitheatre seating tier "; }
+    if j == 2 { g = 6.0; nm2 = "stepped terrace / embankment"; }
+    println("      {nm2} going {g} m -> resolves {resolvable_m(g)}");
+    if !resolvable_m(g) { ok = false; }
+  }
+
+  // ── 4. the railway numbers were illustrative, and say so in metres ───────
+  // Plan #5 used R = 26 wu for turnouts, which is 22.5 m — a tramway curve, not a main
+  // line. The geometry is unaffected (every result there was a ratio), but the numbers
+  // should not be read as prototype values.
+  println("RAILWAY: plan #5's R=26 wu = {wu_to_m(26.0)} m — a tramway curve, not a main line");
+  println("   a prototype 150 m turnout is {m_to_wu(150.0)} wu; the 15-degree results are");
+  println("   ratios and hold at either size, but the printed radii are illustrative");
+  if wu_to_m(26.0) > 40.0 { ok = false; }
+  if m_to_wu(150.0) < 100.0 { ok = false; }
+
+  // ── 5. what the compression means for trees ──────────────────────────────
+  // At architecture scale a crown of R=8 wu is 6.9 m — a real oak, comfortably a field.
+  // Read as TERRAIN the same hex is 10x larger, so one terrain hex is 15 m: a whole tree
+  // fits inside a single cell and falls below the crown floor. The model already says the
+  // right thing at both scales without being told.
+  crown_m = wu_to_m(8.0);
+  crown_terrain_hexes = crown_m / wu_to_terrain_m(HEX_LEN) ?? 0.0;
+  println("TREES: a crown of 8 wu is {crown_m} m across-radius at architecture scale (a field)");
+  println("   read as terrain the same tree spans {crown_terrain_hexes} hexes -> below the");
+  println("   crown floor of {wu_to_m(3.4641016151377544)} m, so on the overland a tree is an OBJECT");
+  if crown_terrain_hexes >= 1.0 { ok = false; }
+  println("   -> one model, two readings, and the field/object boundary lands correctly in both");
+
+  if ok { println("=== SCALE OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -1052,3 +1052,28 @@ chunks, levels, cache, `Heights`, materials — but invert the derivation direct
 field is primary, the form is derived) and carry their own rendering model (semi-filled
 cards, not surfaces). That makes them a *consumer* of this geometry library rather than a
 phase of it. This plan stays the library.
+
+
+## 17. The scale contract, and what it reclassified
+
+This plan derived every threshold in **world units** and never stated what one was, which
+made all of them unfalsifiable — `8.4 wu` is neither right nor wrong until you know the
+metre. **SCALE.md** now fixes the contract (1 hex step = 1.5 m at architecture scale, the
+same hex read 10× larger as terrain) and `src/scaletest.loft` converts every threshold and
+checks it against the real object.
+
+Nine of them land where they should: doors, double doors, platform gap, tower radius, eye
+height, signal head, crown radius, crown floor, dome radius.
+
+**One does not, and it reclassifies work in this plan.** §P12's straight stairs derived a
+minimum tread of `√3 wu` — **1.50 m**, against a real stair's going of 0.25–0.30 m. The grid
+is **5.4× too coarse for a domestic staircase**, which therefore sits on the object side of
+the same boundary as a domestic spiral stair (§12) and a sapling (plan #9 T8). The stair
+arithmetic is right; its subject is **monumental** stepped work — cathedral steps,
+amphitheatre tiers, stepped terraces — not a house staircase.
+
+That is worth stating plainly because §P12 reads as though it solved staircases in general.
+It solved them at 1.5 m going and up.
+
+The railway radii are likewise illustrative: `R = 26 wu` is 22.5 m, a tramway curve. Every
+railway *result* is a ratio and holds at prototype size; only the printed numbers are small.

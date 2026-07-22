@@ -1,0 +1,40 @@
+// scale — THE ONE PLACE THE WORLD'S SCALE IS STATED.
+//
+// The project has one hex grid and two readings of it, and until now the two were written
+// down in different documents with no arithmetic connecting them. That is a seam, and this
+// module closes it by making the contract CODE rather than prose, so a gate can check it.
+//
+//   ARCHITECTURE is true-scale:  one hex step = 1.5 m
+//   TERRAIN is the same hex compressed 10x:  one walked hex = 15 natural m
+//
+// The compression is the standard overland-game illusion (OVERLAND.md 13a, a user ruling
+// evaluated by gameplay rather than theory) and it is ONE dial, `OV_STEP`.
+//
+// A hex step is HEX_LEN = sqrt(3) world units (centre to centre), so:
+//
+//     1 world unit  =  1.5 / sqrt(3)  =  0.8660 m
+//     hex circumradius 1.0 wu         =  0.866 m
+//     hex width sqrt(3) wu            =  1.500 m
+//
+// Every threshold in plans #5 and #9 is a length in world units, so every one of them has
+// a real-world size, and scaletest checks each against what the real thing measures. That
+// is what turns "the numbers look plausible" into something falsifiable.
+use hex_grid;
+
+pub const M_PER_HEX_STEP  = 1.5;      // architecture, true scale
+pub const TERRAIN_COMPRESS = 10.0;    // terrain reads the same hex 10x larger
+pub const M_PER_WU = 0.8660254037844386;   // = M_PER_HEX_STEP / HEX_LEN
+
+pub fn wu_to_m(w: float) -> float { w * M_PER_WU }
+pub fn m_to_wu(m: float) -> float { m / M_PER_WU ?? 0.0 }
+
+// The same length as the terrain reads it.
+pub fn wu_to_terrain_m(w: float) -> float { w * M_PER_WU * TERRAIN_COMPRESS }
+
+// Is a feature of this size worth representing as a FIELD at architecture scale?  The
+// grid's finest usable length is one hex step; anything whose defining dimension is under
+// it cannot be resolved and belongs on the object side of the boundary (plan #5 section 12,
+// plan #9 T8).
+// The epsilon is not slack: one hex step computed as HEX_LEN * M_PER_WU lands on
+// 1.4999999999999998, so an exact >= would reject the grid's own minimum.
+pub fn resolvable_m(m: float) -> boolean { m >= M_PER_HEX_STEP - 0.000001 }

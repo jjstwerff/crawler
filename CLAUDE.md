@@ -195,6 +195,14 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   lesson our fur hasn't taken yet: **texture lives in the broken silhouette edge + the
   value gradient, not as strokes floating inside a smooth outline** — see
   `assets/sprites/ref/README.md` for what each teaches and how to extend the set.
+- **Scale: one grid, two readings — `SCALE.md`.** Architecture is true-scale at **1.5 m
+  per hex step** (1 world unit = 0.866 m); terrain is the *same* hex compressed 10× at
+  **15 natural m per walked hex** (`OV_STEP`, a gameplay-evaluated user ruling). The
+  contract is code (`src/scale.loft`) and gated (`src/scaletest.loft`), which converts every
+  plan threshold to metres and checks it against the real object. **State new lengths in
+  metres, or add a row to that gate** — an unconverted threshold cannot be falsified.
+  Known consequence: a *domestic* staircase (0.28 m going) is below one hex step and is an
+  **object**, not a field; plan #5's stair work describes monumental stepped work.
 - **Docs-first knowledge capture (user rule, 2026-06-12): anything memory-worthy
   goes into the appropriate repo doc** (RENDER/PLAN-*/EXTRACTION/BUNDLE/this file)
   — agent memory holds only pointers. The repo is the shared brain; private notes
