@@ -11,7 +11,7 @@
 // Every edge already holds that material id, so nothing in the geometry layer is written
 // — which means a barrier toggle does NOT invalidate the L2 cache (P6). Surface and
 // material being separate axes is what buys that, and this gate is where it gets proven.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexcache;

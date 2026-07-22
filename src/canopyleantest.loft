@@ -7,7 +7,7 @@
 // This gate also runs the design's CASE B for the first time, and prints it in full so the
 // numbers can be corrected — the design left open whether they should be plotted first or
 // printed for correction, and printing them is the cheaper way round.
-use hexform;
+use hex_field;
 use hexcanopy;
 
 fn fill(s: HexSet) {

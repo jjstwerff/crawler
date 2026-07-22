@@ -4,7 +4,7 @@
 // edge. Everything else the cache does (versioning, eviction) is only safe because of
 // that — and because the derivation is a pure function of an L1 region, already proven
 // order-independent (P3/P4) and chunk-local (formtest).
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexcache;

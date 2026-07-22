@@ -18,7 +18,7 @@
 //      must be kept free to. It is the SAME sagitta that sets the flattening error and the
 //      platform chord gap: L^2/(8R) is this system's one chord constant, showing up for the
 //      third time in a completely different question.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hex_grid;

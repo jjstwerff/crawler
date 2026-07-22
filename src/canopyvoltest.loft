@@ -7,7 +7,7 @@
 // by competition, and T1's partition already measures competition — so the base is
 // DERIVED, not authored, and the gate is that it reproduces the forestry result: a
 // forest-grown tree has a long clean bole, an open-grown one branches to the ground.
-use hexform;
+use hex_field;
 use hexcanopy;
 
 fn fill(s: HexSet) {

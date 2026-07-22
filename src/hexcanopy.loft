@@ -24,7 +24,7 @@
 // passes exactly through cell centres, and floating point admitted one cell while
 // rejecting its mirror image, so an isolated tree acquired a spurious lean of a third of a
 // cell. In exact arithmetic the lean of an isolated tree is 0 — not 1e-15, but 0.
-use hexform;
+use hex_field;
 
 pub struct Trees {
   tr_k:  vector<integer>,   // trunk lattice k  (world x = k*sqrt3/2)

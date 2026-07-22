@@ -16,7 +16,7 @@
 // wants R ~ 26-51, so ONLY the 15 deg crossing admits a real double slip — the sharpest
 // angle the grid offers is the only one that works, which is exactly why every real double
 // slip is shallow.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 

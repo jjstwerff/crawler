@@ -8,7 +8,7 @@
 //
 // The figure stands at the gate at exactly 1.75 m, because the whole question is whether
 // these sizes are believable next to a person.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexcanopy;

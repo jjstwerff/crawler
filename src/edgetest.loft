@@ -3,7 +3,7 @@
 // The property that settled the model: a ONE-EDGE-THICK wall separates in every one of
 // the 24 headings, where a one-CELL-thick wall manages only 6. Verified here by the only
 // test that matters — flood the hex graph and see whether anything gets across.
-use hexform;
+use hex_field;
 use hexedge;
 
 fn heading_nx(k: integer) -> float {

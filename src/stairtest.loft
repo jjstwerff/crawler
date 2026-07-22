@@ -15,7 +15,7 @@
 // THE NOSING LINE IS THE SIGHT LINE. Treads are visible from above it and hidden from
 // below it — which is why you cannot see the back of a tread from the foot of a steep
 // flight. That falls out of sight_clear unchanged.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 

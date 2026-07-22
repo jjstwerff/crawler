@@ -15,7 +15,7 @@
 // for a height PER VERTEX rather than once per object, and that single habit is the whole
 // of this phase.
 use mesh3d;
-use hexform;
+use hex_field;
 use hexprim;
 
 pub const SEAT_PLANE = 1;

@@ -20,7 +20,7 @@
 // The dome is the hard one, for the opposite reason to the cone. A cone's slope is
 // constant; a dome's DIVERGES at the springing, so past the 45-degree point a per-cell
 // height simply cannot carry the surface. That is why real domes sit on a vertical drum.
-use hexform;
+use hex_field;
 use hexway;
 use hexroof;
 

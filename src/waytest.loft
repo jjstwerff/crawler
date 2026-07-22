@@ -5,7 +5,7 @@
 //   flatten err <= c^2/(8R) — near-exact is cheap, name a tolerance
 //   I-CURV  an offset degenerates when |d| >= R  (the minimum curve radius)
 //   one pass: every blocked edge carries the surface of its nearest segment
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 

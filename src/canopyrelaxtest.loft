@@ -8,7 +8,7 @@
 // from T1: I-EXACT makes heights INTEGERS, so the state space is finite, so a
 // deterministic map on it must reach a fixed point or enter a cycle — and both are
 // detectable by remembering the states visited. Termination is DETECTED, not assumed.
-use hexform;
+use hex_field;
 use hexcanopy;
 
 fn fill(s: HexSet) {

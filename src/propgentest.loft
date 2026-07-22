@@ -4,7 +4,7 @@
 // authored. The invariant that matters is EXACTLY ONE door per opening: an opening is a
 // single hole in a wall, and a derivation that placed two — or none — would be wrong in a
 // way that only shows when someone tries to walk through it.
-use hexform;
+use hex_field;
 use hexedge;
 use hexplace;
 use hexderive;

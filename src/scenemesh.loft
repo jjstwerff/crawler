@@ -8,7 +8,7 @@
 //
 // Materials are single flat colours on purpose. Anything more would let shading hide a
 // shape error, which is precisely what this is meant to catch.
-use hexform;
+use hex_field;
 use hexedge;
 use hexcanopy;
 use hexskel;

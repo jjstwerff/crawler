@@ -4,14 +4,14 @@
 // vertex, so an opening CUT FROM CELLS can never be straight beyond one 1.0-unit edge.
 // As an interval on an exact surface it is straight at any width — and a DOUBLE DOOR is
 // simply a wider interval, which is what this proves.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexmatch;
 
 // Count each edge ONCE. Iterating all six directions from every cell visits a shared
 // edge twice, which silently doubled every figure in an earlier version of this test.
-// The canonical set {0,2,3} is one direction per opposite pair (see hexform).
+// The canonical set {0,2,3} is one direction per opposite pair (see hex_field).
 fn is_canon(d: integer) -> boolean { d == 0 || d == 2 || d == 3 }
 
 fn count_passable(e: EdgeSet, m: Materials, q0: integer, r0: integer,

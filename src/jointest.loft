@@ -6,7 +6,7 @@
 // each build is self-consistent.
 //
 // THE RULE: nearest surface to the edge's contact point wins; ties to the lower id.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 

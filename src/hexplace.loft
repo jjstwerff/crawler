@@ -9,7 +9,7 @@
 // The levels are split by HOW OFTEN THEIR CONTENTS CHANGE, not by what they are, because
 // the FieldCache is keyed (chunk, level, version): moving a cart then invalidates the
 // cart's level and leaves the buildings alone.
-use hexform;
+use hex_field;
 
 pub const L_ARCH    = 0;   // walls, roofs, the built field
 pub const L_FIXED   = 1;   // doors, windows, chimneys, fences, lamps — change with a building

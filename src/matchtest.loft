@@ -2,7 +2,7 @@
 //
 // Cell-authored content has no surfaces, so it has no NORMALS. This proves the matcher
 // gives it the same downstream behaviour as curve-authored content.
-use hexform;
+use hex_field;
 use hexedge;
 use hexmatch;
 

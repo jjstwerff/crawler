@@ -3,7 +3,7 @@
 // Block-in pass: big masses first, detail last.  Everything stands on the hex field —
 // the ground is displaced hexes, the walls are edges, the roofs are the profile x distance
 // table from plan #5, the trees are plan #9's canopy.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexroof;

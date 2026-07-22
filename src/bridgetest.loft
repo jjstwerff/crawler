@@ -15,7 +15,7 @@
 // about the ways changes — only the sheet.
 //
 // A tunnel is the same operation with the opposite sign, which is why they are one gate.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexcache;

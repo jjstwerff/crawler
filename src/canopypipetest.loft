@@ -8,7 +8,7 @@
 // It also fixes the mesh/card threshold without an artistic decision: the artist names the
 // thinnest radius worth drawing as a solid, and the geometry decides which branches meet
 // it.
-use hexform;
+use hex_field;
 use hexcanopy;
 use hexskel;
 

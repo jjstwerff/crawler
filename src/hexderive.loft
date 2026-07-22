@@ -8,7 +8,7 @@
 // supplies WHICH THING as an opaque `kind`. The library never holds a catalogue — that is
 // the difference between a mechanism that furnishes any world and a hard-coded list that
 // furnishes one.
-use hexform;
+use hex_field;
 use hexedge;
 use hexplace;
 

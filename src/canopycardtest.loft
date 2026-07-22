@@ -12,7 +12,7 @@
 // directions. Cards are per-node, so there are far more of them — and placing each at a
 // deterministic SUB-CELL position makes its heading continuous with no smoothing pass at
 // all.
-use hexform;
+use hex_field;
 use hexcanopy;
 use hexskel;
 

@@ -7,7 +7,7 @@
 // The two invariants are I-REACH (every crown cell reaches its trunk) and I-NOTRESPASS
 // (the path uses only its own cells). Both hold by construction of the search, so both get
 // a NEGATIVE CONTROL: a check that never fires proves nothing.
-use hexform;
+use hex_field;
 use hexcanopy;
 use hexskel;
 

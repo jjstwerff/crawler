@@ -4,7 +4,7 @@
 // leaf and the material, so a door that looks open is open — and that the toggle costs the
 // field nothing, which is the level-crossing barrier result reused verbatim.
 use mesh3d;
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexcache;

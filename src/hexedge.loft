@@ -31,7 +31,7 @@
 // thing; the surface tells you its exact normal.  This keeps the design's standing rule —
 // never derive a smooth thing from cells — and it needs no mesh, so it works for a large
 // area and for small blockers (a tree, a bush) that a mesh would describe badly.
-use hexform;
+use hex_field;
 
 // The surfaces a collision can reference.  Small and flat on purpose: a normal must be
 // cheap to evaluate at contact time.

@@ -19,7 +19,7 @@
 // Eviction is LRU against a fixed capacity, because DESIGN.md section 7.2 has rendering
 // and simulation sharing ONE cache: a region is wanted when either must touch it, so the
 // residency policy cannot belong to either alone.
-use hexform;
+use hex_field;
 use hexedge;
 
 pub struct FieldCache {

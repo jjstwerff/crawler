@@ -11,7 +11,7 @@
 // transparencies a ray meets. They agree exactly when k = -c*ln(1-a), where c is the number
 // of cards met per unit of canopy path. **c is a property of the grid and the layout, not a
 // dial**, so it is measured here and k follows from whatever alpha the art uses.
-use hexform;
+use hex_field;
 use hexcanopy;
 use hexskel;
 

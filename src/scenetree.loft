@@ -1,5 +1,5 @@
 // scenetree — the branch structure, drawn, so the spoke fix can be SEEN.
-use hexform;
+use hex_field;
 use hexcanopy;
 use hexskel;
 use scenemesh;

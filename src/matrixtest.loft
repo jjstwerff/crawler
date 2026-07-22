@@ -10,7 +10,7 @@
 //   4 attribution  no blocked edge left without a surface
 //   5 seal         a closed run still separates inside from outside
 //   6 matcher      the joined form still yields recoverable surfaces
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 use hexmatch;

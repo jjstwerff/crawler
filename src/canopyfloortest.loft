@@ -10,7 +10,7 @@
 // child of the trunk, that needs the crown to reach TWO cells out. A neighbour is sqrt(3)
 // away, so the floor is R = 2*sqrt(3), and it is derived from the lattice like every other
 // threshold in these two plans.
-use hexform;
+use hex_field;
 use hexcanopy;
 use hexskel;
 

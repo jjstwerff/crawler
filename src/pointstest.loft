@@ -13,7 +13,7 @@
 //
 // The reverse curve is also where G2 bites hardest: curvature swings +1/R -> -1/R, the
 // largest discontinuity anywhere in the way system, and exactly what a clothoid removes.
-use hexform;
+use hex_field;
 use hexedge;
 use hexway;
 

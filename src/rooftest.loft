@@ -14,7 +14,7 @@
 //
 // ARCHES are the mirror: an opening whose SOFFIT varies between the pillars, so the clear
 // height varies along the span and what can pass depends on where you stand.
-use hexform;
+use hex_field;
 use hexway;
 use hexroof;
 

@@ -6,7 +6,7 @@
 // traces it, and asserts the emitted loops are IDENTICAL to the golden, point for point.
 //
 // Regenerate the golden with:  python3 plans/5-geometry/hexforms.py
-use hexform;
+use hex_field;
 
 fn fam_form(fam: text, n: integer) -> HexSet {
   if fam == "A" { return form_hexdisk(14, n); }

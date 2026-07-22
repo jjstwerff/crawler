@@ -8,7 +8,7 @@
 // rather than a tolerance. That matters: the float prototype gave an isolated tree a
 // spurious lean of a third of a cell, because the crown boundary passes exactly through
 // cell centres and rounding admitted one cell while rejecting its mirror.
-use hexform;
+use hex_field;
 use hexcanopy;
 
 fn fill(s: HexSet) {
