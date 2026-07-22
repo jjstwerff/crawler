@@ -687,3 +687,48 @@ bole rule with nothing added.
 directional penalty (windward abrasion shapes the crown) and the *lean* as a directional
 term (flag trees on exposed sites). Both are additions to existing steps rather than new
 machinery, but neither is specified here.
+
+
+## 12. T8 — where a crown stops being a field
+
+Plan #5 found two boundaries of the field model: a **resolution floor** (a spiral stair too
+tight to lay one tread) and a **slope ceiling** (a dome too steep to carry as a height). A
+canopy has its own floor, and finding it sharply matters, because below it the entire
+canopy-first apparatus produces nothing a billboard would not.
+
+**The criterion is structural, not a cell count.** A crown is worth deriving when its
+skeleton has branch structure — at least one **fork** below the root. Every node at depth 1
+is a direct child of the trunk, so a fork needs depth ≥ 2: the crown must reach **two cells
+out**. A neighbour is `√3` away, so
+
+```
+   FIELD  when  R > 2√3 = 3.464          OBJECT below it
+```
+
+Swept across ten radii, the fork test and the analytic bound agree at **every** one — 0
+disagreements. Either side of it:
+
+```
+   R = 2.65   7 cells,  0 forks, depth 1,  2 distinct loads   -> a star of twigs
+   R = 3.61  19 cells,  4 forks, depth 2,  5 distinct loads, 16 branches
+```
+
+Below the floor the field does not say *less*, it says **nothing**: one depth, two distinct
+loads, no fork to hang a branch on, and a pipe model with no gradient to compute. The right
+emission there is a single object — one card or one small mesh, as for a sapling.
+
+**It classifies what a crown holds, not what it was declared with.** A tree given a nominal
+`R = 7`, well above the floor, but hemmed in until it holds 7 cells, is classified an
+object. That is the only form of the test that stays meaningful after relaxation has
+redistributed everything.
+
+### The four derived representation changes
+
+None of these is a tuning knob; each falls out of the lattice or the physics:
+
+| where | rule | crossing means |
+|---|---|---|
+| plan #5, spiral stairs | `r_inner < √3/2π` | object, not field |
+| plan #5, domes | `\|dz/dr\| > 1` | wall, not roof |
+| plan #9, crowns | `R < 2√3` | object, not field |
+| plan #9, branches | `load < (r_min/k)²` | card, not mesh |

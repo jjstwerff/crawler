@@ -261,3 +261,39 @@ pub fn mesh_connected(sk: Skeleton, nmin: integer) -> boolean {
   }
   okc
 }
+
+// ── T8: WHEN A CROWN IS A FIELD, AND WHEN IT IS AN OBJECT ───────────────────
+//
+// Plan #5 found two boundaries of the field model — a resolution floor (a spiral stair too
+// tight to lay one tread) and a slope ceiling (a dome too steep for a per-cell height).
+// A canopy has its own instance of the floor, and it is sharper than a cell count.
+//
+// A crown is worth deriving when its skeleton has BRANCH STRUCTURE, and branch structure
+// means at least one fork below the root. Every node at depth 1 is a direct child of the
+// trunk, so a fork requires depth >= 2 — the crown must reach at least TWO cells from the
+// trunk. On the lattice a neighbour is sqrt(3) away, so:
+//
+//     FIELD  when  R > 2*sqrt(3) = 3.464          OBJECT below it
+//
+// Measured across a radius sweep: at R = 2.65 a crown is 7 cells, 0 forks, depth 1 — a star
+// of twigs, with two distinct loads in the whole tree, and nothing the pipe model or the
+// card layer can use. At R = 3.61 it is 19 cells, 4 forks, depth 2, five distinct loads,
+// and every downstream phase has something to work with.
+//
+// Below the floor the right emission is a single OBJECT — one card or one small mesh, as
+// for a sapling or a domestic spiral stair. Not an error: a different representation.
+pub fn canopy_floor_radius() -> float { 3.4641016151377544 }
+
+// Does this skeleton carry branch structure at all?
+pub fn skeleton_resolves(sk: Skeleton) -> boolean {
+  for j in 0..sk.sk_n {
+    if (sk.sk_kind[j] ?? 0) == NODE_FORK { return true; }
+  }
+  false
+}
+
+pub fn skeleton_depth(sk: Skeleton) -> integer {
+  d = 0;
+  for j in 0..sk.sk_n { if (sk.sk_depth[j] ?? 0) > d { d = sk.sk_depth[j] ?? 0; } }
+  d
+}

@@ -1,0 +1,132 @@
+// canopyfloortest — plan #9 T8: where a crown stops being a field.
+//
+// Plan #5 found two boundaries of the field model: a resolution floor (a spiral stair too
+// tight to lay one tread) and a slope ceiling (a dome too steep to carry as a height). A
+// canopy has its own floor, and finding it sharply matters because below it the whole
+// canopy-first apparatus produces nothing a billboard would not.
+//
+// The criterion is not a cell count. A crown is worth deriving when its skeleton has BRANCH
+// STRUCTURE — at least one fork below the root — and since every node at depth 1 is a direct
+// child of the trunk, that needs the crown to reach TWO cells out. A neighbour is sqrt(3)
+// away, so the floor is R = 2*sqrt(3), and it is derived from the lattice like every other
+// threshold in these two plans.
+use hexform;
+use hexcanopy;
+use hexskel;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy floor test (plan #9 T8) ===");
+  ok = true;
+  q0 = -20; r0 = -16; gw = 41; gh = 33;
+  floor = canopy_floor_radius();
+  println("predicted floor: R > 2*sqrt(3) = {floor}");
+
+  // ── 1. the classification flips exactly where predicted ──────────────────
+  println("radius sweep — cells, forks, depth, and the verdict:");
+  wrong = 0;
+  for j in 0..10 {
+    r2 = 1 + j * 4;
+    s = hexset_chunk(q0, r0, gw, gh);
+    fill(s);
+    t = trees_new();
+    tree_add(t, 0, 0, 20, r2, 0);
+    lb = labels_new(q0, r0, gw, gh);
+    ct = labels_new(q0, r0, gw, gh);
+    canopy_partition(t, s, lb, ct);
+    sk = skeleton_build(t, 0, s, lb);
+    rad = sqrt(r2 as float) ?? 0.0;
+    res = skeleton_resolves(sk);
+    want = rad > floor;
+    cells = crown_count(s, lb, 0);
+    forks = 0;
+    for i in 0..sk.sk_n { if (sk.sk_kind[i] ?? 0) == NODE_FORK { forks = forks + 1; } }
+    nm = "OBJECT"; if res { nm = "field "; }
+    println("   R {rad}: {cells} cells, {forks} forks, depth {skeleton_depth(sk)} -> {nm}");
+    if res != want { wrong = wrong + 1; }
+  }
+  println("classifications disagreeing with R > 2*sqrt(3): {wrong}");
+  if wrong != 0 { ok = false; }
+
+  // ── 2. below the floor the field genuinely says nothing ──────────────────
+  // Not "says less" — says nothing. One depth, two distinct loads, no fork to hang a
+  // branch on, and a pipe model with no gradient to compute.
+  s1 = hexset_chunk(q0, r0, gw, gh);
+  fill(s1);
+  t1 = trees_new();
+  tree_add(t1, 0, 0, 20, 7, 0);              // R = 2.65, below the floor
+  lb1 = labels_new(q0, r0, gw, gh);
+  ct1 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t1, s1, lb1, ct1);
+  sk1 = skeleton_build(t1, 0, s1, lb1);
+  loads = 0;
+  seen: vector<integer> = [];
+  for i in 0..64 { seen += [0]; }
+  for i in 0..sk1.sk_n {
+    L = sk1.sk_load[i] ?? 0;
+    if L < 64 && (seen[L] ?? 0) == 0 { loads = loads + 1; seen[L] = 1; }
+  }
+  println("below the floor (R=2.65): {sk1.sk_n} nodes, depth {skeleton_depth(sk1)}, {loads} distinct loads");
+  if skeleton_resolves(sk1) { ok = false; }
+  if skeleton_depth(sk1) > 1 { ok = false; }
+  if loads > 2 { ok = false; }
+  println("   -> a star of twigs off the trunk: no hierarchy, no gradient, nothing to derive");
+
+  // ── 3. just above it, every downstream phase has something ───────────────
+  s2 = hexset_chunk(q0, r0, gw, gh);
+  fill(s2);
+  t2 = trees_new();
+  tree_add(t2, 0, 0, 20, 13, 0);             // R = 3.61, just above
+  lb2 = labels_new(q0, r0, gw, gh);
+  ct2 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t2, s2, lb2, ct2);
+  sk2 = skeleton_build(t2, 0, s2, lb2);
+  br2 = branches_extract(sk2);
+  loads2 = 0;
+  seen2: vector<integer> = [];
+  for i in 0..64 { seen2 += [0]; }
+  for i in 0..sk2.sk_n {
+    L = sk2.sk_load[i] ?? 0;
+    if L < 64 && (seen2[L] ?? 0) == 0 { loads2 = loads2 + 1; seen2[L] = 1; }
+  }
+  println("just above (R=3.61): {sk2.sk_n} nodes, depth {skeleton_depth(sk2)}, {loads2} distinct loads, {br2.br_n} branches");
+  if !skeleton_resolves(sk2) { ok = false; }
+  if loads2 <= 2 { ok = false; }
+  if br2.br_n <= 0 { ok = false; }
+
+  // ── 4. the floor is judged on what is HELD, not on what was asked for ────
+  // This tree is given a nominal R = 7 — comfortably above the floor — but competition
+  // leaves it 7 cells. The classification follows the crown it actually holds, not the
+  // radius it was declared with, which is the only way the test can be meaningful after
+  // relaxation has redistributed everything.
+  s3 = hexset_chunk(q0, r0, gw, gh);
+  fill(s3);
+  t3 = trees_new();
+  tree_add(t3,  0, 0, 20, 49, 0);
+  tree_add(t3,  5, 0, 20, 49, 1);
+  tree_add(t3, -5, 0, 20, 49, 2);
+  tree_add(t3,  0, 9, 20, 49, 3);
+  tree_add(t3,  0, -9, 20, 49, 4);
+  lb3 = labels_new(q0, r0, gw, gh);
+  ct3 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t3, s3, lb3, ct3);
+  sk3 = skeleton_build(t3, 0, s3, lb3);
+  println("hemmed-in tree (declared R=7): holds {crown_count(s3, lb3, 0)} cells, depth {skeleton_depth(sk3)}, resolves {skeleton_resolves(sk3)}");
+  if skeleton_resolves(sk3) { ok = false; }
+  println("   -> declared R=7 (above the floor), but what it HOLDS does not resolve.");
+  println("      The classification follows the crown, not the parameter it was given.");
+
+  // ── 5. the three derived thresholds, stated together ─────────────────────
+  println("three representation changes, none of them a tuning knob:");
+  println("   plan #5 spiral stair   r_inner < sqrt(3)/2pi   -> object, not field");
+  println("   plan #5 dome           |dz/dr| > 1             -> wall, not roof");
+  println("   plan #9 crown          R < 2*sqrt(3)           -> object, not field");
+  println("   plan #9 branch         load < (r_min/k)^2      -> card, not mesh");
+
+  if ok { println("=== CANOPYFLOOR OK ==="); } else { println("=== FAIL ==="); }
+}
