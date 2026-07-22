@@ -92,7 +92,7 @@ per scene.
 | graphical fidelity | **yes** | fidelity's cost is authoring assets to a photoreal standard; in a **derived** world it becomes *deriving to a higher standard* — algorithmic work, which is what this project is for |
 | party locomotion / traversal | **yes** | a system, authored once |
 | animated actors, mocap | **yes, increasingly** | markerless video capture is real and the cost is falling every year |
-| voice | **yes, at our volume** | synthesis plus small-scale real VO covers what a derived world needs |
+| voice | **yes, at our volume** | ~80% is an actor **in their own chair**: remote recording has been standard since ~2020, and a good mic in a treated space is close to a booth for dialogue. The same seat covers webcam/phone face capture for non-hero content. A stage is still wanted for full-body capture, overlapping ensemble scenes and physically exerted vocals. **It suits this design especially**: the eligibility model (SCRIPTING.md) makes lines *conditional, short and standalone* — no throughline to hold across sessions, no ensemble timing — which is the easiest possible remote shape. You drop **facilities, not direction**, and direction is the part that does not scale. Two cautions: **barks recombine, scenes do not** (whole performances stay whole, or you get machinery), and AI synthesis is cheaper still but sits on contested consent/likeness ground — real actors recorded at home also sound better |
 | hundreds of unique individuals, monsters, bespoke scenes | **no — and not needed** | **systemic variety substitutes for unique authored assets** |
 
 **That substitution is the whole economic argument.** One derived tree routine instead of a
