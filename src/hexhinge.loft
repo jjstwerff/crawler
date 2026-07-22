@@ -1,0 +1,79 @@
+// hexhinge — plan #10 P6: state, class A. One hinge, one angle.
+//
+// A door, a casement, an awning, a shutter. The part's local transform stops being a
+// constant and becomes f(state), and the state is ONE NUMBER per prop.
+//
+// The important half is not the geometry. A door that LOOKS open must BE open, so the same
+// number that swings the leaf sets the material — and the mechanism for that already
+// exists: `material_set_solid` was written for level-crossing barriers and gated there as
+// costing zero edge writes and not invalidating the L2 cache. A gate written for a railway
+// is, unchanged, the door-opening mechanism.
+use mesh3d;
+use hexedge;
+
+// A leaf hinged at (hx, hy), swinging `angle` from its closed heading `yaw`.
+//
+// The hinge edge does not move — that is what makes it a hinge rather than a slide, and it
+// is the property the gate checks, because a leaf that translates as it opens looks right
+// in a still and wrong the moment it moves.
+pub fn mesh_leaf(hx: float, hy: float, z0: float, z1: float,
+                 w: float, thick: float, yaw: float, angle: float) -> Mesh {
+  ms = mesh("leaf");
+  uu = vec2(0.0, 0.0);
+  a = yaw + angle;
+  dx = cos(a);
+  dy = sin(a);
+  nx = 0.0 - dy;
+  ny = dx;
+  // the far edge, swung; the hinge edge, fixed
+  fx = hx + dx * w;
+  fy = hy + dy * w;
+  for sgn in 0..2 {
+    o = thick * 0.5;
+    if sgn == 1 { o = 0.0 - thick * 0.5; }
+    n = vec3(nx, ny, 0.0);
+    p0 = add_vertex(ms, vertex(vec3(hx + nx * o, hy + ny * o, z0), n, uu));
+    p1 = add_vertex(ms, vertex(vec3(fx + nx * o, fy + ny * o, z0), n, uu));
+    p2 = add_vertex(ms, vertex(vec3(fx + nx * o, fy + ny * o, z1), n, uu));
+    p3 = add_vertex(ms, vertex(vec3(hx + nx * o, hy + ny * o, z1), n, uu));
+    add_quad(ms, p0, p1, p2, p3);
+  }
+  ms
+}
+
+// A shutter pair: two leaves from ONE state, equal and opposite.
+//
+// Mirrored, so a single number opens both — which is what a shutter is. Two independent
+// angles would let them disagree, and a shutter pair that disagrees is two shutters.
+pub fn mesh_shutters(cx: float, cy: float, z0: float, z1: float,
+                     halfw: float, thick: float, yaw: float, angle: float) -> Mesh {
+  ms = mesh("shutters");
+  dx = cos(yaw);
+  dy = sin(yaw);
+  left = mesh_leaf(cx - dx * halfw, cy - dy * halfw, z0, z1, halfw, thick,
+                   yaw + 3.141592653589793, 0.0 - angle);
+  right = mesh_leaf(cx + dx * halfw, cy + dy * halfw, z0, z1, halfw, thick, yaw, angle);
+  for li in 0..len(left.triangles) {
+    t = left.triangles[li];
+    i0 = add_vertex(ms, left.vertices[t.a]);
+    i1 = add_vertex(ms, left.vertices[t.b]);
+    i2 = add_vertex(ms, left.vertices[t.c]);
+    add_triangle(ms, i0, i1, i2);
+  }
+  for ri in 0..len(right.triangles) {
+    t2 = right.triangles[ri];
+    j0 = add_vertex(ms, right.vertices[t2.a]);
+    j1 = add_vertex(ms, right.vertices[t2.b]);
+    j2 = add_vertex(ms, right.vertices[t2.c]);
+    add_triangle(ms, j0, j1, j2);
+  }
+  ms
+}
+
+// One number, both consumers: the angle that swings the leaf also sets whether the opening
+// stops anyone. Anything past a threshold is passable.
+pub fn hinge_apply(mt: Materials, mat: integer, angle: float, open_at: float) {
+  a = angle;
+  if a < 0.0 { a = 0.0 - a; }
+  material_set_solid(mt, mat, a < open_at);
+}

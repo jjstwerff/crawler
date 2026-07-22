@@ -31,6 +31,10 @@ pub struct PropSet {
   pp_yaw:   vector<float>,
   pp_scale: vector<float>,
   pp_next:  vector<integer>,
+  // ONE number per prop, not per part (PROPS §Part 4): a door's angle, a shutter's, a
+  // wheel's phase. Stored state is a decision someone made; derived state (a wheel's) is a
+  // consequence and is computed rather than kept here.
+  pp_state: vector<float>,
   pp_head:  Labels,
   pp_n:     integer,
 }
@@ -40,8 +44,8 @@ pub fn propset_new(level: integer, q0: integer, r0: integer,
   a: vector<integer> = []; b: vector<integer> = []; c: vector<integer> = [];
   d: vector<integer> = []; e: vector<integer> = [];
   f: vector<float> = []; g: vector<float> = []; i: vector<float> = [];
-  j: vector<float> = [];
-  PropSet { pp_level: level, pp_q: a, pp_r: b, pp_kind: c, pp_seed: d, pp_next: e,
+  j: vector<float> = []; k: vector<float> = [];
+  PropSet { pp_level: level, pp_state: k, pp_q: a, pp_r: b, pp_kind: c, pp_seed: d, pp_next: e,
             pp_ox: f, pp_oy: g, pp_yaw: i, pp_scale: j,
             pp_head: labels_new(q0, r0, w, h), pp_n: 0 }
 }
@@ -56,6 +60,7 @@ pub fn prop_add(ps: PropSet, pq: integer, pr: integer, kind: integer, seed: inte
   ps.pp_q += [pq]; ps.pp_r += [pr]; ps.pp_kind += [kind]; ps.pp_seed += [seed];
   ps.pp_ox += [ox]; ps.pp_oy += [oy]; ps.pp_yaw += [yaw]; ps.pp_scale += [scale];
   ps.pp_next += [label_get(ps.pp_head, pq, pr)];
+  ps.pp_state += [0.0];
   label_set(ps.pp_head, pq, pr, idx);
   ps.pp_n = idx + 1;
   idx
@@ -82,3 +87,13 @@ pub fn prop_count_at(ps: PropSet, pq: integer, pr: integer) -> integer {
 
 pub fn prop_total(ps: PropSet) -> integer { ps.pp_n }
 pub fn prop_level(ps: PropSet) -> integer { ps.pp_level }
+
+
+pub fn prop_state(ps: PropSet, i: integer) -> float {
+  if i < 0 || i >= ps.pp_n { return 0.0; }
+  ps.pp_state[i] ?? 0.0
+}
+
+pub fn prop_set_state(ps: PropSet, i: integer, v: float) {
+  if i >= 0 && i < ps.pp_n { ps.pp_state[i] = v; }
+}

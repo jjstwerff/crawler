@@ -1,0 +1,136 @@
+// hingetest — plan #10 P6: state, class A.
+//
+// The geometry is the easy half. The half that matters is that ONE number drives both the
+// leaf and the material, so a door that looks open is open — and that the toggle costs the
+// field nothing, which is the level-crossing barrier result reused verbatim.
+use mesh3d;
+use hexform;
+use hexedge;
+use hexway;
+use hexcache;
+use hexplace;
+use hexhinge;
+
+fn main() {
+  println("=== story hinge test (plan #10 P6) ===");
+  ok = true;
+  q0 = -20; r0 = -16; gw = 41; gh = 33;
+
+  // ── 1. the drawn angle IS the stored angle, and the hinge does not move ──
+  println("leaf geometry against its stated angle:");
+  worst_a = 0.0;
+  worst_h = 0.0;
+  for k in 0..7 {
+    ang = 1.5707963267948966 * (k as float) / 6.0 ?? 0.0;
+    lf = mesh_leaf(2.0, -1.0, 0.0, 2.1, 0.9, 0.06, 0.4, ang);
+    // Recover the heading from the far edge's CENTRELINE, not from a corner. The leaf has
+    // thickness, so its far corners sit +/- thick/2 off the centreline and a corner reads
+    // atan(0.03/0.9) = 0.033 rad askew — the first version of this check measured that
+    // offset and called it an error in the hinge.
+    far = 0.0;
+    for vi in 0..len(lf.vertices) {
+      p = lf.vertices[vi].pos;
+      d = (p.x - 2.0) * (p.x - 2.0) + (p.y + 1.0) * (p.y + 1.0);
+      if d > far { far = d; }
+    }
+    sx = 0.0; sy = 0.0; nf = 0;
+    for vm in 0..len(lf.vertices) {
+      pm = lf.vertices[vm].pos;
+      dm = (pm.x - 2.0) * (pm.x - 2.0) + (pm.y + 1.0) * (pm.y + 1.0);
+      if dm > far - 0.0001 { sx = sx + pm.x; sy = sy + pm.y; nf = nf + 1; }
+    }
+    sx = sx / (nf as float) ?? 0.0;
+    sy = sy / (nf as float) ?? 0.0;
+    got = atan2(sy + 1.0, sx - 2.0);
+    e = got - (0.4 + ang);
+    if e > 3.141592653589793 { e = e - 6.283185307179586; }
+    if e < 0.0 - 3.141592653589793 { e = e + 6.283185307179586; }
+    if e < 0.0 { e = 0.0 - e; }
+    if e > worst_a { worst_a = e; }
+    // the hinge edge must not have moved
+    near = 1000.0;
+    for vj in 0..len(lf.vertices) {
+      p2 = lf.vertices[vj].pos;
+      d2 = sqrt((p2.x - 2.0) * (p2.x - 2.0) + (p2.y + 1.0) * (p2.y + 1.0)) ?? 0.0;
+      if d2 < near { near = d2; }
+    }
+    if near > worst_h { worst_h = near; }
+  }
+  println("   worst heading error {worst_a} rad over 7 angles; hinge edge drift {worst_h}");
+  if worst_a > 0.000001 { ok = false; }
+  if worst_h > 0.031 { ok = false; }      // half the leaf thickness, not a translation
+  println("   -> it swings about its hinge rather than sliding, at every angle");
+
+  // ── 2. ONE number drives the leaf AND the material ───────────────────────
+  mt = materials_new();
+  door = material_add(mt, true, 2.1, 1.0, 12.0, 0.0, 0.2);
+  ps = propset_new(L_FIXED, q0, r0, gw, gh);
+  di = prop_add(ps, 0, 0, 3, 11, 0.1, 0.0, 0.4, 1.0);
+  println("one number, both consumers:");
+  for st in 0..4 {
+    ang2 = 1.5707963267948966 * (st as float) / 3.0 ?? 0.0;
+    prop_set_state(ps, di, ang2);
+    hinge_apply(mt, door, prop_state(ps, di), 0.35);
+    blocks = mat_solid(mt, door);
+    println("   angle {ang2}: leaf drawn at that angle, opening blocks movement {blocks}");
+    if st == 0 && !blocks { ok = false; }      // shut ⇒ solid
+    if st == 3 && blocks { ok = false; }       // wide open ⇒ passable
+  }
+  println("   -> the drawn state and the simulated state cannot disagree: same float");
+
+  // ── 3. the toggle costs the field NOTHING (the barrier result) ───────────
+  arch = hexset_chunk(q0, r0, gw, gh);
+  wl = track_new();
+  track_straight(wl, -8.0, 0.0, 8.0, 0.0);
+  way_mark(wl, 0.6, arch);
+  sf = surfaces_new();
+  way_surfaces(wl, sf);
+  ed = edgeset_new(q0, r0, gw, gh);
+  cut_arb(arch, ed, sf, sf.sf_n, door);
+  ssum = 0; msum = 0;
+  for i in 0..len(ed.ee_surf) {
+    ssum = ssum + ((ed.ee_surf[i] ?? 0) as integer);
+    msum = msum + ((ed.ee_mat[i] ?? 0) as integer);
+  }
+  fc = cache_new(4);
+  slot = cache_claim(fc, 0, 0, L_ARCH, 3);
+  cache_set_edges(fc, slot, ed);
+  prop_set_state(ps, di, 1.4);
+  hinge_apply(mt, door, prop_state(ps, di), 0.35);
+  s2 = 0; m2 = 0;
+  for j in 0..len(ed.ee_surf) {
+    s2 = s2 + ((ed.ee_surf[j] ?? 0) as integer);
+    m2 = m2 + ((ed.ee_mat[j] ?? 0) as integer);
+  }
+  hit = cache_find(fc, 0, 0, L_ARCH, 3);
+  println("opening the door: surf sum {ssum}=={s2}, mat sum {msum}=={m2}, cache hit {hit >= 0}");
+  if ssum != s2 || msum != m2 { ok = false; }
+  if hit < 0 { ok = false; }
+  println("   -> zero edge writes and the cache survives, so a town's doors may swing freely");
+
+  // ── 4. shutters: mirrored, from ONE state ────────────────────────────────
+  // Mirrored ACROSS the opening, not across the wall: real shutters both swing outward, so
+  // they are symmetric in x and land on the same side in y. Checking y was checking that
+  // one of them opened inward, which is not what a shutter pair does.
+  sh = mesh_shutters(0.0, 0.0, 1.0, 2.2, 0.5, 0.05, 0.0, 0.9);
+  ymin = 1000.0; ymax = -1000.0;
+  for vk in 0..len(sh.vertices) {
+    p3 = sh.vertices[vk].pos;
+    if p3.x < ymin { ymin = p3.x; }
+    if p3.x > ymax { ymax = p3.x; }
+  }
+  sym = ymax + ymin;
+  if sym < 0.0 { sym = 0.0 - sym; }
+  println("shutters at 0.9 rad: x spans {ymin}..{ymax}, asymmetry about the opening {sym}");
+  if sym > 0.000001 { ok = false; }
+  println("   -> equal and opposite from one number. Two angles would let them disagree,");
+  println("      and a shutter pair that disagrees is two shutters.");
+
+  // ── 5. NEGATIVE CONTROL: a shut door must still block ────────────────────
+  prop_set_state(ps, di, 0.0);
+  hinge_apply(mt, door, prop_state(ps, di), 0.35);
+  println("negative control — shut again: blocks {mat_solid(mt, door)} (must be true)");
+  if !mat_solid(mt, door) { ok = false; }
+
+  if ok { println("=== HINGE OK ==="); } else { println("=== FAIL ==="); }
+}

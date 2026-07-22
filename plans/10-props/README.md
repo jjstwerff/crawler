@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1–P5 done.** P6–P9 remain (state, and the render pass). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1–P6 done.** P7–P9 remain (wheels, linkages, the render pass). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -107,7 +107,7 @@ opening gets a door, every ridge a chimney, every field boundary a fence.
 - no prop is placed inside a wall or off its seat;
 - **negative control:** remove one opening and exactly one door disappears.
 
-## P6 — state, Class A (hinges)
+## P6 — state, Class A (hinges)  — **DONE**, `src/hingetest.loft`
 
 Door, casement, awning, shutters: one angle per prop.
 
