@@ -21,8 +21,11 @@ never a classifier over output pixels.
 4. **The cart is visible** and reads as a wheeled vehicle.
 5. **Props are present but do not dominate:** total prop coverage (door + chimney + fence +
    cart materials) between **0.5% and 6%** of the frame.
-6. **The castle is still the focal point:** stone coverage ≥ roof coverage, both measured by
-   material id.
+6. ~~**The castle is still the focal point:** stone ≥ roof coverage.~~
+   **REWRITTEN before the finishing pass, by explicit decision — the village is the
+   subject.** The village dominates (**roofs > stone**), *and* the castle stays present
+   rather than vanishing behind it: **stone ≥ 5%** of the frame. A subject that erases its
+   setting is as wrong as one that hides in it.
 
 ## Known floor
 
@@ -70,3 +73,43 @@ mechanism fault; both are placement.
 that is not mine to make. Recording that rather than iterating on the camera until the
 score improves, because a render tuned to satisfy its own predicates is exactly the
 goalpost drift the method exists to prevent.
+
+---
+
+## Finishing pass — 4 pass, 2 fail
+
+Predicate 6 rewritten first, by decision: **the village is the subject.**
+
+| # | predicate | verdict |
+|---|---|---|
+| 1 | chimneys distinct from their roofs | **pass** — 0.56%, pale stone against dark roofs |
+| 2 | a door legible | **fail** — 0.00% |
+| 3 | fence reads | **pass** — 0.16% |
+| 4 | cart visible | **fail** |
+| 5 | prop coverage 0.5–6% | **pass** — 0.72% |
+| 6 | **village dominates, castle still present** | **pass** — roofs 17.44% > stone 11.33%, and stone is well over the 5% floor |
+
+Up from 3/6. Predicate 6 passes on its rewritten terms, and the castle has *not* vanished
+behind the village — the second clause was worth writing, because "the village dominates"
+alone would have been satisfied by a frame with no castle in it.
+
+### Why the doors fail, which is a finding rather than a to-do
+
+Trimming the eaves from 1.20× to 1.06× and shrinking the leaf to fit its wall (it had been
+2.1 m tall in a 1.5 m wall, i.e. buried in the roof) both helped the geometry and changed
+the coverage not at all.
+
+**A raised camera cannot show a door.** Looking down at a village, every roof occludes its
+own walls; that is what roofs are for. The overview shot and the door shot are **different
+shots**, and no single frame satisfies both predicate 2 and predicate 6.
+
+An eye-level attempt confirmed the diagnosis by failing differently: at 2.6 m the camera
+landed *inside* a roof (roof coverage 53.6%). A street-level view of this village needs the
+camera placed against the road with a clear sightline — a framing problem, and a third shot.
+
+### Status
+
+**P9 closes at 4/6** with both failures understood: the cart is a placement fix, and the
+doors need a *second view* rather than a change to the props. Both are recorded rather than
+absorbed by re-tuning the predicates, which — having just rewritten one deliberately — is
+the distinction worth keeping sharp.

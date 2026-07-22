@@ -128,7 +128,10 @@ fn add_house(sc: Scene, cuw: integer, cur: integer, wallm: integer, roofm: integ
   wallh = hgt * 0.52;
   add_node(sc, node_at("house", cuw, wallm,
     mat4_trs(x, y, z + wallh * 0.5, ang, w, d, wallh)));
-  gi = add_mesh(sc, mesh_gable(x, y, z + wallh, w * 1.20, d * 1.28, hgt * 1.05, ang));
+  // The eaves overhung 1.20x the wall, which from any raised camera hid the wall — and
+  // with it every door in the village. A cottage eave projects a little; it does not
+  // cantilever over the whole elevation.
+  gi = add_mesh(sc, mesh_gable(x, y, z + wallh, w * 1.06, d * 1.10, hgt * 1.05, ang));
   add_node(sc, node_at("roof", gi, roofm, mat4_identity()));
 }
 
@@ -337,10 +340,16 @@ fn main() {
     // PROPS, derived from the building rather than placed by hand: a door in the front
     // wall and a chimney on the ridge. Each house differs because the seed does.
     hz = terrain(hx, hy);
-    dw = m(5.2) * 0.5;
-    ajar = 0.15 + 0.55 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
-    dl = add_mesh(sc, mesh_leaf(hx + cos(hang) * dw, hy + sin(hang) * dw,
-                                hz, hz + m(2.0), m(0.95), m(0.07), hang + 1.5707963267948966, ajar));
+    // On the wall the viewer can actually SEE. A door on the far side is correct and
+    // invisible, which is the only way a prop can fail once it is right.
+    dface = 0.0 - 0.93;
+    dw = m(3.8) * 0.5;
+    ajar = 0.35 + 0.75 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
+    // and the leaf has to FIT the wall it is in: the wall is 0.52 of the house height, so
+    // a 2.1 m door was taller than its own opening and buried in the roof.
+    dl = add_mesh(sc, mesh_leaf(hx + cos(dface) * dw, hy + sin(dface) * dw,
+                                hz, hz + m(2.9) * 0.50, m(1.05), m(0.10),
+                                dface + 1.5707963267948966, ajar));
     add_node(sc, node_at("door", dl, m_door, mat4_identity()));
     ridge = seat_plane(0.0, 0.0, 1.0, hz + m(2.9) * 0.52 + m(2.9) * 1.05 * 0.75);
     chi = add_mesh(sc, mesh_seated_prism(ridge, hx - cos(hang) * m(1.1), hy - sin(hang) * m(1.1),
@@ -360,7 +369,7 @@ fn main() {
   part_drum(crt, 0.0,  0.60, 0.56, 0.0, 1.0, 0.0, 0.56, 0.56, 0.12);
   part_box(crt, 1.35, -0.45, 0.90, 1.60, 0.10, 0.10);
   part_box(crt, 1.35,  0.45, 0.90, 1.60, 0.10, 0.10);
-  cart_x = 15.0; cart_y = -24.0;
+  cart_x = 11.0; cart_y = -15.5;
   cart_z = terrain(cart_x, cart_y);
   for cpi in 0..parts_count(crt) {
     pm = add_mesh(sc, part_mesh(crt, cpi, cart_x, cart_y, cart_z, 12));

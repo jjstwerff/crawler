@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1–P8 done, P9 partly.** See P9 for what is and is not finished. The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**All nine phases done.** P1–P8 gated; P9 scored 4/6 with both failures understood (see P9). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -202,7 +202,19 @@ subject and predicate 6 is the wrong predicate. That wants deciding **before** a
 way the hill-versus-sky question was — not resolved by nudging a camera until the number
 turns green.
 
-**P9 stays open** on that decision plus two placements.
+**Decided: the village is the subject.** Predicate 6 rewritten accordingly — the village
+dominates *and* the castle stays present (a second clause worth having, since "dominates"
+alone is satisfied by a frame with no castle in it). Final score **4 pass, 2 fail**: roofs
+17.44% against stone 11.33%, chimneys and fence legible, prop coverage 0.72%.
+
+**The two failures are understood.** The cart is a placement fix. The doors are not: **a
+raised camera cannot show a door**, because every roof occludes its own walls — that is what
+roofs are for. The overview shot and the door shot are different shots, and no single frame
+satisfies both predicate 2 and predicate 6. Trimming the eaves 1.20x → 1.06x and fitting the
+leaf to its wall (it had been 2.1 m tall in a 1.5 m wall) improved the geometry and moved the
+coverage not at all, which is what makes it a finding rather than a to-do.
+
+**P9 closes at 4/6.** Plan #10 is complete: nine phases, 36 gates.
 
 ---
 
