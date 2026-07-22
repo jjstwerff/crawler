@@ -264,7 +264,7 @@ T6, and this is the second place the same shape has appeared — the first being
 contested-cell rule. Gated meanwhile: no non-owner's realized crown outtops the owner
 anywhere (0 cells), so the two are consistent for now.
 
-### I-PIPE — structure is derived, not chosen
+### I-PIPE — structure is derived, not chosen  — **BUILT, T5**
 Shinozaki's pipe model: the cross-sectional area of a stem is proportional to the leaf area
 it supports. Canopy-first makes that directly computable:
 
@@ -276,6 +276,48 @@ it supports. Canopy-first makes that directly computable:
 Da Vinci's rule (`Σ child² = parent²`) is then **not an extra rule** — it is conservation
 of the partition, restated. This is what makes canopy-first a *derivation* rather than a
 plausible-looking generator, and it is the single most important idea in this document.
+
+T5 sharpened it. T4 gives `load(parent) = 1 + Σ child loads`, so with area ∝ load:
+
+```
+   area(parent) = area(its own cell) + Σ child areas       exact, 0 violations
+```
+
+and da Vinci's familiar form is *that with the node's own foliage dropped*:
+
+```
+   Σ(child²)/parent² = (load − 1)/load        0.99 at load 100,  0.50 at load 2
+```
+
+Measured: thin forks (load ≤ 4) reach 0.75, thick ones (load ≥ 20) reach 0.986. **So da
+Vinci's rule is asymptotically exact on thick branches and wrong in the twigs — by exactly
+one cell's worth.** That is what real trees do, and the discrete form says precisely how far
+off it is rather than leaving it as a modelling fudge.
+
+Measured trunk radii: A 69 cells → 0.498, B 80 → 0.537, C 31 → 0.334, with the A/C ratio
+equal to `√(69/31)` to 1e-15. A crowded tree carries less crown, so it grows a thinner
+trunk — derived, not tuned (85/76/67 cells → 0.553/0.523/0.491).
+
+### The mesh/card split, and a caveat on scale
+The artist names the thinnest radius worth drawing as a solid; the geometry picks which
+branches meet it — `N = (r_min/k)²`:
+
+```
+   r_min 0.12  ->  load ≥ 4   ->  18 of 69 nodes meshed
+   r_min 0.20  ->  load ≥ 11  ->   5 of 69
+   r_min 0.30  ->  load ≥ 25  ->   1 of 69
+```
+
+**The meshed part is always a connected subtree containing the root**, and that is a
+theorem, not an enforcement: `load(parent) = 1 + Σ child loads > load(child)`, so load falls
+strictly away from the root and *any* threshold on it selects such a subtree. Given a
+negative control — corrupt one tip's load and the check fires.
+
+**Caveat:** at 69 cells a crown is coarsely resolved, so a realistic `r_min` leaves only the
+trunk meshed. That is consistent with the intent (trunk and major branches only), but it
+means the mesh set's size is governed by crown *resolution* as much as by `r_min`. A
+forest-scale crown with far more cells would mesh proportionally more. Worth knowing before
+tuning `r_min` against a screenshot.
 
 ### I-REACH — a crown is connected to its own trunk, through itself  — **BUILT, T4**
 Every cell in `C_t` has a path to trunk `t` using only cells of `C_t`. A crown disconnected

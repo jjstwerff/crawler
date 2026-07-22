@@ -1,0 +1,163 @@
+// canopypipetest — plan #9 T5: pipe-model radii and the mesh/card split.
+//
+// This is the phase that makes canopy-first a DERIVATION rather than a plausible-looking
+// generator. The pipe model says a stem's cross-section is proportional to the leaf area it
+// supports; T4 already carries that number, so every radius in the tree is one square root
+// away and none of it is chosen.
+//
+// It also fixes the mesh/card threshold without an artistic decision: the artist names the
+// thinnest radius worth drawing as a solid, and the geometry decides which branches meet
+// it.
+use hexform;
+use hexcanopy;
+use hexskel;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy pipe test (plan #9 T5) ===");
+  ok = true;
+  q0 = -26; r0 = -20; gw = 53; gh = 41;
+
+  s = hexset_chunk(q0, r0, gw, gh);
+  fill(s);
+  t = trees_new();
+  tree_add(t,  0,  0, 10, 64, 0);
+  tree_add(t, 14,  0, 10, 64, 1);
+  tree_add(t,  0, 18,  6, 36, 2);
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, s, lb, ct);
+
+  // ── 1. trunk diameter goes as the square root of the crown ───────────────
+  println("trunk radius against crown size (pipe model: r = k*sqrt(cells)):");
+  for i in 0..3 {
+    nm = "A"; if i == 1 { nm = "B"; } if i == 2 { nm = "C"; }
+    sk = skeleton_build(t, i, s, lb);
+    cells = crown_count(s, lb, i);
+    rad = node_radius(sk, 0, PIPE_K);
+    want = PIPE_K * (sqrt(cells as float) ?? 0.0);
+    e = rad - want; if e < 0.0 { e = 0.0 - e; }
+    println("   {nm}: {cells} crown cells -> trunk radius {rad} (k*sqrt(cells) = {want})");
+    if e > 0.000001 { ok = false; }
+  }
+  // and the ratio of two trunks is the square root of the ratio of their crowns
+  ska = skeleton_build(t, 0, s, lb);
+  skc = skeleton_build(t, 2, s, lb);
+  na = crown_count(s, lb, 0);
+  nc = crown_count(s, lb, 2);
+  rr = node_radius(ska, 0, PIPE_K) / node_radius(skc, 0, PIPE_K) ?? 0.0;
+  wr = sqrt((na as float) / (nc as float) ?? 0.0) ?? 0.0;
+  println("   A/C trunk radius ratio {rr} == sqrt({na}/{nc}) = {wr}");
+  er = rr - wr; if er < 0.0 { er = 0.0 - er; }
+  if er > 0.000001 { ok = false; }
+
+  // ── 2. conservation is EXACT; da Vinci's rule is the approximation ───────
+  // area(parent) == area(own cell) + sum of child areas, exactly and everywhere.
+  kids: vector<integer> = [];
+  sums: vector<float> = [];
+  cnt: vector<integer> = [];
+  for j in 0..ska.sk_n { kids += [0]; sums += [0.0]; cnt += [0]; }
+  for j in 1..ska.sk_n {
+    p = ska.sk_par[j] ?? -1;
+    if p >= 0 {
+      rj = node_radius(ska, j, PIPE_K);
+      sums[p] = (sums[p] ?? 0.0) + rj * rj;
+      cnt[p] = (cnt[p] ?? 0) + 1;
+    }
+  }
+  own = PIPE_K * PIPE_K;
+  bad = 0;
+  for j in 0..ska.sk_n {
+    rj = node_radius(ska, j, PIPE_K);
+    e = rj * rj - (own + (sums[j] ?? 0.0));
+    if e < 0.0 { e = 0.0 - e; }
+    if e > 0.0000001 { bad = bad + 1; }
+  }
+  println("pipe conservation (parent area == own cell + children) violated at {bad} nodes");
+  if bad != 0 { ok = false; }
+
+  // da Vinci's ratio must be exactly (load-1)/load, and must tend to 1 with load
+  println("da Vinci ratio sum(child^2)/parent^2 at forks, by load:");
+  worst_thin = 0.0;
+  best_thick = 0.0;
+  nf = 0;
+  for j in 0..ska.sk_n {
+    if (cnt[j] ?? 0) >= 2 {
+      rj = node_radius(ska, j, PIPE_K);
+      ratio = (sums[j] ?? 0.0) / (rj * rj) ?? 0.0;
+      ld = ska.sk_load[j] ?? 0;
+      pred = ((ld - 1) as float) / (ld as float) ?? 0.0;
+      e = ratio - pred; if e < 0.0 { e = 0.0 - e; }
+      if e > 0.000001 { ok = false; }
+      if ld <= 4 && ratio > worst_thin { worst_thin = ratio; }
+      if ld >= 20 && ratio > best_thick { best_thick = ratio; }
+      nf = nf + 1;
+    }
+  }
+  println("   {nf} forks; thin forks (load<=4) reach {worst_thin}, thick ones (load>=20) {best_thick}");
+  println("   -> the rule is asymptotically exact on thick branches and wrong in the twigs,");
+  println("      by exactly one cell's worth. It is the pipe model, not a second law.");
+  if best_thick <= worst_thin { ok = false; }
+
+  // ── 3. the mesh/card split falls out of the radius ───────────────────────
+  // The artist names the thinnest radius worth drawing as a solid; the geometry picks
+  // which branches meet it. Nothing here is an artistic choice about branch ORDERS.
+  println("mesh/card split by the thinnest radius worth meshing:");
+  prev = 1000000;
+  for j in 0..4 {
+    rmin = 0.12;
+    if j == 1 { rmin = 0.20; }
+    if j == 2 { rmin = 0.30; }
+    if j == 3 { rmin = 0.45; }
+    nmin = mesh_load_min(rmin, PIPE_K);
+    cntm = mesh_nodes(ska, nmin);
+    println("   r_min {rmin} -> load >= {nmin} -> {cntm} of {ska.sk_n} nodes meshed, rest carded");
+    if cntm > prev { ok = false; }                // a coarser threshold never meshes more
+    if !mesh_connected(ska, nmin) { ok = false; } // the meshed part is a subtree with the root
+    if cntm <= 0 { ok = false; }                  // the trunk is always meshed
+    prev = cntm;
+  }
+  println("   -> the meshed part is always a connected subtree containing the root, and");
+  println("      that is a theorem: load falls strictly away from the root, so ANY");
+  println("      threshold on it selects such a subtree. No enforcement needed.");
+
+  // ── 4. NEGATIVE CONTROL for the connectivity theorem ─────────────────────
+  // Corrupt one node's load so it exceeds its parent's, and the check must catch it —
+  // otherwise mesh_connected is passing only because the data cannot violate it.
+  skx = skeleton_build(t, 0, s, lb);
+  tip = -1;
+  for j in 1..skx.sk_n {
+    if tip < 0 && (skx.sk_kind[j] ?? 0) == NODE_TIP { tip = j; }
+  }
+  skx.sk_load[tip] = 100000;
+  println("negative control — one tip given an impossible load: connected {mesh_connected(skx, 50)}");
+  if mesh_connected(skx, 50) { ok = false; }
+
+  // ── 5. a bigger crown means a thicker trunk, monotonically ───────────────
+  println("crown size vs trunk radius across increasing competition:");
+  prevr = 1000.0;
+  for j in 0..3 {
+    sj = hexset_chunk(q0, r0, gw, gh);
+    fill(sj);
+    tj = trees_new();
+    tree_add(tj, 0, 0, 10, 64, 0);
+    if j >= 1 { tree_add(tj, 13, 0, 10, 64, 1); }
+    if j >= 2 { tree_add(tj, -13, 0, 10, 64, 2); }
+    lj = labels_new(q0, r0, gw, gh);
+    cj = labels_new(q0, r0, gw, gh);
+    canopy_partition(tj, sj, lj, cj);
+    skj = skeleton_build(tj, 0, sj, lj);
+    rj = node_radius(skj, 0, PIPE_K);
+    println("   {j} rival(s): crown {crown_count(sj, lj, 0)} cells, trunk radius {rj}");
+    if rj > prevr + 0.000001 { ok = false; }
+    prevr = rj;
+  }
+  println("   -> a crowded tree carries less crown, so it grows a thinner trunk. Derived.");
+
+  if ok { println("=== CANOPYPIPE OK ==="); } else { println("=== FAIL ==="); }
+}

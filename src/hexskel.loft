@@ -203,3 +203,61 @@ pub fn skeleton_wellformed(sk: Skeleton) -> boolean {
   }
   okf && roots == 1
 }
+
+// ── T5: PIPE-MODEL RADII, AND THE MESH/CARD SPLIT ───────────────────────────
+//
+// Shinozaki's pipe model: a stem's cross-sectional AREA is proportional to the leaf area it
+// supports.  T4 already carries that number — `sk_load`, the crown cells beyond a node — so
+// the radius is one square root away and nothing about it is chosen:
+//
+//     area = PIPE_K^2 * load        radius = PIPE_K * sqrt(load)
+//
+// DA VINCI'S RULE IS NOT AN EXTRA LAW.  T4 gives load(parent) = 1 + sum of child loads, so
+//
+//     area(parent) = area(its own cell) + sum of child areas       -- exact, by construction
+//
+// and the familiar "sum of child^2 = parent^2" is that with the node's own foliage dropped:
+//
+//     sum(child^2)/parent^2 = (load - 1)/load
+//
+// which is 0.99 at load 100 and 0.50 at load 2.  So the rule is asymptotically exact on
+// thick branches and wrong in the twigs — which is what real trees do, and our discrete
+// form says exactly how wrong: one cell's worth.
+pub const PIPE_K = 0.06;
+
+pub fn node_radius(sk: Skeleton, j: integer, k: float) -> float {
+  k * (sqrt(((sk.sk_load[j] ?? 0) as float)) ?? 0.0)
+}
+
+// The load at which a branch is still worth meshing, from the thinnest radius worth
+// drawing as a solid: N = (r_min / k)^2.  The artist picks a VISUAL threshold; the geometry
+// picks which branches meet it.  That is the whole of the mesh/card split.
+pub fn mesh_load_min(r_min: float, k: float) -> integer {
+  x = r_min / k ?? 0.0;
+  n = (x * x) as integer;
+  if n < 1 { n = 1; }
+  n
+}
+
+pub fn mesh_nodes(sk: Skeleton, nmin: integer) -> integer {
+  n = 0;
+  for j in 0..sk.sk_n { if (sk.sk_load[j] ?? 0) >= nmin { n = n + 1; } }
+  n
+}
+
+// The meshed part must be a CONNECTED subtree containing the root — a meshed branch
+// hanging off a carded one would be a floating stick.  It is guaranteed, not enforced:
+// load(parent) = 1 + sum of child loads > load(child), so load falls strictly away from the
+// root, and any threshold on it selects a subtree containing the root.  This checks the
+// theorem rather than relying on it.
+pub fn mesh_connected(sk: Skeleton, nmin: integer) -> boolean {
+  okc = true;
+  for j in 1..sk.sk_n {
+    if (sk.sk_load[j] ?? 0) >= nmin {
+      p = sk.sk_par[j] ?? -1;
+      if p < 0 { okc = false; }
+      else { if (sk.sk_load[p] ?? 0) < nmin { okc = false; } }
+    }
+  }
+  okc
+}
