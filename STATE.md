@@ -7,22 +7,44 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → NEXT: plan #11 **P5's tail** — arc towers + doors as openings
-> Everything else in #11 P0–P4 is built and gated; the 3D view runs (`V` in `make play`).
-> What is left in P5 is **towers that are hexagons** and **doors that are gaps**, and it is
-> one phase across four layers — builder → `Sim` → `build_field` → renderer — because
-> stopping short of the renderer changes nothing visible. The table and the plotted
-> end-result: `plans/11-3d-world/RESULTS.md` → *P5 — what remains*.
+> ## → NEXT, in this order (user ruling, 2026-07-22): **1. the EdgeSet merge, 2. the towers**
 >
-> **Do the `hex_field` EdgeSet merge first, or with it.** `EXTRACTION.md` parks that merge on
-> *which layer owns `Surfaces`* — and this phase answers that by force, so doing it first
-> means doing it twice. Crawler's collision type is now `EdgeCollider`; the library's
-> `EdgeSet` is the authoring layer.
+> ### 1. The `hex_field` / `hexedge` EdgeSet merge — cross-repo, do it first
 >
-> **Two live traps:** the compile gate fails intermittently and self-heals (LOFT-HANDOFF G4)
-> — diagnose before re-running, and never commit on a red gate assuming it is the flake. And
-> `--lib` reads the sibling **working tree**, so check `git log` in `loft-libs-world` before
-> debugging a break you did not cause.
+> `loft-libs-world@dev` grew `hex_field::EdgeSet` mid-session (*"stencils carry walls — an
+> EdgeSet ported, not invented"*). It collided with crawler's on three names; crawler's is now
+> **`EdgeCollider`** (`collider_new`, `edge_material`) and `make test` is green — **but that
+> rename is not the merge.**
+>
+> **The question the merge turns on, and the answer:** *which layer owns `Surfaces`?*
+> **The library owns the STORAGE; crawler keeps the PHYSICS — for now.** Measured:
+> `hexedge` has 49 public names, of which only ~27 touch storage; the rest are `Surfaces`,
+> `Materials`, `Features`, `collide`, `sweep_path`, `sight_clear`. The two already agree on
+> the edge key (doubled midpoint), the canonical slot set `{0,2,3}` and the type widths —
+> those were ported *from* crawler — so the merge is a lift, not a redesign.
+>
+> **Migration, in order:**
+> 1. `hex_field::EdgeSet` gains a **surface slot** (`eg_surf: vector<i32>`, 0 = passable) beside
+>    `eg_mat`, plus `edge_set_surf`/`edge_surf`. That is the only library change.
+> 2. It must also expose its index — `eg_index` is **private** today, and crawler cannot build
+>    accessors on storage it cannot address. Either make it `pub`, or export enough
+>    get/set pairs that crawler never needs it.
+> 3. Crawler deletes `EdgeCollider`'s storage (`ee_surf`/`ee_mat`/`ee_index`) and re-points
+>    `passable`/`collide`/`sweep_path`/`edges_solid`/`edges_cut` at the library type.
+>    `Surfaces`/`Materials`/`Features` stay crawler-side until P5 settles their shape.
+> 4. Gate: `edgetest` and `sweeptest` must pass **unchanged** — they are already
+>    contract-shaped (24 headings, negative controls), which is what makes this checkable.
+>
+> **Coordinate before touching `loft-libs-world`** — another agent works that tree on `dev`.
+>
+> ### 2. Then the towers + doors (plan #11 P5's tail)
+>
+> Towers are **hexagons** (`hex_distance == rad`), doors are **gaps** (`v = 0`). One phase
+> across four layers — builder → `Sim` → `build_field` → renderer — because stopping short of
+> the renderer changes nothing visible: a recorded arc still draws as six flat quads. Layer
+> table + the plotted end-result: `plans/11-3d-world/RESULTS.md` → *P5 — what remains*.
+> Doing this before the merge means doing the merge twice, because whichever structure `Sim`
+> carries the arc in **is** the answer to step 1's question.
 
 ## The design position — eight statements, and they compose
 
@@ -61,7 +83,7 @@ carry.
 | **#5 geometry** | active — points, crossings/slips, level crossings, platforms, signals, bridges/tunnels, stairs, spiral stairs, roofs, cones, arches, domes, vaults, the matcher | 20 |
 | **#9 canopy trees** | **T1–T10 all done** | 10 |
 | **#10 props** | **P1–P9 all done** (P9 scored 4/6, both failures understood) | 6 |
-| **#11 3D world** | **ACTIVE — P0–P2b done; P3 built, unseen** | 3 |
+| **#11 3D world** | **ACTIVE — P0–P4 built + SEEN; P5 part done** | 6 |
 
 Plus the render path (`src/scenemesh.loft`, `src/figure.loft`, `tools/glbview.py`), the scale
 contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracted** to
@@ -145,7 +167,16 @@ extended the lesson: **a first-person camera found a world too small for its own
 (1.51 m eaves, a 1.45 m door, a 1.75 m figure) which every raised camera had missed.
 
 **3. The failure mode is never a check that fails — it is one that passes for the wrong
-reason.** Hence a **negative control** in every phase. Same session: the town ring's `0.866`
+reason. Four times in one session (2026-07-22), each a different way:** a control aimed at
+geometry too *thick* to show the bug (P2b: a solid wall hides tunnelling, only a thin one
+shows it) · a perturbation *below the quantisation it was read through* (P3: 0.02 rad shifts
+the ground point 0.2 units against a hex circumradius of 1.0, so it rounds back — 0/172
+fired) · a plain *tautology* (P4: `project(d,0,h)` vs `project(d,0,0.0+h)`, "worst 0px") ·
+and a *discriminator that cannot vary* (P5: seeds 777 and 4242 give an identical surface,
+because the overland is a fixed contract wilderness — the window is the discriminator, not
+the seed). **All four printed a healthy-looking number.** The rule that would have caught
+every one: *state what would have to break for this control to go red, and check that is
+reachable.* Hence a **negative control** in every phase. Same session: the town ring's `0.866`
 was the **reciprocal** of the right constant, so every village in the game was 33% wider than
 tall — and a squashed ring still looks like a ring. **Plan #11 P1 paid this back immediately:
 one of its two controls did not fire.** Shrinking the solidity rule to `t == 1` left the whole
