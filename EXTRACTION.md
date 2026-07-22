@@ -727,3 +727,131 @@ The next actionable node is **L0** (wire the `../loft-libs-graphics` dev `--lib`
 §3 (draw.py flow-back) and P7a (atlas packer) as no-dep leaves runnable alongside it.
 Tier-2 decouplings stay opportunistic. Each step independently shippable, each ends
 gate-green.
+
+---
+
+# The world-geometry stack — the largest extraction candidate yet
+
+Plans #5, #9 and #10 have built a stack that is **almost entirely game-agnostic**: exact hex
+field geometry, ways, roofs and vaults, canopy-first trees, and props. None of it knows what
+a monster is. This section is the plan for getting it out, and it is written before the
+props work (plan #10) rather than after, so the seams are designed rather than discovered.
+
+## What makes this extractable at all
+
+Three properties, all of them already true and gated:
+
+1. **Nothing depends on crawler.** The stack imports `hex_grid`, `mesh3d` and `glb` and
+   nothing else. No `Sim`, no bundles, no content.
+2. **Every invariant is checked.** Twenty-eight gates, each an exact statement rather than a
+   tolerance where an exact one exists. A library whose invariants are not checked *in the
+   consuming project* is a library nobody can trust; these travel with the code.
+3. **It is renderer-agnostic.** `scenemesh` emits `Mesh`/`Scene`, never GL calls — the same
+   kernel/view split CLAUDE.md already enforces on crawler itself.
+
+## The package split
+
+Six packages, dependencies strictly downward:
+
+```
+   hex_grid (upstream, exists)
+        │
+   hexfield ──────────┬──────────────┬───────────────┐
+        │             │              │               │
+   hexways        hexforms       hexgrow         hexprops
+        └─────────────┴──────┬───────┴───────────────┘
+                          hexscene
+```
+
+| package | holds | why separable |
+|---|---|---|
+| **`hexfield`** | `HexSet`, `VecMap`, trace/validate, `Labels`, `Heights`, `EdgeSet`, `Surfaces`, `Materials`, `FieldCache`, **levels** | the L1/L2 model; everything sits on it |
+| **`hexways`** | `Track`, offsets, `way_mark`/`cut_arb`, `way_param`, junctions | roads/rails/paths; useful with no buildings at all |
+| **`hexforms`** | the matcher, roofs, vaults, the profile×distance table | architecture; useful with no ways at all |
+| **`hexgrow`** | canopy partition, crown profiles, skeleton, pipe model, sky fraction | vegetation; needs `way_param` for mileposts |
+| **`hexprops`** | primitives with axes, part-lists, seats, state | plan #10; needs forms for its seats |
+| **`hexscene`** | field → triangles → GLB | the only package that knows `mesh3d`/`glb` |
+
+**A consumer takes what it needs.** A farming game wants `hexfield + hexgrow`. A railway game
+wants `hexfield + hexways`. A castle-builder wants `hexfield + hexforms + hexprops`. Only
+`hexscene` is required by all of them, and only if they render through glTF.
+
+## The one thing that must NOT travel: metres
+
+`SCALE.md` fixes **1 hex step = 1.5 m** for crawler. That is a *consumer* decision — another
+game may want 1 m hexes or 3 m ones — so **the library must be scale-parametric**, and the
+metre conversion belongs in the consumer.
+
+The pleasing part is how little that costs, because **every threshold the stack derived is
+dimensionless**:
+
+| threshold | value | unit |
+|---|---|---|
+| crown field floor | `2√3` | hex steps |
+| minimum stair tread | `√3 · max\|cos(θ−60k)\|` | hex steps |
+| double-slip radius | `w / tan²(θ/2)` | in units of `w` |
+| chord constant | `L²/(8R)` | ratio |
+| mesh/card split | `(r_min/k)²` | ratio |
+
+All of them are **hex steps or pure ratios**. Only the *interpretation* — "a stair tread of
+1.5 hex steps is 2.2 m, which is a monumental step and not a domestic one" — is the
+consumer's. So the library ships the geometry and the consumer ships the metre.
+
+That also means crawler's scale gate (`scaletest`) stays in **crawler**, not in the library:
+it is a statement about crawler's world, and every consumer needs its own.
+
+## What must not go in
+
+`BUNDLE.md`'s standing check, applied to libraries: **content stays consumer-side,
+mechanism goes library-side.**
+
+- **In:** `mesh_door(w, h, seed)` — a generator, a mechanism.
+- **Out:** the *list* of prop kinds, their sizes, which building gets which — content.
+- **In:** the canopy partition and the pipe model.
+- **Out:** species tables, crown radii, growth rates — content.
+
+The seam is `kind: integer` at the library boundary, resolved consumer-side. Plan #10's open
+question 3 is therefore **an extraction question, not a props question**, and settling it
+before P5 settles both.
+
+## Definition of Done, per package
+
+Following this file's existing per-package DoD, plus two clauses this stack specifically
+needs:
+
+1. no import of crawler, and no content constants;
+2. its gates ship with it and pass standalone (`loft --interpret` in the package);
+3. **every derived threshold is dimensionless**, with the metre interpretation documented as
+   the consumer's job;
+4. **a second consumer exists**, even a trivial one — a package extracted against exactly one
+   caller has not been shown to be general. A ten-line example scene per package is enough,
+   and it doubles as the docs;
+5. the API stub (`.loft/api/<name>.api`) is committed, per loft#362.
+
+## Order of work
+
+Bottom-up, and **not before plan #10 lands** — extracting a stack while its top layer is
+still moving costs two migrations instead of one.
+
+```
+   1. hexfield    the base; nothing else can move first
+   2. hexways     smallest dependent, proves the split works
+   3. hexforms    the matcher travels with it
+   4. hexgrow     needs way_param, so after hexways
+   5. hexprops    after plan #10 is green
+   6. hexscene    last: it is the only one with a rendering dependency
+```
+
+Step 2 is the real test. **If `hexways` cannot be lifted without dragging `hexforms` behind
+it, the split is wrong** and it is far cheaper to find that out on the smallest dependent
+than on the largest.
+
+## Honest risks
+
+- **`hexfield` is big.** It may want splitting again (cells vs edges vs cache). Deciding that
+  before step 1 is premature; deciding it after step 2 is informed.
+- **The canopy's contested-cell rule reaches into `Trees`**, which is arguably content.
+  Whether species parameters are library or consumer is the same seam as prop kinds and
+  should get the same answer.
+- **`hexscene` bakes glTF.** A consumer wanting another format needs the triangle layer
+  without the exporter — which argues for splitting it in two later, but not yet.
