@@ -1,9 +1,15 @@
 # crawler
 
 A clean-room, ZAngband-style **hex roguelike** written in the
-[loft](https://github.com/loft-lang/loft) language — playable in 2D today, and
-built so the *same* renderer-agnostic simulation kernel can drive a 3D browser
-version later.
+[loft](https://github.com/loft-lang/loft) language.
+
+> **New here? Read [VISION.md](VISION.md) first.** crawler is the **proof and the forcing
+> function** for something larger: a stack that lets *small teams* build derived game worlds
+> which currently require a studio. This README is the game; VISION.md is what it is for.
+
+The game is moving into **first-person 3D** (plan **#11**), where the hex field built by plans
+#5/#9/#10 becomes the world the player stands in. The 2D renderer still runs and retires when
+3D reaches parity.
 
 (The loft package is named `story`; `crawler` is the project/repo.)
 
@@ -140,9 +146,19 @@ a 3D renderer (`moros_render`) later.
 
 ## Docs
 
-- **[DESIGN.md](DESIGN.md)** — the full design: architecture (kernel/view split),
-  world model, monster AI / placement / level structure, the HUD sidebar & items
-  systems, and the ordered **TODO backlog** (§18a) that drives development.
+- **[VISION.md](VISION.md)** — **what this is for.** The problem, the thesis, the eight
+  principles, and how you would know it worked. Written for a person, not a build.
+- **[DESIGN.md](DESIGN.md)** — the full design: pillars (§3a), scope (§3b), architecture
+  (kernel/view split), world model, AI / placement / level structure, and the backlog (§18a).
+- **[STATE.md](STATE.md)** — where the work stands today; read it after a break.
+- **[SCALE.md](SCALE.md)** · **[EXTRACTION.md](EXTRACTION.md)** · **[SCRIPTING.md](SCRIPTING.md)**
+  · **[BUNDLE.md](BUNDLE.md)** — the measurement contract, the library plan, how content
+  arrives without being scheduled, and the content seam.
+
+> **The Status and Layout sections below are stale** — they predate items, equipment, save
+> points, FOV, classes/races, quests, the overland and the games kernel, and they name modules
+> (`hexgeo`, `gridgeo`) that are now the `hex_grid` library. `tools/run_tests.sh` is the honest
+> roster of what exists; `STATE.md` is the honest status.
 
 ## License
 
