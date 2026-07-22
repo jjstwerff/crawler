@@ -57,6 +57,41 @@ Which means the standard of proof has to be higher than games usually demand:
 That discipline is the actual product. Anyone can write a generator; the question is whether
 you can *trust* it enough to build on.
 
+## This is one layer of a stack that already says this
+
+**`../loft/doc/claude/GOALS.md` states the same drive one layer down, and stated it first:**
+
+> *"loft is not the goal. loft is the **foundation**: the lowest layer of plumbing. The real
+> goal is the **libraries and tools built on top of it** — lavition (the engine), the hex-world
+> library, the editor, the games."*
+>
+> *"**Do the hard plumbing yourself, deeply, so someone else can just pick it up and have
+> fun.**"*
+
+So crawler is not applying a philosophy to a substrate that lacks one — it is **the layer above
+a foundation built on the same premise**, and loft's goals name the games as the real end.
+Three things it says better, adopted here rather than restated:
+
+1. **Built from the MAKER's side of the screen, not the programmer's.** *"Today's engines are
+   built by programmers, from a programmer's point of view… the maker has to learn that
+   worldview before building anything."* That sharpens "small teams": the audience is not merely
+   *fewer people*, it is people who should not have to think like programmers to build a world.
+   It is why the **editor** matters more than its line count suggests, and why content is a
+   folder rather than a codebase.
+2. **The acceptance test is FUN, not feature-complete.** *"A library can ship every feature and
+   still be a fight to use. That library is not done."* This is a higher bar than anything in
+   `EXTRACTION.md`'s Definition of Done, whose six clauses are all correctness and testing —
+   **a package can satisfy every one of them and still be miserable to pick up.** Treat that as
+   the missing DoD clause.
+3. **Adoption is a result, not a steering input.** *"We build the idea because it is worth
+   building… real value reaches the people who share the idea in its own time."* Worth holding
+   onto, because "how would you know it worked" drifts very easily into "get users".
+
+And underneath all of it, loft's quieter aim — *"software that does not fail for software
+reasons"* — with **mental load** as the mechanism: every unit of attention the tools demand for
+correctness is a unit stolen from the game. That is the same argument this document makes about
+*content* volume, made about *cognitive* volume.
+
 ## What is being built
 
 Not a general game engine. A specific stack, each layer usable without the ones above it:
