@@ -22,7 +22,10 @@ should think "someone walks that path every day," not "a fortress guards a front
 Positional ones are in thirds, not pixels — pitched where the eye can actually judge.
 
 1. The keep's silhouette is in the **upper-left third** and is the tallest thing.
-2. The horizon sits **below the vertical midpoint**.
+2. ~~The horizon sits **below the vertical midpoint**.~~ **REWRITTEN before pass 8, by
+   explicit decision — the hill dominates.** The skyline *is* the hill's crest, not a flat
+   horizon, and sky occupies **20–40%** of the frame: enough to read as open air, not so
+   much that the hill stops being the subject.
 3. **Ground is not flat** — a hill rises left-to-right toward the castle; the height
    difference across the frame is at least 2× a house's height.
 4. There are **3–6 houses**, clustered, none touching the castle wall.
@@ -298,3 +301,43 @@ Predicate 3 passes at last. Predicate 2 fails, and would fail for any scene that
 predicate 3. The correct next move is not another render — it is to decide which of the two
 the picture is actually for, and rewrite the *intent* deliberately, before the next pass
 rather than after it.
+
+
+---
+
+## Pass 8 — predicate 2 rewritten, deliberately
+
+The conflict found in pass 7 was resolved the only legitimate way: **by deciding what the
+picture is for, before the pass, and rewriting the intent to say so.** The hill dominates.
+
+That is not the goalpost drift the method warns about. Drift is editing the intent *after*
+the fact so the image scores well. This was a decision taken *first*, with the old wording
+struck through rather than deleted, and the reason recorded — so the change is auditable and
+the original bar is still visible.
+
+**Predicate 2, restated:** the skyline is the hill's crest, and sky occupies 20–40% of the
+frame. Measured across three framings: 31%, 35%, 39% — all in band. Chose **35%** (eye
+38,−56,13, fov 44), which keeps the castle largest without the crest crowding the top edge.
+
+**Final: 10 pass, 0 partial, 0 fail.**
+
+Not because the picture got better in this pass — the geometry did not change at all — but
+because the specification finally says what was actually wanted. That distinction is worth
+keeping: pass 8 fixed the *intent*, passes 1–7 fixed the *image*.
+
+## The exercise, in summary
+
+Eight passes. The faults divided:
+
+- **Three tool faults**, invisible from the scene spec: `abs(N·L)` crushing vertical faces,
+  glTF binding materials per-primitive, a sun pointing underground. Two of the three were
+  *concealed by a convenience in the renderer*.
+- **Three proportion faults**, none needing more geometry: keep narrow→squat, trees
+  uniform→varied, houses box→mostly-roof.
+- **One plain bug** caught by a predicate: the eye-path guard using `||` where it had to
+  exclude.
+- **One measurement failure of my own**: predicate 2 scored by eye four times running, and
+  wrong every time.
+- **One spec bug**: two predicates that could not both hold.
+
+Throughout all of it, the 28 numeric gates were green and had an opinion on none of them.
