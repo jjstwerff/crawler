@@ -1,0 +1,84 @@
+// hexplace — plan #10 P4: props recorded on their OWN LEVEL.
+//
+// A level is the topological sheet a thing sits on (plan #5 section 10). Two levels share
+// cells and never arbitrate — that is how a road crosses a railway and how a canopy sits
+// over an understory, and it is the right home for props: a cart standing in a gateway does
+// not fight the gate for that cell, and a lamp against a wall does not become part of the
+// wall.
+//
+// The levels are split by HOW OFTEN THEIR CONTENTS CHANGE, not by what they are, because
+// the FieldCache is keyed (chunk, level, version): moving a cart then invalidates the
+// cart's level and leaves the buildings alone.
+use hexform;
+
+pub const L_ARCH    = 0;   // walls, roofs, the built field
+pub const L_FIXED   = 1;   // doors, windows, chimneys, fences, lamps — change with a building
+pub const L_MOVABLE = 2;   // carts, wagons, barrels — change constantly
+
+// A prop is a handful of numbers on a hex: the same weight as an item.
+//
+// Several props may share a cell — a lamp and a trough — so the records are a bucketed
+// list: `pp_head` maps a cell to its first prop and `pp_next` chains the rest. A level is a
+// SHEET, not a slot, and nothing about it limits one prop per cell.
+pub struct PropSet {
+  pp_level: integer,
+  pp_q:     vector<integer>,
+  pp_r:     vector<integer>,
+  pp_kind:  vector<integer>,
+  pp_seed:  vector<integer>,
+  pp_ox:    vector<float>,
+  pp_oy:    vector<float>,
+  pp_yaw:   vector<float>,
+  pp_scale: vector<float>,
+  pp_next:  vector<integer>,
+  pp_head:  Labels,
+  pp_n:     integer,
+}
+
+pub fn propset_new(level: integer, q0: integer, r0: integer,
+                   w: integer, h: integer) -> PropSet {
+  a: vector<integer> = []; b: vector<integer> = []; c: vector<integer> = [];
+  d: vector<integer> = []; e: vector<integer> = [];
+  f: vector<float> = []; g: vector<float> = []; i: vector<float> = [];
+  j: vector<float> = [];
+  PropSet { pp_level: level, pp_q: a, pp_r: b, pp_kind: c, pp_seed: d, pp_next: e,
+            pp_ox: f, pp_oy: g, pp_yaw: i, pp_scale: j,
+            pp_head: labels_new(q0, r0, w, h), pp_n: 0 }
+}
+
+// Newest-first within a cell.  Prepending keeps the add O(1) and the walk deterministic,
+// which is all the order has to be — nothing downstream depends on insertion sequence, and
+// a chain that walked in a data-dependent order would be a determinism bug waiting to
+// happen.
+pub fn prop_add(ps: PropSet, pq: integer, pr: integer, kind: integer, seed: integer,
+                ox: float, oy: float, yaw: float, scale: float) -> integer {
+  idx = ps.pp_n;
+  ps.pp_q += [pq]; ps.pp_r += [pr]; ps.pp_kind += [kind]; ps.pp_seed += [seed];
+  ps.pp_ox += [ox]; ps.pp_oy += [oy]; ps.pp_yaw += [yaw]; ps.pp_scale += [scale];
+  ps.pp_next += [label_get(ps.pp_head, pq, pr)];
+  label_set(ps.pp_head, pq, pr, idx);
+  ps.pp_n = idx + 1;
+  idx
+}
+
+pub fn prop_first(ps: PropSet, pq: integer, pr: integer) -> integer {
+  label_get(ps.pp_head, pq, pr)
+}
+
+pub fn prop_next(ps: PropSet, idx: integer) -> integer {
+  if idx < 0 || idx >= ps.pp_n { return -1; }
+  ps.pp_next[idx] ?? -1
+}
+
+pub fn prop_count_at(ps: PropSet, pq: integer, pr: integer) -> integer {
+  cnt = 0;
+  cur = prop_first(ps, pq, pr);
+  while cur >= 0 && cnt < ps.pp_n {
+    cnt = cnt + 1;
+    cur = prop_next(ps, cur);
+  }
+  cnt
+}
+
+pub fn prop_total(ps: PropSet) -> integer { ps.pp_n }
+pub fn prop_level(ps: PropSet) -> integer { ps.pp_level }

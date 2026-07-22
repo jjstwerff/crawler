@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1–P3 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1–P4 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -84,7 +84,7 @@ from eave and ground.
 - **negative control:** hand a generator a seat it does not touch and the residual check
   must fire.
 
-## P4 — the prop level
+## P4 — the prop level  — **DONE**, `src/proplevtest.loft`
 
 Props recorded on their own level. `FieldCache` is already keyed `(chunk, level, version)`.
 

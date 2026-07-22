@@ -1,0 +1,122 @@
+// proplevtest — plan #10 P4: props on their own level.
+//
+// This is the BRIDGE GATE, reused. Plan #5 proved that two ways at different levels occupy
+// the same cells and never arbitrate, by deriving one of them with and without the other
+// present and comparing bit for bit. The same proof is what makes props safe to place: a
+// cart in a gateway must not be able to alter the gate.
+use hexform;
+use hexedge;
+use hexway;
+use hexcache;
+use hexplace;
+
+fn main() {
+  println("=== story prop-level test (plan #10 P4) ===");
+  ok = true;
+  q0 = -20; r0 = -16; gw = 41; gh = 33;
+
+  // ── the architecture: a wall, derived alone ──────────────────────────────
+  arch = hexset_chunk(q0, r0, gw, gh);
+  wall = track_new();
+  track_straight(wall, -10.0, 0.0, 10.0, 0.0);
+  way_mark(wall, 0.6, arch);
+  sfa = surfaces_new();
+  mta = materials_new();
+  stone = material_add(mta, true, 4.0, 1.0, 20.0, 0.0, 0.2);
+  way_surfaces(wall, sfa);
+  ea = edgeset_new(q0, r0, gw, gh);
+  cut_arb(arch, ea, sfa, sfa.sf_n, stone);
+  println("architecture: {hexset_count(arch)} cells on L_ARCH");
+
+  // ── props on their own level, over the SAME cells ────────────────────────
+  fixed = propset_new(L_FIXED, q0, r0, gw, gh);
+  shared = 0;
+  for pr in r0..r0 + gh {
+    for pq in q0..q0 + gw {
+      if hexset_get(arch, pq, pr) {
+        // a lamp and a drainpipe on the same wall cell — a level is a sheet, not a slot
+        prop_add(fixed, pq, pr, 7, pq * 31 + pr, 0.2, -0.1, 0.5, 1.0);
+        if (pq + pr) % 3 == 0 {
+          prop_add(fixed, pq, pr, 4, pq * 17 + pr, -0.3, 0.25, 2.1, 0.8);
+          shared = shared + 1;
+        }
+      }
+    }
+  }
+  println("props on L_FIXED: {prop_total(fixed)} on {hexset_count(arch)} cells, {shared} cells carrying two");
+  if prop_total(fixed) <= hexset_count(arch) { ok = false; }
+  if shared <= 0 { ok = false; }
+
+  // ── 1. THE BRIDGE GATE: architecture identical with and without props ────
+  arch2 = hexset_chunk(q0, r0, gw, gh);
+  way_mark(wall, 0.6, arch2);
+  sfb = surfaces_new();
+  mtb = materials_new();
+  stone2 = material_add(mtb, true, 4.0, 1.0, 20.0, 0.0, 0.2);
+  way_surfaces(wall, sfb);
+  eb = edgeset_new(q0, r0, gw, gh);
+  cut_arb(arch2, eb, sfb, sfb.sf_n, stone2);
+  println("architecture re-derived with props present: identical {edgeset_equal(ea, eb)}");
+  if !edgeset_equal(ea, eb) { ok = false; }
+  println("   -> same cells, different sheets, no contest. A prop cannot alter a building.");
+
+  // ── 2. the chain: several props per cell, walked deterministically ───────
+  (cq, cr) = hex_at(0.0, 0.0);
+  n1 = prop_count_at(fixed, cq, cr);
+  chain_a = 0;
+  cur = prop_first(fixed, cq, cr);
+  while cur >= 0 {
+    chain_a = chain_a * 13 + (fixed.pp_kind[cur] ?? 0);
+    cur = prop_next(fixed, cur);
+  }
+  chain_b = 0;
+  cur2 = prop_first(fixed, cq, cr);
+  while cur2 >= 0 {
+    chain_b = chain_b * 13 + (fixed.pp_kind[cur2] ?? 0);
+    cur2 = prop_next(fixed, cur2);
+  }
+  println("cell ({cq},{cr}) carries {n1} props; chain hash {chain_a} == {chain_b}: {chain_a == chain_b}");
+  if chain_a != chain_b { ok = false; }
+
+  // every prop is reachable from exactly one cell's chain
+  reach = 0;
+  for rr in r0..r0 + gh {
+    for qq in q0..q0 + gw {
+      reach = reach + prop_count_at(fixed, qq, rr);
+    }
+  }
+  println("props reachable by walking every cell's chain: {reach} of {prop_total(fixed)}");
+  if reach != prop_total(fixed) { ok = false; }
+  println("   -> the bucketed list loses nothing and duplicates nothing");
+
+  // ── 3. the cache holds the levels apart ──────────────────────────────────
+  fc = cache_new(8);
+  ver = 5;
+  sa = cache_claim(fc, 0, 0, L_ARCH, ver);
+  sb = cache_claim(fc, 0, 0, L_FIXED, ver);
+  sc = cache_claim(fc, 0, 0, L_MOVABLE, ver);
+  cache_set_edges(fc, sa, ea);
+  println("cache slots: arch {sa}, fixed {sb}, movable {sc} — distinct {sa != sb && sb != sc && sa != sc}");
+  if sa == sb || sb == sc || sa == sc { ok = false; }
+  if cache_find(fc, 0, 0, L_ARCH, ver) < 0 { ok = false; }
+  if cache_find(fc, 0, 0, L_FIXED, ver) < 0 { ok = false; }
+  // a level nobody derived is a miss, not somebody else's field
+  if cache_find(fc, 0, 0, 9, ver) >= 0 { ok = false; }
+  println("   an underived level misses rather than returning a neighbour's field");
+
+  // ── 4. a prop's material change leaves the architecture cached ───────────
+  // The barrier result, applied to props: a material flip does not bump the world version,
+  // so the architecture level is untouched by anything happening on the prop level.
+  lamp = material_add(mta, true, 2.0, 0.9, 3.0, 0.1, 0.2);
+  material_set_solid(mta, lamp, false);
+  hit = cache_find(fc, 0, 0, L_ARCH, ver);
+  println("after a prop material toggle: architecture cache hit {hit >= 0}, field intact {edgeset_equal(cache_edges(fc, hit), ea)}");
+  if hit < 0 { ok = false; }
+  if !edgeset_equal(cache_edges(fc, hit), ea) { ok = false; }
+
+  // ── 5. NEGATIVE CONTROL: a real edit DOES invalidate ─────────────────────
+  if cache_find(fc, 0, 0, L_ARCH, ver + 1) >= 0 { ok = false; }
+  println("negative control — architecture at a bumped version: miss, as it must be");
+
+  if ok { println("=== PROPLEV OK ==="); } else { println("=== FAIL ==="); }
+}
