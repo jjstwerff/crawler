@@ -260,6 +260,47 @@ deliverable and the boards are just its first implementation.
    per-layer cache (`make_layer` / `invalidate` / `draw_layer`) already specified for the
    painter in `EXTRACTION.md` §6(b), one dimension up.
 
+## Provides for: flight, and landing from orbit
+
+Named as a design axis by the user (2026-07-22) — **not** to be built here, and each pass
+needs its own plan. Recorded now because an axis named before a design commits is nearly
+free, and named after it is a rewrite. The honest split:
+
+**Already provided for, structurally.** The switch-distance ladder plus **I-AGREE** means
+orbit is *more rungs of the same structure*, not a new mechanism. **I-PARALLAX** is a
+computed threshold rather than a tuned distance, so it self-adjusts at any altitude. And
+the layers earn a second payoff nobody designed them for: **they are also the depth-range
+partition.** One depth buffer cannot span 0.5 m to 600 km — the standard answer is
+per-range passes composited together, which is what the layers already are. `viewer.loft`
+already runs a 600 km far plane, so the range itself is not speculative.
+
+**Two constraints to honour NOW, or the axis closes.** Both cost nothing today:
+
+1. **Vertex buffers stay chunk-local; the world offset rides the matrix.** loft `float` is
+   f64 on the CPU but GL takes `single` (f32), and world-absolute f32 coordinates jitter
+   visibly at planetary range. Uploading chunk-local — which P3 does anyway, per chunk —
+   keeps the precision. Uploading world-absolute is the difference between *more rungs* and
+   *rewriting the upload path*.
+2. **`SCALE.md`'s "one grid, two readings" wants to be a ladder, not a pair.** 1.5 m and
+   15 m are two rungs of a sequence that orbit extends. Check the contract generalises to N
+   readings before it hardens around two.
+
+**One genuinely open question — do not decide it here.** **Hexes cannot tile a sphere:**
+Euler forces exactly **12 pentagons** on any hex-dominant closed surface. So the
+exact-integer `(k,m)` lattice — this repo's most load-bearing asset, the thing that made
+the tracer, the area round-trip, the rotations and the stencils exact — is inherently a
+**local chart**, and a planet is an atlas of them. The resolution to *evaluate* when that
+pass comes: keep the simulation on the flat chart, treat curvature as a **far-field
+rendering** concern, and let the planet-as-sphere be the outermost layer, so the 12
+pentagons fall where nothing is simulated. That preserves the lattice, which is the asset
+worth preserving.
+
+**And flight is a bigger simulation change than a rendering one.** The player is
+`px, py, heading` — **no z, no pitch** — collision is 2D hex-and-edge, and the clock is
+*distance-driven* (every `HEX_LEN` travelled = one `sim_tick`), which flying at speed would
+spam. So flight needs an altitude axis, a 3D collision answer, and a travel-mode clock:
+kernel work, its own plan, and a sibling of the layer axis in `plans/5-geometry/` Track 2.
+
 ## See also
 
 Reference docs: `SCALE.md` (the two readings) · `PROPS.md` · `RENDER.md` · `BUNDLE.md`.
