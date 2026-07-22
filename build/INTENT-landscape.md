@@ -209,3 +209,47 @@ decision, not a modelling one. Recorded rather than fudged by picking a flatteri
 
 **Score: 8 pass, 2 partial, 0 fail** — unchanged in count from pass 3, but two of the passes
 (houses, affect) went from "technically true" to actually convincing.
+
+
+---
+
+## Pass 6 — towers on the near slope
+
+Both towers re-sited **downslope of the keep, toward the viewer**, so the castle steps down
+the hill in stages instead of hiding two thirds of itself over the crest. Separation was
+never the problem — pass 5 got that right — the problem was that separation was applied
+*along* the hill rather than *across* it.
+
+**Result: two drums now read**, the keep and its left tower, with the curtain between them
+and the hamlet stepping down to the right. The right-hand tower is still partly occluded by
+a foreground tree and a cottage roof.
+
+**Predicate 6: partial → pass**, on the strict wording (two round towers and a curtain wall
+are present and legible). But the honest note is that one of the two reads clearly and the
+other is inferred rather than seen, so this is the weakest of the passing predicates.
+
+## Final tally after six passes
+
+**9 pass, 1 partial, 0 fail** — from 5 / 4 / 1 at pass 2.
+
+The remaining partial is predicate 3: relief of 6.4 m against a 6.8 m target. It is the only
+predicate that has never passed, and it is a one-line change to the terrain function that I
+have deliberately not made, because moving the terrain now would invalidate every framing
+and shadow decision made on top of it. It belongs at the start of a pass, not the end.
+
+## What this exercise actually demonstrated
+
+Six passes, and the fixes divide cleanly:
+
+- **Three were tool faults**, none visible from the scene spec and none fixable by editing
+  it: `abs(N·L)` crushing vertical faces, glTF binding materials per-primitive, and a sun
+  pointing underground. Two of the three were *concealed by a convenience in the renderer* —
+  `abs()` hid the light's direction exactly as shared meshes hid the palette. A renderer
+  that never fails loudly hides the scene's errors and its own.
+- **Three were proportion**, not detail: keep narrow→squat, trees uniform→varied, houses
+  box→mostly-roof. None needed more geometry. The instinct to add detail was wrong every
+  time.
+- **One was a plain bug** the frozen intent caught: an eye-path guard using `||` where it had
+  to exclude, which the image contradicted against predicate 8.
+
+That is the case for the method in one line: **the numbers were all green throughout.**

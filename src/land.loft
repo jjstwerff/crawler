@@ -197,10 +197,13 @@ fn main() {
   kb = add_mesh(sc, mesh_drum(kx, ky, kz + m(13.0), kz + m(15.2), m(9.2), m(9.2), 10));
   add_node(sc, node_at("keep_battlement", kb, m_wall, mat4_identity()));
   for i in 0..2 {
-    // Pushed well clear: at 12 units the drums touched the keep and the castle read as one
-    // grey lump. Three masses only read as three if there is sky between them.
-    tx = kx + 20.0; ty = ky - 16.0;
-    if i == 1 { tx = kx - 13.0; ty = ky + 17.0; }
+    // On the NEAR slope, not beyond the crest. Pushing them apart in pass 5 was right —
+    // three masses only read as three with sky between them — but one landed behind the
+    // hill and vanished. Separation has to be toward the VIEWER: both towers now sit
+    // downslope of the keep, so the castle steps down the hill in three stages instead of
+    // hiding two of them over the top.
+    tx = kx + 15.0; ty = ky - 19.0;
+    if i == 1 { tx = kx - 12.0; ty = ky - 9.0; }
     tz = terrain(tx, ty);
     di = add_mesh(sc, mesh_drum(tx, ty, tz - 1.0, tz + m(11.0), m(4.2), m(3.9), 12));
     add_node(sc, node_at("tower", di, m_wall, mat4_identity()));
