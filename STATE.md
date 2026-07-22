@@ -86,7 +86,15 @@ contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracte
    cannot be reached. And the answer **must not depend on `dt`** — dropped frames and fast
    motion (falling) must stop on the same walls. **That is not an optimisation**; it is
    whether a wall is a wall. Measured on today's point-sample model: at a fall-sized step it
-   misses **54%** of the walls in the way. → plan #11 **I-CROSS**
+   misses **54%** of the walls in the way. **The reason is thin geometry** — fences, thin
+   walls, stairs are where physics engines die (the old Bethesda games), because a thin
+   barrier tunnels, and its push-out is ambiguous enough to resolve to the *wrong side*. On
+   the exact-integer lattice a wall is a 1-D boundary, so that whole family is
+   **unrepresentable rather than handled**. → plan #11 **I-CROSS**
+   - *Consequence found while writing it down:* **the fence is currently a filled cell**
+     (`tiles[i] = 5`) — a 1.5 m thick barrier, the thin thing thickened until a point-sample
+     model could see it. It becomes an edge feature in P2; `s.walls` already has the
+     structure. Fences were the site of both bugs found today, which is not a coincidence.
 7. **`overland` owns settlement placement. We integrate with it; we never rewrite it.**
 8. **The village is the subject**, not the castle (landscape composition).
 

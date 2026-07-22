@@ -56,6 +56,56 @@ Two consequences, and the second is the one with teeth:
 > miss rate climbs with step length, which is the dependence I-CROSS forbids. At a fall,
 > **more than half** the walls in the player's way stop nothing.
 
+### Why this invariant exists: thin geometry is where physics engines die
+
+(User, 2026-07-22.) Fences, thin walls and stairs are notoriously fickle for physics
+engines — *see the old Bethesda games* — and getting them wrong does not produce one bug, it
+produces breakage all over the world. The failure is structural, and it has three parts that
+all share a root: **the model treats a barrier as a thin volume and asks whether you are
+inside it.**
+
+| what breaks | why | in a volume-and-penetration model |
+|---|---|---|
+| **tunnelling** | a fence rail is thinner than one timestep's travel | the step lands past it; nothing was between the samples |
+| **jitter, then clip-through** | thin geometry has near-zero penetration depth, so the push-out is tiny and its **direction ambiguous** | the recovery resolves to the *wrong side* — the mechanism meant to fix the bug is what puts you through the fence |
+| **stairs catching** | a flight is a stack of thin ledges and risers; a swept capsule snags on every nosing | papered over with a step-up teleport hack, which then has its own failure modes |
+
+**The lattice is what makes this tractable, and it only pays if the primitive is the edge.**
+A wall here is a **1-D boundary on the exact-integer lattice**, not a thin solid: there is no
+thickness to be smaller than the timestep, and "did this segment cross this edge" is an exact
+predicate with no epsilon. Push-out never has to be written, because *inside* is unreachable
+— so the whole failure column above is **unrepresentable rather than handled**. Stairs escape
+it twice over: height is a per-cell scalar (`Heights`, plan #5 P12), so a flight is a plane
+move plus a height lookup with no ledges to snag on, and the double-riser discontinuity that
+would break a step is already excluded by the minimum-tread closed form and gated by
+`stairtest`'s monotonicity check. A *domestic* staircase never enters the field at all — its
+going is below one hex step, so `SCALE.md` already rules it an object.
+
+This is the over-engineering test passing cleanly (`CLAUDE.md`): thin-geometry collision is a
+hard part, every consumer of `hex_field` needs it, and a small team cannot afford to debug
+physics jank. Solve it once in the lattice and no one downstream pays it again.
+
+> **Found while writing this down: the fence is currently a FILLED CELL.** Both placements
+> write `tiles[i] = 5` — the farmers' fences along the roads (`sim.loft:3015`) and the
+> livestock pen (`sim.loft:3656`). At 1.5 m per hex that is a 1.5 m thick barrier: not a
+> fence, a wall of blocks. **The thin thing was thickened until the point-sample model could
+> see it** — which is `CLAUDE.md`'s content rule inverted, geometry nerfed to fit a
+> half-built engine. It also explains why fences were the site of *both* bugs found today
+> (the ungated solidity arm, and blink landing inside one).
+>
+> Under the edge primitive a fence is an **edge feature**, sitting between two hexes — and
+> the kernel already has that structure: `s.walls` stores 3 canonical edges per hex, and
+> plan #5 P5's `Features` intervals are how an edge carries an opening (the gate gap). So
+> this is a re-pointing in P2, not new machinery. **Gate it by measurement, not by eye:** a
+> fence must be thinner than a hex, so after P2 the fence occupies zero cells and *n* edges.
+
+> **Still open — the VERTICAL crossing.** I-CROSS as stated is planar: a path crossing hex
+> edges. Height is a separate per-cell field, and nothing yet says what a path may do
+> *vertically* — today the plane test would happily walk you up a 3 m riser. The companion
+> rule (a step is crossable only within a step-up bound, else the boundary is impassable)
+> belongs with the layer axis, open question 2. **Do not read I-CROSS as covering stairs
+> yet — it covers the plane, and the plane is what P2 builds.**
+
 **Where the current model asks the wrong question:** `pos_blocked` / `sim_step`
 (`sim.loft`) advance the player by sampling **one probe point** per axis, one radius ahead,
 and asking `is_blocked_move(hex(centre), hex(probe))`. Both the axis separation and the
