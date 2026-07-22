@@ -1,0 +1,165 @@
+// canopyskeltest — plan #9 T4: the skeleton.
+//
+// The first graph in the system, and the first thing that cannot be fitted: a roof matcher
+// recovers a cone by solving for five parameters, but a skeleton has a variable number of
+// nodes. It is derived — a shortest-path tree from the trunk through the tree's own cells.
+//
+// The two invariants are I-REACH (every crown cell reaches its trunk) and I-NOTRESPASS
+// (the path uses only its own cells). Both hold by construction of the search, so both get
+// a NEGATIVE CONTROL: a check that never fires proves nothing.
+use hexform;
+use hexcanopy;
+use hexskel;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy skeleton test (plan #9 T4) ===");
+  ok = true;
+  q0 = -26; r0 = -20; gw = 53; gh = 41;
+
+  s = hexset_chunk(q0, r0, gw, gh);
+  fill(s);
+  t = trees_new();
+  tree_add(t,  0,  0, 10, 64, 0);
+  tree_add(t, 14,  0, 10, 64, 1);
+  tree_add(t,  0, 18,  6, 36, 2);
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, s, lb, ct);
+
+  // ── 1. I-REACH: every crown cell is in the skeleton ──────────────────────
+  println("skeletons:");
+  for i in 0..3 {
+    nm = "A"; if i == 1 { nm = "B"; } if i == 2 { nm = "C"; }
+    sk = skeleton_build(t, i, s, lb);
+    cells = crown_count(s, lb, i);
+    br = branches_extract(sk);
+    forks = 0; tips = 0;
+    for j in 0..sk.sk_n {
+      k = sk.sk_kind[j] ?? 0;
+      if k == NODE_FORK { forks = forks + 1; }
+      if k == NODE_TIP { tips = tips + 1; }
+    }
+    println("   {nm}: {sk.sk_n} nodes of {cells} crown cells, {forks} forks, {tips} tips, {br.br_n} branches");
+    if sk.sk_n != cells { ok = false; }                 // I-REACH
+    if !skeleton_wellformed(sk) { ok = false; }
+    if skeleton_trespass(sk, lb) != 0 { ok = false; }   // I-NOTRESPASS
+    // load conservation: the root carries the whole crown
+    if (sk.sk_load[0] ?? 0) != cells { ok = false; }
+    // and every branch is a real segment
+    if br.br_n <= 0 { ok = false; }
+    if tips <= 0 { ok = false; }
+  }
+
+  // ── 2. load conservation at EVERY node, not just the root ────────────────
+  sk0 = skeleton_build(t, 0, s, lb);
+  kids: vector<integer> = [];
+  for j in 0..sk0.sk_n { kids += [0]; }
+  sum: vector<integer> = [];
+  for j in 0..sk0.sk_n { sum += [0]; }
+  for j in 1..sk0.sk_n {
+    p = sk0.sk_par[j] ?? -1;
+    if p >= 0 {
+      kids[p] = (kids[p] ?? 0) + 1;
+      sum[p] = (sum[p] ?? 0) + (sk0.sk_load[j] ?? 0);
+    }
+  }
+  bad = 0;
+  for j in 0..sk0.sk_n {
+    if (sk0.sk_load[j] ?? 0) != 1 + (sum[j] ?? 0) { bad = bad + 1; }
+  }
+  println("load conservation (load == 1 + sum of children) violated at {bad} nodes");
+  if bad != 0 { ok = false; }
+  println("   -> this is the pipe model's input: T5 needs only to take a square root of it");
+
+  // ── 3. contracted branches escape the six-way grid ───────────────────────
+  // A per-cell path can only ever step in SIX directions. Cards hung on raw path nodes
+  // would snap between those six angles and jitter whenever the crown changed. Contracted
+  // segments must span many more headings than that, or T9 has nothing usable.
+  br0 = branches_extract(sk0);
+  bins: vector<integer> = [];
+  for j in 0..36 { bins += [0]; }
+  for j in 0..br0.br_n {
+    a = atan2(br0.br_dy[j] ?? 0.0, br0.br_dx[j] ?? 0.0);
+    b = ((a + 3.141592653589793) / 0.17453292519943295 ?? 0.0) as integer;
+    if b < 0 { b = 0; }
+    if b > 35 { b = 35; }
+    bins[b] = (bins[b] ?? 0) + 1;
+  }
+  occ = 0;
+  for j in 0..36 { if (bins[j] ?? 0) > 0 { occ = occ + 1; } }
+  println("branch headings: {br0.br_n} segments across {occ} of 36 ten-degree bins");
+  println("   (a raw per-cell path could occupy at most 6)");
+  if occ <= 6 { ok = false; }
+
+  // every branch must have positive length and a unit direction
+  badd = 0;
+  for j in 0..br0.br_n {
+    ux = br0.br_dx[j] ?? 0.0;
+    uy = br0.br_dy[j] ?? 0.0;
+    mag = sqrt(ux * ux + uy * uy) ?? 0.0;
+    if mag < 0.999 || mag > 1.001 { badd = badd + 1; }
+    if (br0.br_len[j] ?? 0.0) <= 0.0 { badd = badd + 1; }
+  }
+  println("branches with a bad direction or length: {badd}");
+  if badd != 0 { ok = false; }
+
+  // ── 4. NEGATIVE CONTROL for I-NOTRESPASS ────────────────────────────────
+  // Point a node at a cell a rival owns. The check must catch it. Without this the
+  // trespass check passes only because the search cannot produce a violation — which
+  // proves nothing about the check itself, and the check is what will protect the
+  // invariant once a later phase starts moving nodes off their cells.
+  skx = skeleton_build(t, 0, s, lb);
+  stolen = -1;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if stolen < 0 && label_get(lb, q, r) == 1 { stolen = q; skx.sk_q[5] = q; skx.sk_r[5] = r; }
+    }
+  }
+  tres = skeleton_trespass(skx, lb);
+  println("negative control — one node moved onto a rival's cell: trespass reports {tres}");
+  if tres <= 0 { ok = false; }
+
+  // ── 5. NEGATIVE CONTROL for I-REACH ─────────────────────────────────────
+  // Cut a tree's crown in two by handing a strip of it to a rival. The skeleton must then
+  // fail to reach part of the crown, and the node count must fall short.
+  lb2 = labels_new(q0, r0, gw, gh);
+  ct2 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, s, lb2, ct2);
+  cut = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if label_get(lb2, q, r) == 0 && lattice_m(q, r) == 3 {
+        label_set(lb2, q, r, 1);      // a rival slices straight across A's crown
+        cut = cut + 1;
+      }
+    }
+  }
+  skc = skeleton_build(t, 0, s, lb2);
+  cells_after = crown_count(s, lb2, 0);
+  println("negative control — a rival cuts {cut} cells across the crown:");
+  println("   crown now {cells_after} cells, skeleton reaches {skc.sk_n}");
+  if cut <= 0 { ok = false; }
+  if skc.sk_n >= cells_after { ok = false; }     // I-REACH must genuinely fail
+  println("   -> I-REACH fires: the severed part is unreachable, as it must be");
+
+  // ── 6. determinism ───────────────────────────────────────────────────────
+  sk2 = skeleton_build(t, 0, s, lb);
+  diff = 0;
+  if sk2.sk_n != sk0.sk_n { diff = 1; }
+  else {
+    for j in 0..sk2.sk_n {
+      if (sk2.sk_par[j] ?? -1) != (sk0.sk_par[j] ?? -1) { diff = diff + 1; }
+      if (sk2.sk_load[j] ?? 0) != (sk0.sk_load[j] ?? 0) { diff = diff + 1; }
+    }
+  }
+  println("determinism: re-derived skeleton differs at {diff} nodes");
+  if diff != 0 { ok = false; }
+
+  if ok { println("=== CANOPYSKEL OK ==="); } else { println("=== FAIL ==="); }
+}

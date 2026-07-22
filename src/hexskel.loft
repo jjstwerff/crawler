@@ -1,0 +1,205 @@
+// hexskel — plan #9 T4: the SKELETON.
+//
+// This is the first graph in the whole system. Everything before it was a field: a value
+// per cell, per edge, per chunk. A tree's branch structure is not a field and cannot be
+// fitted like one — the roof matcher recovers a cone by solving for five parameters, but a
+// skeleton has a variable number of nodes and no amount of least-squares will produce one.
+//
+// It is derived, not authored, and the derivation is a shortest-path tree from the trunk to
+// every cell of its own crown:
+//
+//   * I-REACH       every crown cell has a path to its trunk
+//   * I-NOTRESPASS  that path uses only cells of its own tree
+//
+// I-NOTRESPASS holds by construction here — the search never leaves the label — but it is
+// checked anyway, because the check is what protects the invariant when a later phase
+// starts moving nodes off their cells.
+//
+// The paths are then CONTRACTED into branch segments. That is not tidying: a per-cell path
+// on a hex grid can only ever step in six directions, so cards hung on raw path nodes would
+// snap between six angles and jitter as the crown changed. A contracted segment runs from
+// one fork to the next and carries a direction free of the grid — which is what T9's
+// branch-aligned cards need, and the same "recover runs, never emit per-cell geometry"
+// discipline as the 2D boundary matcher.
+use hexform;
+use hexcanopy;
+
+pub const NODE_PLAIN = 0;
+pub const NODE_FORK  = 1;
+pub const NODE_TIP   = 2;
+pub const NODE_ROOT  = 3;
+
+pub struct Skeleton {
+  sk_q:     vector<integer>,
+  sk_r:     vector<integer>,
+  sk_par:   vector<integer>,   // parent node index, -1 at the root
+  sk_depth: vector<integer>,   // cells from the trunk
+  sk_load:  vector<integer>,   // crown cells carried, including itself — T5's pipe input
+  sk_kind:  vector<integer>,
+  sk_n:     integer,
+  sk_id:    integer,           // which tree
+}
+
+pub fn skeleton_new(id: integer) -> Skeleton {
+  a: vector<integer> = []; b: vector<integer> = []; c: vector<integer> = [];
+  d: vector<integer> = []; e: vector<integer> = []; f: vector<integer> = [];
+  Skeleton { sk_q: a, sk_r: b, sk_par: c, sk_depth: d, sk_load: e, sk_kind: f,
+             sk_n: 0, sk_id: id }
+}
+
+// Shortest-path tree from the trunk through cells of this tree only.
+//
+// Breadth-first, so the parent of every node lies one cell nearer the trunk — which makes
+// the node order itself a topological order, and lets the load be accumulated in one
+// reverse sweep instead of a recursion.
+pub fn skeleton_build(t: Trees, i: integer, s: HexSet, lb: Labels) -> Skeleton {
+  id = t.tr_id[i] ?? 0;
+  sk = skeleton_new(id);
+  cap = hexset_w(s) * hexset_h(s);
+  for j in 0..cap {
+    sk.sk_q += [0]; sk.sk_r += [0]; sk.sk_par += [-1];
+    sk.sk_depth += [0]; sk.sk_load += [1]; sk.sk_kind += [NODE_PLAIN];
+  }
+  vis = hexset_chunk(hexset_q0(s), hexset_r0(s), hexset_w(s), hexset_h(s));
+
+  // the trunk's own cell, if this tree holds it; otherwise its nearest owned cell
+  rq = 0; rr = 0; found = false;
+  bestd = 1000000000;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) == id {
+        dd = crown_q2(t, i, lattice_k(q, r), lattice_m(q, r));
+        if dd < bestd { bestd = dd; rq = q; rr = r; found = true; }
+      }
+    }
+  }
+  if !found { return sk; }
+
+  sk.sk_q[0] = rq; sk.sk_r[0] = rr; sk.sk_par[0] = -1;
+  sk.sk_depth[0] = 0; sk.sk_kind[0] = NODE_ROOT;
+  sk.sk_n = 1;
+  hexset_set(vis, rq, rr, true);
+  head = 0;
+  while head < sk.sk_n {
+    cq = sk.sk_q[head] ?? 0;
+    cr = sk.sk_r[head] ?? 0;
+    cd = sk.sk_depth[head] ?? 0;
+    for j in 0..6 {
+      nq = nb_q(cq, cr, j);
+      nr = nb_r(cq, cr, j);
+      if hexset_get(s, nq, nr) && !hexset_get(vis, nq, nr)
+         && label_get(lb, nq, nr) == id && sk.sk_n < cap {
+        hexset_set(vis, nq, nr, true);
+        n = sk.sk_n;
+        sk.sk_q[n] = nq; sk.sk_r[n] = nr;
+        sk.sk_par[n] = head; sk.sk_depth[n] = cd + 1;
+        sk.sk_kind[n] = NODE_PLAIN;
+        sk.sk_n = n + 1;
+      }
+    }
+    head = head + 1;
+  }
+
+  // load: children always sit after their parent, so one reverse sweep suffices
+  for j in 0..sk.sk_n { sk.sk_load[j] = 1; }
+  j = sk.sk_n - 1;
+  while j > 0 {
+    p = sk.sk_par[j] ?? -1;
+    if p >= 0 { sk.sk_load[p] = (sk.sk_load[p] ?? 0) + (sk.sk_load[j] ?? 0); }
+    j = j - 1;
+  }
+
+  // classify by child count
+  kids: vector<integer> = [];
+  for j in 0..sk.sk_n { kids += [0]; }
+  for j in 1..sk.sk_n {
+    p = sk.sk_par[j] ?? -1;
+    if p >= 0 { kids[p] = (kids[p] ?? 0) + 1; }
+  }
+  for j in 0..sk.sk_n {
+    k = kids[j] ?? 0;
+    if j == 0 { sk.sk_kind[j] = NODE_ROOT; }
+    else {
+      if k == 0 { sk.sk_kind[j] = NODE_TIP; }
+      else { if k >= 2 { sk.sk_kind[j] = NODE_FORK; } else { sk.sk_kind[j] = NODE_PLAIN; } }
+    }
+  }
+  sk
+}
+
+pub fn node_x(sk: Skeleton, j: integer) -> float {
+  ((lattice_k(sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0)) as float) * 0.8660254037844386
+}
+pub fn node_y(sk: Skeleton, j: integer) -> float {
+  ((lattice_m(sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0)) as float) * 0.5
+}
+
+// ── CONTRACTED BRANCHES ─────────────────────────────────────────────────────
+//
+// A segment runs from a fork (or the root) out to the next fork or tip.  Its direction is
+// taken end-to-end, so it is free of the six-way grid the path had to walk.
+pub struct Branches {
+  br_a:    vector<integer>,   // node index this segment starts at
+  br_b:    vector<integer>,   // node index it ends at
+  br_dx:   vector<float>,
+  br_dy:   vector<float>,
+  br_len:  vector<float>,
+  br_load: vector<integer>,   // crown cells beyond its end — the pipe-model input
+  br_n:    integer,
+}
+
+pub fn branches_new() -> Branches {
+  a: vector<integer> = []; b: vector<integer> = []; c: vector<float> = [];
+  d: vector<float> = []; e: vector<float> = []; f: vector<integer> = [];
+  Branches { br_a: a, br_b: b, br_dx: c, br_dy: d, br_len: e, br_load: f, br_n: 0 }
+}
+
+pub fn branches_extract(sk: Skeleton) -> Branches {
+  br = branches_new();
+  for j in 1..sk.sk_n {
+    k = sk.sk_kind[j] ?? 0;
+    if k == NODE_FORK || k == NODE_TIP {
+      // walk back to the nearest fork or the root — that is where this segment began
+      a = sk.sk_par[j] ?? -1;
+      while a > 0 && (sk.sk_kind[a] ?? 0) == NODE_PLAIN { a = sk.sk_par[a] ?? -1; }
+      if a < 0 { a = 0; }
+      dx = node_x(sk, j) - node_x(sk, a);
+      dy = node_y(sk, j) - node_y(sk, a);
+      ln = sqrt(dx * dx + dy * dy) ?? 0.0;
+      ux = 0.0; uy = 0.0;
+      if ln > 0.000001 { ux = dx / ln ?? 0.0; uy = dy / ln ?? 0.0; }
+      br.br_a += [a]; br.br_b += [j];
+      br.br_dx += [ux]; br.br_dy += [uy];
+      br.br_len += [ln];
+      br.br_load += [sk.sk_load[j] ?? 0];
+      br.br_n = br.br_n + 1;
+    }
+  }
+  br
+}
+
+// ── THE INVARIANTS, CHECKED RATHER THAN ASSUMED ─────────────────────────────
+
+// I-NOTRESPASS: how many nodes sit on a cell this tree does not own.
+pub fn skeleton_trespass(sk: Skeleton, lb: Labels) -> integer {
+  n = 0;
+  for j in 0..sk.sk_n {
+    if label_get(lb, sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0) != sk.sk_id { n = n + 1; }
+  }
+  n
+}
+
+// Is the parent structure a tree at all: one root, and every parent strictly nearer?
+pub fn skeleton_wellformed(sk: Skeleton) -> boolean {
+  roots = 0;
+  okf = true;
+  for j in 0..sk.sk_n {
+    p = sk.sk_par[j] ?? -1;
+    if p < 0 { roots = roots + 1; }
+    else {
+      if p >= j { okf = false; }
+      if (sk.sk_depth[p] ?? 0) + 1 != (sk.sk_depth[j] ?? 0) { okf = false; }
+    }
+  }
+  okf && roots == 1
+}

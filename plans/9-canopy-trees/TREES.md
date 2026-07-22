@@ -277,14 +277,41 @@ Da Vinci's rule (`Σ child² = parent²`) is then **not an extra rule** — it i
 of the partition, restated. This is what makes canopy-first a *derivation* rather than a
 plausible-looking generator, and it is the single most important idea in this document.
 
-### I-REACH — a crown is connected to its own trunk, through itself
+### I-REACH — a crown is connected to its own trunk, through itself  — **BUILT, T4**
 Every cell in `C_t` has a path to trunk `t` using only cells of `C_t`. A crown disconnected
 from its trunk is a rendering artefact with no physical meaning.
 
-### I-NOTRESPASS — a branch may not pass through another tree's canopy
+### I-NOTRESPASS — a branch may not pass through another tree's canopy  — **BUILT, T4**
 The strong form of I-REACH, and the one that makes crowded forests look right. It is also
 what forces branches to route *around* competitors, which is where the characteristic
 asymmetry of a crowded tree comes from.
+
+**Both hold by construction** — the search never leaves the label — so **both got a negative
+control**, because a check that cannot fire proves nothing:
+
+```
+   move one node onto a rival's cell   -> trespass reports 1        ✓ fires
+   let a rival slice 8 cells across a crown -> 61 cells, 42 reached  ✓ fires
+```
+
+The trespass check is what will protect the invariant once a later phase starts moving
+nodes off their cells, so its control matters more than the invariant's current triviality
+suggests.
+
+Measured on Case B's scene: A 69 nodes / 69 cells (11 forks, 22 tips, 33 branches), B 80/80,
+C 31/31. Load conservation — `load == 1 + Σ children` — holds at **every** node, not just
+the root, which is the pipe model's input: T5 has only to take a square root of it.
+
+### Contraction, and a caveat for T9
+A per-cell path on a hex grid can step in only **six** directions, so cards hung on raw path
+nodes would snap between six angles and jitter as the crown changed. Contracting each run
+between forks into one segment lifts that to **9 of 36** ten-degree bins here.
+
+That is better than six but **not by much**, because segments between forks are short. If
+T9's cards prove to jitter, the fix is to contract *through* forks along the
+dominant-load child — giving a long main axis with laterals off it, which is also what a
+real tree looks like — rather than to add smoothing after the fact. Flagged now rather than
+discovered at T9.
 
 ### I-OPACITY — what you see is what the field reports
 The canopy is drawn as semi-filled cards (§6) and *also* queried by `sight_clear`, which
