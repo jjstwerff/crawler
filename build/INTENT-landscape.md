@@ -181,3 +181,31 @@ approximating it.
 
 **Remaining:** the towers still merge with the keep, houses are roofs on over-tall walls,
 and relief is 6.4 m against the 6.8 m target — the predicate that has never passed.
+
+
+---
+
+## Pass 5 — towers and houses
+
+**Houses: fixed, and the diagnosis was proportion again.** The walls were as tall as the
+roof was deep, so each cottage read as a grey box with a red lid. A cottage is **mostly
+roof**: eaves dropped to ~½ the wall height, and the stepped courses replaced by a real
+gable — two sloped planes meeting at a ridge with triangular ends. The stepped version read
+as *steps* at this scale, never as a pitch. They now read as dwellings.
+
+That is the third time in this exercise the fix was **proportion, not detail**: the keep
+(narrow → squat), the trees (uniform → varied), and now the houses. None of them needed more
+geometry.
+
+**Towers: moved but still not solved.** Pushed from 12 units to 20 so there is sky between
+the masses, and the curtain lowered from 8 m to 5.2 m so it stops welding them together. But
+they now sit **behind the hill crest** and are barely legible — the placement fix created a
+framing problem, and widening the camera to include them lost the composition instead
+(horizon rose, the hamlet shrank).
+
+So predicate 6 remains **partial**. The honest reading: the towers need to be sited on the
+*near* slope of the hill rather than beyond its crest, which is a terrain-and-placement
+decision, not a modelling one. Recorded rather than fudged by picking a flattering angle.
+
+**Score: 8 pass, 2 partial, 0 fail** — unchanged in count from pass 3, but two of the passes
+(houses, affect) went from "technically true" to actually convincing.

@@ -16,6 +16,52 @@ use glb;
 
 fn m(v: float) -> float { v / 0.8660254037844386 ?? 0.0 }
 
+// A real gable: two sloped planes meeting at a ridge, with triangular ends.  The stepped
+// courses of pass 2 read as STEPS at this scale, not as a pitch — and a cottage is mostly
+// roof, so getting the roof wrong got the whole building wrong.
+fn mesh_gable(cx: float, cy: float, z: float, w: float, d: float, h: float,
+              ang: float) -> Mesh {
+  ms = mesh("gable");
+  u = vec2(0.0, 0.0);
+  ca = cos(ang); sa = sin(ang);
+  // corner in world, from local (lx, ly)
+  hw = w * 0.5; hd = d * 0.5;
+  ax = cx + ca * (0.0 - hw) - sa * (0.0 - hd);
+  ay = cy + sa * (0.0 - hw) + ca * (0.0 - hd);
+  bx = cx + ca * hw - sa * (0.0 - hd);
+  by = cy + sa * hw + ca * (0.0 - hd);
+  ex = cx + ca * hw - sa * hd;
+  ey = cy + sa * hw + ca * hd;
+  fx = cx + ca * (0.0 - hw) - sa * hd;
+  fy = cy + sa * (0.0 - hw) + ca * hd;
+  rx0 = cx + ca * (0.0 - hw);
+  ry0 = cy + sa * (0.0 - hw);
+  rx1 = cx + ca * hw;
+  ry1 = cy + sa * hw;
+  n1 = vec3(0.0 - sa, ca, 0.55);
+  p0 = add_vertex(ms, vertex(vec3(ax, ay, z), n1, u));
+  p1 = add_vertex(ms, vertex(vec3(bx, by, z), n1, u));
+  p2 = add_vertex(ms, vertex(vec3(rx1, ry1, z + h), n1, u));
+  p3 = add_vertex(ms, vertex(vec3(rx0, ry0, z + h), n1, u));
+  add_quad(ms, p0, p1, p2, p3);
+  n2 = vec3(sa, 0.0 - ca, 0.55);
+  q0v = add_vertex(ms, vertex(vec3(fx, fy, z), n2, u));
+  q1v = add_vertex(ms, vertex(vec3(ex, ey, z), n2, u));
+  q2v = add_vertex(ms, vertex(vec3(rx1, ry1, z + h), n2, u));
+  q3v = add_vertex(ms, vertex(vec3(rx0, ry0, z + h), n2, u));
+  add_quad(ms, q0v, q3v, q2v, q1v);
+  ne = vec3(ca, sa, 0.0);
+  g0 = add_vertex(ms, vertex(vec3(bx, by, z), ne, u));
+  g1 = add_vertex(ms, vertex(vec3(ex, ey, z), ne, u));
+  g2 = add_vertex(ms, vertex(vec3(rx1, ry1, z + h), ne, u));
+  add_triangle(ms, g0, g1, g2);
+  h0 = add_vertex(ms, vertex(vec3(ax, ay, z), ne, u));
+  h1 = add_vertex(ms, vertex(vec3(fx, fy, z), ne, u));
+  h2 = add_vertex(ms, vertex(vec3(rx0, ry0, z + h), ne, u));
+  add_triangle(ms, h0, h2, h1);
+  ms
+}
+
 // A drum — what a round tower actually is.  Predicate 6 failed outright with scaled cubes,
 // and a box tower is the "generic regular icon" problem in another guise: a castle whose
 // towers are boxes reads as a factory, because square is the signature of industry.
@@ -89,16 +135,13 @@ fn mesh_ground(s: HexSet, tint: integer, ntint: integer) -> Mesh {
 fn add_house(sc: Scene, cuw: integer, cur: integer, wallm: integer, roofm: integer,
              x: float, y: float, w: float, d: float, hgt: float, ang: float) {
   z = terrain(x, y);
-  add_node(sc, node_at("house", cuw, wallm, mat4_trs(x, y, z + hgt * 0.5, ang, w, d, hgt)));
-  // a stepped gable — three narrowing courses read as a pitched roof where two crossed
-  // slabs read as another box
-  rp = hgt * 0.75;
-  for i in 0..4 {
-    f = (i as float) / 4.0 ?? 0.0;
-    add_node(sc, node_at("roof", cur, roofm,
-      mat4_trs(x, y, z + hgt + rp * (f + 0.12), ang,
-               w * (1.18 - 1.0 * f), d * (0.92 - 0.80 * f), rp * 0.30)));
-  }
+  // A COTTAGE IS MOSTLY ROOF. The walls were as tall as the roof was deep, so the houses
+  // read as grey boxes with a red lid. Low eaves and a tall pitch is what says "dwelling".
+  wallh = hgt * 0.52;
+  add_node(sc, node_at("house", cuw, wallm,
+    mat4_trs(x, y, z + wallh * 0.5, ang, w, d, wallh)));
+  gi = add_mesh(sc, mesh_gable(x, y, z + wallh, w * 1.20, d * 1.28, hgt * 1.05, ang));
+  add_node(sc, node_at("roof", gi, roofm, mat4_identity()));
 }
 
 fn main() {
@@ -154,8 +197,10 @@ fn main() {
   kb = add_mesh(sc, mesh_drum(kx, ky, kz + m(13.0), kz + m(15.2), m(9.2), m(9.2), 10));
   add_node(sc, node_at("keep_battlement", kb, m_wall, mat4_identity()));
   for i in 0..2 {
-    tx = kx + 12.0; ty = ky - 10.0;
-    if i == 1 { tx = kx - 8.0; ty = ky + 11.0; }
+    // Pushed well clear: at 12 units the drums touched the keep and the castle read as one
+    // grey lump. Three masses only read as three if there is sky between them.
+    tx = kx + 20.0; ty = ky - 16.0;
+    if i == 1 { tx = kx - 13.0; ty = ky + 17.0; }
     tz = terrain(tx, ty);
     di = add_mesh(sc, mesh_drum(tx, ty, tz - 1.0, tz + m(11.0), m(4.2), m(3.9), 12));
     add_node(sc, node_at("tower", di, m_wall, mat4_identity()));
@@ -165,7 +210,7 @@ fn main() {
     dx = tx - kx; dy = ty - ky;
     L = sqrt(dx * dx + dy * dy) ?? 1.0;
     add_node(sc, node_at("curtain", cu_wall, m_wall,
-      mat4_trs(mx, my, terrain(mx, my) + m(3.5), atan2(dy, dx), L, m(1.5), m(7.0))));
+      mat4_trs(mx, my, terrain(mx, my) + m(2.6), atan2(dy, dx), L, m(1.4), m(5.2))));
   }
 
   // ── the hamlet: five houses, clustered below and right of the castle ─────
