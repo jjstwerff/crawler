@@ -818,3 +818,49 @@ per-cell cost jitter, so paths meander. That is a change to **T4** and it ripple
 
 It is **asserted in the gate** rather than merely written down, so it cannot be silently
 lost — and so that fixing it will visibly break the assertion, which is the point.
+
+
+## 15. The spoke fix, and the whorl budget
+
+Two changes, and they turn out to be one.
+
+**Least-cost growth instead of BFS.** A breadth-first tree ties constantly, and resolving
+those ties by neighbour order sends every shortest path straight down a lattice direction.
+Giving each cell a small deterministic cost makes the cheapest path meander, and the ties
+disappear.
+
+**A branch budget per height band.** A real tree cannot put an unlimited number of branches
+at one height — they come in whorls, a few per season, and further branches form only
+*later*, which means higher up as the leader extends. So each band of `WHORL_DZ` carries a
+budget of `WHORL_MAX`, and once spent a new branch must attach in another band.
+
+The second is what finishes the first: with six candidate directions and a budget of four,
+some branches must be deferred to another whorl, so they **stagger instead of radiating**.
+
+```
+   busiest height band:   no limit 11 branches · limit 4 -> 5 · limit 2 -> 3
+   meshed branches on-axis:  was 14 of 14 (deviation 7e-15) -> now 10 of 20, worst 30°
+```
+
+30° is the maximum possible deviation — exactly between two axes. A uniformly spread crown
+would put about a third of its cells within 10° of some axis; the meshed set is now at half,
+down from all.
+
+**The budget is a preference, not a hard cap.** It is exceeded by exactly one where a crown
+cell's *only* attached neighbour would have to fork. That ordering is deliberate: **I-REACH
+outranks the whorl rule**, because a crown disconnected from its trunk is meaningless while
+an extra branch in a band is merely untidy.
+
+### What the render then showed
+
+With the branches drawn rather than hidden under the crown, the spokes are visibly gone —
+and the next problem is visible instead. **The skeleton is a plan-view structure.** Its
+nodes are cells; the z given to each is a decoration applied afterwards, so the branches
+follow the crown *surface* and the tree reads as a spider rather than a tree: no vertical
+trunk, branches drooping outward like legs.
+
+The whorl model is exactly what supplies the missing z. A branch attaches to the **trunk
+axis** at its whorl height and runs outward to the canopy surface at its tip — so branch
+geometry should interpolate from `(trunk_x, trunk_y, z_whorl)` to the crown surface, rather
+than lying flat at the local canopy height. That is the next change, and it is the one that
+turns a correct structure into a believable one.

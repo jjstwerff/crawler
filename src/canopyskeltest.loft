@@ -56,6 +56,8 @@ fn main() {
     if tips <= 0 { ok = false; }
   }
 
+  cells0 = crown_count(s, lb, 0);
+
   // ── 2. load conservation at EVERY node, not just the root ────────────────
   sk0 = skeleton_build(t, 0, s, lb);
   kids: vector<integer> = [];
@@ -160,6 +162,57 @@ fn main() {
   }
   println("determinism: re-derived skeleton differs at {diff} nodes");
   if diff != 0 { ok = false; }
+
+  // ── 7. the WHORL BUDGET: only so many branches at one height ────────────
+  // A real tree cannot put an unlimited number of branches at a single height. They come in
+  // whorls, a few per season, and further branches form only later — which means higher up,
+  // as the leader extends. So each height band carries a budget, and once spent a new
+  // branch must attach in another band.
+  //
+  // It is also what finishes off the spoke fix: with six candidate directions and a budget
+  // of four, some branches must be deferred to another whorl, so they stagger instead of
+  // radiating.
+  ctop = heights_new(q0, r0, gw, gh);
+  cbas = heights_new(q0, r0, gw, gh);
+  canopy_heights(t, s, lb, ct, ctop, cbas);
+  println("whorl budget (WHORL_DZ {WHORL_DZ}, WHORL_MAX {WHORL_MAX}):");
+  for kk in 0..3 {
+    wlim = 2;
+    if kk == 1 { wlim = 4; }
+    if kk == 2 { wlim = 0; }
+    skw = skeleton_grow(t, 0, s, lb, ctop, wlim);
+    bandn: vector<integer> = [];
+    for zz in 0..64 { bandn += [0]; }
+    kidsw: vector<integer> = [];
+    for zz in 0..skw.sk_n { kidsw += [0]; }
+    for zz in 1..skw.sk_n {
+      wp = skw.sk_par[zz] ?? -1;
+      if wp >= 0 {
+        if (kidsw[wp] ?? 0) >= 1 {
+          wz = height_get(ctop, skw.sk_q[wp] ?? 0, skw.sk_r[wp] ?? 0) / WHORL_DZ ?? 0.0;
+          wbi = wz as integer;
+          if wbi < 0 { wbi = 0; }
+          if wbi > 63 { wbi = 63; }
+          bandn[wbi] = (bandn[wbi] ?? 0) + 1;
+        }
+        kidsw[wp] = (kidsw[wp] ?? 0) + 1;
+      }
+    }
+    worstb = 0;
+    for zz in 0..64 { if (bandn[zz] ?? 0) > worstb { worstb = bandn[zz] ?? 0; } }
+    println("   limit {wlim} (0 = none): {skw.sk_n} nodes, busiest height band carries {worstb} branches");
+    if skw.sk_n != cells0 { ok = false; }
+    // The budget is a strong preference, not a hard cap, and it is exceeded by exactly one
+    // where a crown cell's ONLY attached neighbour would have to fork. That ordering is
+    // deliberate: I-REACH outranks the whorl rule, because a crown disconnected from its
+    // trunk is meaningless while an extra branch in a band is merely untidy.
+    if wlim > 0 && worstb > wlim + 1 { ok = false; }
+    if wlim == 0 && worstb <= 5 { ok = false; }
+  }
+  println("   the budget is exceeded by at most one, and only where a cell's sole attached");
+  println("   neighbour must fork — I-REACH outranks the whorl rule, by design");
+  println("   -> branches that cannot form at one height form higher up, later. That is");
+  println("      also what staggers them off the lattice's six directions.");
 
   if ok { println("=== CANOPYSKEL OK ==="); } else { println("=== FAIL ==="); }
 }

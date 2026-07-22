@@ -1,0 +1,42 @@
+// scenetree — the branch structure, drawn, so the spoke fix can be SEEN.
+use hexform;
+use hexcanopy;
+use hexskel;
+use scenemesh;
+use figure;
+use mesh3d;
+use glb;
+
+fn main() {
+  q0 = -20; r0 = -16; gw = 41; gh = 33;
+  ground = hexset_chunk(q0, r0, gw, gh);
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw { hexset_set(ground, q, r, true); }
+  }
+  t = trees_new();
+  tree_add(t, 0, 0, 14, 121, 0);
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, ground, lb, ct);
+  tp = heights_new(q0, r0, gw, gh);
+  bs = heights_new(q0, r0, gw, gh);
+  canopy_heights(t, ground, lb, ct, tp, bs);
+  sk = skeleton_grow(t, 0, ground, lb, tp, WHORL_MAX);
+  nmin = mesh_load_min(0.16, PIPE_K);
+  println("tree: {crown_count(ground, lb, 0)} cells, {sk.sk_n} nodes, {mesh_nodes(sk, nmin)} meshed");
+
+  sc = scene("tree");
+  m_grass = add_material(sc, material_color("grass", 0.44, 0.50, 0.31));
+  m_bark  = add_material(sc, material_color("bark", 0.36, 0.27, 0.19));
+  m_skin  = add_material(sc, material_color("skin", 0.80, 0.60, 0.45));
+  gi = add_mesh(sc, mesh_floor(ground, 0.0, "ground"));
+  add_node(sc, node_at("ground", gi, m_grass, mat4_identity()));
+  bi = add_mesh(sc, mesh_branches(sk, tp, bs, nmin, PIPE_K));
+  add_node(sc, node_at("branches", bi, m_bark, mat4_identity()));
+  add_figure(sc, 9.0, -7.0, 0.0, m_skin);
+  add_camera(sc, camera("cam"));
+  add_light(sc, directional_light("sun", 1.0, 0.96, 0.90, 1.0, vec3(0.3, 0.5, -0.8)));
+  out = "{env_variable("PWD") ?? "."}/build/tree.glb";
+  save_scene_glb(sc, out);
+  println("wrote {out}");
+}

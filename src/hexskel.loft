@@ -52,7 +52,36 @@ pub fn skeleton_new(id: integer) -> Skeleton {
 // Breadth-first, so the parent of every node lies one cell nearer the trunk — which makes
 // the node order itself a topological order, and lets the load be accumulated in one
 // reverse sweep instead of a recursion.
-pub fn skeleton_build(t: Trees, i: integer, s: HexSet, lb: Labels) -> Skeleton {
+// A branch may only form where the tree can actually put one.
+//
+// Two rules, and they turn out to be the same rule.
+//
+// 1. A plain breadth-first tree ties constantly, and resolving those ties by neighbour
+//    order sends every shortest path straight down a lattice direction. The load then
+//    concentrates on six spokes and the mesh threshold, which selects on load, renders the
+//    tree's major branches as six perfectly straight radials — a grid artefact in the most
+//    visible part of the tree (found by T10). Giving each cell a small deterministic cost
+//    makes the cheapest path meander instead, and the ties disappear.
+//
+// 2. A real tree cannot put an unlimited number of branches at one height. Branches come in
+//    WHORLS — a few per season — and further branches can only form later, which means
+//    higher up, as the leader extends. So each height band carries a budget, and once it is
+//    spent a new branch has to attach in another band.
+//
+// Rule 2 is also what finishes off rule 1: with six candidate directions and a budget of
+// three or four, some must be deferred to another whorl, so the branches stagger instead of
+// radiating. That is phyllotaxis, and it is the reason real trees do not look six-fold.
+pub const WHORL_DZ   = 1.6;    // height band, world units
+pub const WHORL_MAX  = 4;      // branches that may form in one band
+
+fn cell_cost(k: integer, m: integer) -> integer {
+  // 10 is the base step; the jitter is small enough never to reorder true distance by more
+  // than one step, but large enough to break the exact ties that caused the spokes.
+  10 + ((hash01(k, m, 7) * 6.0) as integer)
+}
+
+pub fn skeleton_grow(t: Trees, i: integer, s: HexSet, lb: Labels,
+                     top: Heights, kmax: integer) -> Skeleton {
   id = t.tr_id[i] ?? 0;
   sk = skeleton_new(id);
   cap = hexset_w(s) * hexset_h(s);
@@ -60,11 +89,12 @@ pub fn skeleton_build(t: Trees, i: integer, s: HexSet, lb: Labels) -> Skeleton {
     sk.sk_q += [0]; sk.sk_r += [0]; sk.sk_par += [-1];
     sk.sk_depth += [0]; sk.sk_load += [1]; sk.sk_kind += [NODE_PLAIN];
   }
+  // per-cell working state, indexed like the chunk
+  dist = labels_new(hexset_q0(s), hexset_r0(s), hexset_w(s), hexset_h(s));
+  nodeof = labels_new(hexset_q0(s), hexset_r0(s), hexset_w(s), hexset_h(s));
   vis = hexset_chunk(hexset_q0(s), hexset_r0(s), hexset_w(s), hexset_h(s));
 
-  // the trunk's own cell, if this tree holds it; otherwise its nearest owned cell
-  rq = 0; rr = 0; found = false;
-  bestd = 1000000000;
+  rq = 0; rr = 0; found = false; bestd = 1000000000;
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
     for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
       if hexset_get(s, q, r) && label_get(lb, q, r) == id {
@@ -75,32 +105,106 @@ pub fn skeleton_build(t: Trees, i: integer, s: HexSet, lb: Labels) -> Skeleton {
   }
   if !found { return sk; }
 
+  // how many branches have already formed in each height band
+  bands: vector<integer> = [];
+  for j in 0..64 { bands += [0]; }
+  kids: vector<integer> = [];
+  for j in 0..cap { kids += [0]; }
+
   sk.sk_q[0] = rq; sk.sk_r[0] = rr; sk.sk_par[0] = -1;
   sk.sk_depth[0] = 0; sk.sk_kind[0] = NODE_ROOT;
   sk.sk_n = 1;
   hexset_set(vis, rq, rr, true);
-  head = 0;
-  while head < sk.sk_n {
-    cq = sk.sk_q[head] ?? 0;
-    cr = sk.sk_r[head] ?? 0;
-    cd = sk.sk_depth[head] ?? 0;
-    for j in 0..6 {
-      nq = nb_q(cq, cr, j);
-      nr = nb_r(cq, cr, j);
-      if hexset_get(s, nq, nr) && !hexset_get(vis, nq, nr)
-         && label_get(lb, nq, nr) == id && sk.sk_n < cap {
-        hexset_set(vis, nq, nr, true);
-        n = sk.sk_n;
-        sk.sk_q[n] = nq; sk.sk_r[n] = nr;
-        sk.sk_par[n] = head; sk.sk_depth[n] = cd + 1;
-        sk.sk_kind[n] = NODE_PLAIN;
-        sk.sk_n = n + 1;
+  label_set(dist, rq, rr, 0);
+  label_set(nodeof, rq, rr, 0);
+
+  // Grow by repeatedly taking the cheapest reachable cell — Prim/Dijkstra rather than BFS.
+  more = true;
+  while more {
+    more = false;
+    bq = 0; br = 0; bp = -1; bc = 2000000000;
+    for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+      for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+        if hexset_get(s, q, r) && label_get(lb, q, r) == id && !hexset_get(vis, q, r) {
+          // the cheapest attached neighbour that is ALLOWED to carry another branch
+          cc = 2000000000; pp = -1;
+          for d in 0..6 {
+            nq = nb_q(q, r, d);
+            nr = nb_r(q, r, d);
+            if hexset_get(vis, nq, nr) && label_get(lb, nq, nr) == id {
+              pn = label_get(nodeof, nq, nr);
+              base = label_get(dist, nq, nr);
+              pen = 0;
+              // attaching here would start a NEW branch off that node
+              if (kids[pn] ?? 0) >= 1 && kmax > 0 {
+                zb = height_get(top, nq, nr) / WHORL_DZ ?? 0.0;
+                bi = zb as integer;
+                if bi < 0 { bi = 0; }
+                if bi > 63 { bi = 63; }
+                if (bands[bi] ?? 0) >= kmax { pen = 400; }   // band full: strongly discouraged
+              }
+              cst = base + cell_cost(lattice_k(q, r), lattice_m(q, r)) + pen;
+              if cst < cc { cc = cst; pp = pn; bq = q; br = r; }
+            }
+          }
+          if pp >= 0 && cc < bc { bc = cc; bp = pp; }
+        }
       }
     }
-    head = head + 1;
+    // re-find the winner's coordinates (bq/br above may have been overwritten by a later
+    // candidate that did not win) — one more sweep, cheap at these sizes
+    if bp >= 0 {
+      wq = 0; wr = 0; wc = 2000000000; wp = -1;
+      for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+        for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+          if hexset_get(s, q, r) && label_get(lb, q, r) == id && !hexset_get(vis, q, r) {
+            cc = 2000000000; pp = -1;
+            for d in 0..6 {
+              nq = nb_q(q, r, d);
+              nr = nb_r(q, r, d);
+              if hexset_get(vis, nq, nr) && label_get(lb, nq, nr) == id {
+                pn = label_get(nodeof, nq, nr);
+                base = label_get(dist, nq, nr);
+                pen = 0;
+                if (kids[pn] ?? 0) >= 1 && kmax > 0 {
+                  zb = height_get(top, nq, nr) / WHORL_DZ ?? 0.0;
+                  bi = zb as integer;
+                  if bi < 0 { bi = 0; }
+                  if bi > 63 { bi = 63; }
+                  if (bands[bi] ?? 0) >= kmax { pen = 400; }
+                }
+                cst = base + cell_cost(lattice_k(q, r), lattice_m(q, r)) + pen;
+                if cst < cc { cc = cst; pp = pn; }
+              }
+            }
+            if pp >= 0 && cc < wc { wc = cc; wp = pp; wq = q; wr = r; }
+          }
+        }
+      }
+      if wp >= 0 && sk.sk_n < cap {
+        n = sk.sk_n;
+        sk.sk_q[n] = wq; sk.sk_r[n] = wr;
+        sk.sk_par[n] = wp;
+        sk.sk_depth[n] = (sk.sk_depth[wp] ?? 0) + 1;
+        sk.sk_kind[n] = NODE_PLAIN;
+        sk.sk_n = n + 1;
+        hexset_set(vis, wq, wr, true);
+        label_set(dist, wq, wr, wc);
+        label_set(nodeof, wq, wr, n);
+        // a second child on a node is a new branch: spend that band's budget
+        if (kids[wp] ?? 0) >= 1 && kmax > 0 {
+          zb = height_get(top, sk.sk_q[wp] ?? 0, sk.sk_r[wp] ?? 0) / WHORL_DZ ?? 0.0;
+          bi = zb as integer;
+          if bi < 0 { bi = 0; }
+          if bi > 63 { bi = 63; }
+          bands[bi] = (bands[bi] ?? 0) + 1;
+        }
+        kids[wp] = (kids[wp] ?? 0) + 1;
+        more = true;
+      }
+    }
   }
 
-  // load: children always sit after their parent, so one reverse sweep suffices
   for j in 0..sk.sk_n { sk.sk_load[j] = 1; }
   j = sk.sk_n - 1;
   while j > 0 {
@@ -108,16 +212,14 @@ pub fn skeleton_build(t: Trees, i: integer, s: HexSet, lb: Labels) -> Skeleton {
     if p >= 0 { sk.sk_load[p] = (sk.sk_load[p] ?? 0) + (sk.sk_load[j] ?? 0); }
     j = j - 1;
   }
-
-  // classify by child count
-  kids: vector<integer> = [];
-  for j in 0..sk.sk_n { kids += [0]; }
+  kc: vector<integer> = [];
+  for j in 0..sk.sk_n { kc += [0]; }
   for j in 1..sk.sk_n {
     p = sk.sk_par[j] ?? -1;
-    if p >= 0 { kids[p] = (kids[p] ?? 0) + 1; }
+    if p >= 0 { kc[p] = (kc[p] ?? 0) + 1; }
   }
   for j in 0..sk.sk_n {
-    k = kids[j] ?? 0;
+    k = kc[j] ?? 0;
     if j == 0 { sk.sk_kind[j] = NODE_ROOT; }
     else {
       if k == 0 { sk.sk_kind[j] = NODE_TIP; }
@@ -125,6 +227,13 @@ pub fn skeleton_build(t: Trees, i: integer, s: HexSet, lb: Labels) -> Skeleton {
     }
   }
   sk
+}
+
+// The plain form: least-cost growth, no whorl budget.  Kept so every existing call site
+// gets the spoke fix without also taking on the height limit.
+pub fn skeleton_build(t: Trees, i: integer, s: HexSet, lb: Labels) -> Skeleton {
+  flat = heights_new(hexset_q0(s), hexset_r0(s), hexset_w(s), hexset_h(s));
+  skeleton_grow(t, i, s, lb, flat, 0)
 }
 
 pub fn node_x(sk: Skeleton, j: integer) -> float {

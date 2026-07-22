@@ -258,3 +258,46 @@ pub fn mesh_crown(cx: float, cy: float, bole: float, peak: float, radius: float,
   }
   ms
 }
+
+// The meshed branches, drawn — a tapered box per skeleton segment, radius from the pipe
+// model at each end.  This is what the spoke defect was hiding in: the crown covers it, so
+// nothing showed until the branches themselves were drawn.
+pub fn mesh_branches(sk: Skeleton, top: Heights, base: Heights,
+                     nmin: integer, k: float) -> Mesh {
+  ms = mesh("branches");
+  u = vec2(0.0, 0.0);
+  for j in 1..sk.sk_n {
+    if (sk.sk_load[j] ?? 0) >= nmin {
+      p = sk.sk_par[j] ?? -1;
+      if p >= 0 {
+        ax = node_x(sk, p); ay = node_y(sk, p);
+        bx = node_x(sk, j); by = node_y(sk, j);
+        az = height_get(base, sk.sk_q[p] ?? 0, sk.sk_r[p] ?? 0)
+           + (height_get(top, sk.sk_q[p] ?? 0, sk.sk_r[p] ?? 0)
+            - height_get(base, sk.sk_q[p] ?? 0, sk.sk_r[p] ?? 0)) * 0.45;
+        bz = height_get(base, sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0)
+           + (height_get(top, sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0)
+            - height_get(base, sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0)) * 0.45;
+        ra = node_radius(sk, p, k);
+        rb = node_radius(sk, j, k);
+        dx = bx - ax; dy = by - ay;
+        L = sqrt(dx * dx + dy * dy) ?? 1.0;
+        nx = 0.0 - dy / L ?? 0.0;
+        ny = dx / L ?? 0.0;
+        nz = vec3(nx, ny, 0.0);
+        v0 = add_vertex(ms, vertex(vec3(ax - nx * ra, ay - ny * ra, az), nz, u));
+        v1 = add_vertex(ms, vertex(vec3(ax + nx * ra, ay + ny * ra, az), nz, u));
+        v2 = add_vertex(ms, vertex(vec3(bx + nx * rb, by + ny * rb, bz), nz, u));
+        v3 = add_vertex(ms, vertex(vec3(bx - nx * rb, by - ny * rb, bz), nz, u));
+        add_quad(ms, v0, v1, v2, v3);
+        vt = vec3(0.0, 0.0, 1.0);
+        w0 = add_vertex(ms, vertex(vec3(ax - nx * ra, ay - ny * ra, az + ra), vt, u));
+        w1 = add_vertex(ms, vertex(vec3(ax + nx * ra, ay + ny * ra, az + ra), vt, u));
+        w2 = add_vertex(ms, vertex(vec3(bx + nx * rb, by + ny * rb, bz + rb), vt, u));
+        w3 = add_vertex(ms, vertex(vec3(bx - nx * rb, by - ny * rb, bz + rb), vt, u));
+        add_quad(ms, w0, w1, w2, w3);
+      }
+    }
+  }
+  ms
+}

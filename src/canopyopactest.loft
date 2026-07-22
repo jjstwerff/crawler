@@ -141,7 +141,7 @@ fn main() {
   if ratio <= 3.0 { ok = false; }
   println("   -> the check fires. The agreement above was measured, not assumed.");
 
-  // ── 4. A DEFECT THIS GATE FOUND, in T4's skeleton ────────────────────────
+  // ── 4. THE DEFECT THIS GATE FOUND, now fixed ─────────────────────────────
   // The first version of section 1 cast rays THROUGH the trunk and got N = 0 with L = 19.
   // The reason is not the ray: it is that BFS shortest paths in a hex disc all route along
   // the lattice's six directions, so the LOAD concentrates there — and the mesh threshold,
@@ -162,14 +162,20 @@ fn main() {
       if off > worst_off { worst_off = off; }
     }
   }
-  println("DEFECT (T4): of {nmesh} meshed cells, {onaxis} lie within 10 deg of a lattice axis");
-  println("   worst deviation {worst_off} deg — the major branches are six straight spokes");
-  println("   cause: BFS ties resolve to the straight radial path, so load concentrates on");
-  println("   the six directions. Fix: a least-cost tree with a deterministic per-cell cost");
-  println("   jitter, so paths meander. That is a change to T4 and it ripples through T5/T9.");
+  // The original measurement here was 14 of 14 meshed cells within 10 degrees of a lattice
+  // axis, worst deviation 7e-15 — six perfectly straight radial spokes, a grid artefact in
+  // the most visible part of the tree. It was caused by BFS ties resolving to the straight
+  // radial path, and it is fixed by growing the skeleton as a LEAST-COST tree with a
+  // deterministic per-cell jitter, plus a whorl budget that forces branches to stagger.
+  //
+  // The assertion is now inverted: the spokes must NOT come back.
+  frac = (onaxis as float) / (nmesh as float) ?? 0.0;
+  println("meshed branches: {onaxis} of {nmesh} within 10 deg of a lattice axis ({frac})");
+  println("   worst deviation {worst_off} deg (30 is exactly between axes; it was 7e-15)");
+  println("   a crown spread uniformly would put about 1/3 within 10 deg of some axis");
   if nmesh <= 0 { ok = false; }
-  // the defect is asserted so it cannot be silently "fixed" by a drifting constant
-  if onaxis != nmesh { ok = false; }
+  if onaxis == nmesh { ok = false; }          // the spokes must not return
+  if worst_off < 15.0 { ok = false; }         // branches must reach well off-axis
 
   // ── 4. a ray that misses the canopy is transparent in both ───────────────
   Lm = ray_canopy_length(lb, top, bas, -30.0, 40.0, 8.0, 30.0, 40.0, 8.0);
