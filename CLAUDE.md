@@ -10,6 +10,36 @@ runs and is retired in plan #11 P9; DESIGN §7a's plane-first reasoning is being
 with it.)* Full design + roadmap: **DESIGN.md** (backlog = §18a); the 3D plan +
 its seven invariants: **plans/11-3d-world/**.
 
+## The singular goal, and the test that follows from it
+
+**Everything here serves one goal: hand SMALL TEAMS the hard parts already solved.** Indies —
+not 150-person studios with world builders, level designers and an art department. crawler is
+the **proof and the forcing function**, not the product; the product is the substrate (loft,
+the `hex_*` libraries, the editor) that lets two people build a world which currently needs a
+studio.
+
+**The over-engineering test.** This project over-engineers deliberately — a whole *language*
+was built for it — and that is justified by exactly one thing: **we do the hard algorithmic
+work that others build on.** So before any deep investment, ask:
+
+> *Does this make a hard part reusable by someone else?*
+
+- **Yes** → build it properly: exact, gated, extracted. Depth is the point, and the cost is
+  paid once here so it is never paid again downstream.
+- **No** → it is crawler-only polish. It waits, and it says so out loud.
+
+The test ranks work that would otherwise look equally attractive. The exact-integer lattice,
+canopy-first trees, the scale contract and the far-field displacement are hard **and** reusable
+— build them exactly. Sprite art, per-scene colour and one game's feel are crawler-only — which
+is why the 3D actors deliberately ship with the WRONG (top-down) PNGs on boards: the seam is
+the reusable part, the art is not, and pretending otherwise would spend a month on 34 sprites
+that teach nobody anything.
+
+Two companions, and the three compose: **depth must be reusable** (this test), **depth must not
+become interface** (DESIGN §3a pillar 0 — bounded simulation), and **depth must be measured**
+(`SCALE.md` — real dimensions by default, gated, so a wrong world can be *proved* wrong rather
+than argued about).
+
 **Multi-phase work lives in `plans/<N>-<slug>/`**, `<N>` = its `jjstwerff/crawler` issue
 number (claimed BEFORE the directory — never numbered by scanning the tree). Conventions,
 the lightest-workflow table, and the value categories: **plans/README.md**; templates +
