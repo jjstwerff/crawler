@@ -248,6 +248,25 @@ can run beside P3/P4. P3b and P6 both need P3; **P3b before P6**, because the fa
 each want the world texture at their own resolution, and building them against baked vertex
 colour would be building them twice. P7–P9 are the tail.
 
+**When the seam takes meshes, target glTF HUMANOID (VRM-compatible) — decide it now, it is
+free now and expensive later.** VTuber tooling has made real-time performance capture a
+consumer commodity, and the valuable part is not the models but the **standard**: VRM is a
+glTF extension with a fixed humanoid bone hierarchy, and crawler already emits glTF. Adopting
+it inherits an avatar ecosystem, retargeting tools and cheap capture software instead of a
+bespoke skeleton nobody else speaks. Their models being *over-detailed* for a 4–20 m framing
+is **headroom, not waste** — detail decimates, absence does not.
+
+> **Measured gap:** `glb` is **static-only today** (2 pub fns; no skin/joint/weight/animation
+> in either `glb` or `mesh3d`). Skinned actors are real library work — which passes the
+> over-engineering test, since every consumer of `hexscene` needs it.
+
+**And the crowd must be procedural, which is the same substitution as everywhere else.** The
+capture loop is one-performer/one-camera — you cannot webcam-capture 22 civilians. But a
+VTuber rig reads as *alive* on a handful of driven parameters (head pose, a few blend shapes),
+which is evidence that **sparse parameters carry a convincing performance**. So: gait derived
+from speed, load and mood, not a library of baked clips. Capture is for the player character
+and for authoring a small motion library once.
+
 **The actor presentation seam (P4) is a design constraint, not a rendering detail.** Because
 boards are explicitly a waypoint toward animated meshes, the renderer must ask *"how is this
 actor presented?"* through one seam whose implementation is swappable. Today it answers with
