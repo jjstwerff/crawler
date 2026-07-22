@@ -1,5 +1,9 @@
 # PROPS.md — small detail, without a library of model files
 
+> **Implementation plan:** [`plans/10-props/`](plans/10-props/) — nine gated phases
+> ([crawler#10](https://github.com/jjstwerff/crawler/issues/10)). This file is the design;
+> that one is the order it gets built in.
+
 Doors, windows with inset glass, drainpipes, chimneys, fences, carts, wagons, troughs,
 streetlamps. **Not a folder of `.glb` files.** They are drawn the way houses are drawn — by
 a function that emits geometry from parameters — and placed the way items are placed, on a
