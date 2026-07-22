@@ -1,0 +1,187 @@
+// land — a castle and a hamlet in a landscape.  Intent: build/INTENT-landscape.md
+//
+// Block-in pass: big masses first, detail last.  Everything stands on the hex field —
+// the ground is displaced hexes, the walls are edges, the roofs are the profile x distance
+// table from plan #5, the trees are plan #9's canopy.
+use hexform;
+use hexedge;
+use hexway;
+use hexroof;
+use hexcanopy;
+use hexskel;
+use scenemesh;
+use figure;
+use mesh3d;
+use glb;
+
+fn m(v: float) -> float { v / 0.8660254037844386 ?? 0.0 }
+
+// a rolling hill: low at the front-right, rising to the back-left where the castle sits
+fn terrain(x: float, y: float) -> float {
+  h = 0.0 - x * 0.16 + y * 0.10;
+  h = h + 2.2 * sin(x * 0.09 + 1.1) + 1.6 * cos(y * 0.11 - 0.4);
+  h = h + 0.9 * sin(x * 0.21 + y * 0.17);
+  h + 6.0
+}
+
+// displaced ground: one hexagon per cell, lifted to the terrain height
+fn mesh_ground(s: HexSet, tint: integer, ntint: integer) -> Mesh {
+  ms = mesh("ground");
+  n = vec3(0.0, 0.0, 1.0);
+  u = vec2(0.0, 0.0);
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        k = lattice_k(q, r);
+        mm = lattice_m(q, r);
+        cx = (k as float) * 0.8660254037844386;
+        cy = (mm as float) * 0.5;
+        // one tint band per mesh, so grass is not a single painted plane
+        band = ((cx * 3.1 + cy * 5.7) as integer) % ntint;
+        if band < 0 { band = 0 - band; }
+        if band == tint {
+          cz = terrain(cx, cy);
+          c = add_vertex(ms, vertex(vec3(cx, cy, cz), n, u));
+          for i in 0..6 {
+            j = i + 1;
+            if j > 5 { j = 0; }
+            ax = (k + corner_k(i) as integer) as float * 0.8660254037844386;
+            ay = (mm + corner_m(i) as integer) as float * 0.5;
+            bx = (k + corner_k(j) as integer) as float * 0.8660254037844386;
+            by = (mm + corner_m(j) as integer) as float * 0.5;
+            a = add_vertex(ms, vertex(vec3(ax, ay, terrain(ax, ay)), n, u));
+            b = add_vertex(ms, vertex(vec3(bx, by, terrain(bx, by)), n, u));
+            add_triangle(ms, c, a, b);
+          }
+        }
+      }
+    }
+  }
+  ms
+}
+
+// a house: walls to the eaves, then a gable roof — the profile x distance table, section 13
+fn add_house(sc: Scene, cuw: integer, cur: integer, wallm: integer, roofm: integer,
+             x: float, y: float, w: float, d: float, hgt: float, ang: float) {
+  z = terrain(x, y);
+  add_node(sc, node_at("house", cuw, wallm, mat4_trs(x, y, z + hgt * 0.5, ang, w, d, hgt)));
+  // a stepped gable — three narrowing courses read as a pitched roof where two crossed
+  // slabs read as another box
+  rp = hgt * 0.75;
+  for i in 0..4 {
+    f = (i as float) / 4.0 ?? 0.0;
+    add_node(sc, node_at("roof", cur, roofm,
+      mat4_trs(x, y, z + hgt + rp * (f + 0.12), ang,
+               w * (1.18 - 1.0 * f), d * (0.92 - 0.80 * f), rp * 0.30)));
+  }
+}
+
+fn main() {
+  q0 = -34; r0 = -30; gw = 69; gh = 61;
+  ground = hexset_chunk(q0, r0, gw, gh);
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw { hexset_set(ground, q, r, true); }
+  }
+
+  sc = scene("land");
+  // grass in four tints so the ground is not one painted plane (predicate 10)
+  g0 = add_material(sc, material_color("grass0", 0.38, 0.47, 0.26));
+  g1 = add_material(sc, material_color("grass1", 0.44, 0.52, 0.29));
+  g2 = add_material(sc, material_color("grass2", 0.34, 0.43, 0.24));
+  g3 = add_material(sc, material_color("grass3", 0.47, 0.54, 0.32));
+  m_wall = add_material(sc, material_color("wall", 0.72, 0.68, 0.60));
+  m_keep = add_material(sc, material_color("keep", 0.62, 0.59, 0.54));
+  m_roof = add_material(sc, material_color("roof", 0.42, 0.24, 0.18));
+  m_bark = add_material(sc, material_color("bark", 0.32, 0.24, 0.17));
+  m_leaf = add_material(sc, material_color("leaf", 0.22, 0.38, 0.19));
+  m_leaf2 = add_material(sc, material_color("leaf2", 0.28, 0.44, 0.22));
+  m_path = add_material(sc, material_color("path", 0.60, 0.55, 0.44));
+  m_skin = add_material(sc, material_color("skin", 0.80, 0.60, 0.45));
+
+  for i in 0..4 {
+    gi = add_mesh(sc, mesh_ground(ground, i, 4));
+    mat = g0;
+    if i == 1 { mat = g1; }
+    if i == 2 { mat = g2; }
+    if i == 3 { mat = g3; }
+    add_node(sc, node_at("ground", gi, mat, mat4_identity()));
+  }
+
+  // glTF binds a material to a mesh PRIMITIVE, not to a node — so every node sharing one
+  // cube() mesh receives the same material, whichever was written last. That is why the
+  // first render came out uniformly brown and the whole palette collapsed. One cube mesh
+  // per material is the fix.
+  cu_wall = add_mesh(sc, cube());
+  cu_keep = add_mesh(sc, cube());
+  cu_roof = add_mesh(sc, cube());
+  cu_bark = add_mesh(sc, cube());
+  cu_path = add_mesh(sc, cube());
+  cu = cu_wall;
+
+  // ── the castle, upper-left: two round towers and a curtain wall ──────────
+  kx = -24.0; ky = 14.0;
+  kz = terrain(kx, ky);
+  cy = add_mesh(sc, sphere("cyl", 0.5, 16, 3));
+  // keep: a tall drum
+  add_node(sc, node_at("keep", cu_keep, m_keep,
+    mat4_trs(kx, ky, kz + m(9.0), 0.0, m(9.0), m(9.0), m(18.0))));
+  add_node(sc, node_at("keep_cap", cu_roof, m_roof,
+    mat4_trs(kx, ky, kz + m(18.6), 0.0, m(10.4), m(10.4), m(1.2))));
+  for i in 0..2 {
+    tx = kx + 11.0; ty = ky - 9.0;
+    if i == 1 { tx = kx - 9.0; ty = ky + 10.0; }
+    tz = terrain(tx, ty);
+    add_node(sc, node_at("tower", cu_wall, m_wall,
+      mat4_trs(tx, ty, tz + m(6.5), 0.0, m(5.6), m(5.6), m(13.0))));
+    add_node(sc, node_at("tower_cap", cu_roof, m_roof,
+      mat4_trs(tx, ty, tz + m(13.4), 0.0, m(6.6), m(6.6), m(0.9))));
+    // curtain wall from the keep to each tower
+    mx = (kx + tx) * 0.5; my = (ky + ty) * 0.5;
+    dx = tx - kx; dy = ty - ky;
+    L = sqrt(dx * dx + dy * dy) ?? 1.0;
+    add_node(sc, node_at("curtain", cu_wall, m_wall,
+      mat4_trs(mx, my, terrain(mx, my) + m(4.0), atan2(dy, dx), L, m(1.6), m(8.0))));
+  }
+
+  // ── the hamlet: five houses, clustered below and right of the castle ─────
+  for i in 0..5 {
+    hx = -6.0 + (i as float) * 5.4 - 2.0 * cos((i as float) * 1.7);
+    hy = -2.0 + 4.6 * sin((i as float) * 2.1);
+    add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
+              m(6.0), m(4.4), m(3.4), 0.4 * ((i as float) - 2.0));
+  }
+
+  // ── the path: from the front of the frame up to the hamlet ───────────────
+  for i in 0..16 {
+    f = (i as float) / 15.0 ?? 0.0;
+    px = 12.0 - 20.0 * f;
+    py = -22.0 + 21.0 * f + 2.0 * sin(f * 5.0);
+    add_node(sc, node_at("path", cu_path, m_path,
+      mat4_trs(px, py, terrain(px, py) + 0.05, 0.0, 2.6, 2.6, 0.12)));
+  }
+
+  // ── trees: two sizes, scattered, none on a building ──────────────────────
+  for i in 0..9 {
+    a = (i as float) * 2.39996;
+    rr = 13.0 + (i as float) * 2.4;
+    tx = rr * cos(a) * 0.9 + 6.0;
+    ty = rr * sin(a) * 0.7 - 2.0;
+    tz = terrain(tx, ty);
+    big = i % 3 == 0;
+    th = m(9.0); cr = 4.4; lm = m_leaf;
+    if big { th = m(14.0); cr = 6.4; lm = m_leaf2; }
+    add_node(sc, node_at("trunk", cu_bark, m_bark,
+      mat4_trs(tx, ty, tz + th * 0.35, 0.0, 0.7, 0.7, th * 0.7)));
+    ci = add_mesh(sc, mesh_crown(tx, ty, tz + th * 0.55, tz + th, cr, 5, 12));
+    add_node(sc, node_at("crown", ci, lm, mat4_identity()));
+  }
+
+  add_figure(sc, 8.0, -19.0, terrain(8.0, -19.0), m_skin);
+
+  add_camera(sc, camera("cam"));
+  add_light(sc, directional_light("sun", 1.0, 0.93, 0.82, 1.0, vec3(0.45, 0.35, -0.72)));
+  out = "{env_variable("PWD") ?? "."}/build/land.glb";
+  save_scene_glb(sc, out);
+  println("wrote {out}");
+  println("terrain range: front {terrain(10.0, -20.0)} keep {terrain(-24.0, 14.0)}");
+}

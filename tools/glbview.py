@@ -154,8 +154,14 @@ def render(tris, size, eye, target, up, fov, bg, sun):
              (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])]
         nl = math.hypot(*n) or 1.0
         n = [v / nl for v in n]
-        lam = abs(sum(n[i] * sun[i] for i in range(3)))
-        sh = 0.30 + 0.70 * lam
+        # A hemisphere term, not abs(N.L).  Using the absolute value crushed every
+        # VERTICAL face to the ambient floor, which collapsed the whole material palette
+        # into one dark brown — walls, roofs and trunks became indistinguishable. Sky
+        # light from above plus a warm key gives vertical surfaces their own value again,
+        # which is what lets colour carry meaning at all.
+        lam = max(0.0, sum(n[i] * sun[i] for i in range(3)))
+        sky = 0.5 + 0.5 * n[2]                 # up-facing catches more sky
+        sh = 0.34 + 0.30 * sky + 0.52 * lam
         rgb = (int(max(0, min(255, col[0] * 255 * sh))),
                int(max(0, min(255, col[1] * 255 * sh))),
                int(max(0, min(255, col[2] * 255 * sh))))
