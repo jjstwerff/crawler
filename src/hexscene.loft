@@ -96,6 +96,35 @@ pub fn unproject_plane(c: Camera, sx: float, sy: float, gz: float) -> (float, fl
   (c.cx + dx * t, c.cy + dy * t, t)
 }
 
+// The world->clip matrix the GPU gets, column-major for `gl_set_uniform_mat4`.
+//
+// It is built here, beside `project`, and gated to AGREE with it (`scenetest`). That
+// agreement is the whole of I-STAND on the render side: if the shader used a matrix
+// assembled somewhere else, the invariant would be proved about maths the GPU never runs.
+// A renderer must not hold a second opinion about where things are.
+//
+// `w` carries the view depth, so after the perspective divide the NDC is exactly what
+// `project` computes before the pixel map.
+pub fn cam_mat4(c: Camera, near: float, far: float) -> vector<float> {
+  (fx, fy, fz) = cam_forward(c);
+  (rx, ry, rz) = cam_right(c);
+  (ux, uy, uz) = cam_up(c);
+  th = tan(c.fovy * 0.5);
+  asp = c.vw / c.vh ?? 1.0;
+  sx = 1.0 / (th * asp) ?? 1.0;
+  sy = 1.0 / th ?? 1.0;
+  za = (far + near) / (far - near) ?? 1.0;
+  zb = 0.0 - (2.0 * far * near / (far - near) ?? 0.0);
+  re = rx * c.cx + ry * c.cy + rz * c.cz;
+  ue = ux * c.cx + uy * c.cy + uz * c.cz;
+  fe = fx * c.cx + fy * c.cy + fz * c.cz;
+  // column-major: element [col*4 + row]
+  [rx * sx, ux * sy, fx * za, fx,
+   ry * sx, uy * sy, fy * za, fy,
+   rz * sx, uz * sy, fz * za, fz,
+   0.0 - re * sx, 0.0 - ue * sy, 0.0 - fe * za + zb, 0.0 - fe]
+}
+
 // The screen row where the ground plane vanishes. Pixels above it never meet the plane
 // ahead of the camera, so it is the exact boundary of where unproject_plane is defined —
 // worth having as a function rather than a magic number in each caller.

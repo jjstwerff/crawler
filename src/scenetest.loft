@@ -103,7 +103,43 @@ fn main() {
   metric_ok = ratio > 1.999 && ratio < 2.001;
   println("metric parity: 1-unit post spans {span_near}px at 8u, {span_far}px at 16u — ratio {ratio}");
 
+  // ── THE MATRIX MUST AGREE WITH THE MATHS ──────────────────────────────────
+  // The GPU never runs project(); it runs cam_mat4(). If the two disagree, every check
+  // above is a proof about code the renderer does not use — the renderer would be holding
+  // a second opinion about where things are, which is exactly what I-STAND forbids. So
+  // push points through the matrix by hand, divide, map to pixels, and demand the same
+  // answer project() gives.
+  mm_bad = 0;
+  mm_tested = 0;
+  mm_worst = 0.0;
+  for mi in 0..8 {
+    mc = camera_new(3.0 + (mi as float) * 1.1, 2.0 - (mi as float) * 0.7, 1.847,
+                    (mi as float) * 0.7853981633974483, 0.0 - (((mi % 3 ?? 0) as float) * 0.2),
+                    1.0471975511965976, 1024.0, 576.0);
+    m = cam_mat4(mc, 0.05, 500.0);
+    for pj in 0..40 {
+      wx = 10.0 + (((pj * 7) % 23 ?? 0) as float) * 1.3;
+      wy = 4.0 + (((pj * 13) % 19 ?? 0) as float) * 1.1;
+      wz = (((pj * 5) % 4 ?? 0) as float) * 0.9;
+      (psx, psy, pdepth) = project(mc, wx, wy, wz);
+      if pdepth > 0.01 {
+        clw = (m[3] ?? 0.0) * wx + (m[7] ?? 0.0) * wy + (m[11] ?? 0.0) * wz + (m[15] ?? 0.0);
+        if clw > 0.01 {
+          cxx = (m[0] ?? 0.0) * wx + (m[4] ?? 0.0) * wy + (m[8] ?? 0.0) * wz + (m[12] ?? 0.0);
+          cyy = (m[1] ?? 0.0) * wx + (m[5] ?? 0.0) * wy + (m[9] ?? 0.0) * wz + (m[13] ?? 0.0);
+          mx = ((cxx / clw ?? 0.0) + 1.0) * 0.5 * 1024.0;
+          my = (1.0 - (cyy / clw ?? 0.0)) * 0.5 * 576.0;
+          mm_tested += 1;
+          de = sqrt((mx - psx) * (mx - psx) + (my - psy) * (my - psy)) ?? 0.0;
+          if de > mm_worst { mm_worst = de; }
+          if de > 0.0001 { mm_bad += 1; }
+        }
+      }
+    }
+  }
+  println("matrix agrees with project(): tested={mm_tested} disagreements={mm_bad} worst {mm_worst}px");
+
   ok = bad == 0 && tested > 500 && ctl_tested > 50 && ctl_moved > (ctl_tested / 2 ?? 0)
-    && metric_ok && worst < 0.000001;
+    && metric_ok && worst < 0.000001 && mm_bad == 0 && mm_tested > 100;
   if ok { println("=== SCENE OK ==="); } else { println("=== FAIL ==="); }
 }

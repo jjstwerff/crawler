@@ -781,9 +781,98 @@ Six packages, dependencies strictly downward:
 | **`hexprops`** | primitives with axes, part-lists, seats, state | plan #10; needs forms for its seats |
 | **`hexscene`** | field → triangles → GLB | the only package that knows `mesh3d`/`glb` |
 
+> **`hexscene` SPLITS in two** (2026-07-22, plan #11) — the table above is its *offline*
+> half. The **runtime** half (`hex_scene`: camera, field→3D extrusion, upload) is a separate
+> package with a different dependency shape, and its camera depends on **nothing at all**.
+> See *The runtime half* below for the rule that decides which side a routine lands on.
+
 **A consumer takes what it needs.** A farming game wants `hex_field + hexgrow`. A railway game
 wants `hex_field + hexways`. A castle-builder wants `hex_field + hexforms + hexprops`. Only
 `hexscene` is required by all of them, and only if they render through glTF.
+
+## The runtime half — what plan #11 produced, and the rule that decides where it goes
+
+Added 2026-07-22, on the user's observation that plan #11's new routines *"look like they do
+not belong inside a game at all but inside a lib"*. They do, and the six-package design above
+did not cover them: it was written for the **offline** path (field → triangles → GLB), and
+P1–P3 produced a **runtime** one — collision, movement and a camera, running every frame.
+
+### The rule: a library routine never names the consumer's aggregate
+
+The library/bundle seam already has its rule (*a library's enumerations are of MECHANISMS and
+are closed; a bundle's enumerations are of THINGS and are open* — `BUNDLE.md`). The
+library/**game** seam needs its own, and this session produced it by accident, so it is worth
+stating rather than rediscovering:
+
+> **A library routine takes the data it needs. A game routine takes `Sim`.**
+
+It is mechanical to check — `grep -c '\bSim\b'` over the file — and it is not a style
+preference: `Sim` is crawler's aggregate, it names quests and flavours and the message log,
+and anything mentioning it drags the entire game in. The game keeps a **thin adapter** that
+unpacks `Sim` and calls the library. Plan #11 P1 built exactly that shape without naming it:
+
+| | | |
+|---|---|---|
+| `field_blocked(s: Sim, q, r, dir)` | the ADAPTER | game-side, one function, unpacks the aggregate |
+| `passable(e: EdgeSet, …)`, `sweep_path(e: EdgeSet, …)` | the LIBRARY | takes the field, not the game |
+| `swept_step(s: Sim, …)` | the ADAPTER | game-side; enemy/water vetoes are crawler's rules |
+| `project(c: Camera, …)`, `cam_mat4` | the LIBRARY | takes a camera and nothing else |
+
+The adapters are the layer that must stay thin. When one starts growing logic, that logic is
+either a library mechanism in the wrong place or a game rule in the right one — and the
+question is worth asking each time, because the adapter is where the boundary erodes.
+
+### The three routines, and where each goes
+
+| routine | today | destination | state |
+|---|---|---|---|
+| **Camera** — `project`, `unproject_plane`, `horizon_y`, `cam_mat4` | `src/hexscene.loft` | **`hex_scene`** (graphics chunk) | **ready** — zero deps, gated headless (`scenetest`) |
+| **Collision + movement** — `EdgeSet`, `Surfaces`, `Materials`, `Features`, `passable`, `collide`, `sweep_path`, `sight_clear` | `src/hexedge.loft`, 620 lines | **`hex_field`** (its `EdgeSet` half, already promised above) | needs its gate split out of `edgetest`/`sweeptest` |
+| **Field → 3D scene** — floor + wall extrusion for a live world | plan #11 P3, unbuilt | **`hex_scene`**, runtime half | after the camera lands |
+
+**`hexscene` therefore has two halves, and they must not be one package by accident.** The
+offline half (field → triangles → GLB) depends on `mesh3d`/`glb`; the runtime half (camera,
+extrusion, upload) depends on `graphics` or on nothing at all. The camera in particular
+depends on **nothing** — not `graphics`, not even `hex_grid` — which is why its invariant can
+be gated with no GL context at all. That is a property worth protecting on the way out:
+*if `hex_scene`'s camera ever needs a GL handle to be tested, the extraction went wrong.*
+
+So: **`hex_scene` splits.** `hex_scene` = the runtime viewing package (camera first, extrusion
+later, `graphics` optional). The glTF emitter stays where the existing table puts it, and the
+two share only the field types they both read.
+
+### Why these pass the over-engineering test, stated per routine
+
+`CLAUDE.md` asks *does this make a hard part reusable by someone else?* — not rhetorically:
+
+- **The camera: yes, and it is the cheapest of the three.** Every hex-world consumer that
+  draws a first-person or over-the-shoulder view needs the identical hex↔pixel round-trip,
+  and getting it wrong is invisible until things are drawn in the wrong place. The in-world
+  editor needs *this* camera, not one that agrees with it approximately — it picks hexes by
+  clicking them, which IS `unproject_plane`.
+- **Collision and swept movement: yes, and it is the one that earns the depth.** Thin
+  geometry is where physics engines die (I-CROSS), the exact-integer lattice is what makes it
+  tractable, and no small team can afford to debug tunnelling. `sweep_path` has no step size
+  in it and is dt-independent to machine precision — that is a hard part, solved once.
+- **Field → 3D scene: yes, but weakly, and it should say so.** Extruding a field into floor
+  and wall geometry is generic; the *colours and heights* are crawler's. Ship the extrusion,
+  keep the palette. This is the one most at risk of exporting one game's look as if it were a
+  mechanism.
+
+### Order, and what each is blocked on
+
+1. **`hex_scene` camera — extractable NOW**, and it is a file move plus a `loft.toml`. It was
+   written package-clean from the first line for exactly this. Blocked on nothing.
+2. **`hex_field`'s `EdgeSet` half** — after plan #11 P5, when real surfaces go on edges and
+   the shape of `Features`/`Materials` stops moving. Extracting a model that is still
+   changing costs two migrations. Its gate travels with it: `edgetest` is already
+   contract-shaped (24 headings, a negative control), `sweeptest` likewise.
+3. **The extrusion** — after P3 ships a view worth reusing. Do not extract a renderer that has
+   never rendered.
+
+The standing risk is the same one the editor contract names below: **`--lib` reads the working
+tree**, so a consumer on the wrong branch silently compiles different code. Check the branch
+before debugging anything strange.
 
 ## The one thing that must NOT travel: metres
 
