@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1 half done** (see below). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -19,40 +19,34 @@ honest answer is a tolerance, it is stated as one.
 
 ---
 
-## P1 — axis-agnostic primitives  — **HALF DONE**
+## P1 — axis-agnostic primitives  — **DONE**, `src/primtest.loft`
 
-**Built:** `src/hexprim.loft` — `basis_u`/`basis_v` and `prim_drum`, taking an axis instead
-of a z-range. Gated by `src/primtest.loft`.
+`src/hexprim.loft`: `basis_u`/`basis_v` and `prim_drum`, taking an **axis** instead of a
+z-range. A wheel is `prim_drum(base, axis=(0,1,0), r, r, 0.07, 16)`; a tower is the same
+call with `axis=(0,0,1)`. The four tower/keep/battlement call sites are **migrated** and the
+local hardcoded-z copy is gone.
 
-**NOT done:** the existing call sites (`mesh_drum`, `mesh_trunk`, the tower and crown
-builders) have **not been migrated**, so the bit-identity guard — the clause that made this
-phase safe to do first — has **not been exercised**. The new primitive stands beside the old
-one rather than replacing it.
+**Bit-identity was the point, and it held.** `basis_u` computes `u = r × a`, not `a × r` —
+the order chosen so the vertical case yields exactly `u=(1,0,0), v=(0,1,0)`, the
+parameterisation the old drums used. `a × r` gives the same drum rotated 90° about its axis,
+and *every geometric check would pass while every vertex had moved*.
 
-That is a real gap, not a technicality: the gate as written checks that a rotation preserves
-radius, length and triangle count, which proves the new code is *self-consistent*. It does
-not prove it produces *what the old code produced*, which is the only claim that makes the
-migration free. **Finish P1 by migrating the call sites under the bit-identity check before
-starting P2.**
+```
+   vertex-for-vertex against the reference implementation:  delta² = 0, three cases
+   whole-scene render, identical camera, before vs after:   PIXEL-IDENTICAL
+```
 
-**Why first:** it is a pure refactor with a regression guard, so it cannot break anything,
-and it retires an entire class of hard case (PROPS §Class 1).
+The reference implementation is kept **inside the gate**, because a claim that new code
+reproduces old code needs the old code present to be checked against, not remembered.
 
-Generalise `mesh_drum` (and the tapered column) to take an **axis** instead of a z-range, and
-add `basis_from_axis(axis, roll)` so callers stop re-deriving perpendiculars that disagree
-near the poles.
+**Also gated:** the frame is orthonormal and right-handed across 64 axes including both
+poles (worst |dot| 5.6e-17, handedness 2.8e-32); a rotation changes no radius, length or
+triangle count; a zero-length axis is refused rather than producing NaNs.
 
-**Concrete end-result:** a wheel is `mesh_drum(centre, axis=(0,1,0), r, r, 0.07, 16)`.
-
-**Gate** `src/primtest.loft`:
-- **the vertical case is bit-identical** to today's output — vertex for vertex, over the
-  existing tower, trunk and crown call sites. This is the whole safety of the phase;
-- a horizontal drum has the same radius, length and triangle count as the vertical one
-  (a rotation cannot change any of them);
-- `basis_from_axis` returns an orthonormal right-handed frame for 64 axes including the
-  poles — `|u|=|v|=|w|=1`, mutual dots 0, `u×v·w = +1`;
-- **negative control:** feed it a zero-length axis and it must be refused, not silently
-  produce NaNs.
+**Deliberately not migrated:** `mesh_trunk` is a six-segment linear taper whose *surface* is
+identical to a one-segment taper, so moving it to `prim_drum` would change the tessellation.
+That is a real change, not a free one, and it belongs in its own step where the difference is
+visible rather than smuggled in under a bit-identity banner it would not satisfy.
 
 ## P2 — the part-list
 

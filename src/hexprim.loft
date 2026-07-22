@@ -26,10 +26,15 @@ pub fn basis_u(ax: float, ay: float, az: float) -> Vec3 {
   aax = ax; if aax < 0.0 { aax = 0.0 - aax; }
   aay = ay; if aay < 0.0 { aay = 0.0 - aay; }
   aaz = az; if aaz < 0.0 { aaz = 0.0 - aaz; }
-  if aaz >= aax && aaz >= aay { rx = 1.0; ry = 0.0; rz = 0.0; }
-  ux = ay * rz - az * ry;
-  uy = az * rx - ax * rz;
-  uz = ax * ry - ay * rx;
+  if aaz >= aax && aaz >= aay { rx = 0.0; ry = 1.0; rz = 0.0; }
+  // u = r x a, NOT a x r.  The order is chosen so that the vertical case yields exactly
+  // u = (1,0,0), v = (0,1,0) — the parameterisation the hardcoded-z drums already used —
+  // which is what lets the migration be checked for BIT-IDENTITY rather than merely for
+  // "the same shape". a x r would give the same drum rotated 90 degrees about its axis,
+  // and every geometric check would pass while every vertex had moved.
+  ux = ry * az - rz * ay;
+  uy = rz * ax - rx * az;
+  uz = rx * ay - ry * ax;
   l = sqrt(ux * ux + uy * uy + uz * uz) ?? 0.0;
   if l < 0.000000001 { return vec3(1.0, 0.0, 0.0); }
   vec3(ux / l ?? 0.0, uy / l ?? 0.0, uz / l ?? 0.0)

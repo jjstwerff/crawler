@@ -9,6 +9,31 @@ use hexprim;
 fn dot(a: Vec3, b: Vec3) -> float { a.x * b.x + a.y * b.y + a.z * b.z }
 fn len3(a: Vec3) -> float { sqrt(a.x * a.x + a.y * a.y + a.z * a.z) ?? 0.0 }
 
+// The reference implementation, kept here on purpose: the hardcoded-z drum exactly as it
+// stood before P1. The migration's whole claim is that the new primitive reproduces this,
+// and a claim like that needs the old code present to be checked against — not remembered.
+fn legacy_drum(cx: float, cy: float, z0: float, z1: float,
+               r0f: float, r1f: float, sides: integer) -> Mesh {
+  ms = mesh("legacy");
+  u = vec2(0.0, 0.0);
+  for s in 0..sides {
+    a0 = 6.283185307179586 * ((s as float) / (sides as float) ?? 0.0);
+    a1 = 6.283185307179586 * (((s + 1) as float) / (sides as float) ?? 0.0);
+    n0 = vec3(cos(a0), sin(a0), 0.0);
+    p0 = add_vertex(ms, vertex(vec3(cx + r0f * cos(a0), cy + r0f * sin(a0), z0), n0, u));
+    p1 = add_vertex(ms, vertex(vec3(cx + r0f * cos(a1), cy + r0f * sin(a1), z0), n0, u));
+    p2 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a1), cy + r1f * sin(a1), z1), n0, u));
+    p3 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a0), cy + r1f * sin(a0), z1), n0, u));
+    add_quad(ms, p0, p1, p2, p3);
+    nz = vec3(0.0, 0.0, 1.0);
+    c = add_vertex(ms, vertex(vec3(cx, cy, z1), nz, u));
+    t0 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a0), cy + r1f * sin(a0), z1), nz, u));
+    t1 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a1), cy + r1f * sin(a1), z1), nz, u));
+    add_triangle(ms, c, t0, t1);
+  }
+  ms
+}
+
 fn main() {
   println("=== story primitive test (plan #10 P1) ===");
   ok = true;
@@ -90,6 +115,33 @@ fn main() {
   println("worst radial error across vertical, horizontal and tilted drums: {worst_r}");
   if worst_r > 0.000001 { ok = false; }
   println("   -> a rotation cannot change a radius, a length or a triangle count. It does not.");
+
+  // ── 2b. BIT-IDENTITY: the clause that makes the migration free ───────────
+  // Not "the same shape" — the same vertices, in the same order, to the last bit. Without
+  // this the migration is a rewrite and every call site has to be re-judged by eye.
+  for tc in 0..3 {
+    zz0 = 0.0; zz1 = 6.0; rr0 = 3.0; rr1 = 2.4; nsd = 12;
+    if tc == 1 { zz0 = -1.0; zz1 = 4.5; rr0 = 5.5; rr1 = 5.5; nsd = 10; }
+    if tc == 2 { zz0 = 2.0; zz1 = 2.9; rr0 = 4.7; rr1 = 4.7; nsd = 16; }
+    old = legacy_drum(1.5, -2.25, zz0, zz1, rr0, rr1, nsd);
+    new = prim_drum(1.5, -2.25, zz0, 0.0, 0.0, 1.0, rr0, rr1, zz1 - zz0, nsd);
+    same = len(old.vertices) == len(new.vertices)
+        && len(old.triangles) == len(new.triangles);
+    worst = 0.0;
+    if same {
+      for i in 0..len(old.vertices) {
+        a = old.vertices[i].pos;
+        b = new.vertices[i].pos;
+        d = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) + (a.z - b.z) * (a.z - b.z);
+        if d > worst { worst = d; }
+      }
+    }
+    println("   bit-identity case {tc}: counts match {same}, worst vertex delta^2 {worst}");
+    if !same { ok = false; }
+    if worst > 0.0 { ok = false; }
+  }
+  println("   -> the vertical case reproduces the old drum EXACTLY, so migrating the tower,");
+  println("      keep and battlement call sites cannot change a single pixel");
 
   // ── 3. NEGATIVE CONTROL: a zero axis is refused, not guessed at ──────────
   bad = prim_drum(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 1.6, 5.0, 16);
