@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — T1–T9 done**, gated in `make test`. The design is settled enough to build against:
+**Active — T1–T10 all done**, gated in `make test`. The design is settled enough to build against:
 **[TREES.md](TREES.md)** is the document; this README is the phase tracker.
 
 ## Goal
@@ -42,9 +42,13 @@ architecture.
 | **T7** | levels: canopy over understory | **DONE** — `src/canopylighttest.loft` |
 | **T8** | object/field split below the resolution floor | **DONE** — `src/canopyfloortest.loft` |
 | **T9** | branch-aligned cards | **DONE** — `src/canopycardtest.loft` |
-| **T10** | opacity calibration (I-OPACITY) | |
+| **T10** | opacity calibration (I-OPACITY) | **DONE** — `src/canopyopactest.loft` |
 
-**T10 is the real work remaining.** T1–T6 are done; T7–T9 are mostly reuse of plan #5.
+**All ten phases are done and gated.** One defect remains open, found by T10 and recorded
+in TREES.md §14: T4's BFS skeleton concentrates load on the lattice's six directions, so the
+*meshed* branches — the most visible part of the tree — are six straight spokes. The fix is
+a least-cost tree with per-cell cost jitter; it changes T4 and ripples through T5, T9 and
+T10. It is asserted in the gate so it cannot be silently lost.
 
 ## The one idea to keep hold of
 

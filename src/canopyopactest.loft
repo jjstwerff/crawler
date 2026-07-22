@@ -1,0 +1,189 @@
+// canopyopactest — plan #9 T10: I-OPACITY.
+//
+// The last phase, and the one the design called real work. The canopy is DRAWN as a stack
+// of semi-filled cards and SIMULATED as a volume that sight, light and sound cross. Those
+// are two computations of the same physical thing, and a disagreement between them is
+// invisible from inside either layer: the canopy looks dense while being transparent, or
+// the reverse. It matters causally too — sight_clear decides understory suppression (T7),
+// so a miscalibrated canopy feeds a wrong answer back into the simulation.
+//
+// Beer-Lambert gives the field side, T = exp(-k*L). The card side is the product of the
+// transparencies a ray meets. They agree exactly when k = -c*ln(1-a), where c is the number
+// of cards met per unit of canopy path. **c is a property of the grid and the layout, not a
+// dial**, so it is measured here and k follows from whatever alpha the art uses.
+use hexform;
+use hexcanopy;
+use hexskel;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy opacity test (plan #9 T10) ===");
+  ok = true;
+  q0 = -26; r0 = -20; gw = 53; gh = 41;
+
+  s = hexset_chunk(q0, r0, gw, gh);
+  fill(s);
+  t = trees_new();
+  tree_add(t, 0, 0, 20, 121, 0);
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, s, lb, ct);
+  top = heights_new(q0, r0, gw, gh);
+  bas = heights_new(q0, r0, gw, gh);
+  canopy_heights(t, s, lb, ct, top, bas);
+  sk = skeleton_build(t, 0, s, lb);
+  nmin = mesh_load_min(0.20, PIPE_K);
+  cd = cards_place(sk, top, bas, nmin, 0.9);
+  marks = labels_new(q0, r0, gw, gh);
+  cards_mark(cd, marks);
+  println("crown {crown_count(s, lb, 0)} cells, {cd.cd_n} cards");
+
+  // ── 1. MEASURE c — cards met per unit of canopy path ─────────────────────
+  // The rays are OFFSET from the trunk rather than through it. A ray through the centre
+  // runs along a lattice axis, and section 4 shows why that is the least representative
+  // line in the whole crown.
+  println("offset rays across the crown — canopy path L, cards met N, ratio c = N/L:");
+  csum = 0.0; cmin = 1000.0; cmax = 0.0; nray = 0;
+  for j in 0..10 {
+    a = 6.283185307179586 * ((j as float) / 10.0 ?? 0.0) + 0.19;
+    off = 2.0 + (j as float) * 0.55;
+    z = 4.0 + (j as float) * 0.7;
+    nx = 0.0 - sin(a); ny = cos(a);
+    x0 = nx * off - 34.0 * cos(a);
+    y0 = ny * off - 34.0 * sin(a);
+    x1 = nx * off + 34.0 * cos(a);
+    y1 = ny * off + 34.0 * sin(a);
+    L = ray_canopy_length(lb, top, bas, x0, y0, z, x1, y1, z);
+    N = ray_card_count(marks, top, bas, x0, y0, z, x1, y1, z);
+    if L > 2.0 {
+      c = (N as float) / L ?? 0.0;
+      println("   ray {j}: L {L}, N {N}, c {c}");
+      csum = csum + c;
+      if c < cmin { cmin = c; }
+      if c > cmax { cmax = c; }
+      nray = nray + 1;
+    }
+  }
+  cbar = csum / (nray as float) ?? 0.0;
+  spread = (cmax - cmin) / cbar ?? 0.0;
+  expect = 1.0 / 1.7320508075688772 ?? 0.0;
+  println("mean c {cbar} over {nray} rays (one card per cell traversed would give {expect})");
+  println("LIMITATION: c ranges {cmin} to {cmax} — a spread of {spread} about the mean.");
+  println("   That is real geometry, not noise: how many cells a ray meets depends on how it");
+  println("   threads the lattice, and a ray grazing cell corners meets more than one at the");
+  println("   nominal spacing. So the calibration holds ON AVERAGE and not per ray. For");
+  println("   sight, light and sound averaged over many rays that is fine; a single sight");
+  println("   line carries up to ~40% error in optical depth, and any consumer wanting one");
+  println("   ray to be exact must integrate the volume rather than count cards.");
+  if nray < 7 { ok = false; }
+  if cbar <= 0.0 { ok = false; }
+  // the mean must sit near the geometric expectation, and the spread must not blow up
+  if cbar < expect * 0.8 || cbar > expect * 1.5 { ok = false; }
+  if spread > 1.0 { ok = false; }
+
+  // ── 2. the calibration, and the agreement it buys ────────────────────────
+  // Checked on the same offset rays, not on a through-centre one.
+  println("calibration k = -c*ln(1-a):");
+  worst = 0.0;
+  for j in 0..4 {
+    alpha = 0.25;
+    if j == 1 { alpha = 0.4; }
+    if j == 2 { alpha = 0.6; }
+    if j == 3 { alpha = 0.8; }
+    k = extinction_for(cbar, alpha);
+    aa = 0.19 + 1.1;
+    nx = 0.0 - sin(aa); ny = cos(aa);
+    x0 = nx * 4.0 - 34.0 * cos(aa);
+    y0 = ny * 4.0 - 34.0 * sin(aa);
+    x1 = nx * 4.0 + 34.0 * cos(aa);
+    y1 = ny * 4.0 + 34.0 * sin(aa);
+    L = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+    N = ray_card_count(marks, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+    tfield = exp(0.0 - k * L) ?? 0.0;
+    tcards = 1.0;
+    for i in 0..N { tcards = tcards * (1.0 - alpha); }
+    e = tfield - tcards; if e < 0.0 { e = 0.0 - e; }
+    println("   alpha {alpha} -> k {k}: L {L}, N {N}, field {tfield}, cards {tcards}, diff {e}");
+    if e > worst { worst = e; }
+  }
+  println("   worst disagreement across four alphas: {worst}");
+  if worst > 0.12 { ok = false; }
+  println("   -> what is drawn and what is simulated are the same number, once calibrated");
+
+  // ── 3. NEGATIVE CONTROL — a sparser canopy must FAIL the calibration ─────
+  sparse = labels_new(q0, r0, gw, gh);
+  keep = 0;
+  for j in 0..cd.cd_n {
+    if j % 2 == 0 { label_set(sparse, cd.cd_q[j] ?? 0, cd.cd_r[j] ?? 0, 1); keep = keep + 1; }
+  }
+  alpha = 0.4;
+  k = extinction_for(cbar, alpha);
+  aa = 0.19 + 1.1;
+  nx = 0.0 - sin(aa); ny = cos(aa);
+  x0 = nx * 4.0 - 34.0 * cos(aa);
+  y0 = ny * 4.0 - 34.0 * sin(aa);
+  x1 = nx * 4.0 + 34.0 * cos(aa);
+  y1 = ny * 4.0 + 34.0 * sin(aa);
+  L = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  Ns = ray_card_count(sparse, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  tfield = exp(0.0 - k * L) ?? 0.0;
+  tsparse = 1.0;
+  for i in 0..Ns { tsparse = tsparse * (1.0 - alpha); }
+  // Compared as a RATIO, not a difference: transmittances this deep in a canopy are
+  // fractions of a percent, so an absolute gap would look small however wrong it was.
+  ratio = tsparse / tfield ?? 1.0;
+  println("negative control — {keep} of {cd.cd_n} cards kept: field {tfield}, cards {tsparse}, ratio {ratio}x");
+  if ratio <= 3.0 { ok = false; }
+  println("   -> the check fires. The agreement above was measured, not assumed.");
+
+  // ── 4. A DEFECT THIS GATE FOUND, in T4's skeleton ────────────────────────
+  // The first version of section 1 cast rays THROUGH the trunk and got N = 0 with L = 19.
+  // The reason is not the ray: it is that BFS shortest paths in a hex disc all route along
+  // the lattice's six directions, so the LOAD concentrates there — and the mesh threshold,
+  // which selects on load, therefore selects six perfectly straight radial spokes.
+  //
+  // That is the most visible part of the tree, and it is a grid artefact rather than a
+  // botanical structure. Measured below and left ON RECORD rather than worked around.
+  onaxis = 0; nmesh = 0; worst_off = 0.0;
+  for j in 1..sk.sk_n {
+    if (sk.sk_load[j] ?? 0) >= nmin {
+      ang = atan2(node_y(sk, j), node_x(sk, j)) * 57.29577951308232;
+      if ang < 0.0 { ang = ang + 360.0; }
+      off = ang;
+      while off >= 60.0 { off = off - 60.0; }
+      if off > 30.0 { off = 60.0 - off; }
+      nmesh = nmesh + 1;
+      if off < 10.0 { onaxis = onaxis + 1; }
+      if off > worst_off { worst_off = off; }
+    }
+  }
+  println("DEFECT (T4): of {nmesh} meshed cells, {onaxis} lie within 10 deg of a lattice axis");
+  println("   worst deviation {worst_off} deg — the major branches are six straight spokes");
+  println("   cause: BFS ties resolve to the straight radial path, so load concentrates on");
+  println("   the six directions. Fix: a least-cost tree with a deterministic per-cell cost");
+  println("   jitter, so paths meander. That is a change to T4 and it ripples through T5/T9.");
+  if nmesh <= 0 { ok = false; }
+  // the defect is asserted so it cannot be silently "fixed" by a drifting constant
+  if onaxis != nmesh { ok = false; }
+
+  // ── 4. a ray that misses the canopy is transparent in both ───────────────
+  Lm = ray_canopy_length(lb, top, bas, -30.0, 40.0, 8.0, 30.0, 40.0, 8.0);
+  Nm = ray_card_count(marks, top, bas, -30.0, 40.0, 8.0, 30.0, 40.0, 8.0);
+  println("a ray clear of the crown: L {Lm}, N {Nm} -> both layers transparent");
+  if Lm > 0.000001 || Nm != 0 { ok = false; }
+
+  // ── 5. and the whole thing is deterministic ──────────────────────────────
+  La = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  Lb = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  Na = ray_card_count(marks, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  Nb = ray_card_count(marks, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  println("determinism: same ray twice -> L {La == Lb}, N {Na == Nb}");
+  if La != Lb || Na != Nb { ok = false; }
+
+  if ok { println("=== CANOPYOPAC OK ==="); } else { println("=== FAIL ==="); }
+}

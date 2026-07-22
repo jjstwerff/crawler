@@ -470,3 +470,78 @@ pub fn cards_heading_bins(cd: Cards, bins: integer) -> integer {
   for j in 0..bins { n = n + (hit[j] ?? 0); }
   n
 }
+
+// ── T10: I-OPACITY ──────────────────────────────────────────────────────────
+//
+// The canopy is DRAWN as a stack of semi-filled cards and SIMULATED as a volume that
+// sight, light and sound pass through. Those are two different computations of the same
+// physical thing, and if they disagree the canopy looks dense while being transparent, or
+// the reverse — a discrepancy invisible from inside either layer.
+//
+// The physics is Beer-Lambert. A ray crossing canopy path-length L transmits
+//
+//     T_field = exp(-k * L)
+//
+// while the cards it meets transmit the product of their own transparencies. With one card
+// per cell, the number of cards a ray meets is proportional to the length it spends in
+// canopy:
+//
+//     N = c * L        ->    T_cards = (1-a)^(c*L)
+//
+// so the two agree exactly when
+//
+//     k = -c * ln(1-a)
+//
+// `c` is not a tuning constant: it is a property of the grid and the card layout, so it is
+// MEASURED here rather than chosen, and `k` follows from whatever alpha the art uses.
+pub fn cards_mark(cd: Cards, marks: Labels) {
+  for j in 0..cd.cd_n { label_set(marks, cd.cd_q[j] ?? 0, cd.cd_r[j] ?? 0, 1); }
+}
+
+// Path length the ray spends inside the canopy volume.
+pub fn ray_canopy_length(lb: Labels, top: Heights, base: Heights,
+                         x0: float, y0: float, z0: float,
+                         x1: float, y1: float, z1: float) -> float {
+  dx = x1 - x0; dy = y1 - y0; dz = z1 - z0;
+  total = sqrt(dx * dx + dy * dy + dz * dz) ?? 0.0;
+  n = 2000;
+  step = total / (n as float) ?? 0.0;
+  acc = 0.0;
+  for i in 0..n {
+    t = ((i as float) + 0.5) / (n as float) ?? 0.0;
+    px = x0 + dx * t; py = y0 + dy * t; pz = z0 + dz * t;
+    (cq, cr) = hex_at(px, py);
+    if label_get(lb, cq, cr) >= 0 {
+      if pz >= height_get(base, cq, cr) && pz <= height_get(top, cq, cr) { acc = acc + step; }
+    }
+  }
+  acc
+}
+
+// How many CARDS the ray actually meets: cells carrying a card, entered while the ray is
+// inside that cell's canopy interval.
+pub fn ray_card_count(marks: Labels, top: Heights, base: Heights,
+                      x0: float, y0: float, z0: float,
+                      x1: float, y1: float, z1: float) -> integer {
+  dx = x1 - x0; dy = y1 - y0; dz = z1 - z0;
+  n = 2000;
+  hits = 0;
+  pq = -99999; pr = -99999;
+  for i in 0..n {
+    t = ((i as float) + 0.5) / (n as float) ?? 0.0;
+    px = x0 + dx * t; py = y0 + dy * t; pz = z0 + dz * t;
+    (cq, cr) = hex_at(px, py);
+    if cq != pq || cr != pr {
+      if label_get(marks, cq, cr) == 1 {
+        if pz >= height_get(base, cq, cr) && pz <= height_get(top, cq, cr) { hits = hits + 1; }
+      }
+      pq = cq; pr = cr;
+    }
+  }
+  hits
+}
+
+// The extinction coefficient that makes the drawn canopy and the simulated one agree.
+pub fn extinction_for(c: float, alpha: float) -> float {
+  0.0 - c * (ln(1.0 - alpha) ?? 0.0)
+}

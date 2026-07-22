@@ -764,3 +764,57 @@ card-level rule (0 stray), because a card hangs off a branch and a branch never 
 own crown — so the crowded-tree asymmetry appears in the foliage for free. Every card sits
 inside its cell's canopy interval (0 outside), sized by the canopy depth there
 (1.40 … 18.24). Mesh and cards partition the skeleton exactly (7 + 81 = 88).
+
+
+## 14. T10 — I-OPACITY, and a defect it found in T4
+
+The canopy is **drawn** as a stack of semi-filled cards and **simulated** as a volume that
+sight, light and sound cross. Those are two computations of the same physical thing, and a
+disagreement is invisible from inside either layer — the canopy looks dense while being
+transparent, or the reverse. It matters causally too: `sight_clear` decides understory
+suppression (T7), so a miscalibrated canopy feeds a wrong answer back into the simulation.
+
+Beer-Lambert gives the field side, `T = exp(−k·L)`; the cards give the product of their
+transparencies. With one card per cell the two agree when
+
+```
+   k = −c·ln(1−a)          c = cards met per unit of canopy path
+```
+
+**`c` is measured, not chosen** — it is a property of the grid and the layout. Measured
+`c = 0.655` against a geometric expectation of `1/√3 = 0.577`, and the calibration then
+holds across four alphas with a worst disagreement of **0.018**. Negative control: keep half
+the cards and the two transmittances diverge by **7.5×**, so the agreement was measured
+rather than assumed.
+
+### Limitation: c is not constant per ray
+
+`c` ranges 0.46 to 0.97 — a spread of 0.78 about the mean. That is real geometry, not noise:
+how many cells a ray meets depends on how it threads the lattice, and a ray grazing corners
+meets more than one per nominal spacing. **So the calibration holds on average and not per
+ray.** For sight, light and sound averaged over many rays that is fine; a single sight line
+carries up to ~40% error in optical depth, and a consumer needing one ray exact must
+integrate the volume rather than count cards.
+
+### The defect: T4's major branches are six straight spokes
+
+The first version of this gate cast rays *through* the trunk and measured `N = 0` against
+`L = 19`. The ray was not at fault. **BFS shortest paths in a hex disc all route along the
+lattice's six directions**, so the load concentrates there — and the mesh threshold, which
+selects on load, therefore selects six perfectly straight radial spokes:
+
+```
+   of 14 meshed cells, 14 lie within 10° of a lattice axis
+   worst deviation: 7e-15 degrees
+```
+
+That is the **most visible part of the tree** — the meshed part — and it is a grid artefact,
+not a botanical structure. Real major branches do not align to six compass points.
+
+**Cause:** BFS resolves ties by neighbour iteration order, which systematically prefers the
+straight radial path. **Fix:** build a least-cost tree (Dijkstra) with a small deterministic
+per-cell cost jitter, so paths meander. That is a change to **T4** and it ripples through T5
+(loads move, so radii move), T9 (card/mesh membership moves) and T10 (`c` shifts).
+
+It is **asserted in the gate** rather than merely written down, so it cannot be silently
+lost — and so that fixing it will visibly break the assertion, which is the point.
