@@ -5,7 +5,15 @@
 
 ## Status
 
-**ACTIVE — the one plan in flight.** P0–P4 shipped 2026-06-12, L0 + P5/L1 (the
+**PARKED 2026-07-22 — superseded in part by plan #11.** The 2D view this plan polishes is
+being replaced by first-person 3D, so its 2D tiers (R7 instanced floor, R8 sprite batch)
+now target a renderer that retires in #11 P9. **What survives and should still be picked
+up:** the `graphics` **substrate flow-backs** (P5/L1 — instancing, buffer updates,
+uniforms, sampler control, scissor, sub-region upload), which 3D needs in full, and the
+**verification channels** below, which plan #11 adopts wholesale. Treat the phase list as a
+menu for those, not as a sequence. Historic status follows.
+
+**Was: ACTIVE — the one plan in flight.** P0–P4 shipped 2026-06-12, L0 + P5/L1 (the
 substrate flow-back into `graphics`) 2026-06-14. **P6 (R7 instanced floor)** is
 mid-flight: phases 1+2 are green and compile-clean, awaiting a **user visual verify in
 `make play`**, then the fat-path deletion (phase 3). P7a is a pure-data leaf runnable

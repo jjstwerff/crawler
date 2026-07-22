@@ -98,7 +98,21 @@ Build in order; each is small + headless-tested where it's kernel logic.
 
 ## The path in one line
 
-Finish **Phase 1 (G1 → FOV) = M-Core**, playtest, then layer **feel → world → depth**,
-with **authored content + 3D** as the moros future.
+**M-Core shipped** (commit `d1ecc56`, "FOV … M-Core complete") and much of Phase 2–4 with
+it — sprites, the inventory hub, quests, ranged, quickslots, classes/races, the shrine, the
+overland, caves, travel, persistence, the games-kernel host and a live replica observer. The
+per-item checkboxes in `DESIGN.md` §18a lag reality; treat the gate in `tools/run_tests.sh`
+as the truth.
 
-**Immediate next step: G1 — nice walls**, then straight down Phase 1.
+**Immediate next step: plan #11 — the 3D world view.** Decided 2026-07-22: the hex FIELD
+built by plans #5/#9/#10 becomes the world the player stands in, first-person, and 3D
+replaces the 2D view. That reorders Phase 5's "3D as the moros future" into the present, and
+it absorbs the remaining renderer work: `RENDER.md`'s showcase-2D doctrine and plan #7's
+instanced tier apply to a renderer being retired, so only its **substrate flow-backs** into
+`graphics` still earn their keep.
+
+An **in-world editor**, built outside crawler by a second agent, rides the same decision —
+which puts library **extraction on the critical path** rather than after the game. Contract:
+`EXTRACTION.md` → *The editor as the second consumer*.
+
+Plan + the seven invariants: **plans/11-3d-world/**.

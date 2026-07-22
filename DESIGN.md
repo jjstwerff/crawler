@@ -389,6 +389,13 @@ time (height as shading).
 
 ## 7a. Reading adjacent layers on the 2D plane — sky, ceiling, shadows & cliffs
 
+> **Being reworked by plan #11 (2026-07-22).** This section solves "how does a *2D plane*
+> convey a layer above it" — a question first-person 3D answers by *showing* the layer
+> instead of encoding it. The **layer MODEL** below (what a layer is, how portals link them)
+> survives and is still the target; the **2D reading conventions** (sky glyphs, ceiling
+> tints, shadow hints) retire with the 2D view in plan #11 P9. Keep reading for the model,
+> not for the presentation.
+
 *Designed first (the user's call). A near-term 2D render feature; it reads the layer-above
 data, so it rides §7's multi-layer model (L6) + §9's outline engine — a **no-op on today's
 single-layer dungeon**, designed now to land with that work.* This is the clearest case of
@@ -1147,9 +1154,22 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
   levels; HUD gold readout. (Floor/inv use fixed arrays + counts — runtime append
   to a struct field is unreliable in loft — loft#320; the index-write idiom stays.)
 
-### Now — graphics cleanup, then a playable game with progression (§3a)
-*Walls first, then the fastest path to a working game with real (mostly lateral)
-progression. Order matters; each is small + headless-tested where it's kernel logic.*
+### Now — **the 3D world view (plan #11)**
+
+> **STALE BELOW — read this first (2026-07-22).** The G1–G4 + FOV list that follows
+> **shipped** (`d1ecc56` = "FOV … M-Core complete"), as did much of *Next* and *Later*:
+> sprites, the inventory hub, quests, ranged, quickslots, classes/races, the shrine, the
+> overland, caves, travel and persistence all have gates in `tools/run_tests.sh`. The
+> checkboxes were never re-ticked; **the gate is the truth, not this list.**
+>
+> The actual next work is **plan #11 — the hex field becomes the world you stand in**,
+> first-person 3D, with 3D replacing the 2D view. See `plans/11-3d-world/` and
+> `ROADMAP.md`. Items below that 3D *changes* rather than inherits: the wall aesthetic
+> (G1), the top-down sprite perspective, and the dark-token palette — all re-decided
+> in plan #11 P3/P3b/P8.
+
+*Historic ordering, kept for the record — walls first, then the fastest path to a working
+game with real (mostly lateral) progression:*
 - [ ] **G1 walls** — nicer wall rendering: land the parked Douglas–Peucker
   straightener (crisp straight runs + sharp corners) — the loft bugs it was parked on
   (nested-vector type-id panic, keys.rs store desync) are fixed and probe-verified on

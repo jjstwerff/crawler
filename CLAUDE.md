@@ -1,11 +1,14 @@
 # CLAUDE.md — crawler quick reference
 
 Clean-room, ZAngband-style **hex roguelike** written in **loft** (package `story`,
-repo `crawler`). **The 2D game is first-class and complete in its own right** (some
-players prefer 2D) — *most of the design lives on the 2D plane* (DESIGN §7a); the *same*
-renderer-agnostic kernel also drives an **optional** 3D/WebGL build added for those who
-want it (3D is additive, not the destination). Full design + roadmap: **DESIGN.md**
-(backlog = §18a).
+repo `crawler`). **The game is moving into first-person 3D** (decided 2026-07-22, plan
+**#11**): the hex FIELD built by plans #5/#9/#10 becomes the world the player stands in,
+actors are camera-facing boards on the way to animated meshes, and **3D replaces the 2D
+view** once it reaches parity. The renderer-agnostic kernel is what makes that a view-side
+change — keep it. *(Superseded: "2D is first-class, 3D is additive". The 2D renderer still
+runs and is retired in plan #11 P9; DESIGN §7a's plane-first reasoning is being reworked
+with it.)* Full design + roadmap: **DESIGN.md** (backlog = §18a); the 3D plan +
+its seven invariants: **plans/11-3d-world/**.
 
 **Multi-phase work lives in `plans/<N>-<slug>/`**, `<N>` = its `jjstwerff/crawler` issue
 number (claimed BEFORE the directory — never numbered by scanning the tree). Conventions,
@@ -51,10 +54,13 @@ study (growing, → enhance the engineering-rigor skill's DESIGN column): **DESI
 
 **Kernel** modules import **no graphics** — the `hex_grid` LIB (was hexgeo+gridgeo;
 now `loft-lang/loft-libs-world`), `sim`, `gen`, `worldmesh`, `wallgeo`,
-`framekey`, `gameflow`, `genbundles`, `monsters`/`classes`/`races`/`items`. **View** is the swappable 2D front-end —
-`view.loft`, `story.loft`. The view reads the kernel only through `sim_*`
-accessors. That split is what lets the kernel later drive `moros_render` in 3D, so
-keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
+`framekey`, `gameflow`, `genbundles`, `monsters`/`classes`/`races`/`items`. **View** is the swappable front-end —
+`view.loft` (2D, retiring in plan #11 P9), `story.loft`. The view reads the kernel only
+through `sim_*` accessors. **That split is what makes the 3D move a view-side change**, so
+keep all `graphics::` calls in `view`/`story` and keep `sim` data-only — it is now
+load-bearing, not aspirational. The 3D renderer lands as the **`hexscene`** package rather
+than a crawler-internal module, because the in-world editor draws the same field (plan #11
+P3; `EXTRACTION.md` → *The editor as the second consumer*).
 
 - Hex map, moros geometry (`L = √3`, pointy-top). Continuous player + heading;
   hex-locked enemies. **Distance-driven clock:** every `HEX_LEN` travelled = one
@@ -145,7 +151,10 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   **A STILL + an ACTION version is allowed** — especially for enemies without much other
   expression (the floating eye: idle ball vs. gaze-rays firing); the action sprite shows
   the attack happening, the still keeps the threat readable.
-  **PERSPECTIVE rules (the world is top-down):** creatures + structural features are drawn
+  **PERSPECTIVE rules (the world is top-down)** — *these hold for the CURRENT sprite set and
+  are superseded for 3D by plan #11 P8, which re-authors actors as side-on boards. Until P8,
+  keep authoring top-down: the 3D boards deliberately carry the existing top-down PNGs, wrong
+  perspective and all, because actors were never this plan's focus.* The rules: creatures + structural features are drawn
   top-down, with **slight foreshortening allowed** to show the third dimension (the eye's
   iris as a front-displaced ellipse; the door as its lit top edge + a foreshortened face)
   as long as the feature stays inside its slot (the door within the wall gap). **An upright

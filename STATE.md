@@ -49,14 +49,28 @@ backdrop. Priority is a functional game, so the playable milestone is P4.
 - **Plan #10 P9 leftovers** — the cart is a placement fix; the doors need a **second shot**,
   because a raised camera cannot show a door (roofs occlude their own walls). Not a props
   bug. *(A first-person eye-height camera may simply dissolve this one — plan #11 P0.)*
-- **Library extraction** — six packages designed (`hexfield`, `hexways`, `hexforms`,
-  `hexgrow`, `hexprops`, `hexscene`), order fixed, **not started**. Now deliberately
-  **after plan #11 P5**: the DoD wants a second consumer, and the game becomes exactly that
-  — an API cut against a real consumer beats one cut against a demo scene. → `EXTRACTION.md`
-- **Stale docs** — `ROADMAP.md` still says "Immediate next step: G1 — nice walls" and
-  `DESIGN.md §18a`'s "Now" list shows G1–G4 + FOV unchecked; all shipped weeks ago
-  (`d1ecc56` = "M-Core complete"). Issues #9/#10 also still carry `status:active` /
-  `status:future` while their work is done. Reconciled in plan #11 P9.
+- **Library extraction — now on the CRITICAL PATH**, not the tail. An **in-world editor is
+  being built outside crawler by a second agent**, so without packages it would have to copy
+  crawler's source — which the DoD forbids. Sequencing is **build new, extract settled**: new
+  routines (the **stencil mechanism**, the **document format** — neither exists) land
+  package-side now and cannot collide; crawler's settled modules migrate after plan #11 **P2**.
+  Contract: `EXTRACTION.md` → *The editor as the second consumer*.
+- **Validation is largely DONE; packaging is what's left.** Audited: across every
+  `*test.loft` touching the stack, **zero** import `sim`/`bundles`/content — the one
+  non-stack import is `sighttest`'s `hex_grid`, already an upstream package. So the gates are
+  library-shaped already; what's missing is `loft.toml`, entry modules, standalone runners
+  and per-package READMEs. **The `hexfield` skeleton is the one thing blocking the second
+  agent from starting**, and it is hours, not days.
+
+## Docs reconciled 2026-07-22 (they had drifted badly)
+
+`CLAUDE.md` (2D-first reversed) · `ROADMAP.md` (still said "next step: G1 — nice walls";
+M-Core shipped at `d1ecc56`) · `DESIGN.md` §18a (stale-banner: the gate in
+`tools/run_tests.sh` is the truth, not the checkboxes) and §7a (layer *model* survives, its
+2D reading conventions retire) · `RENDER.md` + plan **#7** (parked — substrate flow-backs
+and the verification channels survive, the 2D tiers do not) · `STENCILS.md` (unparked: it is
+the editor's first deliverable) · `SCALE.md` (open work: two readings want to become a
+ladder) · issues **#9/#10 → `status:finished`**, **#7 → `status:future`**.
 - **`mesh_trunk` not migrated** to `prim_drum` (P1): it is a six-segment taper whose surface
   equals a one-segment taper, so migrating changes tessellation. A real change, wanting its
   own visible step.

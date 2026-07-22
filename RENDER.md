@@ -12,6 +12,18 @@ installed `graphics` lib today); **R7–R8 are gated on small `graphics` flow-ba
 (EXTRACTION.md → "GPU 2D primitives"). HUD/overlay text stays painter-immediate —
 a showcase demonstrates judgment too; immediate mode is the right tool there.
 
+
+> **SCOPE CHANGED 2026-07-22 — read before building from this doc.** This is the doctrine for
+> a **showcase 2D renderer**, and the 2D view is being **replaced by first-person 3D**
+> (plan #11, which retires `view.loft` in P9). What still earns its keep: the **`graphics`
+> substrate flow-backs** (instancing, buffer updates, uniforms, sampler control, scissor,
+> sub-region upload) — 3D needs every one of them — and the **verification channels**
+> (headless logic gate, pixel probes, golden parity diffs, the blueprint-plot discipline).
+> What does not: the 2D-specific tiers (SDF wall strokes, the light-cone post-fx, the 2D
+> sprite batch as such) and any step whose consumer is the retiring renderer. Painter2D v2
+> keeps its value as a **library** target (`EXTRACTION.md` §6) — crawler is simply no longer
+> its forcing consumer.
+
 ## Current state
 
 - **World floor = a real retained mesh, live** (R1+R3): one per-level stride-10 VBO

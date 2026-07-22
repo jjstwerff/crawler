@@ -6,10 +6,17 @@
 
 ## Status
 
-**DESIGN SESSION — no implementation.** A lean flat-grid MVP was drafted and then
-**parked** (reverted from the tree) because the model below changes the core data
-shape. It survives here as the "Foundation slice" — build it only once this design
-settles the layer + anchor representation, so the `Stencil` struct doesn't churn.
+**DESIGN SESSION — no implementation, and now SCHEDULED (2026-07-22).** A lean flat-grid
+MVP was drafted and then **parked** (reverted from the tree) because the model below changes
+the core data shape. That wait is over: the mechanism is settled in `EXTRACTION.md` →
+*Stencils — and why they belong in `hexfield`* (a stencil is a small **field**, not a
+bitmap; stamping is merging two fields under the existing nearest-wins arbitration; 60°
+rotation is an **exact integer map**, six rotations are the identity, reflection gives 12
+orientations).
+
+**It is the first deliverable of the in-world editor track** — new code, landing
+package-side in `hexfield`, and needing no renderer. The gates it must pass are listed in
+that EXTRACTION section; the layer + anchor representation below is what it implements.
 
 ## The vision (north star)
 

@@ -88,3 +88,13 @@ architecture scale.
 **State new lengths in metres and convert, or state them in world units and add a row to
 the gate.** A threshold with no real-world size attached cannot be checked, and this
 document exists because a dozen of them accumulated that way.
+
+## Open work — two readings, or a ladder?
+
+The contract fixes **two** readings (1.5 m architecture, 15 m terrain) and one dial,
+`OV_STEP`. Plan #11's flight/orbit axis wants **more rungs** — a sequence of readings out to
+orbital distance, not a pair. Before this contract hardens around two, check that it
+generalises to N: the conversions are already single-dial, so the likely change is stating
+the dial as a *ladder index* rather than a constant. Nothing is broken today; recorded so the
+generalisation is a decision rather than a discovery. → `plans/11-3d-world/DESIGN.md`
+§ *Provides for: flight, and landing from orbit*.
