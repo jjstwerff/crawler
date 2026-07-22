@@ -1,0 +1,54 @@
+// figure — a PROPORTIONED HUMAN, for scale.
+//
+// Every threshold in plans #5 and #9 was verified numerically against metres (SCALE.md).
+// This is the same check made visual: a door, a stair tread, a platform edge or a crown
+// height is believable or not *against a person*, and no amount of arithmetic settles that.
+//
+// So the figure's job is PROPORTION AND HEIGHT, not realism. It is built from primitives at
+// canonical proportions — 7.5 heads tall, shoulders two head-widths — at exactly 1.75 m,
+// which under the scale contract is 2.021 world units. No external asset, no licence, and
+// an exact known size, which is the whole point of a reference.
+use mesh3d;
+
+pub const FIGURE_M  = 1.75;
+pub const FIGURE_WU = 2.0207259421636903;      // 1.75 m / 0.8660254 m-per-wu
+
+fn m(v: float) -> float { v / 0.8660254037844386 ?? 0.0 }
+
+// A box centred on (cx, cy) in plan, spanning z0..z1, as one node.
+fn limb(sc: Scene, cube_i: integer, mat: integer, nm: text,
+        cx: float, cy: float, z0: float, z1: float, w: float, d: float) {
+  h = z1 - z0;
+  add_node(sc, node_at(nm, cube_i, mat,
+    mat4_trs(cx, cy, (z0 + z1) * 0.5, 0.0, w, d, h)));
+}
+
+// Build the figure into an existing scene, standing at (x, y) on ground z, facing +x.
+//
+// Proportions are the standard artist's canon: head = H/7.5, shoulders = 2 heads,
+// hip at 0.53H, knee at 0.28H, elbow at 0.63H.  They matter more than the shapes do —
+// a viewer reads scale from where the hip and shoulder sit, not from the geometry.
+pub fn add_figure(sc: Scene, x: float, y: float, z: float, mat: integer) {
+  cu = add_mesh(sc, cube());
+  sp = add_mesh(sc, sphere("head", 0.5, 16, 12));
+  H = FIGURE_WU;
+  head = H / 7.5 ?? 0.0;
+  shoulder_w = head * 2.0;
+  hip_z   = z + H * 0.53;
+  chest_z = z + H * 0.72;
+  neck_z  = z + H * 0.855;
+  // legs
+  limb(sc, cu, mat, "leg_l", x, y - head * 0.42, z, hip_z, head * 0.62, head * 0.62);
+  limb(sc, cu, mat, "leg_r", x, y + head * 0.42, z, hip_z, head * 0.62, head * 0.62);
+  // torso: hips to shoulders, widening
+  limb(sc, cu, mat, "pelvis", x, y, hip_z, chest_z, head * 0.72, shoulder_w * 0.80);
+  limb(sc, cu, mat, "chest",  x, y, chest_z, neck_z, head * 0.80, shoulder_w);
+  // arms, hanging
+  limb(sc, cu, mat, "arm_l", x, y - shoulder_w * 0.5 - head * 0.16,
+       z + H * 0.40, neck_z - head * 0.10, head * 0.42, head * 0.42);
+  limb(sc, cu, mat, "arm_r", x, y + shoulder_w * 0.5 + head * 0.16,
+       z + H * 0.40, neck_z - head * 0.10, head * 0.42, head * 0.42);
+  // head
+  add_node(sc, node_at("head", sp, mat,
+    mat4_trs(x, y, z + H - head * 0.5, 0.0, head * 0.86, head * 0.78, head)));
+}

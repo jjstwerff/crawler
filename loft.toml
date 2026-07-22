@@ -9,3 +9,5 @@ graphics    = ">=0.2"
 hex_grid    = ">=0.1"
 hex_terrain = ">=0.1"
 random      = ">=0.2"       # the source already uses 0.2.0's RandStream
+mesh3d      = ">=0.1"       # Mesh/Scene/Material for the GLB export path
+glb         = ">=0.1"       # save_scene_glb — verification renders

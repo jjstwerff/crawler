@@ -1,0 +1,121 @@
+// scene1 — the first thing anyone actually looks at.
+//
+// Built the way the game will build it: the ground is the HEX FIELD itself, one hexagon per
+// cell at floor height, not a convenience quad. Everything above it comes from the field
+// too — walls are the blocked EDGES of the collision layer, the crown is the canopy
+// INTERVAL, the trunk is the meshed part of the skeleton. Nothing is modelled by hand, so
+// what shows up is what the model says.
+//
+// The figure stands at the gate at exactly 1.75 m, because the whole question is whether
+// these sizes are believable next to a person.
+use hexform;
+use hexedge;
+use hexway;
+use hexcanopy;
+use hexskel;
+use scenemesh;
+use figure;
+use mesh3d;
+use glb;
+
+fn m(v: float) -> float { v / 0.8660254037844386 ?? 0.0 }
+
+fn main() {
+  println("=== scene1 ===");
+  q0 = -22; r0 = -18; gw = 45; gh = 37;
+
+  // ── the ground: every cell of the region, as a hexagon at z = 0 ──────────
+  ground = hexset_chunk(q0, r0, gw, gh);
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw { hexset_set(ground, q, r, true); }
+  }
+  println("ground: {hexset_count(ground)} hexes");
+
+  // ── a round tower and a curtain wall with a gate ─────────────────────────
+  // Tower: a ring of cells, so it is hollow like a real one. Wall: a marked way, with one
+  // cell left out for the gate.
+  solid = hexset_chunk(q0, r0, gw, gh);
+  tk = -18; tm = 0;                       // tower centre, in lattice units
+  rout = 30.0; rin = 14.0;                // outer / inner radius^2*4, exact integers
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      dk = lattice_k(q, r) - tk;
+      dm = lattice_m(q, r) - tm;
+      d2 = 3 * dk * dk + dm * dm;
+      if d2 <= 120 { hexset_set(solid, q, r, true); }   // solid footprint: ONE clean
+                                                        // boundary loop, enough vertices
+                                                        // for the matcher to fit an arc
+    }
+  }
+  wall = track_new();
+  track_straight(wall, -6.0, 0.0, 16.0, 0.0);
+  way_mark(wall, 0.5, solid);
+  // the gate: clear one cell so the wall opens
+  (gq, gr) = hex_at(5.2, 0.0);
+  hexset_set(solid, gq, gr, false);
+  println("tower ring + curtain wall: {hexset_count(solid)} cells, gate at ({gq},{gr})");
+
+  sf = surfaces_new();
+  mt = materials_new();
+  stone = material_add(mt, true, 4.0, 1.0, 20.0, 0.0, 0.2);
+  surf_straight(sf, 0.0, 1.0, 0.0);
+  ed = edgeset_new(q0, r0, gw, gh);
+  cut_arb(solid, ed, sf, sf.sf_n, stone);
+
+  // ── a tree, from the canopy model ────────────────────────────────────────
+  trees = trees_new();
+  tree_add(trees, 14, 14, 12, 49, 0);
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  canopy_partition(trees, ground, lb, ct);
+  ctop = heights_new(q0, r0, gw, gh);
+  cbas = heights_new(q0, r0, gw, gh);
+  canopy_heights(trees, ground, lb, ct, ctop, cbas);
+  sk = skeleton_build(trees, 0, ground, lb);
+  println("tree: {crown_count(ground, lb, 0)} crown cells, {sk.sk_n} skeleton nodes");
+
+  // ── assemble ─────────────────────────────────────────────────────────────
+  sc = scene("scene1");
+  m_grass = add_material(sc, material_color("grass", 0.42, 0.50, 0.30));
+  m_stone = add_material(sc, material_color("stone", 0.62, 0.60, 0.55));
+  m_leaf  = add_material(sc, material_color("leaf", 0.24, 0.42, 0.20));
+  m_bark  = add_material(sc, material_color("bark", 0.34, 0.26, 0.18));
+  m_skin  = add_material(sc, material_color("skin", 0.80, 0.60, 0.45));
+
+  gi = add_mesh(sc, mesh_floor(ground, 0.0, "ground"));
+  add_node(sc, node_at("ground", gi, m_grass, mat4_identity()));
+
+  // Walls from the RECOVERED surfaces, not from the per-edge zigzag — see scenemesh.
+  vm = trace(solid);
+  wi = add_mesh(sc, mesh_walls_fitted(vm, 0.0, m(5.0), 6));
+  add_node(sc, node_at("walls", wi, m_stone, mat4_identity()));
+  println("wall surfaces recovered from {vm.vm_loops} traced loop(s)");
+
+  // the crown from its recovered profile, not from the per-cell boxes
+  crx = (14 as float) * 0.8660254037844386;
+  cry = (14 as float) * 0.5;
+  crad = sqrt(49.0) ?? 0.0;
+  ci = add_mesh(sc, mesh_crown(crx, cry, crown_bole(trees, 0, ground, lb, ct),
+                               12.0, crad, 10, 24));
+  add_node(sc, node_at("canopy", ci, m_leaf, mat4_identity()));
+
+  // the trunk: a box up to the crown base, sized by the pipe model
+  tr = node_radius(sk, 0, PIPE_K);
+  tx = ((lattice_k(14, 0)) as float) * 0.0;      // placeholder, real position below
+  bx = ((14) as float) * 0.8660254037844386;
+  by = ((14) as float) * 0.5;
+  bole = crown_bole(trees, 0, ground, lb, ct);
+  cu = add_mesh(sc, cube());
+  add_node(sc, node_at("trunk", cu, m_bark,
+    mat4_trs(bx, by, bole * 0.5, 0.0, tr * 2.0, tr * 2.0, bole)));
+  println("trunk radius {tr} wu = {tr * 0.8660254037844386} m, bole {bole} wu");
+
+  // the figure, at the gate
+  add_figure(sc, 6.6, -1.6, 0.0, m_skin);
+
+  add_camera(sc, camera("cam"));
+  add_light(sc, directional_light("sun", 1.0, 0.96, 0.90, 1.0, vec3(0.35, 0.55, -0.75)));
+  out = "{env_variable("PWD") ?? "."}/build/scene1.glb";
+  save_scene_glb(sc, out);
+  println("wrote {out}");
+}
