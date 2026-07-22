@@ -280,6 +280,71 @@ physics engines die.
 - **Still planar.** I-CROSS's vertical half is untouched: nothing yet stops a path walking
   up a 3 m riser.
 
+## P3 + P4 result — the camera, the view, and the presentation seam, 2026-07-22
+
+`make test` green. **The picture itself is still unverified** — this box has no display and
+no `xvfb`, so everything below is gated *arithmetic*, not a photograph.
+
+### P3 — what landed
+
+`src/hexscene.loft`: a `Camera` and pure `project` / `unproject_plane` / `horizon_y` /
+`cam_mat4`, with **no dependency at all** — not `Sim`, not `graphics`, not even `hex_grid`.
+That is what lets I-STAND be gated with no GL context. `src/view3d.loft` draws floor and
+wall geometry extruded from `Sim.field`; `story.loft` toggles it with **`V`**.
+
+| gate | result |
+|---|---|
+| hex → pixel → the same hex (1705 hexes, 12 cameras) | **0 failures**, worst 3.6 × 10⁻¹⁴ |
+| a 1-unit post at 8 u vs 16 u | **ratio 2.0000** |
+| `cam_mat4` vs `project` (152 points, 8 cameras) | **0 disagreements**, worst 3.2 × 10⁻⁹ px |
+
+The matrix check is the one that matters most and was nearly skipped: **the GPU never runs
+`project()`**. Without it the round-trip would be a proof about code the renderer does not
+use, which is exactly the second opinion I-STAND forbids.
+
+### P4 — the seam is the deliverable, the boards are its first implementation
+
+`ActorView` + `present_boards` live in **`hexscene`**, not `view3d`, because they take a
+`Camera` and nothing else — the library/game line `EXTRACTION.md` draws. `actors_collect`
+takes `Sim` and is therefore the **adapter**, game-side.
+
+Boards are upright billboards: width along the camera's right, height along **world** up, so
+actors stand up rather than tipping with the camera — which is also what a mesh will do.
+Sizes are metric (1.75 m = 2.02 world units). One draw call, buffer re-uploaded in place.
+
+**Textures are deliberately not wired.** A per-actor texture means a draw call per actor;
+that wants an atlas, and the atlas rides with **P8**, which re-authors the sprites side-on
+anyway. Boards carry the monster's colour meanwhile. `av_tex` is carried through the record
+unused, so the seam already has the slot.
+
+### Two controls that were worthless until re-aimed — the same failure twice
+
+| control | first attempt | fixed |
+|---|---|---|
+| camera perturbation | 0.02 rad → **0 of 172** hexes moved | 0.15 rad → 160/172 |
+| board-vs-wall parity | compared `project(d,0,h)` with `project(d,0,0.0+h)` — **two spellings of one expression**, "worst 0px" | reads the corners back out of the buffer `present_boards` actually emitted |
+
+The first failed because **a control must perturb by more than the quantisation it is read
+through** — 0.02 rad shifts the ground point ~0.2 units against a hex circumradius of 1.0,
+so it rounds back. The second was a plain tautology that would have passed for any
+projection whatsoever. Both printed a healthy-looking number.
+
+Counting the P2b near-miss, that is **three controls in one session that passed while
+measuring nothing**, each in a different way: wrong geometry, too-small perturbation, and a
+tautology. The pattern worth carrying: *a green control deserves the same suspicion as a red
+gate — read what it would take for it to go red, and check that is reachable.*
+
+### Unverified, and the likely first defect
+
+**Depth.** `gl_clear` is documented as clearing colour and says nothing about depth;
+`gl_create_window` does not document a depth attachment; and this is the **first pass in the
+repo ever to enable `GL_DEPTH_TEST`** — every other one only disables it. Depth state is set
+before the clear, the ordering under which a combined clear would work. If frame 1 looks
+right and later frames do not, that is it → `LOFT-HANDOFF.md` **G1**.
+
+Also recorded: **G2**, a cross-module struct return failing with `expected Camera, got
+Camera`, fixed by qualifying the type. The cost there is the diagnostic, not the fix.
+
 ## P5, restated — the seam that has never been connected
 
 **CORRECTED 2026-07-22, by reading the code instead of trusting the description.** My first

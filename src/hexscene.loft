@@ -139,3 +139,64 @@ pub fn horizon_y(c: Camera) -> float {
   ny = ay / th ?? 0.0;
   (1.0 - ny) * 0.5 * c.vh
 }
+
+// ── THE PRESENTATION SEAM (plan #11 P4) ─────────────────────────────────────
+//
+// P4's deliverable is this seam; the boards are only its first implementation. The frame
+// loop asks "how is this actor presented?" and never learns the answer: it produces
+// ActorView records from kernel state and hands them to a PRESENTER. Today the presenter
+// emits camera-facing quads. Later it emits glTF humanoid meshes with animation state, and
+// nothing above this line changes.
+//
+// So the rule this file must keep: **no billboard assumption may leak past `present_*`.**
+// If the frame loop ever reasons about quads, the mesh phase pays for it.
+//
+// Sizes are METRIC — world units, the same units walls are built in — which is the actor
+// half of I-STAND and is gated in `scenetest`: a board of height h and a wall of height h
+// at one distance must cover the same pixel span.
+pub struct ActorView {
+  av_x:   float,        // world stand point: where the KERNEL says it stands
+  av_y:   float,
+  av_z:   float,
+  av_w:   float,        // metric width, world units
+  av_h:   float,        // metric height, world units
+  av_yaw: float,        // facing — a board ignores it, a mesh will need it
+  av_r:   float,        // presentation tone; a stand-in until the sprite ATLAS lands
+  av_g:   float,
+  av_b:   float,
+  av_tex: integer,      // presentation handle, carried but unused: a per-actor texture
+}                       //   means one draw per actor, so it waits for the atlas (P8)
+
+// THE PRESENTER, board implementation. An upright billboard: width along the camera's
+// right, height along WORLD up — so actors stand upright rather than tipping with the
+// camera, which is what a character needs and what a mesh will also do.
+//
+// Appends 6 vertices (stride 6: xyz + uv0) per actor into `buf`. Returns the vertex count.
+// Deliberately writes into a caller-owned buffer rather than returning one: loft#392 makes
+// a `fn -> vector<single>` reaching gl_upload_vertices abort the program silently.
+pub fn present_boards(c: Camera, views: vector<ActorView>, buf: vector<single>) -> integer {
+  (rx, ry, rz) = cam_right(c);
+  n = 0;
+  for i in 0..len(views) {
+    v = views[i];
+    hw = v.av_w * 0.5;
+    lx = (v.av_x - rx * hw) as single;
+    ly = (v.av_y - ry * hw) as single;
+    gx = (v.av_x + rx * hw) as single;
+    gy = (v.av_y + ry * hw) as single;
+    z0 = v.av_z as single;
+    z1 = (v.av_z + v.av_h) as single;
+    cr = v.av_r as single;
+    cg = v.av_g as single;
+    cb = v.av_b as single;
+    buf += [lx, ly, z0, cr, cg, cb];
+    buf += [gx, gy, z0, cr, cg, cb];
+    buf += [gx, gy, z1, cr, cg, cb];
+    buf += [lx, ly, z0, cr, cg, cb];
+    buf += [gx, gy, z1, cr, cg, cb];
+    buf += [lx, ly, z1, cr, cg, cb];
+    n += 6;
+  }
+  n
+}
+

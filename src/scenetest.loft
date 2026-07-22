@@ -139,7 +139,71 @@ fn main() {
   }
   println("matrix agrees with project(): tested={mm_tested} disagreements={mm_bad} worst {mm_worst}px");
 
+  // ── P4: A BOARD AND A WALL OF THE SAME HEIGHT MUST COVER THE SAME PIXELS ───
+  // The plan's P4 gate, computed rather than photographed (no xvfb here, and the claim is
+  // about the projection anyway).
+  //
+  // The FIRST version of this check was a tautology and reported "worst 0px": it compared
+  // project(dist,0,hgt) against project(dist,0,0.0+hgt) — two spellings of one expression,
+  // so it would have passed for any projection whatsoever. It now runs the REAL board
+  // geometry through `present_boards` and reads the corners back out of the emitted
+  // buffer, which is what makes it capable of failing: a board sized in pixels, scaled by
+  // a fudge factor, or built along camera-up instead of world-up all change these numbers.
+  cb = camera_new(0.0, 0.0, 1.847, 0.0, 0.0, 1.0471975511965976, 1024.0, 576.0);
+  bp_bad = 0;
+  bp_tested = 0;
+  bp_worst = 0.0;
+  for hi in 1..5 {
+    hgt = (hi as float) * 0.8;                 // 0.8 .. 3.2 world units
+    for di in 1..9 {
+      dist = (di as float) * 3.0;              // 3 .. 24 units ahead
+      // the BOARD: emitted by the seam itself, then measured from its own vertices
+      bviews: vector<ActorView> = [];
+      bv = ActorView { av_x: dist, av_y: 0.0, av_z: 0.0, av_w: 1.0, av_h: hgt,
+                       av_yaw: 0.0, av_r: 0.5, av_g: 0.5, av_b: 0.5, av_tex: 0 };
+      bviews += [bv];
+      bbuf: vector<single> = [];
+      bn = present_boards(cb, bviews, bbuf);
+      // vertex 0 is a base corner, vertex 2 the corner above it (stride 6)
+      b0x = (bbuf[0] ?? 0.0 as single) as float;
+      b0y = (bbuf[1] ?? 0.0 as single) as float;
+      b0z = (bbuf[2] ?? 0.0 as single) as float;
+      b2z = (bbuf[14] ?? 0.0 as single) as float;
+      (_, bbot, _) = project(cb, b0x, b0y, b0z);
+      (_, btop, _) = project(cb, b0x, b0y, b2z);
+      // the WALL: a vertical edge of the same metric height at the same stand point
+      (_, wtop, _) = project(cb, b0x, b0y, hgt);
+      (_, wbot, _) = project(cb, b0x, b0y, 0.0);
+      wspan = abs(wtop - wbot);
+      bspan = abs(btop - bbot);
+      bp_tested += 1;
+      dspan = abs(wspan - bspan);
+      if dspan > bp_worst { bp_worst = dspan; }
+      if dspan > 0.0001 { bp_bad += 1; }
+      if bn != 6 { bp_bad += 1; }              // the seam must emit one quad per actor
+      if wspan < 1.0 { bp_bad += 1; }          // and the span must be real, not degenerate
+    }
+  }
+  println("P4 metric parity: board vs wall at equal height, {bp_tested} pairs, {bp_bad} differ (worst {bp_worst}px)");
+
+  // NEGATIVE CONTROL for the parity check: a board asked for HALF the height must NOT
+  // match the wall. Without this, "0 differ" is just as consistent with a check that
+  // measures nothing.
+  hviews: vector<ActorView> = [];
+  hv = ActorView { av_x: 9.0, av_y: 0.0, av_z: 0.0, av_w: 1.0, av_h: 1.0,
+                   av_yaw: 0.0, av_r: 0.5, av_g: 0.5, av_b: 0.5, av_tex: 0 };
+  hviews += [hv];
+  hbuf: vector<single> = [];
+  _ = present_boards(cb, hviews, hbuf);
+  hz = (hbuf[14] ?? 0.0 as single) as float;
+  (_, hhtop, _) = project(cb, 9.0, 0.0, hz);
+  (_, hhbot, _) = project(cb, 9.0, 0.0, 0.0);
+  (_, hwtop, _) = project(cb, 9.0, 0.0, 2.0);
+  parity_ctl = abs(abs(hhtop - hhbot) - abs(hwtop - hhbot)) > 1.0;
+  println("  control: a 1-unit board vs a 2-unit wall differ = {parity_ctl}");
+
   ok = bad == 0 && tested > 500 && ctl_tested > 50 && ctl_moved > (ctl_tested / 2 ?? 0)
-    && metric_ok && worst < 0.000001 && mm_bad == 0 && mm_tested > 100;
+    && metric_ok && worst < 0.000001 && mm_bad == 0 && mm_tested > 100
+    && bp_bad == 0 && bp_tested > 20 && parity_ctl;
   if ok { println("=== SCENE OK ==="); } else { println("=== FAIL ==="); }
 }

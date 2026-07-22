@@ -135,10 +135,64 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
   (graphics::gl_upload_vertices(buf, 6), n)
 }
 
+// The ADAPTER for the presentation seam. `ActorView` and `present_boards` live in
+// hexscene because they take a Camera and nothing else; this function takes `Sim`, which
+// is exactly the line EXTRACTION.md draws between library and game.
+// Kernel state -> presentation records. Reads only `sim_*` accessors, so it stays on the
+// kernel side of the architecture invariant and carries no drawing decisions at all.
+pub fn actors_collect(s: Sim, tex_of: vector<integer>) -> vector<ActorView> {
+  out: vector<ActorView> = [];
+  n = sim_enemy_count(s);
+  for i in 0..n {
+    if sim_enemy_alive(s, i) {
+      (ax, ay) = sim_enemy_pos(s, i);
+      tx = 0;
+      if i < len(tex_of) { tx = tex_of[i] ?? 0; }
+      // A humanoid is 1.75 m tall = 2.02 world units (SCALE.md, 0.866 m per unit). One
+      // size for now: per-monster metric sizes are content, and belong in the bundle.
+      (er, eg, eb) = sim_enemy_color(s, i);
+      av = ActorView { av_x: ax, av_y: ay, av_z: 0.0, av_w: 1.15, av_h: 2.02,
+                       av_yaw: 0.0,
+                       av_r: (er as float) / 255.0 ?? 0.5,
+                       av_g: (eg as float) / 255.0 ?? 0.5,
+                       av_b: (eb as float) / 255.0 ?? 0.5,
+                       av_tex: tx };
+      out += [av];                        // hoisted: loft#496 nulls all but the first
+    }                                     //   element when a struct temp is inlined here
+  }
+  out
+}
+
 // The camera for this frame — a pure function of kernel state, which is I-STAND: the
 // renderer holds no position of its own, it reads the one the kernel moved.
 pub fn view3d_camera(s: Sim, vw: float, vh: float) -> hexscene::Camera {
   camera_new(s.px, s.py, EYE3D_Z, s.heading, 0.0, 1.0471975511965976, vw, vh)
+}
+
+// Actors, through the seam, in ONE draw call. The frame loop never learns that a board
+// came out: it collects records and calls the presenter. Swapping present_boards for a
+// mesh presenter is the whole of the change this seam exists to make cheap.
+// The board buffer, created ONCE and re-uploaded each frame with gl_update_buffer rather
+// than recreated — a VAO per frame would churn GL objects for no gain. Seeded with one
+// degenerate quad so the handle is valid before any actor exists.
+pub fn make_actor_vbo() -> integer {
+  seed: vector<single> = [];
+  z = 0.0 as single;
+  for _ in 0..36 { seed += [z]; }
+  graphics::gl_upload_vertices(seed, 6)
+}
+
+pub fn view3d_actors(s: Sim, prog: integer, avbo: integer, vw: float, vh: float) -> integer {
+  c = view3d_camera(s, vw, vh);
+  texs: vector<integer> = [];
+  views = actors_collect(s, texs);
+  buf: vector<single> = [];
+  n = present_boards(c, views, buf);          // inline: never route a vector<single>
+  if n > 0 {                                  //   through a returning helper (loft#392)
+    graphics::gl_update_buffer(avbo, buf);
+    graphics::gl_draw(avbo, n);
+  }
+  n
 }
 
 pub fn view3d_frame(s: Sim, prog: integer, vao: integer, nverts: integer,

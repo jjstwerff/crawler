@@ -71,6 +71,7 @@ struct GameWorld {
   s3prog:  integer not null,           // plan #11 P3: first-person 3D pass
   s3vao:   integer not null,
   s3n:     integer not null,
+  s3actor: integer not null,           // per-frame board buffer (one draw, updated in place)
   mode3d:  boolean not null,
   v_was:   boolean not null,
   w_was:   boolean not null,           // edge-triggers (wait/grab/pages/slots/hub/crystal)
@@ -358,6 +359,7 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
       // The world only: actors are boards through the presentation seam (P4) and the
       // full HUD comes with P9. Toggle back with V for the 2D plan view.
       view3d_frame(w.s, w.s3prog, w.s3vao, w.s3n, WIN_W as float, WIN_H as float);
+      view3d_actors(w.s, w.s3prog, w.s3actor, WIN_W as float, WIN_H as float);
     } else {
       view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln, postprog, postfbo, posttex);
       draw_msglog(painter, w.s, w.hud, w.ml);
@@ -417,12 +419,13 @@ fn main() {
   walln = len(walls) * 6;
   s3prog = make_view3d_shader();         // plan #11 P3: the first-person pass
   (s3vao, s3n) = build_scene3d(s);       // per-level 3D scene (floor + walls)
+  s3actor = make_actor_vbo();            // boards: created once, re-uploaded per frame
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
   w = GameWorld {
     s: s, walls: walls, hud: hud, ml: ml, last_total: last_total, last_known: last_known,
     wvao: wvao, wivbo: wivbo, wallvao: wallvao, walln: walln,
-    s3prog: s3prog, s3vao: s3vao, s3n: s3n, mode3d: false, v_was: false,
+    s3prog: s3prog, s3vao: s3vao, s3n: s3n, s3actor: s3actor, mode3d: false, v_was: false,
     w_was: false, g_was: false, c_was: false, spend_was: false, qs_was: false,
     i_was: false, iu_was: false, id_was: false, iq_was: false, ie_was: false,
     ient_was: false, cu_was: false, cd_was: false, ca_was: false, cdd_was: false,

@@ -5,7 +5,7 @@
 
 ## Status
 
-**ACTIVE — P0–P2b done; P3 built, awaiting a visual check.** The kernel now stands on the field: `sim.loft`
+**ACTIVE — P0–P4 built; P3/P4 await a visual check.** The kernel now stands on the field: `sim.loft`
 imports `hex_field` and `hexedge`, and **passability is an edge query** (`Sim.field`, an
 `EdgeSet`) rather than a lookup in `Sim.tiles` — proved equal to the old model over ~135 000
 `(hex, direction)` answers with zero mismatches from any reachable position
@@ -96,7 +96,7 @@ check must go red.
 | **P2b** — movement becomes a swept path, not a probe point | M | the same walk at 1/4/16× step length blocks on the same walls | **DONE** — bit-identical |
 | **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | **BUILT — awaiting your eyes** (`V` toggles) |
 | **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | Blocked on P3 |
-| **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | Blocked on P3 |
+| **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | **BUILT — awaiting your eyes**; textures wait for P8's atlas |
 | **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | Blocked on P2 |
 | **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |
 | **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
