@@ -3045,8 +3045,16 @@ fn stamp_house(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integ
 }
 
 // a ROUND TOWER: a hex-distance ring of wall with a cleared interior + a door
-fn stamp_round_tower(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integer,
+//
+// RECORD, do not infer (plan #11 P5 A1). The builder knows its centre and radius exactly,
+// so it appends them to `towers` as a flat (cx, cy, rad) triple. `build_field` turns each
+// triple into one arc surface rather than fitting one back out of the stamped cells —
+// inference where exact parameters are in hand is the approximation this domain forbids.
+// The matcher keeps a job, a better one: an independent second derivation that must agree.
+fn stamp_round_tower(tiles: vector<integer>, tk: vector<integer>, towers: vector<integer>,
+                     w: integer, h: integer,
                      cx: integer, cy: integer, rad: integer) {
+  towers += [cx, cy, rad];
   doored = false;
   for rr in 0..(rad * 2 + 1) {
     for qq in 0..(rad * 2 + 1) {
@@ -3080,6 +3088,9 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
   }
   tiles = lvl.g_tiles;
   tk = zeros(w * h);
+  // Every round tower this world stamps, as flat (cx, cy, rad) triples — recorded by the
+  // builder, read by build_field to raise one arc surface each (plan #11 P5).
+  towers: vector<integer> = [];
   if depth == 0 {
     // The CONTRACT WILDERNESS (OVERLAND.md 12): the window anchors at the
     // biggest town of the example world; each walked hex samples the pure
@@ -3169,8 +3180,8 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       trad = hring + 2.5;
       tqo = round(trad * 0.7071) as integer;
       tro = round(trad * 0.7071 * 1.1547) as integer;
-      stamp_round_tower(tiles, tk, w, h, w / 2 + tqo, h / 2 - tro, 2);
-      stamp_round_tower(tiles, tk, w, h, w / 2 - tqo, h / 2 + tro, 2);
+      stamp_round_tower(tiles, tk, towers, w, h, w / 2 + tqo, h / 2 - tro, 2);
+      stamp_round_tower(tiles, tk, towers, w, h, w / 2 - tqo, h / 2 + tro, 2);
     }
     if tsize >= 3 {
       // the town WALL: a hex-distance ring, roads make the gates. Derived too — it has to
@@ -3192,7 +3203,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         lang = (lt as float) * 1.0471976 + 0.5236;
         lq = w / 2 + round((wrad as float) * cos(lang)) as integer;
         lr = h / 2 + round((wrad as float) * sin(lang) * 0.866) as integer;
-        stamp_round_tower(tiles, tk, w, h, lq, lr, 2);
+        stamp_round_tower(tiles, tk, towers, w, h, lq, lr, 2);
       }
     }
     }
@@ -3209,10 +3220,10 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           ds2 = 0;
           if fr < h / 2 { ds2 = 2; }                   // the gate faces the town
           stamp_house(tiles, tk, w, h, fq - 5, fr - 4, 11, 9, ds2);
-          stamp_round_tower(tiles, tk, w, h, fq - 5, fr - 4, 2);
-          stamp_round_tower(tiles, tk, w, h, fq + 5, fr - 4, 2);
-          stamp_round_tower(tiles, tk, w, h, fq - 5, fr + 4, 2);
-          stamp_round_tower(tiles, tk, w, h, fq + 5, fr + 4, 2);
+          stamp_round_tower(tiles, tk, towers, w, h, fq - 5, fr - 4, 2);
+          stamp_round_tower(tiles, tk, towers, w, h, fq + 5, fr - 4, 2);
+          stamp_round_tower(tiles, tk, towers, w, h, fq - 5, fr + 4, 2);
+          stamp_round_tower(tiles, tk, towers, w, h, fq + 5, fr + 4, 2);
         }
       }
     }
@@ -3544,7 +3555,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               stamp_house(tiles, tk, w, h, rhx, rhy, 5, 4, 2);
             }
             if ru2.ru_size >= 2 {
-              stamp_round_tower(tiles, tk, w, h, ruq + 6, rur - 4, 2);
+              stamp_round_tower(tiles, tk, towers, w, h, ruq + 6, rur - 4, 2);
             }
             if ru2.ru_size >= 3 {
               for wr3 in 0..h {
@@ -3651,7 +3662,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           wzy = ((wz2.wz_y - ay + cwy) / sstep) ?? 0.0;
           (wzq, wzr) = px_to_hex(wzx, wzy);
           if wzq >= 6 && wzq < w - 6 && wzr >= 5 && wzr < h - 5 {
-            stamp_round_tower(tiles, tk, w, h, wzq, wzr, 3);
+            stamp_round_tower(tiles, tk, towers, w, h, wzq, wzr, 3);
             if wz2.wz_dead == 1 {
               for br4 in 0..9 {
                 for bq4 in 0..9 {
@@ -3889,7 +3900,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           fuy2 = ((fdy / fdl) ?? 0.0) * 20.0;
           fnq = w / 2 + round(fux2) as integer;
           fnr = h / 2 + round(fuy2) as integer;
-          stamp_round_tower(tiles, tk, w, h, fnq, fnr, 3);   // the BIG furnace
+          stamp_round_tower(tiles, tk, towers, w, h, fnq, fnr, 3);   // the BIG furnace
           for d7 in 0..6 {                                   // its slag ground
             (sq7, sr7) = hex_neighbor(fnq, fnr, d7);
             ti7b = sr7 * w + sq7;
@@ -3939,7 +3950,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         mlq = w / 2 + 14;
         mlr = h / 2 - 10;
       }
-      stamp_round_tower(tiles, tk, w, h, mlq, mlr, 2);
+      stamp_round_tower(tiles, tk, towers, w, h, mlq, mlr, 2);
       }
 
       // THE ALCHEMIST'S GATHERER: a rugged traveler fetching the special
