@@ -97,3 +97,57 @@ Both are taxonomy #2 (tool-can't-express-it) and neither was visible from the sp
 - **Affect: it is midday.** Lower the sun, warm the key, cool the ambient, lengthen nothing
   (no shadows in the renderer — a named floor).
 - **Clutter:** trees stand in front of the hamlet and hide it. Move them off the eye-path.
+
+---
+
+## Pass 3 — cold critique
+
+**Recognition:** a stone keep on a green hill, a cluster of red-roofed cottages beside it, a
+stepping-stone path climbing from the foreground with a small figure on it. **That is the
+intent.** The keep now reads as a keep rather than a chimney — the change was *proportion*,
+not size: a squat drum with a battlement course crowning it. Square towers had been reading
+as industry; a drum reads as a castle.
+
+**Affect:** calm, overcast, unhurried. Closer to "settled and inhabited" than pass 2's
+midday brightness, but the light is still flat — **not yet late afternoon**. With no shadows
+in the renderer, the remaining lever is colour temperature alone, and it is not enough on
+its own.
+
+## Predicates after pass 3
+
+| # | predicate | pass 2 | pass 3 |
+|---|---|---|---|
+| 1 | keep upper-left third, tallest | partial | **pass** |
+| 2 | horizon below midpoint | pass | **pass** |
+| 3 | ground not flat, ≥2× house height | partial | **partial** — 6.4 m vs 6.8 m |
+| 4 | 3–6 houses, clustered, clear | pass | **pass** |
+| 5 | every house pitched | pass | **pass** |
+| 6 | ≥2 round towers + curtain wall | **fail** | **partial** — drums built, but read as one mass with the keep |
+| 7 | path front-to-hamlet | pass | **pass** |
+| 8 | ≥4 trees, two sizes, none intersecting | partial | **pass** |
+| 9 | figure present and legible | partial | **pass** |
+| 10 | grass not uniform | pass | **pass** |
+
+**8 pass, 2 partial, 0 fail** — from 5 / 4 / 1.
+
+## What each pass actually cost
+
+- **Pass 2** was spent almost entirely on two *tool* faults (`abs(N·L)`, per-primitive
+  materials). No amount of scene editing would have fixed either, and neither was visible
+  from the spec — only from looking.
+- **Pass 3** was three scene faults and one plain bug: the eye-path guard used `||` where it
+  had to *exclude* a corridor, so it excluded nothing and a tree stood dead centre hiding
+  both the keep and the path it leads to. The intent file is what caught it — predicate 8
+  said "none intersecting," and the image plainly disagreed.
+
+## Still open
+
+- **Affect: the light is flat.** Colour temperature alone cannot carry late afternoon
+  without cast shadows. Either add a shadow pass to `glbview.py` (the renderer is ours) or
+  accept overcast and rewrite the target honestly.
+- **The towers merge with the keep** — they need separation in plan, or a lower curtain, so
+  three masses read rather than one.
+- **Houses are roofs on grey boxes.** The wall course is too tall for its roof; a cottage is
+  mostly roof.
+- **Ground is 6.4 m of relief against a 6.8 m target** — the one predicate that has never
+  passed.

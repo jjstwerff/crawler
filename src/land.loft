@@ -16,6 +16,31 @@ use glb;
 
 fn m(v: float) -> float { v / 0.8660254037844386 ?? 0.0 }
 
+// A drum — what a round tower actually is.  Predicate 6 failed outright with scaled cubes,
+// and a box tower is the "generic regular icon" problem in another guise: a castle whose
+// towers are boxes reads as a factory, because square is the signature of industry.
+fn mesh_drum(cx: float, cy: float, z0: float, z1: float,
+             r0f: float, r1f: float, sides: integer) -> Mesh {
+  ms = mesh("drum");
+  u = vec2(0.0, 0.0);
+  for s in 0..sides {
+    a0 = 6.283185307179586 * ((s as float) / (sides as float) ?? 0.0);
+    a1 = 6.283185307179586 * (((s + 1) as float) / (sides as float) ?? 0.0);
+    n0 = vec3(cos(a0), sin(a0), 0.0);
+    p0 = add_vertex(ms, vertex(vec3(cx + r0f * cos(a0), cy + r0f * sin(a0), z0), n0, u));
+    p1 = add_vertex(ms, vertex(vec3(cx + r0f * cos(a1), cy + r0f * sin(a1), z0), n0, u));
+    p2 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a1), cy + r1f * sin(a1), z1), n0, u));
+    p3 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a0), cy + r1f * sin(a0), z1), n0, u));
+    add_quad(ms, p0, p1, p2, p3);
+    nz = vec3(0.0, 0.0, 1.0);
+    c = add_vertex(ms, vertex(vec3(cx, cy, z1), nz, u));
+    t0 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a0), cy + r1f * sin(a0), z1), nz, u));
+    t1 = add_vertex(ms, vertex(vec3(cx + r1f * cos(a1), cy + r1f * sin(a1), z1), nz, u));
+    add_triangle(ms, c, t0, t1);
+  }
+  ms
+}
+
 // a rolling hill: low at the front-right, rising to the back-left where the castle sits
 fn terrain(x: float, y: float) -> float {
   h = 0.0 - x * 0.16 + y * 0.10;
@@ -118,35 +143,35 @@ fn main() {
   cu_path = add_mesh(sc, cube());
   cu = cu_wall;
 
-  // ── the castle, upper-left: two round towers and a curtain wall ──────────
+  // ── the castle, upper-left: a SQUAT keep and two round towers ────────────
+  // The keep read as a chimney because it was narrow and tall. A keep is squat: wide base,
+  // few storeys, a battlement course crowning it. Height alone does not say "castle" —
+  // proportion does.
   kx = -24.0; ky = 14.0;
   kz = terrain(kx, ky);
-  cy = add_mesh(sc, sphere("cyl", 0.5, 16, 3));
-  // keep: a tall drum
-  add_node(sc, node_at("keep", cu_keep, m_keep,
-    mat4_trs(kx, ky, kz + m(9.0), 0.0, m(9.0), m(9.0), m(18.0))));
-  add_node(sc, node_at("keep_cap", cu_roof, m_roof,
-    mat4_trs(kx, ky, kz + m(18.6), 0.0, m(10.4), m(10.4), m(1.2))));
+  ki = add_mesh(sc, mesh_drum(kx, ky, kz - 1.0, kz + m(13.0), m(8.4), m(7.8), 10));
+  add_node(sc, node_at("keep", ki, m_keep, mat4_identity()));
+  kb = add_mesh(sc, mesh_drum(kx, ky, kz + m(13.0), kz + m(15.2), m(9.2), m(9.2), 10));
+  add_node(sc, node_at("keep_battlement", kb, m_wall, mat4_identity()));
   for i in 0..2 {
-    tx = kx + 11.0; ty = ky - 9.0;
-    if i == 1 { tx = kx - 9.0; ty = ky + 10.0; }
+    tx = kx + 12.0; ty = ky - 10.0;
+    if i == 1 { tx = kx - 8.0; ty = ky + 11.0; }
     tz = terrain(tx, ty);
-    add_node(sc, node_at("tower", cu_wall, m_wall,
-      mat4_trs(tx, ty, tz + m(6.5), 0.0, m(5.6), m(5.6), m(13.0))));
-    add_node(sc, node_at("tower_cap", cu_roof, m_roof,
-      mat4_trs(tx, ty, tz + m(13.4), 0.0, m(6.6), m(6.6), m(0.9))));
-    // curtain wall from the keep to each tower
+    di = add_mesh(sc, mesh_drum(tx, ty, tz - 1.0, tz + m(11.0), m(4.2), m(3.9), 12));
+    add_node(sc, node_at("tower", di, m_wall, mat4_identity()));
+    bi2 = add_mesh(sc, mesh_drum(tx, ty, tz + m(11.0), tz + m(12.6), m(4.7), m(4.7), 12));
+    add_node(sc, node_at("tower_batt", bi2, m_keep, mat4_identity()));
     mx = (kx + tx) * 0.5; my = (ky + ty) * 0.5;
     dx = tx - kx; dy = ty - ky;
     L = sqrt(dx * dx + dy * dy) ?? 1.0;
     add_node(sc, node_at("curtain", cu_wall, m_wall,
-      mat4_trs(mx, my, terrain(mx, my) + m(4.0), atan2(dy, dx), L, m(1.6), m(8.0))));
+      mat4_trs(mx, my, terrain(mx, my) + m(3.5), atan2(dy, dx), L, m(1.5), m(7.0))));
   }
 
   // ── the hamlet: five houses, clustered below and right of the castle ─────
   for i in 0..5 {
-    hx = -6.0 + (i as float) * 5.4 - 2.0 * cos((i as float) * 1.7);
-    hy = -2.0 + 4.6 * sin((i as float) * 2.1);
+    hx = 2.0 + (i as float) * 5.0 - 1.6 * cos((i as float) * 1.7);
+    hy = -6.0 + 4.2 * sin((i as float) * 2.1);
     add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
               m(6.0), m(4.4), m(3.4), 0.4 * ((i as float) - 2.0));
   }
@@ -160,26 +185,39 @@ fn main() {
       mat4_trs(px, py, terrain(px, py) + 0.05, 0.0, 2.6, 2.6, 0.12)));
   }
 
-  // ── trees: two sizes, scattered, none on a building ──────────────────────
-  for i in 0..9 {
+  // ── trees: no two alike, and off the eye-path ────────────────────────────
+  // Nine identical lollipops read as an ICON, not as trees — regularity is the signature
+  // of abstraction. Radius, height, tint and lean all vary now, and none stands between
+  // the viewer and the hamlet.
+  for i in 0..11 {
     a = (i as float) * 2.39996;
-    rr = 13.0 + (i as float) * 2.4;
-    tx = rr * cos(a) * 0.9 + 6.0;
-    ty = rr * sin(a) * 0.7 - 2.0;
-    tz = terrain(tx, ty);
-    big = i % 3 == 0;
-    th = m(9.0); cr = 4.4; lm = m_leaf;
-    if big { th = m(14.0); cr = 6.4; lm = m_leaf2; }
-    add_node(sc, node_at("trunk", cu_bark, m_bark,
-      mat4_trs(tx, ty, tz + th * 0.35, 0.0, 0.7, 0.7, th * 0.7)));
-    ci = add_mesh(sc, mesh_crown(tx, ty, tz + th * 0.55, tz + th, cr, 5, 12));
-    add_node(sc, node_at("crown", ci, lm, mat4_identity()));
+    rr = 15.0 + (i as float) * 2.1;
+    tx = rr * cos(a) * 1.05 - 4.0;
+    ty = rr * sin(a) * 0.72 + 6.0;
+    // Keep the eye-path clear. The first attempt used `||` and therefore excluded almost
+    // nothing — a tree stood dead centre hiding both the keep and the path it leads to.
+    // The corridor from the figure up to the hamlet has to be EXCLUDED, not permitted.
+    inpath = tx > -9.0 && tx < 15.0 && ty > -24.0 && ty < 8.0;
+    if !inpath {
+      tz = terrain(tx, ty);
+      v = 0.62 + 0.52 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
+      th = m(7.0) * v + m(3.0);
+      cr = 3.1 * v + 1.5;
+      lm = m_leaf;
+      if i % 3 == 1 { lm = m_leaf2; }
+      lean = 0.35 * ((((i * 3) % 5) as float) / 4.0 - 0.5) ?? 0.0;
+      add_node(sc, node_at("trunk", cu_bark,
+        m_bark, mat4_trs(tx, ty, tz + th * 0.32, lean, 0.55 + 0.3 * v, 0.55 + 0.3 * v, th * 0.66)));
+      ci = add_mesh(sc, mesh_crown(tx + lean * th * 0.5, ty, tz + th * 0.50,
+                                   tz + th * (0.92 + 0.22 * v), cr, 5, 11));
+      add_node(sc, node_at("crown", ci, lm, mat4_identity()));
+    }
   }
 
   add_figure(sc, 8.0, -19.0, terrain(8.0, -19.0), m_skin);
 
   add_camera(sc, camera("cam"));
-  add_light(sc, directional_light("sun", 1.0, 0.93, 0.82, 1.0, vec3(0.45, 0.35, -0.72)));
+  add_light(sc, directional_light("sun", 1.0, 0.88, 0.70, 1.0, vec3(0.55, 0.30, -0.34)));
   out = "{env_variable("PWD") ?? "."}/build/land.glb";
   save_scene_glb(sc, out);
   println("wrote {out}");

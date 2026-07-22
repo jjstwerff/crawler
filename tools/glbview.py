@@ -161,10 +161,16 @@ def render(tris, size, eye, target, up, fov, bg, sun):
         # which is what lets colour carry meaning at all.
         lam = max(0.0, sum(n[i] * sun[i] for i in range(3)))
         sky = 0.5 + 0.5 * n[2]                 # up-facing catches more sky
-        sh = 0.34 + 0.30 * sky + 0.52 * lam
-        rgb = (int(max(0, min(255, col[0] * 255 * sh))),
-               int(max(0, min(255, col[1] * 255 * sh))),
-               int(max(0, min(255, col[2] * 255 * sh))))
+        # Warm low key + cool sky fill. Colour temperature is the mood lever (skill:
+        # "dusk = a warm low key light + cool ambient"), and in 3D you SET it rather than
+        # paint it — the renderer then does the warm/cool across every surface for free.
+        amb = 0.34
+        kr = amb + 0.26 * sky * 0.82 + 0.56 * lam * 1.16
+        kg = amb + 0.26 * sky * 0.90 + 0.56 * lam * 1.00
+        kb = amb + 0.26 * sky * 1.15 + 0.56 * lam * 0.74
+        rgb = (int(max(0, min(255, col[0] * 255 * kr))),
+               int(max(0, min(255, col[1] * 255 * kg))),
+               int(max(0, min(255, col[2] * 255 * kb))))
         x0 = max(0, int(min(pa[0], pb[0], pc[0])));  x1 = min(W - 1, int(max(pa[0], pb[0], pc[0])) + 1)
         y0 = max(0, int(min(pa[1], pb[1], pc[1])));  y1 = min(H - 1, int(max(pa[1], pb[1], pc[1])) + 1)
         if x1 < x0 or y1 < y0:
