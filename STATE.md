@@ -39,14 +39,52 @@ first-person 3D and the hex field becomes the world the player stands in.
 >   %Y` twice. → `EXTRACTION.md`, and **LOFT-HANDOFF G5** for the misleading diagnostic it
 >   produced.
 >
-> ### 2. NOW: the towers + doors (plan #11 P5's tail)
+> ### 2. → START HERE: the towers + doors (plan #11 P5's tail) — **blueprint PINNED, code not
+> started**
 >
-> Towers are **hexagons** (`hex_distance == rad`), doors are **gaps** (`v = 0`). One phase
-> across four layers — builder → `Sim` → `build_field` → renderer — because stopping short of
-> the renderer changes nothing visible: a recorded arc still draws as six flat quads. Layer
-> table + the plotted end-result: `plans/11-3d-world/RESULTS.md` → *P5 — what remains*.
-> Doing this before the merge means doing the merge twice, because whichever structure `Sim`
-> carries the arc in **is** the answer to step 1's question.
+> Towers are **hexagons** today (`hex_distance == rad`); doors are **gaps** (`v = 0`). The
+> design is settled and written to be executed cold: **`plans/11-3d-world/RESULTS.md` → *P5
+> tail — the blueprint PINNED*** (commit `edc0f5f`). Read that, not the older *what remains*
+> section below it, which the blueprint corrects in two places.
+>
+> **The invariant:** *a tower built at radius `r` is recovered as ONE arc surface of radius
+> `r`, and is drawn from that surface rather than from its cells.*
+>
+> **Two corrections that make this smaller than it was described** — both from reading the
+> four layers rather than the table about them:
+> - **Nothing needs inventing.** `hexmatch` already recovers arcs from cells (gated by
+>   `matchtest`), `tag_edges` already writes fitted surfaces onto an `EdgeSet`, `surf_arc`
+>   gives exact radial normals, `edge_block_arb` already arbitrates junctions. Missing is only:
+>   `Sim` carries no `Surfaces` (`grep -c` → **0**), `build_field` (`sim.loft:325`) calls bare
+>   `edge_block` so it never learns WHICH thing blocks, and `view3d` (`view3d.loft:110`)
+>   extrudes a flat quad per blocked edge.
+> - **It is splittable after all.** The old text says there is no verifiable midpoint before
+>   the renderer. There is no *visible* one — but *recorded arc == matcher-fitted arc* is
+>   **checkable with no renderer**, so step A can land and be gated alone.
+>
+> **The design decision: RECORD, do not infer.** The builder knows its centre and radius
+> exactly, so fitting them back out of cells is inference where exact parameters are in hand.
+> The matcher is demoted to an **independent second derivation that must agree**.
+>
+> **Steps** (full table with gates in the blueprint): **A1** `stamp_round_tower` appends
+> `(cq, cr, rad)` to a flat vector · **A2** `build_field` creates an arc per tower and tags its
+> ring edges with `edge_block_arb` **before** the generic pass · **A3** `Sim` carries
+> `surfs: Surfaces` (+ `feats: Features`) · **B** `view3d` reads `edge_surf` and draws an arc
+> edge as curve.
+>
+> **Two things already decided so they are not re-derived:**
+> - *Ordering is load-bearing:* tag arcs **before** the generic `edge_block` pass, so
+>   first-writer-wins protects them **by construction**. The reverse order works only by the
+>   accident that `surf_distance` returns 1e6 for an out-of-range id.
+> - *The B control needs a straight wall AND a tower in one frame*, because "the tower curves"
+>   is also passed by a renderer that curves everything. The A control: perturb the recorded
+>   radius 10% and the agreement check must go RED — verify that before trusting a green.
+>
+> **The size, honestly:** `sim.loft` is 4000+ lines with **two** `Sim {}` literals (≈2884,
+> ≈4145), **two** `build_field` call sites (2882, 4144) and **ten** `stamp_round_tower` calls.
+> A1–A3 is threading work, not design work. Verified against source: the door is one hex at
+> `(cx, cy + rad)`, the only ring cell with `tq == cx` and `tr > cy`; `rad = 2` is **3.0 m** and
+> **3.464 world units** at `SCALE.md`'s 1.5 m per hex step.
 
 ## The design position — eight statements, and they compose
 
@@ -85,11 +123,13 @@ carry.
 | **#5 geometry** | active — points, crossings/slips, level crossings, platforms, signals, bridges/tunnels, stairs, spiral stairs, roofs, cones, arches, domes, vaults, the matcher | 20 |
 | **#9 canopy trees** | **T1–T10 all done** | 10 |
 | **#10 props** | **P1–P9 all done** (P9 scored 4/6, both failures understood) | 6 |
-| **#11 3D world** | **ACTIVE — P0–P4 built + SEEN; P5 part done** | 6 |
+| **#11 3D world** | **ACTIVE — P0–P4 built + SEEN; P5 part done, its tail blueprinted (`edc0f5f`)** | 6 |
 
 Plus the render path (`src/scenemesh.loft`, `src/figure.loft`, `tools/glbview.py`), the scale
 contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracted** to
-`loft-libs-world` with `src/hexform.loft` deleted.
+`loft-libs-world` with `src/hexform.loft` deleted — **and its `EdgeSet` merged 2026-07-22**
+(library `5b4bba1`, crawler `2a72763`), which took crawler's own edge storage out entirely
+(**−192 lines**, 51 call sites, `edgetest`/`sweeptest` unchanged).
 
 ## Decisions taken (don't re-litigate these)
 
@@ -154,7 +194,12 @@ contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracte
 - **`mesh_trunk` not migrated** to `prim_drum` (P1): a six-segment taper whose *surface* equals
   a one-segment taper, so migrating changes tessellation. A real change wanting its own step.
 - **Plan #5 `vm_surf`** — render-side attribution; the one genuine gap in DESIGN §7.2b.
-- **LOFT-HANDOFF.md H1/H2** still unfiled upstream.
+- **LOFT-HANDOFF.md H1/H2 — and now G5** still unfiled upstream. G5 (assigning to an
+  *undeclared* struct field reports a type error on the *receiver*) is `sev:low`/`wa:clean`
+  but it produced a plausible wrong fix in a live session, which is the argument for filing it.
+- **Split `EdgeSet` out of `hex_field.loft`** into its own file in the package. The merge is
+  done, but the collision that cost ~40 minutes was structural: one 1350-line module with two
+  writers. Nobody owns this yet and it is cheap.
 
 ## Four things worth carrying forward
 
@@ -185,6 +230,30 @@ one of its two controls did not fire.** Shrinking the solidity rule to `t == 1` 
 suite green, though the surface world carries 232 boulders and fence posts — so the rule's
 other two arms had never been gated at all. *A negative control that stays green is a result,
 not a formality.*
+
+**3b. A test can EXPIRE, and an expired test is a check that passes for the wrong reason.**
+`mergetest` did exactly the job it was built for — it proved crawler's and `hex_field`'s index
+maps were the same permutation before any storage moved, halo included, origin-spanning,
+negative control firing at exactly 2. Then the merge deleted its subject, leaving it comparing
+`edgeset_new` to `edgeset_new`. It was removed in the same commit that made it a tautology.
+*A test whose subject has been deleted does not become a regression test.* This is lesson 3's
+family again, arriving by a route the other four did not: not a control that was born blind,
+but one that **went** blind because the world changed under it. Worth asking of any gate that
+survives a refactor — *what would still make this red?*
+
+**3c. Two agents in one working tree is a worse hazard than two agents in one git index, and
+it has no undo.** Both happened on 2026-07-22. The git one: `git add` stages into the *shared*
+index, so `a0a3c2e` carries `mergetest.loft` under an unrelated message — files survive, the
+message is lost. The file one: `hex_field.loft` had two writers for ~40 minutes, leaving it
+transiently uncompilable **for both consumers**, one agent's constructor edit silently not
+applying, and each debugging errors the other was creating. The rules come in pairs — *stage
+and commit in one command* so your work is not swept into theirs, and *`git diff` before
+committing in a shared tree* so theirs is not swept into yours. Detection for the file case is
+`stat -c %Y` twice, and it is worth doing the moment a sibling library errors in a way that
+does not match your own edit. **The structural fix is a smaller file, not private copies** —
+and the reason to keep sharing is on the record: `edgeset_equal` compares the halo because of
+a negative control the *other* agent found, a finding in one place changing a design decision
+in another with neither asking. → `EXTRACTION.md`, `LOFT-HANDOFF` **G5**.
 
 **4. Read the code before writing the claim.** Twice in one session a confident structural claim
 was contradicted by the source — *"build new, extract settled"* (unbuildable: a stencil **is** a
