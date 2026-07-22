@@ -314,3 +314,105 @@ furnishings rebuild exactly when the buildings change and never otherwise.
 
 Parts 1 and 2 said what a prop *is*. This says where it *lives*, and in doing so retires
 both open questions: placement is derived, and props affect the field on their own sheet.
+
+---
+
+# Part 4 — things that move
+
+Doors and windows opening, shutters, wheels turning, piston gear. Five cases, **three
+classes**, and one shape underneath all of them:
+
+> a part's local transform stops being a constant and becomes **`f(state)`**, where the
+> state is **one number per prop** — not per part.
+
+Part 2 said `part = (primitive, local transform, params)`. This is the only change that
+sentence needs.
+
+## Class A — one hinge, one angle
+Door, casement window, awning window, shutters. A part frame parameterised by a single
+angle about a hinge axis. Shutters are the same thing twice with opposite sign. A casement
+hinges about a vertical axis, an awning about a horizontal one — **already covered**, because
+Part 1's primitives take an axis.
+
+## Class B — continuous rotation driven by travel
+A wheel. The phase must come from **distance covered**, never from a clock:
+
+```
+   phase = way_param(track, position) / (2π · r)
+```
+
+`way_param` is the milepost from plan #9 T3 — built for stair treads, and it is exactly the
+quantity a wheel needs. **Accurate driving is then not something to get right; it is
+something that cannot be got wrong**, because the phase is *computed from* the distance
+rather than stored beside it and kept in step. A wheel driven by a timer desynchronises the
+moment anything changes speed; one driven by the milepost cannot.
+
+Wheel *slip* then becomes an opt-in term — `phase = (1 + slip) · d / 2πr` — a deliberate
+effect rather than a bug you are always fighting.
+
+## Class C — a linkage
+Steam gear is the hard one and it is still closed form. Crank radius `r`, con-rod `L`, crank
+angle `θ`:
+
+```
+   crank pin   = (r·cosθ, r·sinθ)
+   crosshead x = r·cosθ + √(L² − r²·sin²θ)          the slider-crank identity
+   con-rod     = the part between them; its angle falls out
+```
+
+Every part frame follows from `θ`, and `θ` is the wheel phase from Class B. So **the whole
+valve gear is a pure function of distance travelled** — no keyframes, no animation data, and
+the rods cannot drift out of phase with the wheels because they are derived from them.
+
+## The two results that matter
+
+### The door mechanism already exists, and is already gated
+A door is a `Feature` — a surface interval whose material is passable or not (plan #5 P5).
+Opening it is `material_set_solid`, which was written for **level-crossing barriers** (§8)
+and gated there as costing **zero edge writes and not invalidating the L2 cache**:
+
+```
+   barrier down -> up:  surf sum 340 == 340,  mat sum 192 == 192,  cache still HIT
+```
+
+So a town's doors may open and shut freely without touching the field. That gate was
+written for a railway and it is, unchanged, the door-opening mechanism.
+
+And it keeps the physics/picture guarantee through the motion: a door that *looks* open
+*is* open, because one number drives both.
+
+### Animated state must never be geometry
+The mesh is static; the **node transform** moves. glTF nodes carry a `Mat4`, so swinging a
+door leaf costs a matrix, not a rebuild. If opening a door rebuilt its mesh, a village would
+thrash the cache every time someone went indoors.
+
+Which fixes how finely to split a part-list — the open question Part 2 left:
+
+> **Part granularity follows degrees of freedom.** Split where something moves independently;
+> merge where it does not.
+
+A door leaf, a shutter, a wheel, a con-rod each earn their own part. A window's frame and
+reveal do not — they never move relative to the wall.
+
+## The principle underneath
+
+**Store decisions; derive consequences.**
+
+| state | kind | why |
+|---|---|---|
+| door angle, shutter | **stored** | someone opened it — it is a fact about the world |
+| wheel phase | **derived** from the milepost | a consequence of motion |
+| piston phase | **derived** from wheel phase | a consequence of a consequence |
+
+Derived state costs nothing to store and **cannot** desync. Stored state is one float on the
+prop record. Neither is animation data.
+
+## Still open
+
+- **A door standing open occupies space.** Its material contribution is a function of state
+  too, so the swept position wants edges on the prop level. By the barrier result a material
+  change on already-marked edges is free, but *which* edges an open door marks is not yet
+  worked out.
+- **Where does state live?** `L_MOVABLE` holds the props; a door is on `L_FIXED` but its
+  angle changes constantly. Either doors move to a third level, or state is separated from
+  placement — the second is probably right, since the door has not moved, only turned.
