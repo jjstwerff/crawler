@@ -13,8 +13,16 @@ fn main() {
   for r in r0..r0 + gh {
     for q in q0..q0 + gw { hexset_set(ground, q, r, true); }
   }
+  // Neighbours, deliberately. An ISOLATED tree has bole 0 — its crown reaches the ground
+  // and it reads as a bush, which is exactly what an open-grown tree looks like. A trunk
+  // only appears when competition raises the crown base, so to see one, the tree needs
+  // rivals. That is the T2 forestry result made visible.
   t = trees_new();
   tree_add(t, 0, 0, 14, 121, 0);
+  tree_add(t,  16, 0, 14, 121, 1);
+  tree_add(t, -16, 0, 14, 121, 2);
+  tree_add(t, 0,  24, 14, 121, 3);
+  tree_add(t, 0, -24, 14, 121, 4);
   lb = labels_new(q0, r0, gw, gh);
   ct = labels_new(q0, r0, gw, gh);
   canopy_partition(t, ground, lb, ct);
@@ -31,8 +39,18 @@ fn main() {
   m_skin  = add_material(sc, material_color("skin", 0.80, 0.60, 0.45));
   gi = add_mesh(sc, mesh_floor(ground, 0.0, "ground"));
   add_node(sc, node_at("ground", gi, m_grass, mat4_identity()));
-  bi = add_mesh(sc, mesh_branches(sk, tp, bs, nmin, PIPE_K));
+  bz = branch_heights(sk, tp, bs);
+  ti = add_mesh(sc, mesh_trunk(sk, height_get(tp, 0, 0), PIPE_K, 12));
+  add_node(sc, node_at("trunk", ti, m_bark, mat4_identity()));
+  bi = add_mesh(sc, mesh_branches_3d(sk, bz, nmin, PIPE_K));
   add_node(sc, node_at("branches", bi, m_bark, mat4_identity()));
+  println("trunk height {height_get(tp, 0, 0)} wu = {height_get(tp, 0, 0) * 0.8660254037844386} m");
+  // the crown too, so the branches are judged where they actually sit — inside foliage
+  m_leaf = add_material(sc, material_color("leaf", 0.25, 0.43, 0.21));
+  bole0 = crown_bole(t, 0, ground, lb, ct);
+  println("bole {bole0} wu = {bole0 * 0.8660254037844386} m (competition raised it)");
+  ci = add_mesh(sc, mesh_crown(0.0, 0.0, bole0, 14.0, 7.0, 8, 20));
+  add_node(sc, node_at("crown", ci, m_leaf, mat4_identity()));
   add_figure(sc, 9.0, -7.0, 0.0, m_skin);
   add_camera(sc, camera("cam"));
   add_light(sc, directional_light("sun", 1.0, 0.96, 0.90, 1.0, vec3(0.3, 0.5, -0.8)));

@@ -301,3 +301,168 @@ pub fn mesh_branches(sk: Skeleton, top: Heights, base: Heights,
   }
   ms
 }
+
+// ── PLACING THE SKELETON IN 3D ──────────────────────────────────────────────
+//
+// The skeleton is a PLAN-VIEW structure: its nodes are cells, and it says what connects to
+// what, not where anything sits vertically. The first render laid every node at the local
+// canopy height, so the branches followed the crown SURFACE and the tree read as a spider —
+// no trunk, legs drooping outward.
+//
+// The whorl model supplies the missing height. A branch leaves the TRUNK AXIS at its whorl
+// height and runs outward to the canopy surface at its tip, so:
+//
+//     z(node) = lerp( z_attach(its branch), crown surface at the node, how far out it is )
+//
+// and a branch reaching far out — which serves low crown — necessarily attaches low, while
+// a short branch near the top attaches high. That is the arrangement that makes a tree look
+// like a tree, and none of it is authored: it falls out of the crown profile and the
+// branch's own reach.
+//
+// Height is a PLACEMENT decision, so it lives here in the geometry layer rather than in the
+// skeleton, which stays a pure topology.
+pub fn branch_heights(sk: Skeleton, top: Heights, base: Heights) -> vector<float> {
+  n = sk.sk_n;
+  z: vector<float> = [];
+  anc: vector<integer> = [];
+  rad: vector<float> = [];
+  for j in 0..n { z += [0.0]; anc += [0]; rad += [0.0]; }
+  tx = node_x(sk, 0);
+  ty = node_y(sk, 0);
+  // the tree's full height, at the trunk
+  H = height_get(top, sk.sk_q[0] ?? 0, sk.sk_r[0] ?? 0);
+  for j in 0..n {
+    dx = node_x(sk, j) - tx;
+    dy = node_y(sk, j) - ty;
+    rad[j] = sqrt(dx * dx + dy * dy) ?? 0.0;
+  }
+  // first-order ancestor: the child of the root that this node hangs from
+  for j in 1..n {
+    a = j;
+    guard = 0;
+    while (sk.sk_par[a] ?? -1) > 0 && guard < n { a = sk.sk_par[a] ?? 0; guard = guard + 1; }
+    anc[j] = a;
+  }
+  // each branch's reach, and the crown height where it ends
+  rmax: vector<float> = [];
+  ztip: vector<float> = [];
+  for j in 0..n { rmax += [0.0]; ztip += [0.0]; }
+  for j in 1..n {
+    a = anc[j] ?? 0;
+    if (rad[j] ?? 0.0) > (rmax[a] ?? 0.0) {
+      rmax[a] = rad[j] ?? 0.0;
+      ztip[a] = height_get(top, sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0);
+    }
+  }
+  // WHERE EACH BRANCH LEAVES THE TRUNK.
+  //
+  // Deriving it from the branch's own reach put every branch at one height — an isolated
+  // crown is round, so every first-order branch reaches about the same distance, and they
+  // all landed in a single plate. The growth story gives the answer instead: a branch's
+  // LOAD is its age, because it has been accumulating crown since it formed. So the
+  // heaviest branch is the oldest, formed when the tree was shortest, and sits LOWEST —
+  // and the whorl budget is what stopped them all forming at once in the first place.
+  zlo = H * 0.22;
+  zhi = H * 0.86;
+  nb = 0;
+  for j in 1..n { if (sk.sk_par[j] ?? -1) == 0 { nb = nb + 1; } }
+  zatt_of: vector<float> = [];
+  for j in 0..n { zatt_of += [H * 0.5]; }
+  for j in 1..n {
+    if (sk.sk_par[j] ?? -1) == 0 {
+      // rank by load: how many first-order branches carry more than this one
+      rank = 0;
+      for o in 1..n {
+        if (sk.sk_par[o] ?? -1) == 0 && (sk.sk_load[o] ?? 0) > (sk.sk_load[j] ?? 0) {
+          rank = rank + 1;
+        }
+      }
+      f = 0.0;
+      if nb > 1 { f = (rank as float) / ((nb - 1) as float) ?? 0.0; }
+      zatt_of[j] = zlo + (zhi - zlo) * f;
+    }
+  }
+  z[0] = H;
+  for j in 1..n {
+    a = anc[j] ?? 0;
+    zatt = zatt_of[a] ?? (H * 0.5);
+    rm = rmax[a] ?? 0.0;
+    t = 0.0;
+    if rm > 0.0001 { t = (rad[j] ?? 0.0) / rm ?? 0.0; }
+    if t > 1.0 { t = 1.0; }
+    zs = height_get(top, sk.sk_q[j] ?? 0, sk.sk_r[j] ?? 0);
+    z[j] = zatt + (zs - zatt) * t;
+  }
+  z
+}
+
+// Branches drawn from those heights, each segment starting where its parent sits.  The
+// first segment of every branch starts ON the trunk axis, which is what gives the tree a
+// centre to hang from.
+pub fn mesh_branches_3d(sk: Skeleton, z: vector<float>, nmin: integer, k: float) -> Mesh {
+  ms = mesh("branches");
+  u = vec2(0.0, 0.0);
+  tx = node_x(sk, 0);
+  ty = node_y(sk, 0);
+  for j in 1..sk.sk_n {
+    if (sk.sk_load[j] ?? 0) >= nmin {
+      p = sk.sk_par[j] ?? -1;
+      if p >= 0 {
+        ax = node_x(sk, p); ay = node_y(sk, p);
+        if p == 0 { ax = tx; ay = ty; }
+        bx = node_x(sk, j); by = node_y(sk, j);
+        az = z[p] ?? 0.0;
+        bz = z[j] ?? 0.0;
+        ra = node_radius(sk, p, k);
+        rb = node_radius(sk, j, k);
+        dx = bx - ax; dy = by - ay;
+        L = sqrt(dx * dx + dy * dy) ?? 1.0;
+        nx = 0.0 - dy / L ?? 0.0;
+        ny = dx / L ?? 0.0;
+        nz = vec3(nx, ny, 0.0);
+        v0 = add_vertex(ms, vertex(vec3(ax - nx * ra, ay - ny * ra, az), nz, u));
+        v1 = add_vertex(ms, vertex(vec3(ax + nx * ra, ay + ny * ra, az), nz, u));
+        v2 = add_vertex(ms, vertex(vec3(bx + nx * rb, by + ny * rb, bz), nz, u));
+        v3 = add_vertex(ms, vertex(vec3(bx - nx * rb, by - ny * rb, bz), nz, u));
+        add_quad(ms, v0, v1, v2, v3);
+        vt = vec3(0.0, 0.0, 1.0);
+        w0 = add_vertex(ms, vertex(vec3(ax - nx * ra, ay - ny * ra, az + ra * 1.4), vt, u));
+        w1 = add_vertex(ms, vertex(vec3(ax + nx * ra, ay + ny * ra, az + ra * 1.4), vt, u));
+        w2 = add_vertex(ms, vertex(vec3(bx + nx * rb, by + ny * rb, bz + rb * 1.4), vt, u));
+        w3 = add_vertex(ms, vertex(vec3(bx - nx * rb, by - ny * rb, bz + rb * 1.4), vt, u));
+        add_quad(ms, w0, w1, w2, w3);
+      }
+    }
+  }
+  ms
+}
+
+// The trunk itself: a tapered column on the axis, from the ground to the crown top, its
+// radius the pipe model's at the root.
+pub fn mesh_trunk(sk: Skeleton, ztop: float, k: float, sides: integer) -> Mesh {
+  ms = mesh("trunk");
+  u = vec2(0.0, 0.0);
+  tx = node_x(sk, 0);
+  ty = node_y(sk, 0);
+  r0f = node_radius(sk, 0, k);
+  for s in 0..sides {
+    a0 = 6.283185307179586 * ((s as float) / (sides as float) ?? 0.0);
+    a1 = 6.283185307179586 * (((s + 1) as float) / (sides as float) ?? 0.0);
+    // taper: full at the base, a third at the top
+    for seg in 0..6 {
+      f0 = (seg as float) / 6.0 ?? 0.0;
+      f1 = ((seg + 1) as float) / 6.0 ?? 0.0;
+      z0 = ztop * f0;
+      z1 = ztop * f1;
+      ra = r0f * (1.0 - 0.66 * f0);
+      rb = r0f * (1.0 - 0.66 * f1);
+      n0 = vec3(cos(a0), sin(a0), 0.0);
+      p0 = add_vertex(ms, vertex(vec3(tx + ra * cos(a0), ty + ra * sin(a0), z0), n0, u));
+      p1 = add_vertex(ms, vertex(vec3(tx + ra * cos(a1), ty + ra * sin(a1), z0), n0, u));
+      p2 = add_vertex(ms, vertex(vec3(tx + rb * cos(a1), ty + rb * sin(a1), z1), n0, u));
+      p3 = add_vertex(ms, vertex(vec3(tx + rb * cos(a0), ty + rb * sin(a0), z1), n0, u));
+      add_quad(ms, p0, p1, p2, p3);
+    }
+  }
+  ms
+}

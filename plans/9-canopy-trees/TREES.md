@@ -864,3 +864,42 @@ axis** at its whorl height and runs outward to the canopy surface at its tip —
 geometry should interpolate from `(trunk_x, trunk_y, z_whorl)` to the crown surface, rather
 than lying flat at the local canopy height. That is the next change, and it is the one that
 turns a correct structure into a believable one.
+
+
+## 16. Placing the skeleton in 3D
+
+The skeleton is a **plan-view topology** — it says what connects to what, not where anything
+sits vertically. Laying every node at its local canopy height made branches follow the crown
+*surface*, and the tree read as a spider. Height is a **placement** decision, so it lives in
+the geometry layer and the skeleton stays pure topology.
+
+**Where a branch leaves the trunk** was the whole question. Deriving it from the branch's own
+reach put every branch at one height — an isolated crown is round, so every first-order
+branch reaches about the same distance and they all landed in a single plate. The growth
+story gives the answer instead:
+
+> a branch's **load is its age**, because it has been accumulating crown since it formed —
+> so the heaviest branch is the oldest, formed when the tree was shortest, and sits **lowest**.
+
+The whorl budget is what stopped them all forming at once to begin with, so the two rules
+compose. Branch heights now spread from `0.22H` to `0.86H` by load rank, and each branch
+runs from the trunk axis out to the canopy surface at its tip.
+
+### The trunk only appears on a forest tree
+
+Rendering the subject alone gave a giant green dome with no visible trunk — and that is the
+model being **right**, not wrong. An isolated tree has `bole = 0`, so its crown reaches the
+ground; open-grown trees do branch to the ground and read as bushes. Give it neighbours and
+competition raises the crown base:
+
+```
+   isolated:   bole 0.00 wu  — crown to the ground
+   4 rivals:   bole 7.27 wu = 6.30 m — a clean bole, and a tree
+```
+
+So the T2 forestry result is not merely gated, it is **visible**: you cannot draw a
+forest-tree trunk without a forest. Total height 12.1 m against the 1.75 m figure reads
+correctly.
+
+**Still crude:** the crown is the bare analytic paraboloid — an umbrella — because the cards
+that carry foliage are not rendered yet. That is T9's output and the next thing to draw.
