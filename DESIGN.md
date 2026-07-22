@@ -75,6 +75,41 @@ same core later backs NPCs and swaps to moros types without a call-site rewrite.
 
 ---
 
+## 3b. Scope — what is reachable, and what we deliberately do not need
+
+**The target (user, 2026-07-22): Baldur's Gate 3's *capability*, not its *volume*.** Stated
+here because the two get confused, and confusing them either sets the bar absurdly high or
+gives up fidelity that is actually within reach.
+
+**BG3's budget is dominated by UNIQUENESS VOLUME** — hundreds of bespoke individuals, each
+with their own scenes, dialogue and cinematics. That is where four hundred people go. Its
+**capabilities** are a different thing entirely: rendering fidelity, party locomotion,
+traversal, animation. Those are *systems* — built once, used everywhere, never re-authored
+per scene.
+
+| BG3 has | reachable here | why |
+|---|---|---|
+| graphical fidelity | **yes** | fidelity's cost is authoring assets to a photoreal standard; in a **derived** world it becomes *deriving to a higher standard* — algorithmic work, which is what this project is for |
+| party locomotion / traversal | **yes** | a system, authored once |
+| animated actors, mocap | **yes, increasingly** | markerless video capture is real and the cost is falling every year |
+| voice | **yes, at our volume** | synthesis plus small-scale real VO covers what a derived world needs |
+| hundreds of unique individuals, monsters, bespoke scenes | **no — and not needed** | **systemic variety substitutes for unique authored assets** |
+
+**That substitution is the whole economic argument.** One derived tree routine instead of a
+library of tree models; one eligibility system instead of an authored branch tree; one
+settlement scorer instead of hand-placed villages. The variety a player experiences is
+produced, not stored — so the content bill scales with *mechanisms*, not with *assets*.
+
+**What stays human, and does not scale: DIRECTION.** What a scene means, how a line lands, why
+this moment matters. No system produces that. It is affordable only because the volume a
+derived world needs is small — and it is exactly where a small team's taste shows.
+
+**The consequence for the build:** fidelity is a legitimate long-run target, so today's
+deliberately-wrong sprite boards really are a waypoint. That makes the **actor presentation
+seam** (plan #11 P4) load-bearing rather than tidy — it is what lets animated meshes replace
+boards without a rewrite. Style is still the near-term answer (indies win on style, not
+fidelity: Hades, Obra Dinn, Disco Elysium), but the ceiling is not style-shaped.
+
 ## 3a. Design direction — accessible action-roguelite ("Angband bones, friendly tuning")
 
 crawler clones Angband's **systems** (§4, §13) but deliberately departs from its
