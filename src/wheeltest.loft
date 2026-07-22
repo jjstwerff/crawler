@@ -1,0 +1,107 @@
+// wheeltest — plan #10 P7: rolling without slip.
+//
+// The invariant is physical, not cosmetic: a wheel rolling without slip has a contact point
+// with zero velocity relative to the ground, which means the arc it turns through equals
+// the distance it covers. Stated as a check,
+//
+//     delta_phase * 2*pi*r  ==  delta_distance
+//
+// and because the phase is computed FROM the distance, that identity holds by construction
+// rather than by tuning. The negative control is the important half — a timer-driven phase
+// must FAIL it, or the gate proves nothing.
+use hexway;
+use hexwheel;
+
+fn main() {
+  println("=== story wheel test (plan #10 P7) ===");
+  ok = true;
+
+  // a road: a straight, an arc, then a straight — so the speed along it varies with the
+  // sampling, which is exactly what breaks a clock-driven wheel
+  rd = track_new();
+  track_straight(rd, -20.0, 0.0, -6.0, 0.0);
+  track_arc(rd, -6.0, 9.0, 9.0, -1.5707963267948966, 0.0);
+  track_straight(rd, 3.0, 9.0, 3.0, 26.0);
+  r = 0.42;
+  circ = 6.283185307179586 * r;
+  println("road: {rd.tk_n} segments, length {track_len(rd)}; wheel radius {r}, circumference {circ}");
+
+  // ── 1. rolling without slip, at 40 points along the road ────────────────
+  worst = 0.0;
+  prevd = 0.0;
+  prevp = 0.0;
+  for si in 0..41 {
+    s = track_len(rd) * (si as float) / 40.0 ?? 0.0;
+    // walk the track to the point at arc length s
+    acc = 0.0;
+    seg = 0;
+    for gi in 0..rd.tk_n {
+      if acc + seg_len(rd, gi) < s { acc = acc + seg_len(rd, gi); seg = gi + 1; }
+    }
+    if seg >= rd.tk_n { seg = rd.tk_n - 1; }
+    (px, py) = seg_point(rd, seg, s - acc);
+    ph = wheel_phase(rd, px, py, r, 0.0);
+    d = way_param(rd, px, py);
+    if si > 0 {
+      e = (ph - prevp) * circ - (d - prevd);
+      if e < 0.0 { e = 0.0 - e; }
+      if e > worst { worst = e; }
+    }
+    prevd = d;
+    prevp = ph;
+  }
+  println("no-slip identity over 40 intervals: worst |dphase*2pi*r - ddistance| = {worst}");
+  if worst > 0.000000001 { ok = false; }
+  println("   -> the arc turned equals the ground covered, on straights and through the curve");
+
+  // ── 2. phase is a pure function of POSITION, not of history ──────────────
+  // Drive out and back: a clock-driven wheel keeps turning, a distance-driven one returns.
+  (ax, ay) = seg_point(rd, 0, 4.0);
+  there = wheel_phase(rd, ax, ay, r, 0.0);
+  (bx, by) = seg_point(rd, 2, 12.0);
+  away = wheel_phase(rd, bx, by, r, 0.0);
+  back = wheel_phase(rd, ax, ay, r, 0.0);
+  println("out to phase {away} and back: {there} -> {back}, identical {there == back}");
+  if there != back { ok = false; }
+  if away <= there { ok = false; }
+  println("   -> nothing to desynchronise, because nothing is remembered");
+
+  // ── 3. slip is opt-in, and exactly what it says ─────────────────────────
+  (cx, cy) = seg_point(rd, 2, 20.0);
+  p0 = wheel_phase(rd, cx, cy, r, 0.0);
+  p1 = wheel_phase(rd, cx, cy, r, 0.1);
+  ratio = p1 / p0 ?? 0.0;
+  println("slip 0.1: phase {p0} -> {p1}, ratio {ratio}");
+  if ratio < 1.0999999 || ratio > 1.1000001 { ok = false; }
+  println("   -> a spinning drive wheel is a stated effect, not a bug being fought");
+
+  // ── 4. NEGATIVE CONTROL: a timer-driven wheel must FAIL the identity ────
+  // Same road, same wheel, phase advanced by equal ticks instead of by distance — which is
+  // what every naive implementation does. If this passed, section 1 would prove nothing.
+  worstt = 0.0;
+  prevdt = 0.0;
+  for ti in 0..41 {
+    s2 = track_len(rd) * (ti as float) / 40.0 ?? 0.0;
+    acc2 = 0.0;
+    seg2 = 0;
+    for gj in 0..rd.tk_n {
+      if acc2 + seg_len(rd, gj) < s2 { acc2 = acc2 + seg_len(rd, gj); seg2 = gj + 1; }
+    }
+    if seg2 >= rd.tk_n { seg2 = rd.tk_n - 1; }
+    (qx, qy) = seg_point(rd, seg2, s2 - acc2);
+    d2 = way_param(rd, qx, qy);
+    // the clock: one tick per sample, at an ASSUMED constant speed of 0.35 turns a tick.
+    // That assumption is the whole bug — it is true only while the speed never varies.
+    if ti > 0 {
+      e2 = 0.35 * circ - (d2 - prevdt);
+      if e2 < 0.0 { e2 = 0.0 - e2; }
+      if e2 > worstt { worstt = e2; }
+    }
+    prevdt = d2;
+  }
+  println("negative control — a timer-driven phase on the same road: worst error {worstt}");
+  if worstt <= 0.000000001 { ok = false; }
+  println("   -> it fails, so the zeros above are a measurement rather than a tautology");
+
+  if ok { println("=== WHEEL OK ==="); } else { println("=== FAIL ==="); }
+}

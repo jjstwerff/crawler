@@ -1,0 +1,64 @@
+// hexwheel — plan #10 P7: state, class B. Rotation driven by TRAVEL.
+//
+// A wheel's phase must come from distance covered, never from a clock:
+//
+//     phase = (1 + slip) * way_param(track, position) / (2*pi*r)
+//
+// way_param is the milepost from plan #9 T3 — built for stair treads, and exactly the
+// quantity a wheel needs. Because the phase is COMPUTED FROM the distance rather than
+// stored beside it and kept in step, accurate driving is not something to get right; it is
+// something that cannot be got wrong. A timer-driven wheel desynchronises the moment
+// anything changes speed. This one has nothing to desynchronise.
+//
+// Slip is therefore an opt-in TERM rather than a bug to fight: `slip = 0.1` means the wheel
+// turns 10% more than the ground it covers, which is a spinning drive wheel — a deliberate
+// effect, stated once.
+use mesh3d;
+use hexway;
+use hexprim;
+
+// Turns, not radians: a phase of 1.0 is one revolution, which is the number a wheel's
+// contact point actually cares about.
+pub fn wheel_phase(t: Track, px: float, py: float, r: float, slip: float) -> float {
+  if r < 0.000000001 { return 0.0; }
+  (1.0 + slip) * (way_param(t, px, py) / (6.283185307179586 * r) ?? 0.0)
+}
+
+pub fn wheel_angle(phase: float) -> float { phase * 6.283185307179586 }
+
+// A wheel with spokes, so the rotation is visible rather than merely stated. The spokes are
+// what make a phase error obvious; a plain disc turning is a plain disc standing still.
+pub fn mesh_wheel(cx: float, cy: float, cz: float,
+                  ax: float, ay: float, az: float,
+                  r: float, width: float, spokes: integer, phase: float) -> Mesh {
+  ms = mesh("wheel");
+  uu = vec2(0.0, 0.0);
+  rim = prim_drum(cx - ax * width * 0.5, cy - ay * width * 0.5, cz - az * width * 0.5,
+                  ax, ay, az, r, r, width, 16);
+  for ri in 0..len(rim.triangles) {
+    tr = rim.triangles[ri];
+    a0 = add_vertex(ms, rim.vertices[tr.a]);
+    a1 = add_vertex(ms, rim.vertices[tr.b]);
+    a2 = add_vertex(ms, rim.vertices[tr.c]);
+    add_triangle(ms, a0, a1, a2);
+  }
+  u = basis_u(ax, ay, az);
+  v = basis_v(ax, ay, az);
+  base = wheel_angle(phase);
+  for si in 0..spokes {
+    a = base + 6.283185307179586 * ((si as float) / (spokes as float) ?? 0.0);
+    ca = cos(a); sa = sin(a);
+    ex = cx + r * (u.x * ca + v.x * sa);
+    ey = cy + r * (u.y * ca + v.y * sa);
+    ez = cz + r * (u.z * ca + v.z * sa);
+    sp = prim_drum(cx, cy, cz, ex - cx, ey - cy, ez - cz, r * 0.06, r * 0.05, r, 5);
+    for pi in 0..len(sp.triangles) {
+      ts = sp.triangles[pi];
+      b0 = add_vertex(ms, sp.vertices[ts.a]);
+      b1 = add_vertex(ms, sp.vertices[ts.b]);
+      b2 = add_vertex(ms, sp.vertices[ts.c]);
+      add_triangle(ms, b0, b1, b2);
+    }
+  }
+  ms
+}

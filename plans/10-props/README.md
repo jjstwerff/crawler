@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1–P6 done.** P7–P9 remain (wheels, linkages, the render pass). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1–P7 done.** P8 (linkages) and P9 (the render pass) remain. The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -119,7 +119,7 @@ Door, casement, awning, shutters: one angle per prop.
   reused verbatim);
 - shutters are mirrored: equal and opposite angles from one state.
 
-## P7 — state, Class B (wheels)
+## P7 — state, Class B (wheels)  — **DONE**, `src/wheeltest.loft`
 
 `phase = way_param / (2πr)`.
 
