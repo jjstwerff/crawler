@@ -903,3 +903,23 @@ correctly.
 
 **Still crude:** the crown is the bare analytic paraboloid — an umbrella — because the cards
 that carry foliage are not rendered yet. That is T9's output and the next thing to draw.
+
+
+## 17. The foliage cards, drawn
+
+T9's cards are now rendered: one quad per card, its plane containing the **outward** heading
+and the vertical, so the branch spray printed on it lies in the plane — which is exactly why
+that heading could never be camera-facing. Each is crossed with a second quad, the standard
+cross-card, because a single plane never reads as foliage from every angle.
+
+The tree now reads: trunk, branches visible through gaps in the mass, foliage above, figure
+at the base. Everything in it is derived — the partition sets the crown, competition sets
+the bole, the pipe model sets every radius, the whorl budget sets where branches form, and
+the cards hang off the branches that resulted.
+
+**Still to fix, and visible:** the foliage is too **flat** — a disc rather than a rounded
+crown. The cards sit between 0.25 and 0.75 of each cell's canopy interval, and after
+competition raises the bole that interval is shallow, so they collapse into a plate. Real
+crowns are deep. The fix is to spread cards through the interval rather than around its
+middle, and to place more than one per cell where the interval is deep — which is also what
+T10's calibration expects, since `c` counts cards per unit of canopy path.

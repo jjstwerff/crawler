@@ -49,8 +49,11 @@ fn main() {
   m_leaf = add_material(sc, material_color("leaf", 0.25, 0.43, 0.21));
   bole0 = crown_bole(t, 0, ground, lb, ct);
   println("bole {bole0} wu = {bole0 * 0.8660254037844386} m (competition raised it)");
-  ci = add_mesh(sc, mesh_crown(0.0, 0.0, bole0, 14.0, 7.0, 8, 20));
-  add_node(sc, node_at("crown", ci, m_leaf, mat4_identity()));
+  // the FOLIAGE, as T9's cards rather than the analytic shell
+  cds = cards_place(sk, tp, bs, nmin, 0.9);
+  println("cards: {cds.cd_n}");
+  ci = add_mesh(sc, mesh_cards(cds, 1.5, 0.5));
+  add_node(sc, node_at("foliage", ci, m_leaf, mat4_identity()));
   add_figure(sc, 9.0, -7.0, 0.0, m_skin);
   add_camera(sc, camera("cam"));
   add_light(sc, directional_light("sun", 1.0, 0.96, 0.90, 1.0, vec3(0.3, 0.5, -0.8)));

@@ -466,3 +466,51 @@ pub fn mesh_trunk(sk: Skeleton, ztop: float, k: float, sides: integer) -> Mesh {
   }
   ms
 }
+
+// ── THE FOLIAGE CARDS ───────────────────────────────────────────────────────
+//
+// T9 places one card per node below the mesh threshold: a position inside the canopy
+// interval, an OUTWARD heading, and a size taken from the canopy depth at that cell. Drawn,
+// each is a quad whose plane contains the outward direction and the vertical — so the
+// branch spray printed on it lies in the plane and reads edge-on from the side, which is
+// why the heading could never be camera-facing.
+//
+// Flat single colour, as everywhere in this verification: shading must not be able to hide
+// a placement error.
+pub fn mesh_cards(cd: Cards, wscale: float, hscale: float) -> Mesh {
+  ms = mesh("cards");
+  u = vec2(0.0, 0.0);
+  for j in 0..cd.cd_n {
+    px = cd.cd_x[j] ?? 0.0;
+    py = cd.cd_y[j] ?? 0.0;
+    pz = cd.cd_z[j] ?? 0.0;
+    dx = cd.cd_dx[j] ?? 1.0;
+    dy = cd.cd_dy[j] ?? 0.0;
+    sz = cd.cd_size[j] ?? 1.0;
+    w = wscale;
+    h = sz * hscale;
+    if h > wscale * 2.0 { h = wscale * 2.0; }
+    if h < wscale * 0.4 { h = wscale * 0.4; }
+    // the card's plane: outward x vertical.  Its normal is horizontal, across the spray.
+    nx = 0.0 - dy;
+    ny = dx;
+    n = vec3(nx, ny, 0.0);
+    ax = px - dx * w * 0.5;
+    ay = py - dy * w * 0.5;
+    bx = px + dx * w * 0.5;
+    by = py + dy * w * 0.5;
+    v0 = add_vertex(ms, vertex(vec3(ax, ay, pz - h * 0.5), n, u));
+    v1 = add_vertex(ms, vertex(vec3(bx, by, pz - h * 0.5), n, u));
+    v2 = add_vertex(ms, vertex(vec3(bx, by, pz + h * 0.5), n, u));
+    v3 = add_vertex(ms, vertex(vec3(ax, ay, pz + h * 0.5), n, u));
+    add_quad(ms, v0, v1, v2, v3);
+    // a second card across the first, so a spray has volume from every angle — the
+    // standard cross-quad, and the reason a single plane never reads as foliage
+    c0 = add_vertex(ms, vertex(vec3(px - nx * w * 0.5, py - ny * w * 0.5, pz - h * 0.5), vec3(dx, dy, 0.0), u));
+    c1 = add_vertex(ms, vertex(vec3(px + nx * w * 0.5, py + ny * w * 0.5, pz - h * 0.5), vec3(dx, dy, 0.0), u));
+    c2 = add_vertex(ms, vertex(vec3(px + nx * w * 0.5, py + ny * w * 0.5, pz + h * 0.5), vec3(dx, dy, 0.0), u));
+    c3 = add_vertex(ms, vertex(vec3(px - nx * w * 0.5, py - ny * w * 0.5, pz + h * 0.5), vec3(dx, dy, 0.0), u));
+    add_quad(ms, c0, c1, c2, c3);
+  }
+  ms
+}
