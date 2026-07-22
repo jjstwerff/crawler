@@ -195,6 +195,9 @@ keep all `graphics::` calls in `view`/`story` and keep `sim` data-only.
   lesson our fur hasn't taken yet: **texture lives in the broken silhouette edge + the
   value gradient, not as strokes floating inside a smooth outline** — see
   `assets/sprites/ref/README.md` for what each teaches and how to extend the set.
+- **Where things stand right now — `STATE.md`.** Plans #5/#9/#10, the decisions already
+  taken (scale, the library/content seam, props-as-objects, stencils), what is open and
+  whose call it is, and the three lessons worth carrying. **Read it first after a `/clear`.**
 - **Scale: one grid, two readings — `SCALE.md`.** Architecture is true-scale at **1.5 m
   per hex step** (1 world unit = 0.866 m); terrain is the *same* hex compressed 10× at
   **15 natural m per walked hex** (`OV_STEP`, a gameplay-evaluated user ruling). The
