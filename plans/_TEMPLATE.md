@@ -61,7 +61,7 @@ plot, or a user visual check in `make play`.
 ## Order + risks (OPTIONAL)
 
 *(delete)* The dependency order when this plan unpauses, and the known traps — loft
-idioms to avoid (CLAUDE.md's survival guide), seam rules that must not break, anything
+idioms to avoid (LOFT-NOTES.md's survival guide), seam rules that must not break, anything
 gated on an upstream fix (link the issue; never block crawler on it).
 
 ## Open design questions (OPTIONAL)

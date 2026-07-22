@@ -151,7 +151,7 @@ the vertical links**). The 24-dir wall geometry + round towers are **render-only
 overlay derived from the hex truth**. Kernel = hex collision truth (now
 layer-addressed); view = pretty overlay. No `graphics::` in the kernel.
 
-## loft-safety (see CLAUDE.md's survival guide)
+## loft-safety (see LOFT-NOTES.md's survival guide)
 
 - **Flat grids, including the layer axis** — never `vector<vector<…>>`.
 - **Static catalogs** built at module-init (build-time append, like `items.loft`).

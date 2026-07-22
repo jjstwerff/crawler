@@ -64,7 +64,7 @@ when they're built, crawler's bespoke code should collapse onto them (the reusab
 
 ## Language/idiom plans behind our loft survival guide
 
-The defensive idioms in CLAUDE.md → "loft survival guide" trace to these (mostly finished — the
+The defensive idioms in LOFT-NOTES.md → "survival guide" trace to these (mostly finished — the
 idioms remain as defence-in-depth):
 
 | `@PLN` | title | status | crawler idiom |
@@ -88,7 +88,7 @@ never touches (six concurrent clients, phones, audio timing). The argument is th
 is the definition of an early-warning row.
 
 The evidence is on the record: the 2026.7.2 bump turned crawler's whole gate red, and **two of
-the three failures were silent data corruption, not compile errors** (CLAUDE.md § survival
+the three failures were silent data corruption, not compile errors** (LOFT-NOTES.md § survival
 guide) — exactly the latent-UB failure mode Goal A's north star names. crawler has also
 produced loft#320, #336, #339, #392, #496, #497 and the JSON `kind()` split.
 

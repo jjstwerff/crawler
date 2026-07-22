@@ -1293,7 +1293,7 @@ game with real (mostly lateral) progression:*
   **dark-toned**. `view` colours; forward-compatible with either bright-letters-on-disc
   (now) or the later dark-token palette.
 
-*The cave-spider PoC proved the pipeline + locked the sprite rules (CLAUDE.md). We
+*The cave-spider PoC proved the pipeline + locked the sprite rules (SPRITES.md). We
 **integrate that first spider now** (it has a role — a dark silhouette **rotated to its
 movement direction**), but **do not mass-produce** the 100+ catalog: letters stay for
 everything else. **Next** sprite, *after the first bundle builds*: the **main character

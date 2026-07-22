@@ -115,7 +115,7 @@ loft --interpret <flags> repro.loft           # OK (or: same failure)
 ### 5. Work around + capture knowledge
 
 - Apply a loft-safe workaround and **keep moving** — never block crawler on the fix.
-- **Docs-first (CLAUDE.md rule):** if it's a recurring trap, add it to the **loft survival guide**
+- **Docs-first (CLAUDE.md rule):** if it's a recurring trap, add it to **LOFT-NOTES.md**'s survival guide
   in CLAUDE.md (the idioms that keep biting) and/or the relevant plan doc — agent memory holds only
   a pointer. The repo is the shared brain.
 
@@ -130,7 +130,7 @@ loft --interpret <flags> repro.loft           # OK (or: same failure)
 | #338 | swapping vector struct elements via a temp link duplicates | `area:store-lifetime` | sort by selection into a fresh vector |
 | #339 | a thin arity-reducing pub wrapper around a big-struct-returning pub fn panics codegen | `area:codegen` | don't wrap; pass the defaulted arg at call sites |
 
-(These also live as defensive idioms in CLAUDE.md → "loft survival guide".)
+(These also live as defensive idioms in LOFT-NOTES.md → "survival guide".)
 
 ## Open from the viewer-native work (2026-06-16)
 

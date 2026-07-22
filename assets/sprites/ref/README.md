@@ -5,7 +5,7 @@ corpora they came from. Two jobs:
 
 1. **Form** — what a creature/plant actually looks like (a black-backed jackal's
    saddle, a brown rat's body-to-haunch mass), so a sprite reads as *that thing*
-   (the CLAUDE.md "cold-read names it uniquely" criterion).
+   (the SPRITES.md "cold-read names it uniquely" criterion).
 2. **Technique** — how fur / foliage / grass is *suggested with marks*. This matters
    here because `tools/draw.py`'s vocabulary — tapered ribbon strokes (`@root…@tip`),
    thin `Line`s, smooth-flagged (`~`) curves, tonal fills — is essentially the same

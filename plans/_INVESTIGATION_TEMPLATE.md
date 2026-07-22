@@ -50,7 +50,7 @@ a real generated world was in play.
 
 **Run every probe on every mode the result can diverge across** and record the full
 matrix. For crawler that is at least `--interpret` vs `--native` (they *do* diverge —
-see CLAUDE.md's survival guide), plus seeded generation where relevant.
+see LOFT-NOTES.md's survival guide), plus seeded generation where relevant.
 
 | Probe | `--interpret` | `--native` | Notes |
 |---|---|---|---|

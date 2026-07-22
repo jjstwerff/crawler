@@ -102,7 +102,7 @@ check must go red.
 | **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
 | **P6d** — the blend band where near geometry meets the sky-box | M | silhouette agreement at the switch distance; no pop, no ghost | Blocked on P6 |
 | **P7** — props + trees in the live world | M | existing plan #9/#10 gates, now on generated worlds | Blocked on P5 |
-| **P8** — sprites redrawn side-on | H | the sprite recognition bar (CLAUDE.md), re-stated for elevation views | Blocked on P4 |
+| **P8** — sprites redrawn side-on | H | the sprite recognition bar (SPRITES.md), re-stated for elevation views | Blocked on P4 |
 | **P9** — 2D retires; docs reconciled | S | `make test` green without `view.loft` | Blocked on P3–P6 |
 
 **The playable milestone is P4.** P0–P4 is "the game is 3D and you can play it"; everything

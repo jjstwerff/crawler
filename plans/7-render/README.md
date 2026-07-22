@@ -20,7 +20,7 @@ mid-flight: phases 1+2 are green and compile-clean, awaiting a **user visual ver
 any time; P9 stays profile-gated.
 
 Note (2026-07-21): `graphics` is now pinned at **0.5.0** — required by toolchain
-2026.7.2, and it moved font resolution to program-relative. See CLAUDE.md's survival
+2026.7.2, and it moved font resolution to program-relative. See LOFT-NOTES.md's survival
 guide before touching the substrate.
 
 ---

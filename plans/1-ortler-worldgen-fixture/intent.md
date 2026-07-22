@@ -5,7 +5,7 @@ that goalpost drift is the deep self-deception trap. If reality proves a predica
 fix it with a dated note, don't silently relax it.
 
 This is a **map**, so the live channel is **recognition**, not affect (feeling is out of
-scope — same as the sprite rule in CLAUDE.md). The cold test: a viewer shown the render,
+scope — same as the sprite rule in SPRITES.md). The cold test: a viewer shown the render,
 never told what it is, says *"an alpine mountain massif — glaciers up top, forested flanks,
 a river valley below"* (ideally *"the Alps"*). If it reads as "rolling hills" or "uniform
 terrain", it failed.
