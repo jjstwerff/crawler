@@ -38,8 +38,10 @@ Source: `src/sim.loft`, `src/hexedge.loft`, `src/hexform.loft`, `src/scenemesh.l
 
 ## The invariants
 
-Three, because this plan has three distinct exact-invariant surfaces. Every phase below
-names which one it asserts.
+Six, because this plan has six distinct exact-invariant surfaces — the seam, the camera,
+the two-scale world, and the three that make the far field cheap and continuous. Every
+phase below names which one it asserts. They are listed in dependency order: a later one is
+worthless if an earlier one is false.
 
 **I-TRUTH — the field is the only passability truth.** One predicate answers *"can this
 happen here"*; swapping the implementation under it changes **no answer** in any existing
@@ -81,6 +83,53 @@ The rule is a computed threshold, not a tuning knob, which is what makes it chec
 and it is the same idea as the existing idle-skip digest (`framekey.loft`), one level out:
 *don't redraw what could not have changed.*
 
+**I-DISPLACE — a vertical face is made by moving points sideways, and the mesh never
+folds.** The far field is a height raster whose vertices are displaced *horizontally* onto
+feature lines, so a wall becomes a vertical quad with no extra geometry: real depth, real
+occlusion, real parallax, one draw call per chunk — everything an impostor cannot do. The
+exact invariant is non-inversion: **every triangle keeps positive signed area**, which
+bounds displacement to half the sample spacing and makes a vertex serve exactly one
+arbitrated feature (*nearest wins, ties to the lower id* — the plan #5 P3 rule, reused
+rather than reinvented).
+
+Its reach is fixed by arithmetic already in the repo, not by taste:
+
+```
+   detail cell   1.46484375 m   (OV_TILE_M/1024, src/chunk.loft)
+   hex step      1.5        m   (M_PER_HEX_STEP, src/scale.loft)
+   ⇒ a structure WALL is exactly one sample — resolvable by construction, at Nyquist
+   ⇒ a tree TRUNK (~0.3 m) is 5x below the sample — never resolvable, at ANY distance
+     (both shrink together, so the ratio does not improve with range)
+```
+
+So the *structures* half is sound and the *trees* half is the claim to falsify first: the
+displaced field can only ever give a tree its **mass**, never its trunk. That is adequate
+only past the range where the trunk goes sub-pixel (~1000 m at 1080p/0.8 rad, where the
+trunk is 0.72 px); nearer than that the trunk is visible and unrepresentable, and plan #9's
+**canopy cards** carry the band. Heightfields also cannot overhang, which is the same
+statement from the other side: a crown wider than its trunk is not a height function.
+
+> **This is the third appearance of one rule** — plan #5's resolution floor, plan #9 T8's
+> `R > 2√3` field/object fork, and now this. `src/scale.loft` already exposes it as
+> `resolvable_m()`. Settle it in **one** form (the BUNDLE.md precedent: a rule that shows up
+> three times gets answered once), rather than growing a third private copy.
+
+**I-AGREE — representations agree where they meet; the blend hides residue, it does not
+create agreement.** Near geometry, displaced far field and each parallax layer must produce
+the **same silhouette at their switch distance** (sub-pixel), because a cross-fade between
+two *different* worlds reads as ghosting and doubled edges, not as a transition. Blending is
+therefore a finishing pass over an already-agreeing pair — the tempting inversion ("the
+blend will cover it") is exactly the elegant absorption this plan is trying not to make.
+Falsifiable: render one structure at its switch distance both ways and diff the silhouettes;
+**negative control** — offset one representation by a single cell and the diff must go red.
+
+> **The trap that makes this silent:** 1.46484 m and 1.5 m *look* like the same grid. They
+> are not. The exact relation is **125 hex steps = 128 detail cells = 187.5 m** — rational,
+> so the resample is exact and periodic if written in that form, and drifts **24 cells per
+> overworld tile** if assumed 1:1. The symptom is distant structures sliding off their
+> foundations in proportion to distance from the origin: a `val:S` silent-corruption shape,
+> which is why the ratio is stated here rather than discovered later.
+
 ## Blueprint gate
 
 | Phase | Concrete plotted end-result | Invariant pinned | Medium |
@@ -92,6 +141,8 @@ and it is the same idea as the existing idle-skip digest (`framekey.loft`), one 
 | **P4** | a board of height *h* m and a wall of height *h* m at the same distance, side by side | I-STAND (metric parity) | a GL frame + pixel span assertion (`make probe`) |
 | **P6** | the boundary ring sampled from both readings, heights diffed | I-HORIZON | headless numeric test + a rendered horizon |
 | **P6b** | for a walk of known length: which layers re-rendered, and the worst parallax error each frame | I-PARALLAX | headless numeric test (pure camera math) + a pop-free walk |
+| **P6c** | one distant building **and** one distant tree from the same displaced raster, plotted beside the near geometry at the switch distance | I-DISPLACE (+ the trees claim, to break) | a Python probe — **the cheapest medium, before any loft** |
+| **P6d** | the same structure crossing its switch distance, frame by frame | I-AGREE | silhouette diff + a walk-through with no pop and no ghost |
 
 Phases **P5, P7, P8, P9** have no new exact-invariant surface of their own — they reuse
 gates that already exist (the matcher's arc recovery, the props/canopy gates, the sprite
@@ -114,6 +165,8 @@ check must go red.
 | **P5** — the stack in the generator: round towers, real doors, heights | M | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres | Blocked on P2 |
 | **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |
 | **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
+| **P6c** — displaced height raster: vertical walls from a heightfield | MH | Python probe first; then triangle-area (no-fold) + silhouette gates | Blocked on P6 |
+| **P6d** — the blend band between representations | M | silhouette agreement at the switch distance, then a pop-free, ghost-free crossing | Blocked on P6c |
 | **P7** — props + trees in the live world | M | existing plan #9/#10 gates, now on generated worlds | Blocked on P5 |
 | **P8** — sprites redrawn side-on | H | the sprite recognition bar (CLAUDE.md), re-stated for elevation views | Blocked on P4 |
 | **P9** — 2D retires; docs reconciled | S | `make test` green without `view.loft` | Blocked on P3–P6 |
@@ -173,7 +226,13 @@ deliverable and the boards are just its first implementation.
    P6. The constraint is fixed: it derives from the hex world, never from a fixed backdrop.
 4. **Does the 2D view survive as the automap?** P9 retires it as *the* renderer; whether a
    plan view returns as a map/editor screen is a separate, later call.
-5. **How many air-box layers, at what distances?** The validity rule (I-PARALLAX) is fixed;
+5. **Where do the switch distances sit, and are they one dial or several?** Near geometry →
+   cards → displaced raster → cached layers is four representations and three switches. The
+   *rule* is fixed (a representation is used where its smallest meaningful feature is at
+   least one sample — `resolvable_m()`); the *distances* fall out of it once P6c measures
+   what the eye actually accepts. Resist tuning them independently: three dials that drift
+   apart is how a world stops agreeing with itself.
+6. **How many air-box layers, at what distances?** The validity rule (I-PARALLAX) is fixed;
    the *number* of layers is a cost trade — more layers means more textures but rarer
    re-renders each. Settle it in P6b by measuring re-render counts on a real walk, not by
    picking a number now. Note the mechanism is a flow-back candidate: it is the same
