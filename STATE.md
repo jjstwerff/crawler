@@ -3,8 +3,20 @@
 Branch **`combat`**, **the full gate green** (`make test` — run it, don't trust a count; the
 table in `tools/run_tests.sh` is the roster). Written as a handoff.
 
-**Read `plans/11-3d-world/` next.** The game is moving into first-person 3D and the hex field
-becomes the world the player stands in.
+**Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
+where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
+first-person 3D and the hex field becomes the world the player stands in.
+
+> ## → THE NEXT ACTION IS PLAN #11 **P1**
+> Collapse the passability sites into one predicate. **Pure refactor; `make test` must stay
+> byte-identical.** `is_blocked_move` has exactly 5 call sites (all in `sim.loft`), `is_wall` 6
+> + 2 in `wallgeo`, and **zero** qualified call sites — measured, not guessed. It is the
+> chokepoint **P2** needs before the field goes under the kernel, and P2 → P3 → P4 is the
+> playable 3D milestone.
+>
+> **This session produced a great deal of design and no playable change.** That was the right
+> call — P0 found a world its own player could not stand up in — but P1 should run before
+> anything else opens.
 
 ## The design position — eight statements, and they compose
 
@@ -24,6 +36,17 @@ describe what the project was already doing without having named it.
 
 The through-line: **variety is produced, not stored**, so the content bill scales with
 mechanisms instead of assets. What does not scale — and does not need to — is **direction**.
+
+**The whole argument, and crawler's place in it, is [`VISION.md`](VISION.md)** (written for a
+person, not a build). It also records: crawler is the **furthest ahead, not the most
+demanding** — `crew_punk` will overtake it on axes crawler never touches (six concurrent
+clients, phones, audio timing, a trigger engine with no director); the stack's two **unbuilt**
+layers (the modding abstraction, the behaviour layer); and that the behaviour layer **splits**
+— movement over the field is a `hex_*` concern, deciding what to do is genre-shaped
+`roguelike-kit`. `../loft/doc/claude/GOALS.md` states the same drive one layer down and stated
+it first; three things it says better are adopted there, including the acceptance test
+**"a thing is done when picking it up is *fun*"** — a bar `EXTRACTION.md`'s DoD does not yet
+carry.
 
 ## What got built
 
@@ -63,7 +86,15 @@ contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracte
   agent is unblocked. Contract: `EXTRACTION.md` → *The editor as the second consumer*.
 - **The eligibility/trigger system is designed but unbuilt** (`SCRIPTING.md`). It rides lever 1,
   the event bus. Today the only trigger in the whole game is one hardcoded
-  `infest_trigger == "boss_slain"` string check.
+  `infest_trigger == "boss_slain"` string check. **Its gate is unlike the others:** it has a
+  known second consumer with *harder* requirements already (crew_punk has no director, so its
+  trigger engine must be complete), so it is **not** waiting for a second consumer to appear —
+  design it against the harder requirement and crawler gets the good version free.
+- **`README.md`'s Status and Layout sections are stale** and carry a marker saying so. They
+  predate items, equipment, save points, FOV, classes/races, quests, the overland and the games
+  kernel, and name modules that are now the `hex_grid` library. A contained, unglamorous job.
+- **crawler is absent from loft's Goal C dogfood check** — raised for the owner in
+  `UPSTREAM-PLANS.md`, deliberately not filed (it is a goals-doc change in their own repo).
 - **Plan #10 P9 leftovers** — the cart is a placement fix; the doors may simply dissolve under
   an eye-height camera (plan #11 P0).
 - **`mesh_trunk` not migrated** to `prim_drum` (P1): a six-segment taper whose *surface* equals

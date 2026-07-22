@@ -74,6 +74,34 @@ idioms remain as defence-in-depth):
 | **[#17](https://github.com/loft-lang/plans/issues/17)** | [loft] Three-state boolean | finished | why `!x` is a null-test on non-bools (compare `== 0`). |
 | **[#15](https://github.com/loft-lang/plans/issues/15)** / **[#43](https://github.com/loft-lang/plans/issues/43)** | serialisable cross-branch refs / store durability | future / active | the save-format + replay direction (plan #6 save track). |
 
+## An observation for the owner — crawler is absent from loft's Goal C check
+
+Read from `../loft/doc/claude/GOALS.md` (2026-07-22). **Goal C — Capability via dogfood** is
+measured by a consumer build matrix, and its rows are: the branch-review viewer, the tracker
+indexer, the `lib/markdown` suite, and *"the games **moros / dryopea** build and run against
+current loft"*. **crawler appears once in the whole document, and not in that check.**
+
+That looks like a gap worth closing, and the argument is **not** that crawler stresses loft
+hardest — it does not, and `crew_punk` will eventually stress it far harder on axes crawler
+never touches (six concurrent clients, phones, audio timing). The argument is that crawler is
+**furthest ahead**: it reaches surfaces other consumers have not yet, so it fails *first*. That
+is the definition of an early-warning row.
+
+The evidence is on the record: the 2026.7.2 bump turned crawler's whole gate red, and **two of
+the three failures were silent data corruption, not compile errors** (CLAUDE.md § survival
+guide) — exactly the latent-UB failure mode Goal A's north star names. crawler has also
+produced loft#320, #336, #339, #392, #496, #497 and the JSON `kind()` split.
+
+Adding a `crawler: make test` row would cost loft nothing and give both sides earlier warning.
+**Not filed — this is a goals-doc change in the owner's own repo, so it is raised here rather
+than acted on.**
+
+Note that Goal C is **deliberately paused** behind the soundness and structure floors
+(*"building a game on either un-cleared floor means building on a base that can still shift
+under you"*). That is coherent — but it does mean crawler is currently doing **unmeasured
+dogfood**: absorbing toolchain breakage without being one of the rows that would make it
+visible upstream.
+
 ## Keeping this current
 
 This is a hand-curated snapshot (2026-06-17). loft-lang/plans is the source of truth — re-derive
