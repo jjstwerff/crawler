@@ -1,0 +1,123 @@
+// hexseat — plan #10 P3: props FITTED to the surface they meet.
+//
+// A chimney through a pitched roof must have its base cut on the roof plane. A fence on a
+// slope needs posts plumb while its rails follow the ground. A drainpipe's LENGTH is a
+// consequence of where it is placed, not a parameter someone supplies.
+//
+// The fix is to hand the generator a SEAT — the surface it meets — and let it
+// PARAMETERISE rather than intersect. That is the difference between fitting and
+// booleaning: a boolean needs a CSG kernel and produces geometry nobody specified, while a
+// seat is four numbers the generator already wants. Every seat in this project exists
+// already — roof planes from the profile x distance table, ground from Heights, wall planes
+// from the recovered surfaces.
+//
+// The mechanism is one call, `seat_z(seat, x, y)`. A generator that respects a seat asks it
+// for a height PER VERTEX rather than once per object, and that single habit is the whole
+// of this phase.
+use mesh3d;
+use hexform;
+use hexprim;
+
+pub const SEAT_PLANE = 1;
+pub const SEAT_FIELD = 2;
+
+pub struct Seat {
+  se_kind: integer,
+  se_nx: float, se_ny: float, se_nz: float, se_d: float,
+}
+
+// A plane, stated as n·p = d.  A roof pitch, a sloping yard, a wall face.
+pub fn seat_plane(nx: float, ny: float, nz: float, d: float) -> Seat {
+  l = sqrt(nx * nx + ny * ny + nz * nz) ?? 1.0;
+  Seat { se_kind: SEAT_PLANE, se_nx: nx / l ?? 0.0, se_ny: ny / l ?? 0.0,
+         se_nz: nz / l ?? 1.0, se_d: d / l ?? 0.0 }
+}
+
+pub fn seat_z(s: Seat, x: float, y: float) -> float {
+  if s.se_nz * s.se_nz < 0.000000001 { return 0.0; }   // a vertical seat has no height
+  (s.se_d - s.se_nx * x - s.se_ny * y) / s.se_nz ?? 0.0
+}
+
+// A prism whose BASE IS CUT ON THE SEAT and whose top is level.  This is the chimney, and
+// it is the whole of class 2 in one function: every base vertex asks the seat for its own
+// height, so the base follows the pitch instead of hovering above it or sinking into it.
+pub fn mesh_seated_prism(s: Seat, cx: float, cy: float, top_z: float,
+                         r: float, sides: integer) -> Mesh {
+  ms = mesh("seated");
+  uu = vec2(0.0, 0.0);
+  for i in 0..sides {
+    a0 = 6.283185307179586 * ((i as float) / (sides as float) ?? 0.0);
+    a1 = 6.283185307179586 * (((i + 1) as float) / (sides as float) ?? 0.0);
+    x0 = cx + r * cos(a0); y0 = cy + r * sin(a0);
+    x1 = cx + r * cos(a1); y1 = cy + r * sin(a1);
+    n = vec3(cos(a0), sin(a0), 0.0);
+    p0 = add_vertex(ms, vertex(vec3(x0, y0, seat_z(s, x0, y0)), n, uu));
+    p1 = add_vertex(ms, vertex(vec3(x1, y1, seat_z(s, x1, y1)), n, uu));
+    p2 = add_vertex(ms, vertex(vec3(x1, y1, top_z), n, uu));
+    p3 = add_vertex(ms, vertex(vec3(x0, y0, top_z), n, uu));
+    add_quad(ms, p0, p1, p2, p3);
+    nz = vec3(0.0, 0.0, 1.0);
+    c = add_vertex(ms, vertex(vec3(cx, cy, top_z), nz, uu));
+    t0 = add_vertex(ms, vertex(vec3(x0, y0, top_z), nz, uu));
+    t1 = add_vertex(ms, vertex(vec3(x1, y1, top_z), nz, uu));
+    add_triangle(ms, c, t0, t1);
+  }
+  ms
+}
+
+// A run of fence: posts PLUMB and seated, rails following the ground between them.
+//
+// The two obey different rules on purpose. A post that leaned with the slope would look
+// drunk; a rail that stayed level would float at one end and bury itself at the other. Both
+// come from the same seat, asked at different points.
+pub fn mesh_seated_fence(s: Seat, x0: float, y0: float, x1: float, y1: float,
+                         posts: integer, post_h: float, post_r: float,
+                         rails: integer) -> Mesh {
+  ms = mesh("fence");
+  uu = vec2(0.0, 0.0);
+  for i in 0..posts {
+    f = (i as float) / ((posts - 1) as float) ?? 0.0;
+    px = x0 + (x1 - x0) * f;
+    py = y0 + (y1 - y0) * f;
+    pz = seat_z(s, px, py);
+    // vertical: the axis is (0,0,1) whatever the ground does
+    bx = prim_box(px, py, pz + post_h * 0.5, post_r * 2.0, post_r * 2.0, post_h);
+    for v in 0..len(bx.triangles) {
+      t = bx.triangles[v];
+      i0 = add_vertex(ms, bx.vertices[t.a]);
+      i1 = add_vertex(ms, bx.vertices[t.b]);
+      i2 = add_vertex(ms, bx.vertices[t.c]);
+      add_triangle(ms, i0, i1, i2);
+    }
+  }
+  for r in 0..rails {
+    hf = post_h * (0.35 + 0.45 * ((r as float) / ((rails - 1) as float) ?? 0.0));
+    for i in 0..posts - 1 {
+      f0 = (i as float) / ((posts - 1) as float) ?? 0.0;
+      f1 = ((i + 1) as float) / ((posts - 1) as float) ?? 0.0;
+      ax = x0 + (x1 - x0) * f0; ay = y0 + (y1 - y0) * f0;
+      bx2 = x0 + (x1 - x0) * f1; by = y0 + (y1 - y0) * f1;
+      az = seat_z(s, ax, ay) + hf;
+      bz = seat_z(s, bx2, by) + hf;
+      dx = bx2 - ax; dy = by - ay;
+      l = sqrt(dx * dx + dy * dy) ?? 1.0;
+      nx = 0.0 - dy / l ?? 0.0;
+      ny = dx / l ?? 0.0;
+      n = vec3(nx, ny, 0.0);
+      th = post_r * 0.7;
+      v0 = add_vertex(ms, vertex(vec3(ax, ay, az - th), n, uu));
+      v1 = add_vertex(ms, vertex(vec3(bx2, by, bz - th), n, uu));
+      v2 = add_vertex(ms, vertex(vec3(bx2, by, bz + th), n, uu));
+      v3 = add_vertex(ms, vertex(vec3(ax, ay, az + th), n, uu));
+      add_quad(ms, v0, v1, v2, v3);
+    }
+  }
+  ms
+}
+
+// A drainpipe: its LENGTH is derived, from the eave down to whatever the seat says.
+pub fn mesh_seated_pipe(s: Seat, x: float, y: float, eave_z: float,
+                        r: float, sides: integer) -> Mesh {
+  gz = seat_z(s, x, y);
+  prim_drum(x, y, gz, 0.0, 0.0, 1.0, r, r, eave_z - gz, sides)
+}

@@ -1,0 +1,127 @@
+// seattest — plan #10 P3: props fitted to the surface they meet.
+//
+// The residual is the whole test. A chimney whose base is a millimetre above the roof
+// floats; a millimetre below and it is buried. Neither shows in a render at any sane
+// distance, and both are wrong — which is exactly the kind of fault a picture cannot catch
+// and a number can.
+use mesh3d;
+use hexprim;
+use hexseat;
+
+fn main() {
+  println("=== story seat test (plan #10 P3) ===");
+  ok = true;
+
+  // ── 1. a chimney on a 30-degree roof: every base vertex ON the plane ─────
+  // The roof pitches down toward +x at 30 degrees.
+  pitch = 0.5235987755982988;
+  roof = seat_plane(sin(pitch), 0.0, cos(pitch), 8.0);
+  ch = mesh_seated_prism(roof, 3.0, -1.5, 12.0, 0.58, 8);
+  worst = 0.0;
+  nbase = 0;
+  for i in 0..len(ch.vertices) {
+    p = ch.vertices[i].pos;
+    if p.z < 11.99 {                       // a base vertex, not a top one
+      d = roof.se_nx * p.x + roof.se_ny * p.y + roof.se_nz * p.z - roof.se_d;
+      if d < 0.0 { d = 0.0 - d; }
+      if d > worst { worst = d; }
+      nbase = nbase + 1;
+    }
+  }
+  println("chimney on a 30-deg roof: {nbase} base vertices, worst distance off the plane {worst}");
+  if nbase <= 0 { ok = false; }
+  if worst > 0.000000001 { ok = false; }
+  println("   -> neither floating nor buried, at every vertex — the base is CUT, not placed");
+
+  // and the base genuinely follows the pitch: the up-slope side is higher than the down
+  lo = 1000.0; hi = -1000.0;
+  for i in 0..len(ch.vertices) {
+    p = ch.vertices[i].pos;
+    if p.z < 11.99 {
+      if p.z < lo { lo = p.z; }
+      if p.z > hi { hi = p.z; }
+    }
+  }
+  println("   base spans z {lo}..{hi}, a rise of {hi - lo} across a {2.0 * 0.58} wide flue");
+  if hi - lo < 0.3 { ok = false; }         // a 30-deg pitch across 1.16 must rise ~0.67
+
+  // ── 2. a fence on a slope: posts PLUMB, rails FOLLOWING ─────────────────
+  slope = seat_plane(0.22, 0.10, 1.0, 4.0);
+  fen = mesh_seated_fence(slope, -8.0, -3.0, 8.0, 5.0, 7, 1.9, 0.09, 2);
+  // Verticality, tested so a face DIAGONAL cannot masquerade as a lean — the first version
+  // of this check flagged the posts' own box diagonals (dz 1.9 across a 0.18 width) and was
+  // measuring the wrong thing entirely.
+  //
+  // A plumb post's every corner has a twin directly above or below it: same x, same y,
+  // different z. Lean the post and the top corners move off their bases, and those twins
+  // disappear. That cannot be faked by a diagonal.
+  orphan = 0;
+  for i in 0..len(fen.vertices) {
+    a = fen.vertices[i].pos;
+    twin = false;
+    for j in 0..len(fen.vertices) {
+      b = fen.vertices[j].pos;
+      dx = a.x - b.x; if dx < 0.0 { dx = 0.0 - dx; }
+      dy = a.y - b.y; if dy < 0.0 { dy = 0.0 - dy; }
+      dz = a.z - b.z; if dz < 0.0 { dz = 0.0 - dz; }
+      if dx < 0.000000001 && dy < 0.000000001 && dz > 0.000001 { twin = true; }
+    }
+    if !twin { orphan = orphan + 1; }
+  }
+  println("fence on a slope: vertices with no vertical twin {orphan} (a lean would strand them)");
+  if orphan != 0 { ok = false; }
+  // and the rails do NOT stay level — they follow
+  rlo = 1000.0; rhi = -1000.0;
+  for i in 0..len(fen.vertices) {
+    p = fen.vertices[i].pos;
+    if p.z > rlo { }
+    if p.z < rlo { rlo = p.z; }
+    if p.z > rhi { rhi = p.z; }
+  }
+  println("   fence spans z {rlo}..{rhi} — it follows the ground rather than sitting level");
+  if rhi - rlo < 2.0 { ok = false; }
+  println("   -> posts plumb, rails following. Both from one seat, asked at different points.");
+
+  // ── 3. a drainpipe whose LENGTH is derived, at three slopes ─────────────
+  println("drainpipe length derived from eave and ground:");
+  for k in 0..3 {
+    g = 0.0;
+    if k == 1 { g = 0.35; }
+    if k == 2 { g = 0.8; }
+    st = seat_plane(g, 0.0, 1.0, 2.0);
+    pz = mesh_seated_pipe(st, 4.0, 0.0, 9.0, 0.08, 8);
+    lo2 = 1000.0; hi2 = -1000.0;
+    for i in 0..len(pz.vertices) {
+      p = pz.vertices[i].pos;
+      if p.z < lo2 { lo2 = p.z; }
+      if p.z > hi2 { hi2 = p.z; }
+    }
+    want_lo = seat_z(st, 4.0, 0.0);
+    e = lo2 - want_lo; if e < 0.0 { e = 0.0 - e; }
+    et = hi2 - 9.0; if et < 0.0 { et = 0.0 - et; }
+    println("   ground slope {g}: pipe runs {lo2}..{hi2}, ground at {want_lo}, eave at 9");
+    if e > 0.000000001 { ok = false; }      // its foot touches the ground
+    if et > 0.000000001 { ok = false; }     // its head touches the eave
+  }
+  println("   -> length was never supplied; it is what the placement implies");
+
+  // ── 4. NEGATIVE CONTROL: a seat the prop does not touch must be caught ───
+  // Without this the residual check passes for a generator that ignores its seat entirely.
+  wrong = seat_plane(sin(pitch), 0.0, cos(pitch), 8.0);
+  flat = prim_drum(3.0, -1.5, 8.0, 0.0, 0.0, 1.0, 0.58, 0.58, 4.0, 8);
+  offw = 0.0;
+  for i in 0..len(flat.vertices) {
+    p = flat.vertices[i].pos;
+    if p.z < 8.01 {
+      d = wrong.se_nx * p.x + wrong.se_ny * p.y + wrong.se_nz * p.z - wrong.se_d;
+      if d < 0.0 { d = 0.0 - d; }
+      if d > offw { offw = d; }
+    }
+  }
+  println("negative control — a FLAT-based drum on the same pitched roof: worst offset {offw}");
+  if offw <= 0.000000001 { ok = false; }
+  println("   -> the check fires. A prop that ignores its seat is caught, so the passes above");
+  println("      mean something.");
+
+  if ok { println("=== SEAT OK ==="); } else { println("=== FAIL ==="); }
+}

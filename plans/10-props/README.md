@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1, P2 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1–P3 done.** The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -66,7 +66,7 @@ five parts, two primitives, one seed.
 - **negative control:** a part with an identity transform must land at the anchor, so a
   mis-composed matrix is visible rather than plausible.
 
-## P3 — seats
+## P3 — seats  — **DONE**, `src/seattest.loft`
 
 Generators take the surface they meet (a plane, or a height function) and **parameterise**
 rather than intersect. This is the phase with real design content (PROPS §Class 2).
