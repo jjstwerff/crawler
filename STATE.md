@@ -7,7 +7,46 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → NEXT: **the towers + doors** (plan #11 P5's tail). The EdgeSet merge is DONE.
+> ## → NEXT: **the drawing routines** in `hex_field` — spec written, code not started.
+>
+> ### 0. START HERE (2026-07-22, late): **`plans/11-3d-world/DRAWING.md`** (the design, and
+> why three earlier attempts were wrong) + **`DRAWING-API.md`** (the implementable spec —
+> signatures, semantics, every gate with the control that must fire). Both written to be
+> picked up cold.
+>
+> **The user has HALTED the other agent** so this can be built without two people writing
+> similar routines. `loft-libs-world` is yours alone for now — that also removes the
+> shared-tree hazard in lesson 3c below. **Finishing this unblocks them**, so it comes first.
+>
+> **What it is.** One rasterise rule for everything drawn — *mark the cells whose centre lies
+> within `halfwidth` of a geometry, and write a type into them* — for walls, towers, roads,
+> curves, octagons and houses, each with a stencil variant, all validated across the 12
+> orientations.
+>
+> **The three corrections that produced it**, each measured rather than argued:
+> - **The matcher cannot classify.** `rad 2, 3 → 1 arc` but `rad 8, 12 → 0 arcs, 6 straights`
+>   — a hex ring genuinely *is* a hexagon, so a fitter deciding round-vs-straight from
+>   residuals fails above the sizes the game happens to build. **The wall TYPE already stores
+>   the class** (`4` = round, `1` = straight; `solid_kind` collapses both and throws it away).
+>   Read it, and only the parameters are solved. An octagon needs its own type or it merges
+>   into circles.
+> - **A flipped house must mirror its MASSING, not its facade.** `t → 1 − t` is a mirrored
+>   photograph: a window left of a door comes back on its right. The fix is a *frame*, not a
+>   formula — a side is `(A, B)` with the outward normal always 90° clockwise from `B − A`,
+>   so a mirror **swaps A and B** and `t` is unchanged. `house_flip` is then one line:
+>   toggle `ho_mir`.
+> - **`stamp_house` draws in INDEX space** (`x0 + qq, y0 + rr`), but odd-r shifts odd rows
+>   half a hex in the world — so it is a zigzag parallelogram whose raggedness depends on the
+>   parity of `y0`. That is the bug the other agent hit.
+>
+> **Two things NOT to redo:** `rad * HEX_LEN = 3.464` is the ring's *corner* distance, not a
+> face (the outer face is 3.963) — so **nothing stores a radius**; the fit solves it. And a
+> door punched as a missing *cell* fragments the boundary (1 arc → 3), so an opening keeps its
+> run's type and is recorded separately.
+>
+> **A1/A2 were built and REVERTED** (`fdb9d0b` → `dec5317`): recording a `(cx, cy, rad)`
+> vector records a second time what the cells already say, somewhere the editor cannot write.
+> What A1 measured stands and is in the design.
 >
 > ### 1. The `hex_field` / `hexedge` EdgeSet merge — ✅ DONE 2026-07-22
 >
@@ -39,53 +78,15 @@ first-person 3D and the hex field becomes the world the player stands in.
 >   %Y` twice. → `EXTRACTION.md`, and **LOFT-HANDOFF G5** for the misleading diagnostic it
 >   produced.
 >
-> ### 2. → START HERE: the towers + doors (plan #11 P5's tail) — **blueprint PINNED, code not
-> started**
+> ### 2. The towers + doors blueprint — **SUPERSEDED, do not execute**
 >
-> Towers are **hexagons** today (`hex_distance == rad`); doors are **gaps** (`v = 0`). The
-> design is settled and written to be executed cold: **`plans/11-3d-world/RESULTS.md` → *P5
-> tail — the blueprint PINNED*** (commit `edc0f5f`). Read that, not the older *what remains*
-> section below it, which the blueprint corrects in two places.
+> `RESULTS.md` → *P5 tail — the blueprint PINNED* (`edc0f5f`) is kept for its reasoning, but
+> its plan is replaced by `DRAWING.md`. Three of its claims were falsified by measurement:
+> "the matcher recovers ~1 arc" (only below rad ~5), "record, do not infer" (the builder has
+> no exact world radius to record — only a hex count), and "ordering is load-bearing"
+> (`edge_block_arb` arbitrates, so arcs win either way — by the very `surf_distance` = 1e6
+> accident the blueprint warned about). Read `DRAWING.md` instead.
 >
-> **The invariant:** *a tower built at radius `r` is recovered as ONE arc surface of radius
-> `r`, and is drawn from that surface rather than from its cells.*
->
-> **Two corrections that make this smaller than it was described** — both from reading the
-> four layers rather than the table about them:
-> - **Nothing needs inventing.** `hexmatch` already recovers arcs from cells (gated by
->   `matchtest`), `tag_edges` already writes fitted surfaces onto an `EdgeSet`, `surf_arc`
->   gives exact radial normals, `edge_block_arb` already arbitrates junctions. Missing is only:
->   `Sim` carries no `Surfaces` (`grep -c` → **0**), `build_field` (`sim.loft:325`) calls bare
->   `edge_block` so it never learns WHICH thing blocks, and `view3d` (`view3d.loft:110`)
->   extrudes a flat quad per blocked edge.
-> - **It is splittable after all.** The old text says there is no verifiable midpoint before
->   the renderer. There is no *visible* one — but *recorded arc == matcher-fitted arc* is
->   **checkable with no renderer**, so step A can land and be gated alone.
->
-> **The design decision: RECORD, do not infer.** The builder knows its centre and radius
-> exactly, so fitting them back out of cells is inference where exact parameters are in hand.
-> The matcher is demoted to an **independent second derivation that must agree**.
->
-> **Steps** (full table with gates in the blueprint): **A1** `stamp_round_tower` appends
-> `(cq, cr, rad)` to a flat vector · **A2** `build_field` creates an arc per tower and tags its
-> ring edges with `edge_block_arb` **before** the generic pass · **A3** `Sim` carries
-> `surfs: Surfaces` (+ `feats: Features`) · **B** `view3d` reads `edge_surf` and draws an arc
-> edge as curve.
->
-> **Two things already decided so they are not re-derived:**
-> - *Ordering is load-bearing:* tag arcs **before** the generic `edge_block` pass, so
->   first-writer-wins protects them **by construction**. The reverse order works only by the
->   accident that `surf_distance` returns 1e6 for an out-of-range id.
-> - *The B control needs a straight wall AND a tower in one frame*, because "the tower curves"
->   is also passed by a renderer that curves everything. The A control: perturb the recorded
->   radius 10% and the agreement check must go RED — verify that before trusting a green.
->
-> **The size, honestly:** `sim.loft` is 4000+ lines with **two** `Sim {}` literals (≈2884,
-> ≈4145), **two** `build_field` call sites (2882, 4144) and **ten** `stamp_round_tower` calls.
-> A1–A3 is threading work, not design work. Verified against source: the door is one hex at
-> `(cx, cy + rad)`, the only ring cell with `tq == cx` and `tr > cy`; `rad = 2` is **3.0 m** and
-> **3.464 world units** at `SCALE.md`'s 1.5 m per hex step.
-
 ## The design position — eight statements, and they compose
 
 Settled 2026-07-22. Most of these *resolved* a tension rather than adding a rule, and several
