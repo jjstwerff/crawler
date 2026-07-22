@@ -369,6 +369,12 @@ All siblings under `/home/jurjens/workspace/`:
   & bug fixes**, **`loft/` (branch `engine`) = the big / engine projects**. So the installed
   loft tracks `loft2` (the Makefile prune fix + graphics/native fixes were loft2 bug work);
   `make loft-doctor` compares against `../loft2` for that reason.
+- **`loft-libs-world/`** — the `hex_*` family (`hex_grid`, `hex_world`, `hex_terrain`,
+  **`hex_field`**). **Branch `dev` is the shared working line** (user, 2026-07-22): while the
+  stack moves and two projects consume it, work lands there and both projects check that
+  branch out — no PR per change until stabilisation, then PR to `main` + register.
+  **`--lib` reads the WORKING TREE, so a consumer on the wrong branch silently compiles
+  different code** — check the branch before debugging anything strange.
 - **library SOURCES** (where the `use`d libs are authored) — **`loft-libs-graphics/`** (the
   `graphics` lib crawler uses, + `glb`/mesh/shapes; branch `fix-255-program-relative-font`),
   `loft-libs-core/`, `loft-libs-net/`.

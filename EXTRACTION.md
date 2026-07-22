@@ -71,8 +71,17 @@ of it tightens or *removes* old caveats; act on the marked items when convenient
 
 ## Updating a library repo (the change loop, per contribution)
 
-Library work happens IN the lib repo under its own gate — crawler stays a consumer.
-The loop, end to end:
+> **CURRENT MODE (user, 2026-07-22) — a shared branch, NOT a PR per change.** While the
+> world-geometry stack is still moving and **two projects consume it** (crawler and the
+> in-world editor), `loft-libs-world` work lands on the shared **`dev`** branch and both
+> projects simply **check that branch out**. The full PR-per-change loop below is what we
+> return to **after stabilisation**, when the packages get PR'd to `main`, released and
+> registered. Until then: commit to `dev`, push, and make sure both consumers are on the
+> same branch — a `--lib` dir reads the WORKING TREE, so a consumer on the wrong branch
+> silently gets different code. That is the one failure mode this mode introduces, and it
+> is worth a glance before debugging anything strange.
+
+The full loop, end to end (the post-stabilisation flow):
 
 1. **Sync**: `git fetch origin && git checkout main && git pull --ff-only` in the lib
    repo (never branch from a stale main).
