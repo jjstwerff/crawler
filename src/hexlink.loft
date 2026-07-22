@@ -1,0 +1,55 @@
+// hexlink — plan #10 P8: state, class C. A linkage.
+//
+// Steam gear is the hard case and it is still closed form. Crank radius r, con-rod L, crank
+// angle theta:
+//
+//     crank pin   = (r*cos(th), r*sin(th))
+//     crosshead x = r*cos(th) + sqrt(L^2 - r^2*sin^2(th))        the slider-crank identity
+//
+// Every part frame follows from theta, and theta is the WHEEL PHASE from P7. So the whole
+// valve gear is a pure function of distance travelled: no keyframes, no animation data, and
+// the rods cannot drift out of phase with the wheels because they are derived from them.
+//
+// THE INVARIANT IS THAT THE CON-ROD DOES NOT STRETCH. Solve the linkage wrongly and its
+// length varies with the crank angle — and nothing else about the motion will tell you.
+// The wheels still turn, the crosshead still slides, the picture still moves. That is why
+// the gate measures the rod rather than the look.
+use mesh3d;
+use hexwheel;
+use hexprim;
+
+pub fn crank_pin_x(r: float, th: float) -> float { r * cos(th) }
+pub fn crank_pin_y(r: float, th: float) -> float { r * sin(th) }
+
+// The crosshead, on its slide line.  A rod shorter than the crank has no solution at every
+// angle, so it is refused rather than returning a NaN that would propagate silently through
+// every downstream frame.
+pub fn crosshead_x(r: float, rod: float, th: float) -> float {
+  if rod <= r { return 0.0; }
+  s = r * sin(th);
+  under = rod * rod - s * s;
+  if under < 0.0 { return 0.0; }
+  r * cos(th) + (sqrt(under) ?? 0.0)
+}
+
+// The rod's ACTUAL length at this angle — the quantity that must never move.
+pub fn rod_length(r: float, rod: float, th: float) -> float {
+  px = crank_pin_x(r, th);
+  py = crank_pin_y(r, th);
+  cx = crosshead_x(r, rod, th);
+  dx = cx - px;
+  dy = 0.0 - py;
+  sqrt(dx * dx + dy * dy) ?? 0.0
+}
+
+// The gear, driven by the wheel it is bolted to.  Not by a clock, and not by its own
+// counter — by the same phase the wheel got from the ground.
+pub fn gear_angle(phase: float) -> float { wheel_angle(phase) }
+
+pub fn mesh_rod(ax: float, ay: float, az: float,
+                bx: float, by: float, bz: float, r: float) -> Mesh {
+  dx = bx - ax; dy = by - ay; dz = bz - az;
+  l = sqrt(dx * dx + dy * dy + dz * dz) ?? 0.0;
+  if l < 0.000000001 { return mesh("rod"); }
+  prim_drum(ax, ay, az, dx, dy, dz, r, r, l, 8)
+}

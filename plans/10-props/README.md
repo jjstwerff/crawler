@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — P1–P7 done.** P8 (linkages) and P9 (the render pass) remain. The design is settled in **[PROPS.md](../../PROPS.md)** (parts
+**Active — P1–P8 done.** Only P9 (the render pass) remains. The design is settled in **[PROPS.md](../../PROPS.md)** (parts
 1–4). This file is the implementation order.
 
 ## The shape of the work
@@ -133,7 +133,7 @@ Door, casement, awning, shutters: one angle per prop.
 - **negative control:** a timer-driven phase must fail the no-slip check, so the gate is
   known to be able to fail.
 
-## P8 — state, Class C (linkages)
+## P8 — state, Class C (linkages)  — **DONE**, `src/linktest.loft`
 
 The slider-crank. **The exact invariant is that the con-rod does not stretch** — if the
 linkage is solved wrongly, its length varies, and nothing else about the motion will tell

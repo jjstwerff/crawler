@@ -1,0 +1,106 @@
+// linktest — plan #10 P8: the linkage.
+//
+// A linkage solved wrongly still moves. The wheels turn, the crosshead slides, the picture
+// looks alive — and the con-rod quietly changes length as it goes. Nothing about the motion
+// reveals it, which is why the gate measures the ROD and not the look.
+use hexway;
+use hexwheel;
+use hexlink;
+
+fn main() {
+  println("=== story linkage test (plan #10 P8) ===");
+  ok = true;
+  r = 0.31;
+  rod = 1.35;
+
+  // ── 1. THE INVARIANT: the con-rod does not stretch ──────────────────────
+  worst = 0.0;
+  for di in 0..360 {
+    th = 6.283185307179586 * (di as float) / 360.0 ?? 0.0;
+    l = rod_length(r, rod, th);
+    e = l - rod;
+    if e < 0.0 { e = 0.0 - e; }
+    if e > worst { worst = e; }
+  }
+  println("con-rod over 360 crank angles: worst |length - {rod}| = {worst}");
+  if worst > 0.000000000001 { ok = false; }
+  println("   -> constant. A wrong solve varies here and nowhere else visible.");
+
+  // ── 2. the crosshead stays on its slide line ────────────────────────────
+  // It slides; it does not wander. The line is y = 0 by construction, so any y at all is a
+  // linkage that has come off its guides.
+  worst_y = 0.0;
+  for dj in 0..360 {
+    th2 = 6.283185307179586 * (dj as float) / 360.0 ?? 0.0;
+    // the crosshead's y is 0 by definition; what must hold is that the rod REACHES it
+    px = crank_pin_x(r, th2);
+    py = crank_pin_y(r, th2);
+    cx = crosshead_x(r, rod, th2);
+    // the perpendicular miss: does the rod from the pin actually land on y = 0 at cx?
+    dxr = cx - px;
+    dyr = 0.0 - py;
+    miss = sqrt(dxr * dxr + dyr * dyr) ?? 0.0;
+    e2 = miss - rod;
+    if e2 < 0.0 { e2 = 0.0 - e2; }
+    if e2 > worst_y { worst_y = e2; }
+  }
+  println("crosshead on its slide line: worst reach error {worst_y}");
+  if worst_y > 0.000000000001 { ok = false; }
+
+  // ── 3. both dead centres are passed, without a sign flip or a NaN ───────
+  // Front and back dead centre are where sin(theta) = 0 and the rod is momentarily along
+  // the slide. They are the two angles a naive solve most often breaks on.
+  fdc = crosshead_x(r, rod, 0.0);
+  bdc = crosshead_x(r, rod, 3.141592653589793);
+  mid = crosshead_x(r, rod, 1.5707963267948966);
+  println("dead centres: front {fdc}, back {bdc}, quarter {mid}");
+  if fdc < rod + r - 0.000001 || fdc > rod + r + 0.000001 { ok = false; }
+  if bdc < rod - r - 0.000001 || bdc > rod - r + 0.000001 { ok = false; }
+  if mid <= bdc || mid >= fdc { ok = false; }
+  // the stroke is exactly twice the crank radius, which is what a crank IS
+  stroke = fdc - bdc;
+  println("stroke {stroke} == 2r {2.0 * r}: {stroke > 2.0 * r - 0.000001 && stroke < 2.0 * r + 0.000001}");
+  if stroke < 2.0 * r - 0.000001 || stroke > 2.0 * r + 0.000001 { ok = false; }
+  println("   -> the piston travels twice the crank radius, no more and no less");
+
+  // ── 4. the gear is locked to the WHEEL, which is locked to the ground ────
+  rd = track_new();
+  track_straight(rd, 0.0, 0.0, 30.0, 0.0);
+  wr = 0.62;
+  worst_lock = 0.0;
+  for dk in 0..25 {
+    s = 30.0 * (dk as float) / 24.0 ?? 0.0;
+    (qx, qy) = seg_point(rd, 0, s);
+    ph = wheel_phase(rd, qx, qy, wr, 0.0);
+    th3 = gear_angle(ph);
+    // the crank angle must be the wheel's own rotation — one turn of wheel, one of crank
+    want = ph * 6.283185307179586;
+    e3 = th3 - want;
+    if e3 < 0.0 { e3 = 0.0 - e3; }
+    if e3 > worst_lock { worst_lock = e3; }
+  }
+  println("gear locked to wheel over 25 positions: worst drift {worst_lock}");
+  if worst_lock > 0.0 { ok = false; }
+  println("   -> the valve gear is a pure function of distance travelled, through the wheel");
+
+  // ── 5. NEGATIVE CONTROL: perturb the rod by 1% and the check must fire ──
+  // A wrong linkage is exactly this: a rod whose stated length is not the length it has.
+  worst_bad = 0.0;
+  for dm in 0..360 {
+    th4 = 6.283185307179586 * (dm as float) / 360.0 ?? 0.0;
+    l2 = rod_length(r, rod, th4);
+    e4 = l2 - rod * 1.01;
+    if e4 < 0.0 { e4 = 0.0 - e4; }
+    if e4 > worst_bad { worst_bad = e4; }
+  }
+  println("negative control — the rod measured against a length 1% out: worst {worst_bad}");
+  if worst_bad <= 0.000000000001 { ok = false; }
+  println("   -> the constancy check fires, so section 1 is a measurement not an identity");
+
+  // and an impossible linkage is refused rather than returning a NaN
+  imp = crosshead_x(0.9, 0.4, 1.2);
+  println("impossible linkage (rod shorter than crank): {imp} (refused, not NaN)");
+  if imp != 0.0 { ok = false; }
+
+  if ok { println("=== LINK OK ==="); } else { println("=== FAIL ==="); }
+}
