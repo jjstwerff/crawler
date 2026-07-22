@@ -30,6 +30,78 @@ Bundles already run real loft (the explorer's `potion_detect_monsters::apply`, t
 Widen those three and the flag-enum ceiling largely dissolves: a flag stops being an enum the
 engine knows and becomes a behavior a bundle ships.
 
+## What rides on the bus: ELIGIBILITY, not scripts
+
+The diagnosis above says there is no event system. It does not say what the events should
+*carry*, and that is the more consequential question — a bus carrying scripted quest chains
+buys modding power and spends the design. The answer comes from the sibling project
+(**`../crew_punk/BLOCKS.md` § The campaign is a trigger system, not a plot**, and
+`SESSIONS.md` §3), adopted here:
+
+> **Nothing is scheduled. Everything is *eligible*.** A piece of content does not happen at
+> depth nine; it happens **when its conditions are true** — which may be depth nine, depth
+> thirty, or never. *Nobody decides what happens next; the system evaluates what has become
+> possible.*
+
+**The load-bearing property**, and the reason it stays coherent as content accumulates:
+
+| the world holds | content holds |
+|---|---|
+| **what happened** — the past, entirely visible | **conditions** — never a schedule |
+
+The engine joins them at play time **and discards the join**. Nothing stores what a past
+event *enabled*; eligibility is recomputed, never bookkept.
+
+**Four rules this imposes, and each one is already crawler's philosophy elsewhere:**
+
+1. **A trigger tests what HAPPENED — never a stat, level or rating.** *"A gate that tests
+   capability is a locked door wearing a skill check."* §3a pillar 2 already forbids
+   stat-gated *difficulty*; this is the same rule applied to *content*.
+2. **A trigger may only test a named world fact.** If content needs a condition the world does
+   not record, either the world gains that fact **or the content is testing something
+   imaginary.** So the trigger vocabulary is explicit and **small** — small not for memory
+   (the machine reads it) but so content stays authorable, testable, and honest.
+3. **No markers.** *"A trigger that tells you it exists is a quest marker"* — the Zelda
+   exploration pillar in mechanical form.
+4. **Eligible ≠ due.** Flooding is the failure mode: when many things qualify at once, one
+   fires and **the rest stay eligible.** Select and constrain, never synthesise.
+
+**Depth arrives as a by-product of history.** Early triggers are simple because the world has
+no past yet; late ones can be precise — *you cleared that shrine, you carried the thing out,
+and the roster remembers*. Nothing about that curve needs designing.
+
+**And the same mechanism runs at three scales** — run, level, moment — which is what makes it
+one system instead of three: a wandering line from an NPC and a run's late reveal are the same
+object, both waiting on conditions, both simply missed if the conditions never arrive.
+
+### Why this lets creators author RICHLY — and still dodges the AAA trap
+
+**The trap is not authored content. It is *scheduled* authored content** (user, 2026-07-22).
+Big studios cut simulation because a simulated world breaks a scripted one: a quest needs that
+NPC alive, in that room, at that hour, and an economy that lets him move — or starve — breaks
+it. Oblivion's Radiant AI shipped neutered for exactly this reason. So the studio keeps the
+script and guts the simulation, and everyone gets a world that looks alive and is not.
+
+**Remove the schedule and the conflict disappears.** A condition-gated scene cannot be broken
+by simulation, because nothing was ever promised: if the world stops making it true, it simply
+does not fire, and no repair is owed. Which means a creator can write the most specific,
+richest, most hand-made thing they like — *the feeling lives in the whole authored scene* — and
+ship it into a fully simulated world without the two fighting.
+
+So both units ship, and they are different sizes on purpose:
+
+| unit | size | why |
+|---|---|---|
+| **the authored scene** | whole | that is where the feeling is — do not dissolve it into parts |
+| **the brick** | smaller than a scene, portable | so one good thing produces many usable ones |
+
+**That is the whole prize:** rich authored content *and* deep simulation, which the industry
+treats as a trade-off because it only ever tried to have both **on a schedule**.
+
+**The seam stays where BUNDLE.md put it:** the *evaluator* is engine mechanism; the *eligible
+content and its conditions* are bundle content. This replaces today's single hardcoded
+`infest_trigger == "boss_slain"` string check with the general form.
+
 ## The five levers (priority order)
 
 1. **Event/hook bus — the keystone.** The engine fires named events at each junction; bundles

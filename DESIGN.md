@@ -136,9 +136,22 @@ Souls-grade fair challenge, no permadeath.**
    is recorded (`SCALE.md` → the real-measurement rule already carries the same shape: ship
    correct, let the consumer depart deliberately).
 
-1. **Procedural, never authored.** Content is generated; hand-designed set-pieces are
-   moros's path (§3 Non-Goals). crawler's richness comes from procedural variety +
-   systemic mechanics, not authored layouts.
+1. **Procedural, never authored — in what SHIPS, not in what you write.** Content is
+   generated; hand-designed set-pieces are moros's path (§3 Non-Goals). crawler's richness
+   comes from procedural variety + systemic mechanics, not authored layouts.
+
+   **But the way you GET a good generator is to author one specific thing and strip it.**
+   From the sibling project (`../crew_punk/BLOCKS.md`, and it is the sharpest statement of
+   this anywhere in the org): *"The diorama is the research. The brick is the finding."*
+   Nobody designs a good brick in the abstract — you write the concrete scene, discover what
+   actually lands, and only then can you say which part was load-bearing.
+
+   **crawler has always worked this way without naming it.** `land.loft` is a diorama — a
+   hand-placed village — and plan #11 P0 stripped a *rule* out of it (real measurements; the
+   1.51 m eaves nobody had measured). `PROPS.md`'s cart is a diorama that produced the
+   general part-list. The authored artefact was never the deliverable; it was the instrument.
+   So: **author freely to discover, ship only the recombinable finding** — and never confuse
+   the diorama for content.
 2. **Gentle vertical progression.** Levels/depth still make you stronger, but the
    curve is *much* shallower than Angband's (a run's span ≈ a few×, not 10×+), and
    the player↔monster power ratio is **capped both ways** — nothing is unreachable
