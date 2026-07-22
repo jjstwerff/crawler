@@ -1216,8 +1216,13 @@ pub fn sim_teleport(s: &Sim, q: integer, r: integer) {
   s.py = ty;
 }
 
-// Blink: teleport the player to a random non-wall hex within `max_d` (Scroll of Phase Door = short,
-// Teleportation = long). Tries a handful of random offsets; a no-op if none land (always safe).
+// Blink: teleport the player to a random hex they can stand in, within `max_d`
+// (Scroll of Phase Door = short, Teleportation = long). Tries a handful of random
+// offsets; a no-op if none land (always safe).
+//
+// Standable is asked through the chokepoint, not restated here: this used to test
+// `tile_at != 1`, which sees rock but not the solidity rule's other two arms, so a
+// blink could drop you inside a boulder or a fence post.
 pub fn sim_blink(s: &Sim, max_d: integer) {
   (pq, pr) = px_to_hex(s.px, s.py);
   for _ in 0..60 {
@@ -1225,7 +1230,7 @@ pub fn sim_blink(s: &Sim, max_d: integer) {
     tr = pr + sim_roll(s, 0 - max_d, max_d);
     d = hex_distance(pq, pr, tq, tr);
     if d >= 1 && d <= max_d && tq >= 1 && tr >= 1 && tq < s.lw - 1 && tr < s.lh - 1 {
-      if tile_at(s, tq, tr) != 1 {            // not a wall (floor / stair)
+      if !field_blocked(s, tq, tr, DIR_HEX) {     // floor / stair — anything you can stand in
         sim_teleport(s, tq, tr);
         return;
       }

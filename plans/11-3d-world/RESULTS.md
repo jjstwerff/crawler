@@ -25,7 +25,7 @@ wrong in three ways**, which is why the phase measured before it moved.
 
 So the real surface was **32 sites**, not 13, and — the finding that mattered — the
 solidity rule `t == 1 \|\| t == 4 \|\| t == 5` was written out **three independent times**,
-one of which **disagreed**:
+one of which **disagreed** (fixed in the follow-up commit):
 
 | copy | where | rule |
 |---|---|---|
@@ -86,13 +86,29 @@ Closed in `surfacetest.loft`: every tile-4/5 hex must report `is_wall`, and
 assertion can never pass vacuously. Now `solidity: boulders+posts=232 is-wall=true
 blocks-entry=true`, and control 2 goes red.
 
+### The divergent site — split out, then fixed (same day)
+
+`sim_blink` was the one site asking the passability question with a different rule
+(`tile_at != 1`). Routing it through the chokepoint **changes behaviour**, so it was held
+out of a phase contracted to "`make test` unchanged" and fixed in its own commit, on the
+user's ruling.
+
+It was not marginal. The gate stands the player beside the farmers' fences on the depth-0
+surface — 6 non-rock solid hexes within blink range — and blinks 300 times:
+
+| rule | blinks that landed inside a solid hex |
+|---|---|
+| `tile_at != 1` (old) | **96 / 300** |
+| `field_blocked(.., DIR_HEX)` (fixed) | **0 / 300** |
+
+Roughly a third of short blinks in fenced country dropped the player inside a fence post
+or a boulder. It survived because the only blink gate ran at **depth 1**, and the dungeon
+has neither kind — the coverage hole and the bug were the same shape. The new gate carries
+its own anti-vacuous guards (`soft_near > 0`, `moved > 200`) so it cannot go quiet if the
+world generator stops producing fences.
+
 ### Left standing, deliberately
 
-- **`sim_blink`'s `!= 1`** is the one site that asks the passability question with a
-  different rule. Routing it through the chokepoint **changes behaviour** (blink would stop
-  landing on boulders and fence posts), so it does not belong in a phase whose contract is
-  "`make test` unchanged". It is a one-line fix, and it wants a ruling: is landing inside a
-  fence a bug (almost certainly) or tolerated? → **P2 or a standalone fix.**
 - **`wallgeo`'s `edge_wall_raw`** stays a direct `s.walls` reader. It asks *"what wall
   geometry exists on this canonical edge"*, not *"may I pass"* — the two differ whenever a
   destination hex is solid with no edge wall between. Conflating them would be wrong; it is
