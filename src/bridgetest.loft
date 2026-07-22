@@ -29,7 +29,7 @@ fn straight_track(th: float, half: float) -> Track {
   t
 }
 
-fn blocked_count(e: EdgeCollider, q0: integer, r0: integer, w: integer, h: integer) -> integer {
+fn blocked_count(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer) -> integer {
   n = 0;
   for r in r0..r0 + h {
     for q in q0..q0 + w {
@@ -63,7 +63,7 @@ fn main() {
   way_mark(rail, rail_hw, hsolo);
   sfsolo = surfaces_new();
   way_surfaces(rail, sfsolo);
-  esolo = collider_new(q0, r0, gw, gh);
+  esolo = edgeset_new(q0, r0, gw, gh);
   cut_arb(hsolo, esolo, sfsolo, sfsolo.sf_n, bed);
   solo_cells = hexset_count(hsolo);
   solo_edges = blocked_count(esolo, q0, r0, gw, gh);
@@ -76,7 +76,7 @@ fn main() {
   sfflat = surfaces_new();
   way_surfaces(rail, sfflat);
   way_surfaces(road, sfflat);
-  eflat = collider_new(q0, r0, gw, gh);
+  eflat = edgeset_new(q0, r0, gw, gh);
   cut_arb(hflat, eflat, sfflat, sfflat.sf_n, bed);
   println("same level  : {hexset_count(hflat)} cells, {blocked_count(eflat, q0, r0, gw, gh)} edges -> a level crossing");
   if hexset_count(hflat) == solo_cells { ok = false; }      // they MUST interact
@@ -88,14 +88,14 @@ fn main() {
   way_mark(rail, rail_hw, hl0);
   sf0 = surfaces_new();
   way_surfaces(rail, sf0);
-  e0 = collider_new(q0, r0, gw, gh);
+  e0 = edgeset_new(q0, r0, gw, gh);
   cut_arb(hl0, e0, sf0, sf0.sf_n, bed);
 
   hl1 = hexset_chunk(q0, r0, gw, gh);
   way_mark(road, road_hw, hl1);
   sf1 = surfaces_new();
   way_surfaces(road, sf1);
-  e1 = collider_new(q0, r0, gw, gh);
+  e1 = edgeset_new(q0, r0, gw, gh);
   cut_arb(hl1, e1, sf1, sf1.sf_n, bed);
 
   l0_cells = hexset_count(hl0);
@@ -177,7 +177,7 @@ fn main() {
   way_mark(rail, rail_hw, bhs);
   sfb = surfaces_new();
   way_surfaces(rail, sfb);
-  eb = collider_new(q0, r0, gw, gh);
+  eb = edgeset_new(q0, r0, gw, gh);
   cut_arb(bhs, eb, sfb, sfb.sf_n, bore);
   along = sight_clear(eb, mt, -16.0, 0.0, 1.5, 16.0, 0.0, 1.5, 0.5);
   across = sight_clear(eb, mt, 0.0, -8.0, 1.5, 0.0, 8.0, 1.5, 0.5);
@@ -191,7 +191,7 @@ fn main() {
   way_mark(road_over, road_hw, hg);
   sfg = surfaces_new();
   way_surfaces(road_over, sfg);
-  eg = collider_new(q0, r0, gw, gh);
+  eg = edgeset_new(q0, r0, gw, gh);
   cut_arb(hg, eg, sfg, sfg.sf_n, bed);
   println("ground above the bore: {hexset_count(hg)} cells, {blocked_count(eg, q0, r0, gw, gh)} edges — the bore left no mark");
   if !edgeset_equal(eg, e1) { ok = false; }

@@ -125,7 +125,7 @@ fn main() {
 
   // stamp the platform alone: its face must be blocked against the track side
   way_surfaces(pf, sf);
-  e = collider_new(q0, r0, gw, gh);
+  e = edgeset_new(q0, r0, gw, gh);
   cut_arb(hplat, e, sf, sf.sf_n, face);
   faces = 0;
   for r in r0..r0 + gh {

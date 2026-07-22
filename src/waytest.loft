@@ -82,13 +82,13 @@ fn main() {
   // ── the one pass: cells + edges + surface ids ─────────────────────────────
   Q = -18; RR = -18; W = 37; H = 37;
   hs = hexset_chunk(Q, RR, W, H);
-  e = collider_new(Q, RR, W, H);
+  e = edgeset_new(Q, RR, W, H);
   sf = surfaces_new();
   mats = materials_new();
   stone = material_add(mats, true, 2.5, 1.0, 30.0, 0.0, 0.5);
   first = way_surfaces(full, sf);
   way_stamp(full, 1.2, hs, e, first, stone);
-  println("stamped: {hexset_count(hs)} cells, {edge_count(e)} blocked edges, surfaces {first}..{first + full.tk_n - 1}");
+  println("stamped: {hexset_count(hs)} cells, {edgeset_surf_count(e)} blocked edges, surfaces {first}..{first + full.tk_n - 1}");
 
   // every blocked edge must carry a surface AND yield an exact normal
   tagged = 0;

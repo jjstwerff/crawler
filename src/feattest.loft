@@ -14,7 +14,7 @@ use hexmatch;
 // The canonical set {0,2,3} is one direction per opposite pair (see hex_field).
 fn is_canon(d: integer) -> boolean { d == 0 || d == 2 || d == 3 }
 
-fn count_passable(e: EdgeCollider, m: Materials, q0: integer, r0: integer,
+fn count_passable(e: EdgeSet, m: Materials, q0: integer, r0: integer,
                   w: integer, h: integer) -> integer {
   n = 0;
   for r in r0..r0 + h {
@@ -24,7 +24,7 @@ fn count_passable(e: EdgeCollider, m: Materials, q0: integer, r0: integer,
         nq = nb_q(q, r, d);
         nr = nb_r(q, r, d);
         if edge_surf(e, q, r, nq, nr) > 0 {
-          if !mat_solid(m, edge_material(e, q, r, nq, nr)) { n = n + 1; }
+          if !mat_solid(m, edge_mat(e, q, r, nq, nr)) { n = n + 1; }
         }
         }
       }
@@ -51,30 +51,30 @@ fn main() {
   wid = way_surfaces(wall, sf);
   hs = hexset_chunk(q0, r0, w, h);
   way_mark(wall, 1.1, hs);
-  e = collider_new(q0, r0, w, h);
+  e = edgeset_new(q0, r0, w, h);
   cut_arb(hs, e, sf, sf.sf_n, stone);
   base_pass = count_passable(e, mt, q0, r0, w, h);
-  println("plain wall: {edge_count(e)} blocked edges, {base_pass} passable");
+  println("plain wall: {edgeset_surf_count(e)} blocked edges, {base_pass} passable");
   if base_pass != 0 { ok = false; }
 
   // ── SINGLE vs DOUBLE door: the interval width is the only difference ───────
   f1 = features_new();
   feature_add(f1, wid, -0.5, 0.5, 0.0, 2.2, FEAT_DOOR, doorm);
-  e1 = collider_new(q0, r0, w, h);
+  e1 = edgeset_new(q0, r0, w, h);
   cut_arb(hs, e1, sf, sf.sf_n, stone);
   apply_features(e1, sf, f1, q0, r0, w, h);
   p1 = count_passable(e1, mt, q0, r0, w, h);
 
   f2 = features_new();
   feature_add(f2, wid, -1.3, 1.3, 0.0, 2.2, FEAT_DOOR, doorm);
-  e2 = collider_new(q0, r0, w, h);
+  e2 = edgeset_new(q0, r0, w, h);
   cut_arb(hs, e2, sf, sf.sf_n, stone);
   apply_features(e2, sf, f2, q0, r0, w, h);
   p2 = count_passable(e2, mt, q0, r0, w, h);
 
   f3 = features_new();
   feature_add(f3, wid, -3.5, 3.5, 0.0, 3.0, FEAT_DOOR, doorm);
-  e3 = collider_new(q0, r0, w, h);
+  e3 = edgeset_new(q0, r0, w, h);
   cut_arb(hs, e3, sf, sf.sf_n, stone);
   apply_features(e3, sf, f3, q0, r0, w, h);
   p3 = count_passable(e3, mt, q0, r0, w, h);
@@ -89,14 +89,14 @@ fn main() {
   if p3 <= p2 { ok = false; }
 
   // the wall must still seal everywhere else
-  still = edge_count(e2) - p2;
+  still = edgeset_surf_count(e2) - p2;
   println("double door: {p2} passable, {still} still sealed");
   if still < 10 { ok = false; }
 
   // ── a WINDOW blocks movement but not sight ────────────────────────────────
   fw = features_new();
   feature_add(fw, wid, 4.0, 6.0, 1.0, 2.0, FEAT_WINDOW, windm);
-  ew = collider_new(q0, r0, w, h);
+  ew = edgeset_new(q0, r0, w, h);
   cut_arb(hs, ew, sf, sf.sf_n, stone);
   nwin = apply_features(ew, sf, fw, q0, r0, w, h);
   wsolid = true;
@@ -106,7 +106,7 @@ fn main() {
       for d in 0..6 {
         nq = nb_q(q, r, d);
         nr = nb_r(q, r, d);
-        mid = edge_material(ew, q, r, nq, nr);
+        mid = edge_mat(ew, q, r, nq, nr);
         if mid == windm {
           if !mat_solid(mt, mid) { wsolid = false; }
           if mat_opacity(mt, mid) < 0.5 { wsee = true; }
@@ -129,7 +129,7 @@ fn main() {
   feature_add(fm, wid, -6.0, -5.0, 0.0, 2.2, FEAT_DOOR, doorm);
   feature_add(fm, wid, -1.0, 1.0, 0.0, 2.2, FEAT_DOOR, doorm);
   feature_add(fm, wid, 5.0, 6.0, 1.0, 2.0, FEAT_WINDOW, windm);
-  em = collider_new(q0, r0, w, h);
+  em = edgeset_new(q0, r0, w, h);
   cut_arb(hs, em, sf, sf.sf_n, stone);
   apply_features(em, sf, fm, q0, r0, w, h);
   vm = trace(hs);

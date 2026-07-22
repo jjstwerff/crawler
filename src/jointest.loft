@@ -10,10 +10,10 @@ use hex_field;
 use hexedge;
 use hexway;
 
-// Build the same scene in a given order; return the EdgeCollider for comparison.
+// Build the same scene in a given order; return the EdgeSet for comparison.
 fn scene(order: integer, sf: Surfaces, mat: integer,
-         q0: integer, r0: integer, w: integer, h: integer) -> EdgeCollider {
-  e = collider_new(q0, r0, w, h);
+         q0: integer, r0: integer, w: integer, h: integer) -> EdgeSet {
+  e = edgeset_new(q0, r0, w, h);
   hs = hexset_chunk(q0, r0, w, h);
 
   // A round tower at the origin, and a wall leaving it TANGENTIALLY. The wall must

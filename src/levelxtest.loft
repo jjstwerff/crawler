@@ -64,7 +64,7 @@ fn main() {
   g2 = surf_straight(sf, bx, by, 0.0 - gap);
   println("barrier surfaces {g1} and {g2} at +/-{gap} along the road");
 
-  e = collider_new(q0, r0, gw, gh);
+  e = edgeset_new(q0, r0, gw, gh);
   cut_arb(hs, e, sf, sf.sf_n, bed);
 
   // the crossing must be PASSABLE: no cut between two way cells
@@ -84,26 +84,17 @@ fn main() {
 
   // ── the toggle: material table only, zero edge writes ─────────────────────
   // snapshot the geometry layer, flip the gate, and prove nothing moved.
-  surf_before = 0;
-  mat_before = 0;
-  for i in 0..len(e.ee_surf) {
-    surf_before = surf_before + ((e.ee_surf[i] ?? 0) as integer);
-    mat_before = mat_before + ((e.ee_mat[i] ?? 0) as integer);
-  }
+  // A DIGEST, not two sums: sums cancel, and the whole claim here is that a material
+  // toggle performs ZERO edge writes.
+  before = edgeset_digest(e);
   was_solid = mat_solid(mt, gate);
   material_set_solid(mt, gate, false);          // raise the barrier
   now_solid = mat_solid(mt, gate);
-  surf_after = 0;
-  mat_after = 0;
-  for i in 0..len(e.ee_surf) {
-    surf_after = surf_after + ((e.ee_surf[i] ?? 0) as integer);
-    mat_after = mat_after + ((e.ee_mat[i] ?? 0) as integer);
-  }
+  after = edgeset_digest(e);
   println("barrier down->up: solid {was_solid}->{now_solid}");
-  println("edge layer untouched: surf sum {surf_before}=={surf_after}, mat sum {mat_before}=={mat_after}");
+  println("edge layer untouched: digest {before}=={after}");
   if !was_solid || now_solid { ok = false; }
-  if surf_before != surf_after { ok = false; }
-  if mat_before != mat_after { ok = false; }
+  if before != after { ok = false; }
 
   // and the derived field a consumer reads DID change, without any re-derivation
   material_set_solid(mt, gate, true);

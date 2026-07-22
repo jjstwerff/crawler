@@ -29,7 +29,7 @@ pub struct FieldCache {
   fc_ver:   vector<integer>,
   fc_touch: vector<integer>,     // LRU clock stamp
   fc_live:  vector<boolean>,
-  fc_edges: vector<EdgeCollider>,
+  fc_edges: vector<EdgeSet>,
   fc_cap:   integer,
   fc_clock: integer,
   fc_hits:  integer,
@@ -40,11 +40,11 @@ pub struct FieldCache {
 
 pub fn cache_new(cap: integer) -> FieldCache {
   a: vector<integer> = []; b: vector<integer> = []; v: vector<integer> = [];
-  t: vector<integer> = []; l: vector<boolean> = []; e: vector<EdgeCollider> = [];
+  t: vector<integer> = []; l: vector<boolean> = []; e: vector<EdgeSet> = [];
   g: vector<integer> = [];
   for i in 0..cap {
     a += [0]; b += [0]; v += [-1]; t += [0]; l += [false]; g += [0];
-    e += [collider_new(0, 0, 1, 1)];         // placeholder, never read while !live
+    e += [edgeset_new(0, 0, 1, 1)];         // placeholder, never read while !live
   }
   FieldCache { fc_cx: a, fc_cy: b, fc_lev: g, fc_ver: v, fc_touch: t, fc_live: l, fc_edges: e,
                fc_cap: cap, fc_clock: 0, fc_hits: 0, fc_miss: 0, fc_evict: 0, fc_built: 0 }
@@ -108,11 +108,11 @@ pub fn cache_claim(c: FieldCache, cx: integer, cy: integer, lev: integer, ver: i
   slot
 }
 
-pub fn cache_edges(c: FieldCache, slot: integer) -> EdgeCollider {
-  c.fc_edges[slot] ?? collider_new(0, 0, 1, 1)
+pub fn cache_edges(c: FieldCache, slot: integer) -> EdgeSet {
+  c.fc_edges[slot] ?? edgeset_new(0, 0, 1, 1)
 }
 
-pub fn cache_set_edges(c: FieldCache, slot: integer, e: EdgeCollider) {
+pub fn cache_set_edges(c: FieldCache, slot: integer, e: EdgeSet) {
   c.fc_edges[slot] = e;
 }
 
@@ -142,13 +142,9 @@ pub fn cache_builds(c: FieldCache) -> integer { c.fc_built }
 
 // Are two derived fields identical, edge for edge?  This is the property that makes the
 // cache safe to trust: a cached region must equal a freshly derived one exactly.
-pub fn edgeset_equal(a: EdgeCollider, b: EdgeCollider) -> boolean {
-  if len(a.ee_surf) != len(b.ee_surf) { return false; }
-  if len(a.ee_mat) != len(b.ee_mat) { return false; }
-  same = true;
-  for i in 0..len(a.ee_surf) {
-    if ((a.ee_surf[i] ?? 0) as integer) != ((b.ee_surf[i] ?? 0) as integer) { same = false; }
-    if ((a.ee_mat[i] ?? 0) as integer) != ((b.ee_mat[i] ?? 0) as integer) { same = false; }
-  }
-  same
-}
+//
+// The implementation moved to `hex_field::edgeset_equal` with the storage (2026-07-22).
+// It is the same comparison — both slots, halo included — and it belongs beside the layout
+// it walks, so that a future layout change cannot leave a consumer's copy reading stale
+// fields. Crawler's version was deleted rather than kept as a wrapper: two functions of
+// the same name is what the merge existed to end.

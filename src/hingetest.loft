@@ -85,26 +85,20 @@ fn main() {
   way_mark(wl, 0.6, arch);
   sf = surfaces_new();
   way_surfaces(wl, sf);
-  ed = collider_new(q0, r0, gw, gh);
+  ed = edgeset_new(q0, r0, gw, gh);
   cut_arb(arch, ed, sf, sf.sf_n, door);
-  ssum = 0; msum = 0;
-  for i in 0..len(ed.ee_surf) {
-    ssum = ssum + ((ed.ee_surf[i] ?? 0) as integer);
-    msum = msum + ((ed.ee_mat[i] ?? 0) as integer);
-  }
+  // A DIGEST, not two sums: sums cancel — one edge losing 3 while another gains 3 reads
+  // as "untouched" — and this assertion exists precisely to catch edge writes.
+  before = edgeset_digest(ed);
   fc = cache_new(4);
   slot = cache_claim(fc, 0, 0, L_ARCH, 3);
   cache_set_edges(fc, slot, ed);
   prop_set_state(ps, di, 1.4);
   hinge_apply(mt, door, prop_state(ps, di), 0.35);
-  s2 = 0; m2 = 0;
-  for j in 0..len(ed.ee_surf) {
-    s2 = s2 + ((ed.ee_surf[j] ?? 0) as integer);
-    m2 = m2 + ((ed.ee_mat[j] ?? 0) as integer);
-  }
+  after = edgeset_digest(ed);
   hit = cache_find(fc, 0, 0, L_ARCH, 3);
-  println("opening the door: surf sum {ssum}=={s2}, mat sum {msum}=={m2}, cache hit {hit >= 0}");
-  if ssum != s2 || msum != m2 { ok = false; }
+  println("opening the door: edge digest {before}=={after}, cache hit {hit >= 0}");
+  if before != after { ok = false; }
   if hit < 0 { ok = false; }
   println("   -> zero edge writes and the cache survives, so a town's doors may swing freely");
 

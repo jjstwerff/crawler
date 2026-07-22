@@ -102,7 +102,7 @@ fn main() {
     stone = material_add(mta, true, 2.5, 1.0, 30.0, 0.0, 0.5);
     ha = hexset_chunk(q0, r0, w, h);
     scene_mark(i, 0, ha, sfa);
-    ea = collider_new(q0, r0, w, h);
+    ea = edgeset_new(q0, r0, w, h);
     cut_arb(ha, ea, sfa, sfa.sf_n, stone);
 
     sfb = surfaces_new();
@@ -110,7 +110,7 @@ fn main() {
     stone2 = material_add(mtb, true, 2.5, 1.0, 30.0, 0.0, 0.5);
     hb = hexset_chunk(q0, r0, w, h);
     scene_mark(i, 1, hb, sfb);
-    eb = collider_new(q0, r0, w, h);
+    eb = edgeset_new(q0, r0, w, h);
     cut_arb(hb, eb, sfb, sfb.sf_n, stone2);
 
     // 1 + 2: topology and the area round-trip, on the UNION

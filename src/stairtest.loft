@@ -176,7 +176,7 @@ fn main() {
     m = material_add(mt, true, (i as float) * rise, 1.0, 3.0, 0.2, 0.2);
     if i == 0 { mat0 = m; }
   }
-  e = collider_new(q0, r0, gw, gh);
+  e = edgeset_new(q0, r0, gw, gh);
   risers = 0;
   for r in r0..r0 + gh {
     for q in q0..q0 + gw {

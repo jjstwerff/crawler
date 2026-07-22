@@ -189,7 +189,7 @@ pub fn track_distance(t: Track, px: float, py: float) -> float {
 // ── the one pass: cells + edges + surface ids together ───────────────────────
 //
 // Walks the centreline once, marks every cell within `halfwidth`, then cuts the boundary
-// into the EdgeCollider — recording, per edge, WHICH segment of the way blocks it.  That is
+// into the EdgeSet — recording, per edge, WHICH segment of the way blocks it.  That is
 // the whole reason no lookup index is needed later.
 
 // Register this track's segments as surfaces; returns the id of the FIRST one (ids are
@@ -241,7 +241,7 @@ pub fn way_mark(t: Track, halfwidth: float, s: HexSet) {
 // CUT ONCE — phase 2. For each boundary edge of the FINAL footprint, pick the nearest
 // surface among ALL registered ones (ties to the lower id). Order-independent by
 // construction: it never looks at what was stamped when, only at the finished cells.
-pub fn cut_arb(s: HexSet, e: EdgeCollider, sf: Surfaces, nsurf: integer, mat: integer) {
+pub fn cut_arb(s: HexSet, e: EdgeSet, sf: Surfaces, nsurf: integer, mat: integer) {
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
     for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
       if hexset_get(s, q, r) {
@@ -266,7 +266,7 @@ pub fn cut_arb(s: HexSet, e: EdgeCollider, sf: Surfaces, nsurf: integer, mat: in
 
 // Mark the way's footprint into `s`, cut its boundary into `e`, and tag every blocked
 // edge with the surface of the NEAREST segment.  One walk, one source of truth.
-pub fn way_stamp(t: Track, halfwidth: float, s: HexSet, e: EdgeCollider,
+pub fn way_stamp(t: Track, halfwidth: float, s: HexSet, e: EdgeSet,
                  first_surf: integer, mat: integer) {
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
     for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
