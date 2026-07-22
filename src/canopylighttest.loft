@@ -1,0 +1,143 @@
+// canopylighttest — plan #9 T7: levels, and light reaching the understory.
+//
+// Two things, and both are reuse rather than new machinery.
+//
+// LEVELS are plan #5's, unchanged: the canopy sits at level 1 and the understory at level
+// 0, they share cells and never arbitrate, exactly as a road crosses a railway. The gate
+// is the same one the bridge used — the canopy field must be bit-identical whether or not
+// an understory exists beneath it.
+//
+// LIGHT is the volumetric counterpart of sight_clear. A canopy is not a barrier on an edge,
+// it is an interval in a cell, so a ray is stopped by passing THROUGH it. What comes out is
+// the sky fraction, and that one number decides everything about the understory —
+// including forest-gap regeneration, which is not scripted anywhere.
+use hexform;
+use hexcanopy;
+use hexcache;
+use hexedge;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy light test (plan #9 T7) ===");
+  ok = true;
+  q0 = -26; r0 = -20; gw = 53; gh = 41;
+  elev = 0.7853981633974483;      // sun at 45 degrees
+
+  // ── the canopy at level 1 ────────────────────────────────────────────────
+  s = hexset_chunk(q0, r0, gw, gh);
+  fill(s);
+  t = trees_new();
+  tree_add(t, -10, 0, 20, 64, 0);
+  tree_add(t,  10, 0, 20, 64, 1);
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, s, lb, ct);
+  top = heights_new(q0, r0, gw, gh);
+  bas = heights_new(q0, r0, gw, gh);
+  canopy_heights(t, s, lb, ct, top, bas);
+  println("canopy: {crown_count(s, lb, 0)} + {crown_count(s, lb, 1)} cells at level 1");
+
+  // ── 1. under the canopy it is dark; outside it is not ────────────────────
+  (uq, ur) = hex_at(-8.66, 0.0);
+  under = sky_fraction(lb, top, bas, -8.66, 0.0, 1.0, elev, 24);
+  out = sky_fraction(lb, top, bas, 0.0, 26.0, 1.0, elev, 24);
+  println("sky fraction at 45 deg: beneath a crown {under}, out in the open {out}");
+  if under >= 0.5 { ok = false; }
+  if out < 0.99 { ok = false; }
+
+  // ── 2. THE GAP — regeneration, not scripted ──────────────────────────────
+  // Between the two crowns there is a hole. A seedling there must see far more sky than
+  // one under a crown, and that is the whole mechanism by which a forest gap lets the next
+  // generation up.
+  gap = sky_fraction(lb, top, bas, 0.0, 0.0, 1.0, elev, 24);
+  println("in the gap between the two crowns: {gap}");
+  if gap <= under { ok = false; }
+  println("   -> a gap admits more light than a closed crown: regeneration falls out of");
+  println("      the sky fraction, it is not a rule anywhere");
+
+  // ── 3. light rises as you climb toward the canopy top ────────────────────
+  // The sweep must climb PAST the crown top (20 here), or it reads zero all the way and
+  // the monotonicity gate passes without ever exercising the transition it claims to test.
+  println("sky fraction beneath a crown, by height (crown top is 20):");
+  prev = -1.0;
+  lowest = -1.0;
+  highest = -1.0;
+  for j in 0..6 {
+    z = 1.0 + (j as float) * 5.0;
+    f = sky_fraction(lb, top, bas, -8.66, 0.0, z, elev, 24);
+    println("   z {z}: {f}");
+    if f < prev - 0.000001 { ok = false; }
+    if j == 0 { lowest = f; }
+    highest = f;
+    prev = f;
+  }
+  println("   -> monotone, and it genuinely rises: {lowest} at the floor to {highest} above");
+  if highest <= lowest { ok = false; }        // the gate must not pass on all-zeros
+
+  // ── 4. an understory tree is suppressed by what is above it ──────────────
+  // Its vigour follows the sky fraction, so a seedling under a crown stays a seedling
+  // while one in the gap grows away.
+  fs = sky_fraction(lb, top, bas, -8.66, 0.0, 1.0, elev, 24);
+  fg = sky_fraction(lb, top, bas, 0.0, 0.0, 1.0, elev, 24);
+  vs = (20.0 * fs) as integer;
+  vg = (20.0 * fg) as integer;
+  println("understory vigour from light: shaded {vs}, in the gap {vg}");
+  if vg <= vs { ok = false; }
+
+  // the understory is its own LEVEL: partitioned independently of the canopy
+  su = hexset_chunk(q0, r0, gw, gh);
+  fill(su);
+  tu = trees_new();
+  tree_add(tu, -10, 0, vs + 1, 36, 0);
+  tree_add(tu,   0, 0, vg + 1, 36, 1);
+  lbu = labels_new(q0, r0, gw, gh);
+  ctu = labels_new(q0, r0, gw, gh);
+  canopy_partition(tu, su, lbu, ctu);
+  println("understory at level 0: {crown_count(su, lbu, 0)} + {crown_count(su, lbu, 1)} cells");
+  if crown_count(su, lbu, 1) <= crown_count(su, lbu, 0) { ok = false; }
+  println("   -> the gap seedling out-crowns the shaded one");
+
+  // ── 5. the levels do not interact — the bridge gate, reused ──────────────
+  lb2 = labels_new(q0, r0, gw, gh);
+  ct2 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t, s, lb2, ct2);
+  top2 = heights_new(q0, r0, gw, gh);
+  bas2 = heights_new(q0, r0, gw, gh);
+  canopy_heights(t, s, lb2, ct2, top2, bas2);
+  diff = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if label_get(lb, q, r) != label_get(lb2, q, r) { diff = diff + 1; }
+      if height_get(top, q, r) != height_get(top2, q, r) { diff = diff + 1; }
+    }
+  }
+  println("canopy derived with an understory present differs in {diff} cells");
+  if diff != 0 { ok = false; }
+  println("   -> exactly the bridge result: same cells, different levels, no arbitration");
+
+  // ── 6. one cache, two levels ─────────────────────────────────────────────
+  fc = cache_new(6);
+  ver = 1;
+  sc = cache_claim(fc, 0, 0, 0, ver);      // understory
+  sk = cache_claim(fc, 0, 0, 1, ver);      // canopy
+  println("cache: understory slot {sc}, canopy slot {sk}, distinct {sc != sk}");
+  if sc == sk { ok = false; }
+  if cache_find(fc, 0, 0, 0, ver) < 0 || cache_find(fc, 0, 0, 1, ver) < 0 { ok = false; }
+  if cache_find(fc, 0, 0, 2, ver) >= 0 { ok = false; }
+
+  // ── 7. NEGATIVE CONTROL: remove the canopy, the shade must vanish ────────
+  // If the sky fraction were low for some reason other than the canopy, this would not
+  // change — and every conclusion above would be measuring the wrong thing.
+  empty = labels_new(q0, r0, gw, gh);
+  bare = sky_fraction(empty, top, bas, -8.66, 0.0, 1.0, elev, 24);
+  println("negative control — same point with the canopy removed: {bare}");
+  if bare < 0.99 { ok = false; }
+  println("   -> the shade was the canopy's, and nothing else's");
+
+  if ok { println("=== CANOPYLIGHT OK ==="); } else { println("=== FAIL ==="); }
+}

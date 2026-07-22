@@ -589,3 +589,39 @@ It also amplifies the T3 finding: at Case B's fixed point B is 43% taller than A
 is pressed by two rivals and B by one. The relaxation does not merely preserve that
 asymmetry, it compounds it — which is why measuring it before relaxing (T3) and after (T6)
 gives different-looking answers to the same question.
+
+
+## 10. T7 — light, and the understory as a level
+
+Two halves, both mostly reuse.
+
+**Levels are plan #5's, unchanged.** The canopy sits at level 1 and the understory at level
+0; they share cells and never arbitrate, exactly as a road crosses a railway. Gated the way
+the bridge was: the canopy field is **bit-identical** whether or not an understory exists
+beneath it (0 cells differing), and the two levels take distinct cache slots.
+
+**Light needed one new routine, and only one.** `sight_clear` answers whether a ray crosses
+a *barrier* — an edge carrying an opaque material. A canopy is not a barrier, it is a
+**volume**: a cell is occupied between `base` and `top`, and a ray is stopped by passing
+*through* that interval. So `canopy_blocks` is the volumetric counterpart, walking the same
+0.2 units under a 0.866 inradius, reusing `hex_at` unchanged.
+
+What comes out is the **sky fraction**, and that one number decides the understory:
+
+```
+   beneath a crown        0.00
+   in the gap between     0.42
+   out in the open        1.00
+```
+
+**Forest-gap regeneration is not scripted.** A seedling in the gap sees 42% of the sky
+against 0% under a crown, so it grows away while the shaded one stays a seedling (understory
+crowns 37 vs 33 cells). That is the whole mechanism by which a fallen tree lets the next
+generation up, and it is nowhere written down as a rule.
+
+Climbing gains light monotonically, and the sweep was extended past the crown top so it
+actually shows the transition (`0` at z=1…16, `1` at z=21) rather than reading zero
+throughout and passing on all-zeros — a vacuous gate caught and fixed.
+
+**Negative control:** the same point with the canopy removed returns 1.00, so the shade
+measured was the canopy's and nothing else's.

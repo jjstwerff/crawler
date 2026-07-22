@@ -467,3 +467,57 @@ pub fn canopy_relax(t: Trees, s: HexSet, lb: Labels, ct: Labels,
   canopy_partition(t, s, lb, ct);
   (maxit, RELAX_BUDGET)
 }
+
+// ── T7: LIGHT, AND THE UNDERSTORY ───────────────────────────────────────────
+//
+// `sight_clear` (plan #5) answers whether a ray crosses a BARRIER — an edge carrying an
+// opaque material. A canopy is not a barrier, it is a VOLUME: a cell is occupied between
+// `base` and `top`, and a ray is stopped by passing through that interval rather than by
+// crossing an edge. So the volumetric counterpart is needed, and it is small.
+//
+// It walks the same way sight_clear does — 0.2 world units, under a hex inradius of 0.866,
+// so consecutive samples cannot skip a cell — and it reuses hex_at unchanged.
+pub fn canopy_blocks(lb: Labels, top: Heights, base: Heights,
+                     x0: float, y0: float, z0: float,
+                     x1: float, y1: float, z1: float) -> boolean {
+  dx = x1 - x0;
+  dy = y1 - y0;
+  dz = z1 - z0;
+  horiz = sqrt(dx * dx + dy * dy) ?? 0.0;
+  n = ((horiz / 0.2 ?? 0.0) as integer) + 1;
+  if n < 24 { n = 24; }
+  hit = false;
+  for i in 1..n + 1 {
+    t = (i as float) / (n as float) ?? 0.0;
+    px = x0 + dx * t;
+    py = y0 + dy * t;
+    pz = z0 + dz * t;
+    (cq, cr) = hex_at(px, py);
+    if !hit && label_get(lb, cq, cr) >= 0 {
+      if pz >= height_get(base, cq, cr) && pz <= height_get(top, cq, cr) { hit = true; }
+    }
+  }
+  hit
+}
+
+// How much of the sky a point can see: rays at `n` azimuths, at one elevation.
+//
+// This is what decides whether anything grows underneath. A closed canopy returns near
+// zero; a gap in it returns most of the sky, which is how a felled or fallen tree lets the
+// next generation up — regeneration is not scripted, it is this number changing.
+pub fn sky_fraction(lb: Labels, top: Heights, base: Heights,
+                    x: float, y: float, z: float,
+                    elev: float, n: integer) -> float {
+  if n <= 0 { return 1.0; }
+  clear = 0;
+  reach = 60.0;
+  ch = cos(elev) * reach;
+  cv = sin(elev) * reach;
+  for i in 0..n {
+    a = 6.283185307179586 * ((i as float) / (n as float) ?? 0.0);
+    if !canopy_blocks(lb, top, base, x, y, z, x + ch * cos(a), y + ch * sin(a), z + cv) {
+      clear = clear + 1;
+    }
+  }
+  (clear as float) / (n as float) ?? 0.0
+}

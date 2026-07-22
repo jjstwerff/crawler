@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — T1–T6 done**, gated in `make test`. The design is settled enough to build against:
+**Active — T1–T7 done**, gated in `make test`. The design is settled enough to build against:
 **[TREES.md](TREES.md)** is the document; this README is the phase tracker.
 
 ## Goal
@@ -39,7 +39,7 @@ architecture.
 | **T4** | `Skeleton` + constrained shortest-path derivation | **DONE** — `src/canopyskeltest.loft` |
 | **T5** | pipe-model radii + the mesh/card split | **DONE** — `src/canopypipetest.loft` |
 | **T6** | relaxation to convergence | **DONE** — `src/canopyrelaxtest.loft` |
-| **T7** | levels: canopy over understory | |
+| **T7** | levels: canopy over understory | **DONE** — `src/canopylighttest.loft` |
 | **T8** | object/field split below the resolution floor | |
 | **T9** | branch-aligned cards | |
 | **T10** | opacity calibration (I-OPACITY) | |
