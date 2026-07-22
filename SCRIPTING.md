@@ -98,6 +98,36 @@ So both units ship, and they are different sizes on purpose:
 **That is the whole prize:** rich authored content *and* deep simulation, which the industry
 treats as a trade-off because it only ever tried to have both **on a schedule**.
 
+### The price of admission: the Dark Souls ethos
+
+**Most players will never see most of it, and that has to be fine** (user, 2026-07-22). A
+trigger system whose conditions may never arrive *guarantees* missed content — that is not a
+side effect to mitigate, it is the mechanism working.
+
+**This is the part a studio structurally cannot adopt**, and the reason is a metric: AAA
+measures **content utilisation** and cuts what too few players reach. Optimise for *everyone
+sees everything* and you are forced back onto a schedule — and the schedule is what killed the
+simulation. FromSoftware's real radicalism was never difficulty; it was building Ash Lake, the
+silent questline failures, and lore almost nobody reads, and **not counting that as waste**.
+
+**What it buys, and neither is designed in:**
+
+- **Replayability without content cost.** A large eligible pool plus conditions means each run
+  surfaces a different subset. Nothing had to be authored *as* a variant.
+- **Discovery becomes social.** Players tell each other what they found. For a small team with
+  no marketing budget, that is the distribution channel — and it only exists if finding
+  something is *possible to miss*.
+
+> **The failure mode, and the rule that prevents it.** Eligibility layered over a complete
+> spine reads as **depth**; eligibility *as* the spine reads as **emptiness** — a game where
+> most players find little and conclude there is little. Dark Souls survives it because the
+> critical path is dense and the missable content sits on top.
+>
+> **So: the core loop must be whole on its own, and everything eligible is layered above it.**
+> For crawler that spine is M-Core (explore · fight · gear · level · respawn), which is exactly
+> why *"a functional game first"* is not just sequencing — it is the precondition that makes
+> missable content readable as generosity rather than as absence.
+
 **The seam stays where BUNDLE.md put it:** the *evaluator* is engine mechanism; the *eligible
 content and its conditions* are bundle content. This replaces today's single hardcoded
 `infest_trigger == "boss_slain"` string check with the general form.
