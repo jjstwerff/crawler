@@ -37,8 +37,13 @@ fn move_r(q: integer, r: integer, n: integer, m: boolean) -> integer {
 
 // A world mirror is W.R(t) = R(-t).W, so the SPEC rotation for the mirrored
 // comparison is -n, not n.
+// The explicit `return` is a WORKAROUND, not a style choice: `%` as the tail expression
+// of an if-branch in an integer-returning fn makes the native generator emit `as i8` and
+// rustc rejects it (E0308, expected i64 found i8). Interpreter is fine; --native will not
+// compile. An early `return` sidesteps it. Repro: LOFT-HANDOFF.md -> N1.
 fn spec_rot(n: integer, m: boolean) -> integer {
-  if m { ((-n) % 6 + 6) % 6 } else { n }
+  if m { return ((-n) % 6 + 6) % 6; }
+  n
 }
 
 fn main() {

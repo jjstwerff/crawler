@@ -507,3 +507,124 @@ struct), which is `sev:low` / `wa:clean` but a real time sink.
 ## Filed
 
 *(nothing yet — move entries here with their issue numbers)*
+
+---
+
+## N1 — `%` as an if-branch tail expression makes the NATIVE generator emit `as i8`
+
+**Found 2026-07-23** on toolchain 2026.7.2, bringing crawler's `housetest.loft` up on
+`--native`. Standalone — no crawler sources, no `--lib`.
+
+Labels: `sev:medium` · `wa:clean` · `area:codegen` `area:native` · `hit-by:crawler`
+
+### Summary
+
+A function returning `integer` whose `if`-branch **tail expression** is a `%` (modulo) makes
+the native generator emit the value `as i8`, and rustc rejects the function because the
+declared return type is `i64`. The **interpreter is correct**; `--native` will not compile at
+all, so it is a hard build break rather than a wrong result.
+
+### Minimal reproducer
+
+```loft
+fn w1(n: integer, m: integer) -> integer { if m == 1 { n % 6 } else { n } }   // FAILS
+fn w2(n: integer, m: boolean) -> integer { if m { n % 6 } else { n } }        // FAILS
+fn w3(n: integer, m: boolean) -> integer { if m { return n % 6; } n }         // compiles
+fn v3(n: integer, m: boolean) -> integer { if m { -n } else { n } }           // compiles
+fn v4(n: integer, m: boolean) -> integer { if m { n } else { n } }            // compiles
+fn main() { println("{w3(2, true)} {v3(2, true)} {v4(2, true)}"); }
+```
+
+`w1` and `w2` are the bug; `w3`/`v3`/`v4` are the discriminators.
+
+### Expected
+
+Compiles on both backends. `--interpret` already prints `2 -2 2` for `w3 v3 v4`, and with
+`w1`/`w2` restored prints their correct values too.
+
+### Actual (`--native`, rc=1)
+
+```
+error[E0308]: mismatched types
+     --> /home/…/loft_native_NNNNNNN.rs:2378:5
+      |
+fn n_w1(cell: &std::cell::UnsafeCell<Stores>, mut var_n: i64, mut var_m: u8) -> i64 {
+      |                                                                          --- expected `i64` because of return type
+...
+      |     (…ops::op_rem_int(…)…) as i8
+      |     ^^^ expected `i64`, found `i8`
+loft: native compilation failed (codegen bug — try --native-emit to inspect the source)
+```
+
+### What is and is not the trigger
+
+- **`%` in the branch tail is required** — `-n` (`v3`) and a bare `n` (`v4`) compile.
+- **The condition's type is irrelevant** — `w1` takes an `integer` flag and fails identically,
+  so this is not about `boolean` lowering to `u8`.
+- **Statement position is fine** — `w3` puts the same `%` behind an explicit `return` and
+  compiles, which localises this to the if-**expression** tail lowering, not to `op_rem_int`.
+
+### Workaround (verified)
+
+Use an explicit `return` instead of the if-expression tail:
+
+```loft
+fn spec_rot(n: integer, m: boolean) -> integer {
+  if m { return ((-n) % 6 + 6) % 6; }
+  n
+}
+```
+
+Applied in `src/housetest.loft`; `--native` then compiles and the gate prints `HOUSE OK`
+identically on both backends.
+
+---
+
+## N2 — `graphics::save_png` returns `false` under `--native`, writing no file
+
+**Found 2026-07-23** on toolchain 2026.7.2 with `graphics` **0.5.0**. Belongs to the graphics
+chunk repo, not loft core.
+
+Labels: `sev:medium` · `wa:partial` (run that program under `--interpret`) · `area:native`
+`area:graphics` · `hit-by:crawler`
+
+### Summary
+
+`save_png` returns `true` and writes the PNG under `--interpret`, and returns `false` and
+writes **nothing** under `--native`. Absolute and relative paths behave identically, so this is
+not the program-relative path resolution of S2. No diagnostic is printed on either stream.
+
+### Minimal reproducer
+
+```loft
+use graphics;
+fn main() {
+  cv = canvas(64, 64, rgb(20, 30, 40));
+  fill_rect(cv, 8, 8, 40, 40, rgb(200, 120, 60));
+  println("abs -> {save_png(cv, "/tmp/pngprobe_abs.png")}");
+  println("rel -> {save_png(cv, "pngprobe_rel.png")}");
+}
+```
+
+### Expected / Actual
+
+| | abs | rel | file written |
+|---|---|---|---|
+| `--interpret` | `true` | `true` | yes |
+| `--native` | **`false`** | **`false`** | **no** |
+
+### Already-investigated — please do not re-derive
+
+The cdylib is **not stale**: `~/.loft/build-cache/graphics-0.5.0/release/libloft_graphics_native.so`
+(built 2026-07-22 23:49) exports `loft_save_png`, `n_save_png` **and**
+`n_save_png__loft_bridge`, and no "native library did not load" warning is emitted.
+
+`native/src/lib.rs:2015` already carries a comment saying the `#[loft_native]` `n_save_png`
+shim was added to fix *"the stale snapshot that made the `vec_wrapper!` `save_png` return
+false under `--native`"* — so this is either a regression of that fix or an incomplete one.
+Note the loft declaration is `#native "loft_save_png"` (the **raw** entry point), so
+`--native` does not route through the `n_save_png` shim the comment describes; that asymmetry
+is the first thing to check.
+
+Same family as loft#392 (`vector` arguments crossing the native FFI boundary), which also
+fails silently with no diagnostic.
