@@ -112,6 +112,29 @@ is **discovering the shape** of what a world-game needs, once, so the next consu
 there instead of rediscovering it. Everything crawler learns the hard way and does not extract
 is a lesson the next team pays for again.
 
+**And crawler will not stay the demanding one — `../crew_punk` will overtake it**, which is
+better news than it sounds. That project (six players, six phones, six consoles; the phone held
+flat is a console and held up is a window) stresses axes crawler barely touches:
+
+| | crawler | crew_punk |
+|---|---|---|
+| clients | one, plus a passive replica | **six concurrent** |
+| surface | a desktop window | **phones**, orientation-aware |
+| audio | essentially none | timed playback, word-boundary interruption, voice-activity input |
+| trigger engine | may be lazy — the game code is an implicit director | **must be complete: there is no director** |
+
+**Two consumers on orthogonal axes is far stronger evidence of generality than two similar
+ones.** crawler proves the world layer; crew_punk will prove the session, network, audio and
+trigger layers. Neither finds the other's gaps, which is exactly why both are needed.
+
+**The immediate consequence — one gate is different from the others.** The eligibility engine
+(`SCRIPTING.md`) has a **known second consumer with harder requirements**, on paper, today.
+crawler's version could get away with being lazy because its game code is an implicit director;
+crew_punk's cannot, because five friends with phones have no GM. So it is not gated on a second
+consumer appearing — **it should be designed against the harder requirement now**, and crawler
+gets the good version for free. That is precisely what distinguishes it from `roguelike-kit`,
+where no second roguelike exists and the rule-of-three gate stays honest.
+
 **The behaviour layer wants splitting, and the split is not where the code currently sits.**
 Not everything called "AI" is the same kind of thing:
 
