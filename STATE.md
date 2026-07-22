@@ -14,6 +14,46 @@ first-person 3D and the hex field becomes the world the player stands in.
 > signatures, semantics, every gate with the control that must fire). Both written to be
 > picked up cold.
 >
+> **→ then `BUILDING.md`, which CORRECTS `DRAWING-API` throughout and carries the ROOF.**
+>
+> **The root correction (user, 2026-07-22): a hex band is a CASTLE wall; a house wall is an
+> EDGE.** `DRAWING-API` draws every wall as cells, so every wall is 1.5 m thick — measured,
+> that costs a 7.5 × 6.0 m cottage **59 % of its floor** (27 cells → 11) and renders as two
+> faces 1.5 m apart with dead space between. Thin walls are **already in the kernel** and
+> unused by the house: `Sim.walls` is the edge authoring surface, `build_field` blocks those
+> edges, `view3d` draws one thin quad per blocked edge. **The rule: thickness below one hex
+> step is a property of the TYPE, rendered not rasterised; at or above it, a band of cells**
+> — the same threshold `SCALE.md` already set for the domestic staircase. So one routine
+> serves house walls, fences, road sides and curtain walls; road sides are just the boundary
+> of the road's own region. It also carries plan #11's outstanding **fence-onto-edges** work
+> (decision 6).
+>
+> The routines now exist — `src/housedraw.loft`, gated by `src/housetest.loft` (in `make
+> test`, 3 s) — and pin the rest: a door is **n edges of 0.87 m**, not the 1.5 m the cell
+> model forced · a thin wall runs longer than its line by one of **two** exact amounts,
+> **2/√3 = 15.5 %** where it is perpendicular to a lattice line and **3√3/4 = 29.9 %**
+> where it runs along one, so **the fit is load-bearing, not an optimisation** ·
+> the mirror is applied **twice**, so the outward normal comes out inward · the buffer rule
+> leaves a **hole** in a thick wall (fill, then take the band — which also makes a tower
+> round at every size and identical to today's up to rad 5) · and **two of §8's gates are
+> blind** — equivariance passes on a wall with a hole in it, and the facade check defines
+> its own subject so its control cannot fire. The roof is the same distance read through a
+> profile instead of a threshold, so it needs no new machinery.
+>
+> **Then `HOUSE.md` — the fixture to build FIRST with those routines** (user, 2026-07-22):
+> a two-storey house — exterior wall, door, windows, interior walls with interior doors, a
+> stair, a first floor, a terrace with its own door, a roof — stencilled into 12
+> orientations and rendered. Not a demo: it is what makes the routines falsifiable. Its
+> sharpest finding is a trap to avoid: **a mirror-symmetric massing makes a flip the
+> IDENTITY**, so "we validated all 12 orientations" on a plain rectangular house is a check
+> that passes for the wrong reason — there are only 6. **The terrace is the asymmetry that
+> makes 12 genuinely 12**, and the required control is that dropping it collapses the set to
+> exactly 6. Also settled there: a storey is a `{cells, floor, soffit, types, edges}` field
+> (plan #5's stack-of-levels, reused) · **the stair FLIGHT is a field feature, the TREADS an
+> object** — the resolution of `SCALE.md`'s "5.4× too coarse for a domestic staircase" ·
+> windows write no cell and need the feature-interval channel plan #5 §4 L3 names, so they
+> are the one part the field cannot carry.
+>
 > **The user has HALTED the other agent** so this can be built without two people writing
 > similar routines. `loft-libs-world` is yours alone for now — that also removes the
 > shared-tree hazard in lesson 3c below. **Finishing this unblocks them**, so it comes first.

@@ -1,0 +1,171 @@
+// houseshot — THE 12-ORIENTATION CONTACT SHEET.
+//
+// Draws the SAME house specification at all 12 orientations from the real data the
+// housedraw routines produce — floor cells, boundary edges, roof heights — and writes one
+// PNG.  A contact sheet is the point: a single hero image cannot show a 1-in-12 defect,
+// but a regular grid makes one wrong tile obvious as a break in the sequence.
+//
+//   column = rotation 0..5     row 0 = identity, row 1 = mirrored
+//
+// So a flip is the tile directly BELOW, and the eye compares them without arithmetic.
+//
+// THE WALLS ARE DRAWN AS THEY ARE STORED: one strip per boundary edge.  That is what
+// makes the zigzag visible — a straight run of hex boundary alternates between exactly
+// TWO of the three edge directions, so the run is 2/sqrt(3) = 15.5% longer than the wall
+// line it stands on.  Nothing here fits or straightens it; this sheet is the evidence
+// for why the fit is needed downstream.
+use graphics;
+use hex_field;
+use hexway;
+use hexroof;
+use housedraw;
+
+const Q0 = -16;
+const R0 = -16;
+const GW = 33;
+const GH = 33;
+
+const TILE = 300;
+const SCALE = 19.0;          // pixels per world unit
+const FLOOR_BOARD = 3;
+const WALL_COTTAGE = 7;
+
+// pointy-top hex of circumradius 1.0, matching hex_grid's HEX_SIZE
+fn corner_x(i: integer) -> float {
+  if i == 0 { 0.0 } else if i == 1 { -0.8660254037844386 }
+  else if i == 2 { -0.8660254037844386 } else if i == 3 { 0.0 }
+  else if i == 4 { 0.8660254037844386 } else { 0.8660254037844386 }
+}
+fn corner_y(i: integer) -> float {
+  if i == 0 { 1.0 } else if i == 1 { 0.5 } else if i == 2 { -0.5 }
+  else if i == 3 { -1.0 } else if i == 4 { -0.5 } else { 0.5 }
+}
+
+fn px_of(wx: float, ox: float) -> integer { (ox + wx * SCALE) as integer }
+fn py_of(wy: float, oy: float) -> integer { (oy - wy * SCALE) as integer }
+
+// A thick strip between two world points — this is how a THIN wall is drawn: it has a
+// rendered thickness but occupies no cell, so the house keeps all its floor.
+fn strip(cv: Canvas, x0: float, y0: float, x1: float, y1: float,
+         ox: float, oy: float, half: float, col: integer) {
+  dx = x1 - x0;
+  dy = y1 - y0;
+  ln = sqrt(dx * dx + dy * dy) ?? 0.0;
+  if ln < 0.000001 { return; }
+  nx = -dy / ln * half ?? 0.0;
+  ny = dx / ln * half ?? 0.0;
+  ax = px_of(x0 + nx, ox);  ay = py_of(y0 + ny, oy);
+  bx = px_of(x1 + nx, ox);  by = py_of(y1 + ny, oy);
+  cx2 = px_of(x1 - nx, ox); cy2 = py_of(y1 - ny, oy);
+  dx2 = px_of(x0 - nx, ox); dy2 = py_of(y0 - ny, oy);
+  fill_triangle(cv, ax, ay, bx, by, cx2, cy2, col);
+  fill_triangle(cv, ax, ay, cx2, cy2, dx2, dy2, col);
+}
+
+fn hexfill(cv: Canvas, q: integer, r: integer, ox: float, oy: float, col: integer) {
+  ccx = cell_x(q, r);
+  ccy = cell_y(q, r);
+  for i in 0..6 {
+    j = (i + 1) % 6;
+    fill_triangle(cv,
+      px_of(ccx, ox), py_of(ccy, oy),
+      px_of(ccx + corner_x(i), ox), py_of(ccy + corner_y(i), oy),
+      px_of(ccx + corner_x(j), ox), py_of(ccy + corner_y(j), oy), col);
+  }
+}
+
+fn main() {
+  println("=== house contact sheet — 12 orientations ===");
+  cv = canvas(TILE * 6, TILE * 2, rgb(58, 64, 74));
+
+  wall_col = rgb(28, 24, 22);
+  door_col = rgb(232, 150, 60);
+  win_col = rgb(110, 190, 235);
+
+  for rot in 0..6 {
+    for mi in 0..2 {
+      mir = mi == 1;
+      ox = ((rot * TILE + TILE / 2) as float);
+      oy = ((mi * TILE + TILE / 2) as float);
+
+      p = plan_new(0, 0, 5, 4, rot, mir);
+      cells = hexset_chunk(Q0, R0, GW, GH);
+      types = labels_new(Q0, R0, GW, GH);
+      edges = edgeset_new(Q0, R0, GW, GH);
+      draw_floor(p, cells, types, FLOOR_BOARD);
+      draw_walls(cells, edges, WALL_COTTAGE);
+
+      // the fixture is deliberately ASYMMETRIC: a door at t=0.5 and a window at t=0.2
+      // on the same side, so the facade has a left and a right that a flip could break.
+      place_opening(p, cells, edges, 3, 0.5, 1, OPEN_DOOR);
+      place_opening(p, cells, edges, 3, 0.2, 1, OPEN_WINDOW);
+
+      roofset = hexset_chunk(Q0, R0, GW, GH);
+      grow_ring(cells, roofset);
+      hz = heights_new(Q0, R0, GW, GH);
+      draw_roof(p, roofset, hz, 2.54, 1.0, 0);
+
+      // floor tinted by roof height: the ridge reads as the bright line, so a roof
+      // that failed to turn with the house is visible without measuring anything.
+      for fr in R0..R0 + GH {
+        for fq in Q0..Q0 + GW {
+          if hexset_get(cells, fq, fr) {
+            z = height_get(hz, fq, fr);
+            k = ((z - 2.54) / 3.46 ?? 0.0);
+            if k < 0.0 { k = 0.0; }
+            if k > 1.0 { k = 1.0; }
+            g = (120.0 + 110.0 * k) as integer;
+            hexfill(cv, fq, fr, ox, oy, rgb(g + 20, g + 6, (g * 3 / 4) as integer));
+          }
+        }
+      }
+
+      // the walls, one strip per stored boundary edge
+      for wr in R0..R0 + GH {
+        for wq in Q0..Q0 + GW {
+          if hexset_get(cells, wq, wr) {
+            for d in 0..6 {
+              nq = nb_q(wq, wr, d);
+              nr = nb_r(wq, wr, d);
+              if edge_mat(edges, wq, wr, nq, nr) != 0 {
+                ax = cell_x(wq, wr);
+                ay = cell_y(wq, wr);
+                bx = cell_x(nq, nr);
+                by = cell_y(nq, nr);
+                mx = (ax + bx) * 0.5;
+                my = (ay + by) * 0.5;
+                ex = bx - ax;
+                ey = by - ay;
+                el = sqrt(ex * ex + ey * ey) ?? 0.0;
+                // the edge itself is perpendicular to the centre-to-centre line,
+                // half a unit each way: one hex edge = 1.0 unit = 0.87 m
+                ux = -ey / el * 0.5 ?? 0.0;
+                uy = ex / el * 0.5 ?? 0.0;
+                col = wall_col;
+                sf = edge_surf(edges, wq, wr, nq, nr);
+                if sf == OPEN_DOOR { col = door_col; }
+                if sf == OPEN_WINDOW { col = win_col; }
+                strip(cv, mx - ux, my - uy, mx + ux, my + uy, ox, oy, 0.24, col);
+              }
+            }
+          }
+        }
+      }
+
+      // the anchor, and a tick along local +u — so a rotation that lands wrong is
+      // visible as a tick pointing the wrong way, not inferred from the massing.
+      (tx, ty) = plan_to_world(p, 1.4, 0.0);
+      strip(cv, cell_x(0, 0), cell_y(0, 0), tx, ty, ox, oy, 0.07, rgb(220, 70, 70));
+      fill_circle(cv, px_of(cell_x(0, 0), ox), py_of(cell_y(0, 0), oy), 3, rgb(220, 70, 70));
+    }
+  }
+
+  // tile separators
+  for c in 1..6 { fill_rect(cv, c * TILE, 0, 1, TILE * 2, rgb(20, 22, 26)); }
+  fill_rect(cv, 0, TILE, TILE * 6, 1, rgb(20, 22, 26));
+
+  wrote = save_png(cv, "/tmp/house12.png");
+  println("columns = rotation 0..5   row 0 = identity, row 1 = mirrored");
+  println("orange = door edge   blue = window edge   red tick = local +u");
+  println("wrote /tmp/house12.png: {wrote}");
+}
