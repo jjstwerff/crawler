@@ -3007,23 +3007,41 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     tsize = 1;
     if t0 != null { tsize = t0.ot_size; }
     nhouse = 3 + tsize * 2;
+    // SPACING, DERIVED FROM THE HOUSE COUNT. A fixed ring crowds itself as the town grows:
+    // nine 7.5 m houses on the old 9-14 m ring left 0.6 m between neighbours, which reads as
+    // a camp, not a village. Real village frontages sit about 12 m apart, and one hex step is
+    // 1.5 m (SCALE.md), so 12 m of frontage is 8 hex steps and the radius follows from the
+    // circumference the houses need: nhouse * 8 / 2pi.
+    hring = (nhouse as float) * 8.0 / 6.2831853;
     if intown {
     for hb in 0..nhouse {
       hang = (((hb as float) + 0.35) * 6.2831853 / (nhouse as float)) ?? 0.0;
-      hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
+      // Jitter only enough that the ring is not a drawn circle — a village is irregular, but
+      // it is not scattered, and the old +-3.5 was most of the radius.
+      hrad = hring + 1.2 * (((hb * 2654435761) & 1023) as float / 1023.0);
       hx0 = w / 2 + round(hrad * cos(hang)) as integer - 2;
-      hy0 = h / 2 + round(hrad * sin(hang) * 0.866) as integer - 1;
+      // A CIRCLE, not an ellipse. World x = sqrt(3)*dq but world y = 1.5*dr, so a circular
+      // ring needs the r offset scaled by sqrt(3)/1.5 = 1.1547. The old 0.866 was that factor
+      // INVERTED, which squashed every town ring to 0.75 of its own width.
+      hy0 = h / 2 + round(hrad * sin(hang) * 1.1547) as integer - 1;
       ds = 0;
       if hy0 < h / 2 { ds = 2; }                       // door faces the square
       stamp_house(tiles, tk, w, h, hx0, hy0, 5, 4, ds);
     }
     if tsize >= 2 {
-      stamp_round_tower(tiles, tk, w, h, w / 2 + 11, h / 2 - 7, 2);
-      stamp_round_tower(tiles, tk, w, h, w / 2 - 12, h / 2 + 6, 2);
+      // Just outside the house ring, on the diagonal, so they scale with the town instead of
+      // sitting at two hardcoded offsets that land inside the houses once the ring grows.
+      trad = hring + 2.5;
+      tqo = round(trad * 0.7071) as integer;
+      tro = round(trad * 0.7071 * 1.1547) as integer;
+      stamp_round_tower(tiles, tk, w, h, w / 2 + tqo, h / 2 - tro, 2);
+      stamp_round_tower(tiles, tk, w, h, w / 2 - tqo, h / 2 + tro, 2);
     }
     if tsize >= 3 {
-      // the town WALL: a hex-distance ring, roads make the gates
-      wrad = 15;
+      // the town WALL: a hex-distance ring, roads make the gates. Derived too — it has to
+      // clear the house ring with a street's width (4 hex steps = 6 m) inside it, or the
+      // wall lands on the houses as soon as the town grows.
+      wrad = round(hring) as integer + 4;
       for wr2 in 0..h {
         for wq2 in 0..w {
           if hex_distance(wq2, wr2, w / 2, h / 2) == wrad {
