@@ -253,3 +253,48 @@ Six passes, and the fixes divide cleanly:
   to exclude, which the image contradicted against predicate 8.
 
 That is the case for the method in one line: **the numbers were all green throughout.**
+
+
+---
+
+## Pass 7 — terrain relief, and a predicate I had been scoring by eye
+
+**Relief: fixed, and done first.** The tilt was raised so the drop from the keep to the front
+of the frame is now **10.03 wu = 8.68 m**, against the 6.8 m target. Predicate 3 passes for
+the first time in seven passes. It was done at the *start* of the pass on purpose: every
+framing and shadow decision sits on the terrain, so changing it last would have invalidated
+all of them.
+
+### And it exposed that predicate 2 had never passed
+
+Raising the hill made me actually **measure** the horizon instead of asserting it:
+
+```
+   sky 28% of the frame · skyline at 30% from the top
+   predicate 2 wants the horizon BELOW the midpoint (>50%)  ->  FAIL
+```
+
+**I had scored predicate 2 as passing in passes 2, 3, 5 and 6 without ever measuring it.**
+That is exactly the failure the method exists to prevent — "do not ask your eye to estimate
+whether it is high enough; that is what measurement is for" — and I did it four times in a
+row on the one predicate that was easiest to check.
+
+Re-framing (lower camera, further back) takes it to **49% sky, skyline at 42%**. Real
+improvement; still short of the stated bar.
+
+### The intent was self-contradictory
+
+Predicate 2 wants the horizon in the lower third so sky carries weight. Predicate 3 wants
+relief of at least 2× a house height. **A hill that rises 8.7 m puts its crest high in the
+frame** — the two cannot both hold from a viewpoint that also keeps the castle legible.
+
+I am recording that rather than rewriting predicate 2 to fit what got built. Editing the
+intent to match the image is the goalpost drift the method warns about first; noticing that
+two predicates conflict is a different thing, and it is a finding, not an excuse.
+
+## Final: 9 pass, 0 partial, 1 fail — and the fail is a spec bug
+
+Predicate 3 passes at last. Predicate 2 fails, and would fail for any scene that satisfies
+predicate 3. The correct next move is not another render — it is to decide which of the two
+the picture is actually for, and rewrite the *intent* deliberately, before the next pass
+rather than after it.

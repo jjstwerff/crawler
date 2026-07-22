@@ -89,7 +89,10 @@ fn mesh_drum(cx: float, cy: float, z0: float, z1: float,
 
 // a rolling hill: low at the front-right, rising to the back-left where the castle sits
 fn terrain(x: float, y: float) -> float {
-  h = 0.0 - x * 0.16 + y * 0.10;
+  // Relief raised from 6.4 m to clear the 6.8 m target (predicate 3 — the only one that
+  // never passed). Done FIRST in this pass, deliberately: every framing and shadow
+  // decision sits on the terrain, so changing it last would invalidate all of them.
+  h = 0.0 - x * 0.205 + y * 0.132;
   h = h + 2.2 * sin(x * 0.09 + 1.1) + 1.6 * cos(y * 0.11 - 0.4);
   h = h + 0.9 * sin(x * 0.21 + y * 0.17);
   h + 6.0
