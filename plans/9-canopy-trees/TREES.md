@@ -625,3 +625,65 @@ throughout and passing on all-zeros — a vacuous gate caught and fixed.
 
 **Negative control:** the same point with the canopy removed returns 1.00, so the shade
 measured was the canopy's and nothing else's.
+
+## 11. Two questions asked of the model: shrubs, and wind
+
+Both probed rather than argued. Neither needs a new model; both need one reinterpretation.
+
+### Shrubs — yes, by treating multi-stemmed growth as internal competition
+
+A shrub differs from a tree in one structural way: it is **multi-stemmed**, with no dominant
+trunk, and the skeleton (T4) is rooted at exactly one cell. The reinterpretation is to model
+a shrub as **several trees at adjacent cells** — and then the shrub's own stems compete for
+its crown, which is what multi-stemmed growth *is*. Measured, three stems two cells apart at
+`R = 4`:
+
+```
+   crowns   12 / 11 / 10          (total 33)
+   boles    1.35 / 1.35 / 1.75    the flanked stem is the most drawn up
+   radii    0.208 / 0.199 / 0.190
+   at r_min 0.12:  2 of 12 nodes meshed — a shrub is nearly all cards
+```
+
+Everything downstream works unchanged: each stem gets a skeleton, the pipe model sizes it,
+and the mesh/card split correctly leaves a shrub almost entirely carded, which matches the
+rendering intent. The flanked stem being the most drawn up is the T2 bole rule doing exactly
+what it does for forest trees, one scale down.
+
+**The limit is the resolution floor** (plan #5 §12): a shrub whose crown is a couple of
+cells has nothing to partition, and belongs on the other side of that boundary as an
+**object**. Shrub-as-field starts where the crown is worth several cells; below it, a mesh
+or a card, as for a sapling.
+
+### Wind — yes, at three points, and two of them already exist
+
+1. **Drag per cell** is foliage density: `canopy_depth × leaf density`. `canopy_depth`
+   exists (T2).
+2. **Shelter** is `canopy_blocks` accumulating instead of stopping — the ray walk exists
+   (T7), only the accumulate-vs-stop change is new.
+3. **Trunk sizing gains a second constraint, and this is the interesting one.** The pipe
+   model sizes a stem for *water transport*: area ∝ leaf area, so `d ∝ √load`. Wind sizes it
+   for *bending*: the moment is crown area × height, resisted by the section modulus ∝ `d³`.
+   A real tree is sized by whichever binds, and on an exposed site wind governs — which is
+   why exposed trees are stubby and thick. So `radius = max(pipe, wind)`, and that predicts
+   the right thing rather than needing a rule for it.
+
+Measured on a five-tree shelterbelt, crown top 20:
+
+```
+   z  1.0 … 8.5   wind passes UNDERNEATH the belt
+   z 11.0 … 18.5  intercepted
+   z 21.0         passes over
+```
+
+The belt intercepts only between its crown base (10.54) and its top — which is correct, and
+more useful than it looks. The **interior** belt trees have a bole of 10.54 against 5.27 for
+the end trees: the belt's own competition draws its interior stems up, and **that destroys
+its shelter at ground level**. That is the classic shelterbelt design failure — plant it
+dense and you get tall clean stems and a wind tunnel underneath — and it emerges from T2's
+bole rule with nothing added.
+
+**Deeper integration, not yet designed:** wind would also enter the *partition* as a
+directional penalty (windward abrasion shapes the crown) and the *lean* as a directional
+term (flag trees on exposed sites). Both are additions to existing steps rather than new
+machinery, but neither is specified here.
