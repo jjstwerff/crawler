@@ -389,6 +389,37 @@ the world, not the renderer.
 - Actors are **flat colours**, not sprites — the texture atlas rides with P8.
 - A decorated window is still ~6.5% tall until `graphics` exposes the drawable (G3).
 
+## P5 — what remains, blueprinted rather than half-built (2026-07-22)
+
+Two items are left: **towers are hexagons** and **doors are gaps**. Both look like finishing
+touches and are not. Measured before stopping:
+
+| layer | today | needed |
+|---|---|---|
+| builder | `stamp_round_tower` writes tile 4 on `hex_distance == rad` — a hex RING; the door is one `v = 0` cell | record the arc (centre, radius) and the opening as an interval |
+| `Sim` | **zero** references to `Surfaces` or `Features` | carries both tables |
+| `build_field` | `edge_block(e, …)` only — no surface id | `edge_block_surf` with the arc's id, then `apply_features` |
+| renderer | `view3d` extrudes a flat quad per blocked edge from `hex_edge_corners` | consume the surface: an arc edge draws as curve, not facet |
+
+**The trap that makes this one phase, not four commits:** stopping after layer 3 changes
+nothing visible — a recorded arc still renders as six flat quads — so the work has no
+verifiable midpoint until the renderer consumes surfaces. Anything less is a change that
+gates green and looks identical, which this plan has been punished for three times already.
+
+### The concrete plotted end-result to start from
+
+A `tsize >= 2` town's lookout tower, `rad = 2` hexes = 3.0 m radius, rendered at eye height
+from 8 m: its silhouette is a **circular arc**, not six flat facets, and the matcher recovers
+**1 arc with r ≈ 3.0 m** from the built cells. The door below it has a **measured clear width
+in metres** (the plan's stated gate) rather than being one open hex.
+
+### Why this is also the EdgeSet convergence
+
+`EXTRACTION.md` parks the crawler/`hex_field` edge merge on *"which layer owns `Surfaces`"*.
+This phase answers it by force: whichever structure `Sim` ends up carrying the arc in **is**
+the answer. So do the merge and this together, or do the merge first — not this first, or it
+will be redone.
+
 ## P5, restated — the seam that has never been connected
 
 **CORRECTED 2026-07-22, by reading the code instead of trusting the description.** My first

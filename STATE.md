@@ -7,22 +7,22 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → PLAN #11 **P3 IS BUILT — press `V` in `make play` and tell me what you see**
-> First-person 3D: floor and walls extruded from the edge field, drawn through the
-> `hexscene` camera whose round-trip is gated headless (`scenetest`). `V` toggles between it
-> and the 2D plan view; both render the same kernel state, and 2D retires in P9.
+> ## → NEXT: plan #11 **P5's tail** — arc towers + doors as openings
+> Everything else in #11 P0–P4 is built and gated; the 3D view runs (`V` in `make play`).
+> What is left in P5 is **towers that are hexagons** and **doors that are gaps**, and it is
+> one phase across four layers — builder → `Sim` → `build_field` → renderer — because
+> stopping short of the renderer changes nothing visible. The table and the plotted
+> end-result: `plans/11-3d-world/RESULTS.md` → *P5 — what remains*.
 >
-> **It has never been displayed.** This box has no display and no `xvfb`, so the frame is
-> unverified — the camera maths, the matrix agreement and the field are all gated, the
-> *picture* is not. Expect to find something.
+> **Do the `hex_field` EdgeSet merge first, or with it.** `EXTRACTION.md` parks that merge on
+> *which layer owns `Surfaces`* — and this phase answers that by force, so doing it first
+> means doing it twice. Crawler's collision type is now `EdgeCollider`; the library's
+> `EdgeSet` is the authoring layer.
 >
-> **Most likely first defect:** depth. `gl_clear` is documented as colour-only and nothing in
-> this repo had ever enabled `GL_DEPTH_TEST` before, so the window may carry no depth buffer.
-> If frame 1 looks right and later frames do not, that is it — LOFT-HANDOFF.md → G1.
->
-> **By design, not missing:** no monsters (actors are boards, P4) and no HUD (P9).
->
-> Then **P4** — boards through the presentation seam — is the playable milestone.
+> **Two live traps:** the compile gate fails intermittently and self-heals (LOFT-HANDOFF G4)
+> — diagnose before re-running, and never commit on a red gate assuming it is the flake. And
+> `--lib` reads the sibling **working tree**, so check `git log` in `loft-libs-world` before
+> debugging a break you did not cause.
 
 ## The design position — eight statements, and they compose
 
