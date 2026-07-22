@@ -76,7 +76,7 @@ check must go red.
 
 | Phase | Effort | Verify | Status |
 |---|---|---|---|
-| **P0** — the target frame + its metre table | S | `glbview.py` PNG + the table; user confirms or amends | Open — **next** |
+| **P0** — the target frame + its metre table | S | `glbview.py` PNG + the table; user confirms or amends | **MEASURED** — awaiting your confirm/amend |
 | **P1** — one passability predicate (pure refactor) | S | `make test` unchanged; the site table | Blocked on P0 |
 | **P2** — the field under the kernel | M | `src/fieldtest.loft` differential: old ≡ new over every (hex,dir) | Blocked on P1 |
 | **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | Blocked on P2 |
@@ -92,6 +92,68 @@ check must go red.
 
 **The playable milestone is P4.** P0–P4 is "the game is 3D and you can play it"; everything
 after enriches it. That ordering is deliberate — *a functional game first*.
+
+## P0 result — measured 2026-07-22
+
+Rendered from `build/land.glb` with `tools/glbview.py`, eye at **1.6 m** above the terrain,
+level camera (pitch 0), fov 60°, 1024×576. No engine code, as specified.
+
+```sh
+# a village door at 4 m                                    (p0_eye.png)
+python3 tools/glbview.py build/land.glb out.png --eye 37.60,-29.68,-7.05 \
+    --target 34.84,-25.98,-7.05 --fov 60 --size 1024x576 --sun 0.4,-0.7,0.6 --shadow 640
+# the castle tower at 12 m                                 (p0_tower.png)
+python3 tools/glbview.py build/land.glb out.png --eye=-0.69,-16.09,6.62 \
+    --target=-9.00,-5.00,11.24 --fov 60 --size 1024x576 --sun 0.4,-0.7,0.6 --shadow 640
+```
+
+### The metre table
+
+| feature | authored | at 4 m subtends |
+|---|---|---|
+| eye height | **1.60 m** | — |
+| figure (`figure.loft`) | **1.75 m** | — |
+| village cottage — door leaf | 1.45 m × 1.05 m | 20.6° · 181 px of 576 |
+| village cottage — **eaves** | **1.51 m** | 21.4° · 188 px |
+| village cottage — ridge | 4.55 m | 59.3° |
+| hamlet cottage — door / eaves | 1.70 m / 1.77 m | — |
+| keep — radius / height | 8.4 m / 13.0 m | — |
+| tower — radius / height | 4.2 m / 11.0 m | — |
+| **board** (0.9 m actor) | — | 12.8° · **112 px** at 4 m; 56 px at 8 m; 28 px at 16 m |
+
+The board row is the **I-STAND metric-parity target**: a 0.9 m board and a 0.9 m wall at the
+same distance must cover the *same* pixel span. It is computed here so P4 has a number to
+hit rather than an impression to match.
+
+### What the frame found
+
+1. **The world is authored below human scale, and only an eye-height camera shows it.** A
+   village cottage has **1.51 m eaves and a 1.45 m door** against a **1.75 m** figure: you
+   must stoop 0.30 m to enter and cannot stand at any wall. The hamlet is better and still
+   short (1.70 m door). `wallh = hgt * 0.52` (`land.loft:128`) is the source — the comment
+   above it says a cottage is mostly roof, which is true, but it was achieved by shrinking
+   the *wall* below head height rather than raising the ridge. **This is CLAUDE.md's content
+   rule in miniature — geometry nerfed to fit, instead of the system built to carry it.**
+   It also retro-explains plan #10 P9's unexplained door failure: the eave hid the door from
+   a raised camera *because the wall is tiny*, not because the camera was wrong.
+2. **A door is not an opening.** The wall is a solid cube and the door a leaf pasted on its
+   face — there is nothing to walk through. That is exactly what plan #5 P5's `Features` /
+   `apply_features` provides (intervals that make edges passable) and it has never been wired
+   into a scene. **P5's job, now with a picture of why.**
+3. **The round tower reads as round** at eye height — the 12-segment drum needs no work. One
+   of the three target elements passes as-is.
+4. **There is no actor to board.** The scene has a figure *mesh*; nothing camera-facing
+   exists. So the target frame as written **cannot be fully plotted yet** — two of its three
+   elements do not exist. That is a legitimate P0 outcome: the blueprint found what is
+   missing before any code was written for it.
+
+### One process note, kept because it nearly bit
+
+I first read the village frame as *"the camera is looking down at the roof"* and was about to
+correct the camera. The arithmetic said the framing was right: the house floor sits 0.21 m
+below eye level and the eaves 1.30 m above it — the bright foreground is downhill terrain,
+not a downward tilt. **Scored by eye, that frame fails; measured, it passes.** Which is the
+plan #10 P9 lesson arriving before the damage instead of after.
 
 ## Order + risks
 
