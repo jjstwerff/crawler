@@ -103,6 +103,31 @@ Not a general game engine. A specific stack, each layer usable without the ones 
 | **an editor** | in-world, outside the game | tooling is what small teams lack most, and it is the second consumer that proves the libraries are general |
 | **bundles** | content as drop-in folders | because a small team should not have to write all the content — and others adding to your game is the only way volume ever arrives |
 | **crawler** | a hex roguelike | **the proof and the forcing function, not the product.** A library nobody has shipped a game with is a hypothesis |
+| **the modding abstraction** | *unbuilt* — bundles generalised into a real modding surface | so a game grows past what its authors wrote. Held behind the event bus (`SCRIPTING.md`), whose purpose is now settled: it carries **eligibility, not scripts** |
+| **the behaviour layer** | *unbuilt* — decisions, needs, schedules, utility, pathing | **the hard part every world-game rebuilds badly.** crawler already holds flow-field pathing, awareness, civilian schedules and production repertoires; none of it is reusable yet |
+
+**crawler is the furthest ahead, not the most demanding.** That distinction is the whole
+argument for libraries. Its value is not that it stresses the substrate hardest — it is that it
+is **discovering the shape** of what a world-game needs, once, so the next consumer starts from
+there instead of rediscovering it. Everything crawler learns the hard way and does not extract
+is a lesson the next team pays for again.
+
+**The behaviour layer wants splitting, and the split is not where the code currently sits.**
+Not everything called "AI" is the same kind of thing:
+
+- **Movement over the field** — flow-field pathing, steering, line of sight, hearing — is a
+  *hex-world* concern, not a genre one. It operates on cells, blocked edges and heights, and an
+  editor previewing reachability wants it as much as a game does. It belongs with the `hex_*`
+  family, and needs only the decoupling `EXTRACTION.md` Tier 2 already describes (replace
+  `use sim` with parameters).
+- **Deciding what to do** — energy/speed scheduling, status-until-tick timers, needs, utility
+  scoring, the economy driving behaviour — is *genre*-shaped. That is `roguelike-kit`, and its
+  rule-of-three gate ("earned by a SECOND roguelike existing") remains honest: one caller has
+  not shown a decision layer to be general.
+
+So the AI layer is a **named destination in the stack**, not an option — but its two halves
+unlock on different evidence, and conflating them would extract the genre-shaped half too
+early on the strength of the world-shaped half's obviousness.
 
 ## The principles
 
