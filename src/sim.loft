@@ -358,6 +358,61 @@ pub fn is_blocked_move(s: Sim, q1: integer, r1: integer, q2: integer, r2: intege
   field_blocked(s, q1, r1, bd)
 }
 
+// ── Swept movement (plan #11 P2b — invariant I-CROSS) ────────────────────────
+//
+// Advance the centre from (px,py) by (dx,dy) along a SWEPT path, sliding along whatever
+// stops it. The segment tested runs one PLAYER_RADIUS past the target so the centre halts
+// short of the wall face — the same offset convention the old probe used. What changed is
+// that the whole segment is tested instead of its end point, so the set of walls that stop
+// you no longer depends on dt: dropping frames or falling fast cannot step over one.
+//
+// LIMIT, stated rather than implied: this sweeps the CENTRE with a radius back-off, not
+// the player's disc. A wall passing within a radius of the path but not across it is not
+// detected. A true swept disc is a Minkowski expansion of the edge set and belongs with
+// the surfaces P5 puts on edges.
+// One swept advance along a unit direction: travel at most `len`, stopping one
+// PLAYER_RADIUS short of whatever the path crosses. Used for BOTH the primary move and
+// the slide — a slide without the same back-off leaves the centre exactly on a wall
+// boundary, where px_to_hex rounds it into the wall (which is how the first version put
+// the player inside one, caught by selftest's wall-slide check).
+fn swept_advance(s: Sim, px: float, py: float, ux: float, uy: float, len: float)
+    -> (float, float, integer, integer, integer) {
+  ext = len + PLAYER_RADIUS;
+  (f0, bq0, br0, bd0) = sweep_path(s.field, px, py, px + ux * ext, py + uy * ext);
+  allow = (f0 ?? 1.0) * ext - PLAYER_RADIUS;
+  if allow > len { allow = len; }
+  if allow < 0.0 { allow = 0.0; }
+  (px + ux * allow, py + uy * allow, bq0 ?? 0, br0 ?? 0, bd0 ?? -1)
+}
+
+fn swept_step(s: Sim, px: float, py: float, dx: float, dy: float) -> (float, float) {
+  len = sqrt(dx * dx + dy * dy) ?? 0.0;
+  if len < 0.000001 { return (px, py); }
+  ux = dx / len ?? 0.0;
+  uy = dy / len ?? 0.0;
+  (nx, ny, cq, cr, bd) = swept_advance(s, px, py, ux, uy, len);
+  if bd < 0 { return (nx, ny); }
+
+  // SLIDE. The blocking edge's normal is the direction between the two cell centres —
+  // exact here because these walls ARE hex edges (cells sealed by build_field). When P5
+  // puts real surfaces on edges, `collide` supplies the true normal instead and a curved
+  // wall stops reading as facets.
+  (ex, ey) = hex_to_px(cq, cr);
+  (ax, ay) = hex_to_px(nb_q(cq, cr, bd), nb_r(cq, cr, bd));
+  wx = ax - ex;
+  wy = ay - ey;
+  wl = sqrt(wx * wx + wy * wy) ?? 0.0;
+  if wl < 0.000001 { return (nx, ny); }
+  tx = 0.0 - (wy / wl ?? 0.0);                     // the wall's tangent
+  ty = wx / wl ?? 0.0;
+  gone = sqrt((nx - px) * (nx - px) + (ny - py) * (ny - py)) ?? 0.0;
+  along = (ux * tx + uy * ty) * (len - gone);      // what is left of the motion, along it
+  if along < 0.0 { tx = 0.0 - tx; ty = 0.0 - ty; along = 0.0 - along; }
+  if along < 0.000001 { return (nx, ny); }
+  (fx, fy, _, _, _) = swept_advance(s, nx, ny, tx, ty, along);
+  (fx, fy)
+}
+
 // Can the player's centre at (fromx,fromy) advance so its probe point lands at
 // (tox,toy)?  Returns true if that probe enters a solid hex, an enemy hex, or
 // crosses a walled edge.  Used per-axis with the probe offset one radius ahead.
@@ -2301,23 +2356,21 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
     step = (fwd as float) * MOVE_SPEED * dt;
     dx = cos(s.heading) * step;
     dy = sin(s.heading) * step;
-    moved_x = 0.0;
-    moved_y = 0.0;
-    // Axis-separated so the player slides along walls; probe one radius ahead
-    // in the direction of travel so the centre halts short of the wall face.
-    if dx != 0.0 {
-      sxr = if dx > 0.0 { PLAYER_RADIUS } else { 0.0 - PLAYER_RADIUS };
-      if !pos_blocked(s, s.px, s.py, s.px + dx + sxr, s.py) {
-        s.px += dx;
-        moved_x = dx;
-      }
-    }
-    if dy != 0.0 {
-      syr = if dy > 0.0 { PLAYER_RADIUS } else { 0.0 - PLAYER_RADIUS };
-      if !pos_blocked(s, s.px, s.py, s.px, s.py + dy + syr) {
-        s.py += dy;
-        moved_y = dy;
-      }
+    // SWEPT along the whole path, then slid along whatever stopped it (I-CROSS). The old
+    // form probed one point per axis, so the set of walls that stopped you was a function
+    // of the frame rate: at a fall-sized step it missed 54% of them.
+    (wx2, wy2) = swept_step(s, s.px, s.py, dx, dy);
+    moved_x = wx2 - s.px;
+    moved_y = wy2 - s.py;
+    // Enemies and open water are CELL occupancy, not field geometry, so they stay a veto
+    // on the destination rather than something the swept path can express.
+    (dq2, dr2) = px_to_hex(wx2, wy2);
+    if enemy_blocks(s, dq2, dr2) || water_blocked(s, dq2, dr2) {
+      moved_x = 0.0;
+      moved_y = 0.0;
+    } else {
+      s.px = wx2;
+      s.py = wy2;
     }
     dist = sqrt(moved_x * moved_x + moved_y * moved_y) ?? 0.0;
     // Pressing forward into an enemy = melee: advance the clock at walking pace

@@ -1,0 +1,142 @@
+// sweeptest — swept movement over the edge field (plan #11 P2b, invariant I-CROSS).
+//
+// The property under test is that a wall stops you because your PATH crossed it, and that
+// the answer does NOT depend on how the path was cut into frames. Three checks, each with
+// a negative control:
+//
+//   1 AGREEMENT   sweep_path() vs an independent fine march (2000 substeps). Different method,
+//                 same verdict — the march is the oracle, sweep_path is the implementation.
+//   2 SUBDIVISION the dt gate: the same walk taken whole, in 4, and in 16 must reach the
+//                 same place. This is the one that fails today for a point sample.
+//   3 SOUNDNESS   whatever sweep permits, the fine march must find no blocked crossing
+//                 inside it. "Never crossed a wall" is the absolute claim; 1 and 2 are
+//                 about consistency, this one is about correctness.
+use hexedge;
+use hex_field;
+
+// The ORACLE: march the segment in tiny substeps and report whether any hex transition
+// crosses a blocked edge. Deliberately a different algorithm from sweep_path() — a reference
+// that shares its method proves only that the code equals itself.
+fn march_blocked(e: EdgeSet, x0: float, y0: float, x1: float, y1: float) -> boolean {
+  (cq, cr) = hex_at(x0, y0);
+  hit = false;
+  for i in 1..2001 {
+    f = (i as float) / 2000.0;
+    (nq, nr) = hex_at(x0 + (x1 - x0) * f, y0 + (y1 - y0) * f);
+    if nq != cq || nr != cr {
+      if !passable(e, cq, cr, nq, nr) { hit = true; }
+      cq = nq;
+      cr = nr;
+    }
+  }
+  hit
+}
+
+// Walk a segment in `n` equal pieces, stopping where the field stops us — exactly what a
+// frame loop does. Returns the fraction of the whole walk achieved.
+fn walk_in_pieces(e: EdgeSet, x0: float, y0: float, x1: float, y1: float, n: integer) -> float {
+  px = x0;
+  py = y0;
+  done = 0.0;
+  for i in 0..n {
+    f0 = (i as float) / (n as float) ?? 0.0;        // variable `/` is fallible — discharge here
+    f1 = ((i + 1) as float) / (n as float) ?? 1.0;
+    tx = x0 + (x1 - x0) * f1;
+    ty = y0 + (y1 - y0) * f1;
+    (frac0, _, _, _) = sweep_path(e, px, py, tx, ty);
+    frac = frac0 ?? 0.0;                       // discharge at the root (survival guide)
+    px = px + (tx - px) * frac;
+    py = py + (ty - py) * frac;
+    done = f0 + (f1 - f0) * frac;
+    if frac < 0.999999 { return done; }        // stopped at a wall — the walk ends here
+  }
+  1.0
+}
+
+// A deterministic spread of segments over a field, without an RNG dependency.
+fn seg_x0(i: integer) -> float { ((((i * 37) % 23 ?? 0) - 11) as float) * 0.7 }
+fn seg_y0(i: integer) -> float { ((((i * 53) % 19 ?? 0) - 9) as float) * 0.7 }
+fn seg_dx(i: integer) -> float { ((((i * 29) % 17 ?? 0) - 8) as float) * 0.9 }
+fn seg_dy(i: integer) -> float { ((((i * 43) % 13 ?? 0) - 6) as float) * 0.9 }
+
+fn main() {
+  println("=== story sweep test (plan #11 P2b: a path crosses walls, not a probe point) ===");
+
+  Q = -14; R = -14; W = 29; H = 29;
+
+  // A thin wall in every heading — the geometry that breaks point sampling. One edge
+  // thick, so nothing here is thick enough to be caught by luck.
+  agree = 0;
+  disagree = 0;
+  sound_bad = 0;
+  sub_bad = 0;
+  worst_gap = 0.0;
+  blocked_seen = 0;
+  clear_seen = 0;
+
+  for k in 0..12 {
+    a = (k as float) * 15.0 * 0.017453292519943295;
+    e = edgeset_new(Q, R, W, H);
+    edges_halfplane(e, Q, R, W, H, 0.0 - sin(a), cos(a), 0.0);
+
+    for i in 1..120 {
+      x0 = seg_x0(i);
+      y0 = seg_y0(i);
+      x1 = x0 + seg_dx(i);
+      y1 = y0 + seg_dy(i);
+      if !(seg_dx(i) == 0.0 && seg_dy(i) == 0.0) {
+        (frac0, _, _, bd0) = sweep_path(e, x0, y0, x1, y1);
+        frac = frac0 ?? 0.0;
+        swept_hit = (bd0 ?? -1) >= 0;      // DIRECTION is the sentinel, never a coordinate
+        marched = march_blocked(e, x0, y0, x1, y1);
+
+        // 1 AGREEMENT
+        if swept_hit == marched { agree += 1; } else { disagree += 1; }
+        if marched { blocked_seen += 1; } else { clear_seen += 1; }
+
+        // 3 SOUNDNESS — the part sweep_path says is travellable must contain no crossing
+        rx = x0 + (x1 - x0) * frac;
+        ry = y0 + (y1 - y0) * frac;
+        if frac > 0.0001 {
+          // pull back a hair: the stop point sits exactly ON the blocking bisector
+          sx = x0 + (rx - x0) * 0.999;
+          sy = y0 + (ry - y0) * 0.999;
+          if march_blocked(e, x0, y0, sx, sy) { sound_bad += 1; }
+        }
+
+        // 2 SUBDIVISION — the dt gate
+        w1 = walk_in_pieces(e, x0, y0, x1, y1, 1);
+        w4 = walk_in_pieces(e, x0, y0, x1, y1, 4);
+        w16 = walk_in_pieces(e, x0, y0, x1, y1, 16);
+        g1 = abs(w4 - w1);
+        g2 = abs(w16 - w1);
+        if g1 > worst_gap { worst_gap = g1; }
+        if g2 > worst_gap { worst_gap = g2; }
+        if g1 > 0.001 || g2 > 0.001 { sub_bad += 1; }
+      }
+    }
+  }
+
+  println("agreement with the fine march : {agree} agree, {disagree} disagree");
+  println("  (blocked {blocked_seen} / clear {clear_seen} — neither may be zero)");
+  println("soundness (no wall inside the travelled part): {sound_bad} violations");
+  println("subdivision 1 vs 4 vs 16 pieces: {sub_bad} differ, worst gap {worst_gap}");
+
+  // ── NEGATIVE CONTROL ──────────────────────────────────────────────────────
+  // A gate that cannot fail proves nothing. Sweep a segment straight through a sealed
+  // wall and require BOTH the oracle and sweep_path to stop it; then remove the field and
+  // require both to let it through.
+  ec = edgeset_new(Q, R, W, H);
+  edges_halfplane(ec, Q, R, W, H, 1.0, 0.0, 0.0);      // wall on the y axis
+  (cf0, _, _, cd0) = sweep_path(ec, -4.0, 0.3, 4.0, 0.3);   // crosses it head on
+  cf = cf0 ?? 0.0;
+  ctl_stops = (cd0 ?? -1) >= 0 && cf < 0.9 && march_blocked(ec, -4.0, 0.3, 4.0, 0.3);
+  eo = edgeset_new(Q, R, W, H);                        // …and with no wall at all
+  (of0, _, _, od0) = sweep_path(eo, -4.0, 0.3, 4.0, 0.3);
+  ctl_passes = (od0 ?? -1) < 0 && (of0 ?? 0.0) > 0.999 && !march_blocked(eo, -4.0, 0.3, 4.0, 0.3);
+  println("negative control: sealed stops it={ctl_stops} (at {cf}), no wall lets it pass={ctl_passes}");
+
+  ok = disagree == 0 && sound_bad == 0 && sub_bad == 0
+    && blocked_seen > 50 && clear_seen > 50 && ctl_stops && ctl_passes;
+  if ok { println("=== SWEEP OK ==="); } else { println("=== FAIL ==="); }
+}

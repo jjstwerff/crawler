@@ -7,18 +7,18 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → THE NEXT ACTION IS PLAN #11 **P2b**
-> Movement becomes a **swept path**, not a probe point. P2 put the kernel on an edge field
-> (`Sim.field`, an `EdgeSet`), so the crossing predicate `passable()` is already there and
-> `collide()` already returns the **exact** surface normal for the slide. What remains is
-> `pos_blocked` / `sim_step`: they still sample one probe point per axis, and skip the edge
-> test entirely for non-adjacent hexes.
+> ## → THE NEXT ACTION IS PLAN #11 **P3** — first-person 3D
+> The kernel half is done. P2 put passability on an edge field; **P2b** made movement a
+> swept path, so the same walk at 64/16/4 frames ends **bit-identically** and a fall-sized
+> step can no longer cross a wall. What is left for the playable milestone is the *view*.
 >
-> **The gate is dt-independence** (I-CROSS): the same walk taken in 16 frames, 4 frames and
-> one leap must block on the same walls. Today it does not — at a fall-sized step the point
-> sample misses **54%** of them.
+> P3's gate is a projection round-trip (a hex centre → a pixel → the same hex), pure maths,
+> **no GL needed**. Build it as the **`hexscene`** package, not crawler-internal — the
+> in-world editor draws the same field. Then P4 (boards through the presentation seam) is
+> "the game is 3D and you can play it".
 >
-> P3 (first-person 3D) is unblocked and can run beside it.
+> **Watch loft#392** — a `fn -> vector<single>` whose result reaches `gl_upload_vertices`
+> aborts silently, no output and no PNG. Inline the buffer loop in the caller.
 
 ## The design position — eight statements, and they compose
 
@@ -57,7 +57,7 @@ carry.
 | **#5 geometry** | active — points, crossings/slips, level crossings, platforms, signals, bridges/tunnels, stairs, spiral stairs, roofs, cones, arches, domes, vaults, the matcher | 20 |
 | **#9 canopy trees** | **T1–T10 all done** | 10 |
 | **#10 props** | **P1–P9 all done** (P9 scored 4/6, both failures understood) | 6 |
-| **#11 3D world** | **ACTIVE — P0, P1, P2 done**, P2b next | 2 |
+| **#11 3D world** | **ACTIVE — P0, P1, P2, P2b done**, P3 next | 3 |
 
 Plus the render path (`src/scenemesh.loft`, `src/figure.loft`, `tools/glbview.py`), the scale
 contract (`SCALE.md`, `src/scale.loft`, gated), and **`hex_field` 0.1.0 extracted** to

@@ -60,6 +60,38 @@ fn main() {
   nseg = len(wsegs);
   println("wall-outline: {nseg} smoothed segments");
 
+  // (8) dt-INDEPENDENCE (plan #11 P2b, invariant I-CROSS). The same walk into the same
+  // wall, cut into 16 frames, 4 frames and 1, must end in the SAME place. A point-sample
+  // collision fails this outright — at a fall-sized step it walks through the wall.
+  dt_ok = true;
+  dt_stopped = false;
+  bx = 0.0;
+  by = 0.0;
+  // Aimed at the EDGE-WALL STUB on hex (12,7) — the only thin barrier in the game, and
+  // thin is the case that breaks point sampling. A solid wall is thick enough that even
+  // an end-point test happens to land in it; a one-edge stub is not.
+  for v in 0..3 {
+    n = 64;                       // 1.28 s of walking = 7.68 units, past the stub
+    d = 0.02;
+    if v == 1 { n = 16; d = 0.08; }
+    if v == 2 { n = 4; d = 0.32; }  // 1.92 units in ONE step — steps clean over a stub
+    w = sim_new();
+    sim_teleport(w, 9, 7);        // three hexes west of the stub, in line with it
+    w.heading = 0.0;              // due east, into the stub's E edge
+    wx0 = w.px;
+    wy0 = w.py;
+    for _ in 0..n { sim_step(w, 1, 0, d); }
+    ex2 = w.px;
+    ey2 = w.py;
+    gone2 = sqrt((ex2 - wx0) * (ex2 - wx0) + (ey2 - wy0) * (ey2 - wy0)) ?? 0.0;
+    // anti-vacuous: the walk must actually have been stopped by something, or all three
+    // agreeing proves only that nothing was in the way
+    if gone2 < 0.95 * 6.0 * 1.28 { dt_stopped = true; }
+    if v == 0 { bx = ex2; by = ey2; }
+    if v > 0 && (abs(ex2 - bx) > 0.001 || abs(ey2 - by) > 0.001) { dt_ok = false; }
+    println("dt walk: {n} frames x {d}s -> ({ex2},{ey2}) travelled {gone2}");
+  }
+
   ok_turn   = turn_ticks == 0;
   ok_move   = fwd_ticks > 0;
   ok_chase  = d1 < d0;
@@ -67,6 +99,7 @@ fn main() {
   ok_radius = !rwall && rpq < 20 && rdx > 1.0;
   ok_slide  = sdy > 0.3 && !is_wall(s, slq, slr);
   ok_walls  = nseg > 0;
+  ok_dt     = dt_ok && dt_stopped;
   println("turning-free  : {ok_turn}");
   println("movement-ticks: {ok_move}");
   println("enemy-chases  : {ok_chase}");
@@ -74,7 +107,8 @@ fn main() {
   println("radius-stop   : {ok_radius}");
   println("wall-slide    : {ok_slide}");
   println("wall-outline  : {ok_walls}");
-  if ok_turn && ok_move && ok_chase && ok_edge && ok_radius && ok_slide && ok_walls {
+  println("dt-independent: {ok_dt} (obstructed={dt_stopped})");
+  if ok_turn && ok_move && ok_chase && ok_edge && ok_radius && ok_slide && ok_walls && ok_dt {
     println("=== ALL CHECKS PASS ===");
   } else {
     println("=== FAIL ===");

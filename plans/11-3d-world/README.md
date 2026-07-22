@@ -5,12 +5,16 @@
 
 ## Status
 
-**ACTIVE — P0, P1, P2 done; P2b next.** The kernel now stands on the field: `sim.loft`
+**ACTIVE — P0, P1, P2, P2b done; P3 next.** The kernel now stands on the field: `sim.loft`
 imports `hex_field` and `hexedge`, and **passability is an edge query** (`Sim.field`, an
 `EdgeSet`) rather than a lookup in `Sim.tiles` — proved equal to the old model over ~135 000
 `(hex, direction)` answers with zero mismatches from any reachable position
 ([`RESULTS.md`](RESULTS.md) → *P2 result*). `Sim.tiles` survives as **content** (stairs, cave
 mouths, quest features), not as passage.
+
+Movement is a **swept path** too (P2b): `sweep_path` walks the segment bisector by
+bisector, so the same walk taken in 64 frames, 16 or 4 ends bit-identically — a point
+sample walks straight through a thin wall at the coarse step.
 
 What is still 2D is the *view*: `story` → `view` renders top-down from `wallgeo` +
 `worldmesh`. P3 makes it the world the player stands in, in first-person 3D.
@@ -89,8 +93,8 @@ check must go red.
 | **P0** — the target frame + its metre table | S | `glbview.py` PNG + the table; user confirms or amends | **DONE** |
 | **P1** — one passability predicate (pure refactor) | S | `make test` unchanged; the site table | **DONE** — `field_blocked(s,q,r,dir)` |
 | **P2** — the field under the kernel | M | `src/fieldtest.loft` differential: old ≡ new over every (hex,dir) | **DONE** — 0 mismatches, ~135k answers |
-| **P2b** — movement becomes a swept path, not a probe point | M | the same walk at 1/4/16× step length blocks on the same walls | **NEXT** |
-| **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | Ready (P2 done) |
+| **P2b** — movement becomes a swept path, not a probe point | M | the same walk at 1/4/16× step length blocks on the same walls | **DONE** — bit-identical |
+| **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | **NEXT** |
 | **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | Blocked on P3 |
 | **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | Blocked on P3 |
 | **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | Blocked on P2 |

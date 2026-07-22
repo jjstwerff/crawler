@@ -190,6 +190,96 @@ cannot pass by seeing only one kind.
 **Negative controls — all three fire.** Drop the stored edge walls (demo: 6 mismatches) ·
 leave the map perimeter unsealed · flip one cell of the solid set.
 
+## P2b result — movement is a swept path, 2026-07-22
+
+`make test` green. Movement no longer samples a probe point; it sweeps the whole segment
+and slides along whatever stops it. **The set of walls that stop you no longer depends on
+`dt`.**
+
+### `sweep_path` — exact, and with no step size in it
+
+`hexedge::sweep_path(e, x0,y0, x1,y1) -> (fraction, q, r, dir)`. A point's cell is its
+**nearest centre**, so a crossing is exactly where the segment meets the bisector between
+the current centre and a neighbour's — one linear solve per neighbour:
+
+```
+   |P(t) − C|² = |P(t) − N|²   ⟺   t = ((M − P₀)·D) / (V·D),   D = N − C,  V·D > 0
+```
+
+Centres come from the exact integer lattice, so nothing accumulates. There is no substep
+anywhere: the answer is a function of the **segment**, which is precisely what makes it
+dt-independent. Bounded at 256 crossings, and the bound **fails safe** — on exhaustion the
+caller is told it may travel only as far as was verified, never that the rest is clear.
+
+### Two real defects, both found by the gate, neither guessed
+
+**1. The sentinel collided with the data.** The first version returned the blocking *cell
+pair* with `-1` for "nothing blocked". Hex coordinates are signed, so in any chunk spanning
+the origin a wall at `q = -1` reported "no hit" — 146 of 1428 segments. Fixed by signalling
+with the **direction** (0..5, `-1` impossible) and never with a coordinate.
+
+**2. Filtering by parameter dropped the first crossing — and that is the NORMAL state.**
+The walk skipped crossings at `tt <= t + ε` to avoid re-detecting the edge just crossed.
+But stopping at a wall leaves the position **exactly on a bisector**, so the very next
+sweep starts on a boundary and silently skipped its first edge. Diagnosed by printing both
+walks for one failing segment rather than reasoning about it: start `(0, 1.4)` is
+*exactly* equidistant from the centres of `(0,1)` and `(-1,1)`.
+
+Fixed by excluding **the cell we came from** instead of filtering by parameter. That also
+makes a corner walk *through* correctly — both of its edges get tested at the same `t` — so
+a path cannot slip between two walls that meet, which is the corner-cut exploit.
+
+**3. The slide had no radius back-off**, so the centre landed exactly on a wall boundary
+and `px_to_hex` rounded it *into* the wall. Caught by `selftest`'s existing wall-slide
+check. Both the primary move and the slide now go through one `swept_advance`.
+
+### The gates
+
+`src/sweeptest.loft` — against an independent 2000-substep march as oracle, over 1428
+segments on one-edge-thick walls in 12 headings:
+
+| check | result |
+|---|---|
+| agreement with the fine march | **1428 agree, 0 disagree** (347 blocked / 1081 clear) |
+| soundness — no wall inside the part it permits | **0 violations** |
+| subdivision: whole vs 4 pieces vs 16 | **0 differ, worst gap 3.3 × 10⁻¹⁶** |
+
+`src/selftest.loft` — the end-to-end gate, the same walk into the **edge-wall stub on hex
+(12,7)**, the only thin barrier in the game:
+
+| walk | ends at | travelled |
+|---|---|---|
+| 64 × 0.02 s | 22.0666604983954, 10.5 | 5.6122 |
+| 16 × 0.08 s | *bit-identical* | 5.6122 |
+| 4 × 0.32 s (1.92 units a step) | *bit-identical* | 5.6122 |
+
+**Negative control — and it took two tries to make it honest.** Reverting to a point sample
+first appeared to pass, because the walk was aimed at a *solid* wall thick enough that even
+an end-point test lands inside it. Re-aimed at the one-edge stub, the control fires exactly:
+
+| | fine | coarse |
+|---|---|---|
+| swept | 5.6122 | 5.6122 |
+| point sample (the old model) | 5.6122 | **7.6800 — the full distance, straight through the stub** |
+
+That near-miss is the phase's lesson: **a negative control aimed at the wrong geometry
+passes, and a passing control reads exactly like a working one.** Thick walls hide
+tunnelling; only thin ones show it — which is the same reason thin geometry is where
+physics engines die.
+
+### Limits, stated rather than implied
+
+- **The sweep tests the CENTRE with a radius back-off, not the player's disc.** A wall
+  passing within a radius of the path but not across it is not detected. A true swept disc
+  is a Minkowski expansion of the edge set and belongs with the surfaces P5 puts on edges.
+- **The slide uses the EDGE normal**, exact here because these walls *are* hex edges (cells
+  sealed by `build_field`). When P5 puts real surfaces on edges, `collide` supplies the true
+  normal and curved walls stop reading as facets.
+- **Enemies and open water stay a destination-cell veto** — they are occupancy, not field
+  geometry, and the swept path cannot express them.
+- **Still planar.** I-CROSS's vertical half is untouched: nothing yet stops a path walking
+  up a 3 m riser.
+
 ## P5, restated — the seam that has never been connected
 
 **CORRECTED 2026-07-22, by reading the code instead of trusting the description.** My first
