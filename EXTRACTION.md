@@ -765,7 +765,7 @@ Six packages, dependencies strictly downward:
 
 | package | holds | why separable |
 |---|---|---|
-| **`hexfield`** | `HexSet`, `VecMap`, trace/validate, `Labels`, `Heights`, `EdgeSet`, `Surfaces`, `Materials`, `FieldCache`, **levels** | the L1/L2 model; everything sits on it |
+| **`hexfield`** | `HexSet`, `VecMap`, trace/validate, `Labels`, `Heights`, `EdgeSet`, `Surfaces`, `Materials`, `FieldCache`, **levels**, **stencils** | the L1/L2 model; everything sits on it |
 | **`hexways`** | `Track`, offsets, `way_mark`/`cut_arb`, `way_param`, junctions | roads/rails/paths; useful with no buildings at all |
 | **`hexforms`** | the matcher, roofs, vaults, the profile×distance table | architecture; useful with no ways at all |
 | **`hexgrow`** | canopy partition, crown profiles, skeleton, pipe model, sky fraction | vegetation; needs `way_param` for mileposts |
@@ -855,3 +855,64 @@ than on the largest.
   should get the same answer.
 - **`hexscene` bakes glTF.** A consumer wanting another format needs the triangle layer
   without the exporter — which argues for splitting it in two later, but not yet.
+
+
+## Stencils — and why they belong in `hexfield`
+
+A stencil is a **reusable piece of authored field** — a room, a house footprint, a tower
+plan, a village block — stamped into a world at a position and an orientation. crawler
+already has them as bundle content (`BUNDLE.md`); the library needs the *mechanism*.
+
+### A stencil is a small FIELD, not a bitmap
+
+That is the design decision, and it follows from everything above. A stamped house is not a
+pattern of filled cells — it is cells **plus** labels, heights, edge materials, features
+(the door and window intervals of plan #5 P5), and prop records. So a stencil carries the
+same structures the world does, at a smaller extent:
+
+```
+   stencil = (extent, HexSet, Labels?, Heights?, EdgeSet?, Features?, props?)
+```
+
+which means **stamping is merging two fields**, and merging is a problem already solved:
+same level → `cut_arb`'s nearest-wins arbitration; different levels → no contest at all
+(the bridge guarantee). A stencil needs no new conflict rule.
+
+### Rotation is exact, which is the whole reason this is cheap
+
+On the exact-integer lattice a 60° rotation is an **integer map**:
+
+```
+   k' = (k − m)/2        m' = (3k + m)/2
+```
+
+Both are integers for every cell, because cell centres satisfy `k ≡ m (mod 2)`. Verified
+over 625 cells: **zero non-integer images, and six rotations are exactly the identity.**
+
+So stencils rotate with **no resampling and no drift** — a house stamped at 300° is the same
+house as at 0°, cell for cell, not a filtered approximation of it. Every other grid pays for
+rotation with either 90°-only orientations or interpolation; this one does not, and it is
+the same exact-lattice decision that has now paid off in the tracer, the partition, the
+relaxation and here.
+
+Reflection is likewise exact (`k → −k`), giving **12 orientations** for free — enough for
+handed content like a staircase or an L-shaped house.
+
+### The gate this wants
+
+Exact invariants, in the style of the rest:
+
+- **six 60° rotations are the identity**, cell for cell, over every stencil in the set;
+- **rotation preserves cell count and shoelace area** (the plan #5 round-trip invariant);
+- a stamp then an un-stamp restores the target field bit-for-bit;
+- two stencils overlapping at the **same** level arbitrate deterministically and
+  order-freely; at **different** levels they do not interact at all;
+- **negative control:** a stencil rotated by a non-multiple of 60° must be refused, not
+  silently rounded.
+
+### The seam, again
+
+**Mechanism library-side, content consumer-side** — the stencil *format*, the rotation, the
+stamp and the merge are `hexfield`; *which* stencils exist is bundle content. That is the
+third place this same seam has appeared (prop kinds, species parameters, stencils), which is
+strong evidence it is the right one and should be settled once rather than three times.
