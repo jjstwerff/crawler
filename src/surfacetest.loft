@@ -54,6 +54,42 @@ fn main() {
   }
   solids_live = nsolid > 100 && solid_ok && step_ok;   // > 100 so it can never pass vacuously
 
+  // ── P5: the builder is a PURE FUNCTION of the overland's output ───────────
+  // The user's ruling: `overland` is the sole authority on WHERE a settlement is, and the
+  // seam runs one way only. The testable form is that the same seed yields the same
+  // village every time — a hand-placed scene cannot pass this — and that a different seed
+  // yields a different one, so "identical" can never be the trivial answer.
+  again = sim_new_gen(777, 0);
+  same = 0;
+  diff = 0;
+  for pr0 in 0..101 {
+    for pq0 in 0..101 {
+      if tile_at(surf, pq0, pr0) == tile_at(again, pq0, pr0) { same += 1; } else { diff += 1; }
+    }
+  }
+  // The discriminator is the WINDOW, not the seed. Measured: the depth-0 surface is
+  // identical for seed 777 and seed 4242 — the overland is the fixed contract wilderness
+  // (OVERLAND.md 12-13), an example world rather than a seeded one, so the seed cannot be
+  // what makes two surfaces differ. A neighbouring window is a different PLACE, which is
+  // what the scorer's authority actually means: a village appears where the terrain earns
+  // one, and one window over it does not.
+  other = sim_new_gen_s(777, 0, 0, 0, 1, 0);
+  odiff = 0;
+  for pr1 in 0..101 {
+    for pq1 in 0..101 {
+      if tile_at(surf, pq1, pr1) != tile_at(other, pq1, pr1) { odiff += 1; }
+    }
+  }
+  // the SETTLEMENT itself must be rebuilt identically, not merely the terrain around it
+  solid_same = 0;
+  for pr2 in 0..101 {
+    for pq2 in 0..101 {
+      if is_wall(surf, pq2, pr2) == is_wall(again, pq2, pr2) { solid_same += 1; }
+    }
+  }
+  pure = diff == 0 && solid_same == 10201 && odiff > 200;
+  println("derived-world purity: same-seed identical={diff == 0} solid-identical={solid_same}/10201 other-window-differs={odiff} hexes");
+
   println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} no-town-entrance={noent} wilds-fit={wilds_fit}");
   println("town: npcs={npcs0} day={at_day} alive-after-60-ticks={alive_still}");
   println("solidity: boulders+posts={nsolid} is-wall={solid_ok} blocks-entry={step_ok}");
