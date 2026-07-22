@@ -919,3 +919,77 @@ That was the third appearance of this seam (prop kinds, species parameters, sten
 is now **settled once**: *a library's enumerations are of mechanisms and are closed; a
 bundle's enumerations are of things and are open* — **BUNDLE.md → "The library/content seam"**.
 All three instances take that answer, and plan #10's open question 3 is closed by it.
+
+## The editor as the second consumer — the contract
+
+An **in-world editor, built outside crawler by a separate agent** (user, 2026-07-22). That
+single fact re-orders this document: extraction stops being the pleasant tail after plan #11
+and becomes the **thing that makes two agents possible at all**, because the alternative is
+the editor copying crawler's source — precisely what the per-package DoD forbids.
+
+It is also the *strong* form of DoD clause 4. An editor needs mutation, undo, partial views
+and serialization; the game needs none of those. A package that satisfies both has been
+shown to be general — one that satisfies only crawler has been shown nothing.
+
+### Validation status — measured, not assumed
+
+The stack's gates are **already library-shaped**. Audited across every `*test.loft` that
+touches the stack: **zero** import `sim`, `bundles`, or any content module; the only
+non-stack import in the set is `sighttest`'s `hex_grid`, which is already an upstream
+package. So DoD clause 2 ("its gates ship with it and pass standalone") is close to free —
+**the outstanding work is packaging, not validating**: `loft.toml`, an entry module, a
+standalone runner and a README per package.
+
+### Sequencing — build new, extract settled
+
+Extracting `hexfield` *while* plan #11 P2 puts the field under `Sim` is exactly the
+"two migrations instead of one" trap this document already warns about. The resolution is to
+split by **age of the code**, not by module:
+
+- **New routines land in the package now** — the stencil mechanism (designed above,
+  unimplemented) and the **document format** (does not exist at all). New code *adds* API, so
+  concurrent work cannot collide with P2.
+- **Settled crawler modules migrate after P2**, when the kernel has shown what it actually
+  needs — so the API is cut once, informed by two consumers, instead of guessed from one.
+
+### What the editor may rely on
+
+The exact-lattice guarantees, which are what make exact undo, exact diff and exact rotation
+possible at all:
+
+- cell centres **and** corners are integer `(k, m)`;
+- **Σ integer shoelace = 12 × hex count** — outline and cell set can never disagree;
+- a 60° rotation is an **integer map**; six rotations are the identity; reflection is exact,
+  giving 12 orientations;
+- the validator's full list (loops closed · every segment a real hex edge · no zero-length
+  segment · no repeated vertex · integral vertices · one outer loop, holes wound opposite);
+- stamping is **merging two fields**, arbitrated nearest-wins, order-free.
+
+### What is NOT shared
+
+- **The metre.** Every threshold the stack derives is dimensionless — hex steps or pure
+  ratios. `SCALE.md` is *crawler's* reading (1.5 m / 15 m) and the editor picks its own. A
+  library that ships a metre has shipped a consumer's decision.
+- **Content enumerations.** The settled seam applies unchanged: *a library's enumerations are
+  of mechanisms and are closed; a consumer's are of things and are open.* Which stencils,
+  prop kinds and species exist is the editor's (and crawler's) business, separately.
+
+### The shared artifact, and the sharpest clause
+
+**The document format is a shared exact invariant, and both sides gate it.** A world or
+stencil written by the editor must load in crawler **bit-for-bit identically**, so
+round-trip = identity is not the editor's private test — it is the interface, and it belongs
+in the package with a gate each consumer runs. `src/realworld/region_io.loft` is the house
+pattern to follow (magic + schema version + explicit dimensions).
+
+**And the renderer is shared too.** An in-world editor and the game draw the same field, so
+the realtime view belongs in **`hexscene`** beside the GLB exporter, not inside crawler.
+`scenemesh` is already renderer-agnostic (it emits `Mesh`/`Scene`, never GL), so only the GL
+half is new — see plan #11 P3, which is scoped as a package for this reason.
+
+### The rule that keeps this honest
+
+**No two copies, ever.** If the editor needs something crawler has, it *moves* to the
+package — it is never duplicated. Changes flow through the lib repo's own gate and PR loop
+("Updating a library repo" above), and an API change is done when **both** consumers are
+green.

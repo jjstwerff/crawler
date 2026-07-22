@@ -33,8 +33,8 @@ hardest) · `PROPS.md` · `plans/5-geometry/INTEGRATION.md` (the field's phases;
 there is the layer axis this plan's P5 inherits) · `plans/9-canopy-trees/TREES.md` ·
 `plans/2-chunked-lod-world/` (the far field: `src/viewer.loft` already renders overland
 terrain in 3D with LOD chunks) · `RENDER.md` + `plans/7-render/` (the GL substrate and the
-verification channels) · `EXTRACTION.md` (this plan makes the stack's second consumer the
-game itself — see *Order + risks*).
+verification channels) · `EXTRACTION.md` (the package split, and **§ The editor as the second consumer** — the
+contract this plan's P3 must satisfy).
 
 Source: `src/sim.loft`, `src/hexedge.loft`, `src/hexform.loft`, `src/scenemesh.loft`,
 `src/view.loft`, `src/viewer.loft`, `src/worldmesh.loft`, `src/wallgeo.loft`.
@@ -129,9 +129,15 @@ deliverable and the boards are just its first implementation.
   arity-reducing pub wrappers).
 - **The seam law** (BUNDLE.md → *Standing check*) is re-checked every phase: mechanism
   engine-side, content bundle-side. P5 and P7 touch it directly.
-- **Extraction interaction:** this plan makes the *game* the stack's second real consumer,
-  which is what `EXTRACTION.md`'s per-package DoD clause 4 asks for. Extraction should
-  therefore wait for P5 — API cut against a real consumer beats one cut against a demo scene.
+- **Extraction is now on the critical path, not the tail** (user, 2026-07-22: an in-world
+  editor built outside crawler by a second agent). Without packages the editor must copy
+  crawler's source, which the DoD forbids. Sequencing is **build new, extract settled** — new
+  routines (stencils, the document format) land package-side now; crawler's settled modules
+  migrate after **P2**, when the kernel has shown what it needs. The contract is
+  `EXTRACTION.md` → *The editor as the second consumer*.
+- **P3 builds the renderer as a PACKAGE (`hexscene`), not as crawler-internal `view3d`.** The
+  editor is in-world and outside crawler, so a crawler-private renderer would be written
+  twice and diverge. `scenemesh` is already renderer-agnostic; only the GL half is new.
 
 ## Open design questions
 
