@@ -92,7 +92,22 @@ per scene.
 | graphical fidelity | **yes** | fidelity's cost is authoring assets to a photoreal standard; in a **derived** world it becomes *deriving to a higher standard* — algorithmic work, which is what this project is for |
 | party locomotion / traversal | **yes** | a system, authored once |
 | animated actors, mocap | **yes, increasingly** | markerless video capture is real and the cost is falling every year |
-| voice | **yes, at our volume** | ~80% is an actor **in their own chair**: remote recording has been standard since ~2020, and a good mic in a treated space is close to a booth for dialogue. The same seat covers webcam/phone face capture for non-hero content. A stage is still wanted for full-body capture, overlapping ensemble scenes and physically exerted vocals. **It suits this design especially**: the eligibility model (SCRIPTING.md) makes lines *conditional, short and standalone* — no throughline to hold across sessions, no ensemble timing — which is the easiest possible remote shape. You drop **facilities, not direction**, and direction is the part that does not scale. Two cautions: **barks recombine, scenes do not** (whole performances stay whole, or you get machinery), and AI synthesis is cheaper still but sits on contested consent/likeness ground — real actors recorded at home also sound better |
+| voice | **yes, at our volume — and the volume is the point** | The **eligibility model collapses the budget**: if a line only fires when its conditions are genuinely met, **ambient chatter becomes unnecessary rather than cheap** — no barks, no flavour lines. *"That changes the discipline more than the budget: every line is worth a real performer and a real take"* (`../crew_punk/WORK.md` §9 works the whole pipeline through — read it before planning any VO). Recording is ~80% an actor **in their own chair**: remote has been standard since ~2020, a good mic in a treated space is close to a booth, and the same seat covers webcam/phone face capture for non-hero content. A stage is still wanted for full-body capture, overlapping ensemble scenes and physically exerted vocals. You drop **facilities, not direction** |
+
+**One refinement to that pipeline, and it changes which tool is needed.** `crew_punk` assumes
+generated voice hands over word timings and *"real performers replace the audio later without
+changing a word"*. **They will change words** — actors rephrase, add hesitations, shift
+emphasis, and the take is usually **better** for it. So timings cannot come from the script:
+
+- **Script-based forced alignment is the wrong tool** (Montreal Forced Aligner, Gentle) — it
+  assumes the transcript matches and fights every deviation.
+- **Transcribe-then-align is the right one** (WhisperX-class: ASR + wav2vec2 word-level
+  timestamps). It handles deviation by construction, because it aligns what was *actually
+  said*. Largely off-the-shelf — this probably needs **integrating, not inventing**.
+- **And the recording becomes the source of truth.** If the performance beats the line, the
+  script is updated to match it — so the tool's real job is *reconcile script to performance*,
+  not merely emit word spaces.
+
 | hundreds of unique individuals, monsters, bespoke scenes | **no — and not needed** | **systemic variety substitutes for unique authored assets** |
 
 **That substitution is the whole economic argument.** One derived tree routine instead of a
