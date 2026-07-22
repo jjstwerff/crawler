@@ -89,6 +89,9 @@ which primitive to fit, and octagonal towers in particular merge into circles.
 | 12 | `ROAD_STRAIGHT` | line | no |
 | 13 | `ROAD_CURVE` | circle | no |
 
+A rectangle needs no type of its own — it is four `WALL_STONE_STRAIGHT` runs, so a house's
+walls fit as lines like any other straight wall.
+
 Values 1, 4 and 5 are what the builder writes today; `solid_kind(t) = t == 1 || t == 4 || t == 5`
 already exists and keeps its meaning. What changes is that the distinction stops being
 discarded.
@@ -131,6 +134,71 @@ size for a closed form. `rad` stays a **count of hexes** — the hexes a straigh
 before leaving the shape — and becomes world units as `rad * HEX_LEN` inside the call.
 
 `halfwidth` defaults to half a hex step (`HEX_LEN / 2`), which is a wall one cell thick.
+
+## Rectangles, and why a flipped house must read the same
+
+A rectangle is the shape that goes wrong on a hex grid, and it goes wrong for a reason worth
+stating once.
+
+**The bug.** `stamp_house` builds its rectangle in **index space**:
+
+```
+for rr in 0..hh { for qq in 0..ww { … st_set(…, x0 + qq, y0 + rr, …) } }
+```
+
+Odd-r offset shifts odd rows half a hex right *in the world*. So a rectangle in `(col, row)`
+is not a rectangle in the world — it is a zigzag-edged parallelogram whose left and right
+walls are ragged, and whose raggedness depends on the parity of `y0`. Mirror it and the
+lopsidedness flips with it, so the mirrored house reads as a *different, visibly wrong*
+building rather than the same house facing the other way. The door has the same fault: at
+`qq == ww / 2` it lands at a different world position depending on parity.
+
+**The fix is the same rule as everything else** — define the shape in world space and
+rasterise it, never index-walk the grid:
+
+```
+draw_rect(cells, w, h, cx, cy, wid, dep, rot, mirror, halfwidth, type)
+```
+
+`cx, cy` anchor cell · `wid, dep` in hex steps · `rot` 0–5 (60° steps) · `mirror` boolean.
+Together `rot` and `mirror` are the 12 orientations — the D6 the lattice actually has, which
+is the same set `stencil_rotate` / `stencil_mirror` already implement.
+
+The four sides are line segments in world space, numbered from the local +x side
+counter-clockwise, and the walls are `draw_line` along each.
+
+**Doors and windows are intervals on a side, not cells:**
+
+```
+draw_opening_side(cells, rect, side, t0, t1)     t in [0,1] along that side
+draw_window_side (cells, rect, side, t0, t1, sill, head)
+```
+
+An interval is what makes flipping exact. Under a mirror, side *i* maps to its mirror side and
+`t → 1 − t`, so an opening at `[0.4, 0.6]` maps to `[0.4, 0.6]` — the same door, in the same
+place, on the mirrored wall. A door pinned to `qq == ww / 2` cannot do that, because `ww / 2`
+rounds and the rounding does not mirror.
+
+### The invariant, and it is exact
+
+> **Drawing commutes with orientation.** For every one of the 12 orientations `g`:
+>
+>     draw(g · spec)  ==  g · draw(spec)
+
+That is what "a flipped house reads the same" means precisely, and it is checkable by exact
+set equality rather than by eye. A house drawn mirrored must be cell-for-cell identical to the
+mirror of the house drawn straight — and, because the walls carry stored edges, **edge-for-edge
+identical too**.
+
+**Gate:** for all 12 orientations, `draw(g·spec)` equals `g·draw(spec)` on cells **and** on
+edges. Compare with `edgeset_count_all` and `edgeset_equal`, not `edgeset_count` — the halo
+matters. That is not a guess: rotating a walled ring lost 8 of its 18 stored edges because a
+rim edge is owned by a cell *outside* the extent, and the in-chunk count could not tell "the
+wall was lost" from "the wall moved into the halo" (`hex_field` `8308180`).
+
+**Negative control:** index-space rasterisation must FAIL this. Draw the house the old way at
+an odd `y0` and the equality has to break — if it passes, the test is not seeing parity and
+proves nothing.
 
 ## The fit — class is read, parameters are detected
 
@@ -185,6 +253,7 @@ of snapped to one of six hex-edge directions — the reason the surface layer ex
 
 | | gate | negative control |
 |---|---|---|
+| **orientation** | `draw(g·spec) == g·draw(spec)` for all 12, cells **and** edges | the index-space rectangle must fail it at odd `y0` |
 | rasterise | `draw_tower(rad 2)` marks the same 12 cells as today | a 10% radius change moves the marked set |
 | shape | `rad 8` fits **one arc** where today it fits six straights | perturb the radius 10% → the fitted radius must follow |
 | octagon | an octagonal tower fits **8 faces**, not 1 arc | draw it with the round type → it fits 1 arc, proving the type is what decides |
@@ -209,9 +278,11 @@ the fit rather than the geometry happening to fit.
 1. **`Surfaces` moves into `hex_field`.** Mechanical, and it unblocks everything below; the
    gate is that `edgetest` / `jointest` / `matchtest` pass unchanged, as they did for the
    EdgeSet merge.
-2. **The `draw_*` verbs into the library**, on the one rasterise rule. Crawler's
+2. **The `draw_*` verbs into the library**, on the one rasterise rule — `draw_rect` **first**,
+   because a second agent is blocked on it today. Crawler's `stamp_house`,
    `stamp_round_tower` and the road painter become one-line callers. Gate: the `rad 2` cell
-   set is byte-identical to today's, and `rad 8` becomes round.
+   set is byte-identical to today's, `rad 8` becomes round, and drawing commutes with all 12
+   orientations.
 3. **`fit_runs` into the library**; crawler supplies the shape table. Gate: `rad 8` fits one
    arc where today it fits six straights; an octagon fits eight faces.
 4. `Sim` carries the `Surfaces`.
