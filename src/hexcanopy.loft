@@ -264,3 +264,89 @@ pub fn crown_connected(s: HexSet, lb: Labels, t: Trees, i: integer) -> boolean {
   }
   seen == total
 }
+
+// ── T2: THE CANOPY IS AN INTERVAL ───────────────────────────────────────────
+//
+// A roof is a surface — one z per cell. A canopy is occupied SPACE, because it is drawn by
+// filling it: every cell carries (base, top). That needs no new structure, just two Heights
+// fields — the floor/soffit pair the arch work already used.
+//
+// The base is not authored. "Height to live crown" is a forestry quantity driven by
+// COMPETITION: a crowded tree self-prunes the lower branches its neighbours have shaded,
+// which is why forest-grown trees have long clean boles and open-grown ones branch to the
+// ground. T1's partition already measures that competition, so the base falls out of it:
+//
+//     shade_t = 1 - won_t / potential_t          (potential = what it would hold alone)
+//     bole_t  = H_t * shade_t * BOLE_MAX
+//     top     = bole_t + (H_t - bole_t) * u      u = 1 - q2/D_t
+//     base    = bole_t
+//
+// At the crown edge u = 0, so top == base and the crown closes exactly. At the trunk u = 1,
+// so top == H_t: crowding does not shorten the tree, it raises the crown base and shallows
+// the crown. One parameter, and it is a ratio.
+//
+// NOTE the circularity, deliberately not resolved here: the partition competes on the
+// POTENTIAL profile, and the realized crown is derived from the result. Feeding realized
+// crowns back into the competition is the T6 relaxation, and this is the second place the
+// same shape has appeared (the first being T1's contested-cell rule).
+pub const BOLE_MAX = 0.8;
+
+// How many cells this crown would hold with no neighbours at all.
+pub fn crown_potential(t: Trees, i: integer, s: HexSet) -> integer {
+  dd = t.tr_d[i] ?? 0;
+  n = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        if crown_q2(t, i, lattice_k(q, r), lattice_m(q, r)) < dd { n = n + 1; }
+      }
+    }
+  }
+  n
+}
+
+// The fraction of its potential crown this tree lost to its neighbours.
+pub fn crown_shade(t: Trees, i: integer, s: HexSet, lb: Labels, ct: Labels) -> float {
+  pot = crown_potential(t, i, s);
+  if pot <= 0 { return 0.0; }
+  won = crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0);
+  1.0 - ((won as float) / (pot as float) ?? 0.0)
+}
+
+pub fn crown_bole(t: Trees, i: integer, s: HexSet, lb: Labels, ct: Labels) -> float {
+  ((t.tr_p[i] ?? 0) as float) * crown_shade(t, i, s, lb, ct) * BOLE_MAX
+}
+
+// Fill the canopy interval for every owned cell.
+pub fn canopy_heights(t: Trees, s: HexSet, lb: Labels, ct: Labels,
+                      top: Heights, base: Heights) {
+  bl: vector<float> = [];
+  for i in 0..t.tr_n { bl += [crown_bole(t, i, s, lb, ct)]; }
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        id = label_get(lb, q, r);
+        if id >= 0 {
+          for i in 0..t.tr_n {
+            if (t.tr_id[i] ?? -1) == id {
+              dd = t.tr_d[i] ?? 0;
+              hh = (t.tr_p[i] ?? 0) as float;
+              bo = bl[i] ?? 0.0;
+              qq = crown_q2(t, i, lattice_k(q, r), lattice_m(q, r));
+              u = 1.0 - ((qq as float) / (dd as float) ?? 0.0);
+              if u < 0.0 { u = 0.0; }
+              height_set(base, q, r, bo);
+              height_set(top, q, r, bo + (hh - bo) * u);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// The canopy's thickness at a cell — what T9's cards have to fill and T10 has to make
+// match the opacity sight_clear reports.
+pub fn canopy_depth(top: Heights, base: Heights, q: integer, r: integer) -> float {
+  height_get(top, q, r) - height_get(base, q, r)
+}

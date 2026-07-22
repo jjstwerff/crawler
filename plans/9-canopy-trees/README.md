@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — T1 done**, gated in `make test`. The design is settled enough to build against:
+**Active — T1 and T2 done**, gated in `make test`. The design is settled enough to build against:
 **[TREES.md](TREES.md)** is the document; this README is the phase tracker.
 
 ## Goal
@@ -34,7 +34,7 @@ architecture.
 | phase | deliverable | state |
 |---|---|---|
 | **T1** | `Labels` + the argmax partition | **DONE** — `src/canopytest.loft` |
-| **T2** | crown profiles + canopy height (base *and* top) | |
+| **T2** | crown profiles + canopy height (base *and* top) | **DONE** — `src/canopyvoltest.loft` |
 | **T3** | lean + trunk placement | |
 | **T4** | `Skeleton` + constrained shortest-path derivation | |
 | **T5** | pipe-model radii + the mesh/card split | |

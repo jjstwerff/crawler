@@ -217,7 +217,7 @@ property already gated — determinism, order-independence, and drainage.
 `crown_t` is one of the profiles already built: a dome, a cone, or a paraboloid, centred on
 the trunk, scaled by vigour. **No new geometry.**
 
-### I-VOLUME — a canopy is an INTERVAL, not a surface
+### I-VOLUME — a canopy is an INTERVAL, not a surface  — **BUILT, T2**
 A roof is a surface: one z per cell. A canopy is **occupied space** — it has a base as well
 as a top, and it is rendered by filling that space (§6). So a canopy cell carries
 `(crown_base, crown_top)`, not a single height.
@@ -226,6 +226,43 @@ That needs no new structure: it is two `Heights` fields, exactly the floor/soffi
 arch work already used (§13). But it does mean **`roof_ponds` and the drainage invariant do
 not apply** — they are statements about a surface. The canopy's equivalent invariant is
 I-OPACITY below.
+
+**The base is derived, not authored.** "Height to live crown" is a forestry quantity driven
+by competition — a crowded tree self-prunes the lower branches its neighbours have shaded —
+and T1's partition already measures competition:
+
+```
+   shade_t = 1 − won_t / potential_t        potential = what it would hold alone
+   bole_t  = H_t · shade_t · BOLE_MAX
+   top     = bole_t + (H_t − bole_t)·u      u = 1 − q2/D_t
+   base    = bole_t
+```
+
+At the crown edge `u = 0`, so `top == base` and the crown closes exactly. At the trunk
+`u = 1`, so `top == H_t`. Measured against increasing competition:
+
+```
+   rivals reaching it   won/potential   bole    crown depth
+   0                        85/85       0.00       10.00
+   1                        80/85       0.47        9.53
+   2                        75/85       0.94        9.06
+   4                        53/85       3.01        6.99
+```
+
+Monotone, with one parameter (a max-bole ratio), and it reproduces the forestry result:
+**forest-grown trees have long clean boles, open-grown ones branch to the ground.** The
+tree's full height is untouched throughout — crowding raises the base, it does not stunt.
+
+The crown does *not* taper to zero at the last cell: an "edge" cell is one with a neighbour
+outside, and a neighbour is `√3` away, so an edge cell can sit a full neighbour-distance
+inside the true radius. The bound is `H·(1 − (R−√3)²/R²)` = 3.86 here, measured 2.50. **The
+crown closes at the true boundary, which falls between cells.**
+
+**The circularity is deliberate and unresolved.** The partition competes on the *potential*
+profile; the realized crown is derived from the outcome. Feeding realized crowns back in is
+T6, and this is the second place the same shape has appeared — the first being T1's
+contested-cell rule. Gated meanwhile: no non-owner's realized crown outtops the owner
+anywhere (0 cells), so the two are consistent for now.
 
 ### I-PIPE — structure is derived, not chosen
 Shinozaki's pipe model: the cross-sectional area of a stem is proportional to the leaf area

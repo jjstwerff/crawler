@@ -1,0 +1,194 @@
+// canopyvoltest — plan #9 T2: the canopy as an INTERVAL, and where its base comes from.
+//
+// A roof is a surface; a canopy is occupied space, because it is drawn by filling it. So a
+// cell carries (base, top) — two Heights fields, the arch work's floor/soffit pair.
+//
+// The base is the interesting half. "Height to live crown" is a forestry quantity driven
+// by competition, and T1's partition already measures competition — so the base is
+// DERIVED, not authored, and the gate is that it reproduces the forestry result: a
+// forest-grown tree has a long clean bole, an open-grown one branches to the ground.
+use hexform;
+use hexcanopy;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy volume test (plan #9 T2) ===");
+  ok = true;
+  q0 = -22; r0 = -16; gw = 45; gh = 33;
+
+  // ── 1. an open-grown tree: crown to the ground, full depth ───────────────
+  s1 = hexset_chunk(q0, r0, gw, gh);
+  fill(s1);
+  t1 = trees_new();
+  tree_add(t1, 0, 0, 10, 64, 0);
+  l1 = labels_new(q0, r0, gw, gh);
+  c1 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t1, s1, l1, c1);
+  top1 = heights_new(q0, r0, gw, gh);
+  bas1 = heights_new(q0, r0, gw, gh);
+  canopy_heights(t1, s1, l1, c1, top1, bas1);
+  sh1 = crown_shade(t1, 0, s1, l1, c1);
+  bo1 = crown_bole(t1, 0, s1, l1, c1);
+  println("open-grown: won {crown_count_strict(s1, l1, c1, 0)} of {crown_potential(t1, 0, s1)} potential");
+  println("   shade {sh1}, bole {bo1}, depth at the trunk {canopy_depth(top1, bas1, 0, 0)}");
+  if sh1 > 0.000001 { ok = false; }             // nothing took anything from it
+  if bo1 > 0.000001 { ok = false; }             // so it branches to the ground
+  d0 = canopy_depth(top1, bas1, 0, 0);
+  if d0 < 9.999 || d0 > 10.001 { ok = false; }  // full crown depth = its height
+
+  // ── 2. the crown closes exactly at its edge ──────────────────────────────
+  // At u = 0 the two surfaces meet: top == base. If they did not, the canopy would end in
+  // a vertical wall of foliage.
+  worst = 0.0;
+  edge = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if label_get(l1, q, r) == 0 {
+        // an edge cell has a neighbour outside the crown
+        out = false;
+        for i in 0..6 {
+          if label_get(l1, nb_q(q, r, i), nb_r(q, r, i)) != 0 { out = true; }
+        }
+        if out {
+          edge = edge + 1;
+          dpt = canopy_depth(top1, bas1, q, r);
+          if dpt > worst { worst = dpt; }
+        }
+      }
+    }
+  }
+  // "Edge" means HAS A NEIGHBOUR OUTSIDE, and a neighbour is sqrt(3) away — so an edge
+  // cell can sit a full neighbour-distance inside the true crown radius, and its canopy is
+  // correspondingly still thick. The bound is therefore not a chosen number:
+  //
+  //     depth_max_at_edge = H * (1 - (R - sqrt3)^2 / R^2)
+  //
+  // which is the crown's own taper evaluated at the innermost radius an edge cell can
+  // occupy. The crown does close to zero — but at the true boundary, which falls BETWEEN
+  // cells, not at the last cell centre.
+  rr = 8.0;
+  ri = rr - 1.7320508075688772;
+  bound = 10.0 * (1.0 - (ri * ri) / (rr * rr) ?? 0.0);
+  println("crown edge: {edge} cells, thickest {worst}; bound H*(1-(R-sqrt3)^2/R^2) = {bound}");
+  if edge <= 0 { ok = false; }
+  if worst > bound { ok = false; }
+  println("   -> the crown closes at the true boundary, which falls between cells");
+
+  // and nowhere may the interval be inverted
+  bad = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if label_get(l1, q, r) >= 0 && canopy_depth(top1, bas1, q, r) < -0.000001 {
+        bad = bad + 1;
+      }
+    }
+  }
+  println("inverted intervals (base above top): {bad}");
+  if bad != 0 { ok = false; }
+
+  // ── 3. crowding raises the bole and shallows the crown — monotonically ───
+  println("bole and crown depth against increasing competition:");
+  prev_bole = -1.0;
+  prev_depth = 1000.0;
+  for j in 0..4 {
+    sj = hexset_chunk(q0, r0, gw, gh);
+    fill(sj);
+    tj = trees_new();
+    tree_add(tj, 0, 0, 10, 64, 0);
+    if j >= 1 { tree_add(tj, 16, 0, 10, 64, 1); }
+    if j >= 2 { tree_add(tj, -16, 0, 10, 64, 2); }
+    if j >= 3 {
+      tree_add(tj, 0, 24, 10, 64, 3);
+      tree_add(tj, 0, -24, 10, 64, 4);
+    }
+    lj = labels_new(q0, r0, gw, gh);
+    cj = labels_new(q0, r0, gw, gh);
+    canopy_partition(tj, sj, lj, cj);
+    tp = heights_new(q0, r0, gw, gh);
+    bs = heights_new(q0, r0, gw, gh);
+    canopy_heights(tj, sj, lj, cj, tp, bs);
+    won = crown_count_strict(sj, lj, cj, 0);
+    pot = crown_potential(tj, 0, sj);
+    bo = crown_bole(tj, 0, sj, lj, cj);
+    dep = canopy_depth(tp, bs, 0, 0);
+    println("   {j} rival(s) reaching it: won {won}/{pot}, bole {bo}, crown depth {dep}");
+    if bo < prev_bole - 0.000001 { ok = false; }       // bole never shortens
+    if dep > prev_depth + 0.000001 { ok = false; }     // crown never deepens
+    prev_bole = bo;
+    prev_depth = dep;
+    // the tree's TOTAL height is unchanged: crowding raises the base, it does not shorten
+    tot = height_get(tp, 0, 0);
+    if tot < 9.999 || tot > 10.001 { ok = false; }
+  }
+  println("   -> the bole lengthens and the crown shallows monotonically, and the tree's");
+  println("      full height is untouched: competition raises the base, it does not stunt");
+
+  // ── 4. I-CROWN: the top is the owner's own profile, and it is the max ────
+  s5 = hexset_chunk(q0, r0, gw, gh);
+  fill(s5);
+  t5 = trees_new();
+  tree_add(t5, -8, 0, 10, 64, 0);
+  tree_add(t5,  8, 0, 10, 64, 1);
+  tree_add(t5,  0, 18,  7, 49, 2);
+  l5 = labels_new(q0, r0, gw, gh);
+  c5 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t5, s5, l5, c5);
+  tp5 = heights_new(q0, r0, gw, gh);
+  bs5 = heights_new(q0, r0, gw, gh);
+  canopy_heights(t5, s5, l5, c5, tp5, bs5);
+  // does any NON-owner's realized crown poke above the owner's top?
+  poke = 0;
+  worst_poke = 0.0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      id = label_get(l5, q, r);
+      if id >= 0 {
+        zt = height_get(tp5, q, r);
+        for i in 0..t5.tr_n {
+          if (t5.tr_id[i] ?? -1) != id {
+            dd = t5.tr_d[i] ?? 0;
+            qq = crown_q2(t5, i, lattice_k(q, r), lattice_m(q, r));
+            if qq < dd {
+              bo = crown_bole(t5, i, s5, l5, c5);
+              hh = (t5.tr_p[i] ?? 0) as float;
+              u = 1.0 - ((qq as float) / (dd as float) ?? 0.0);
+              zo = bo + (hh - bo) * u;
+              if zo > zt + 0.000001 {
+                poke = poke + 1;
+                if zo - zt > worst_poke { worst_poke = zo - zt; }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  println("I-CROWN: cells where a non-owner's REALIZED crown outtops the owner: {poke} (worst {worst_poke})");
+  println("   the partition competes on the POTENTIAL profile; the realized crown is derived");
+  println("   from the outcome. Any disagreement here is exactly what T6 relaxation resolves.");
+  if poke != 0 { ok = false; }
+
+  // ── 5. determinism ───────────────────────────────────────────────────────
+  tp6 = heights_new(q0, r0, gw, gh);
+  bs6 = heights_new(q0, r0, gw, gh);
+  canopy_heights(t5, s5, l5, c5, tp6, bs6);
+  diff = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      da = height_get(tp5, q, r) - height_get(tp6, q, r);
+      db = height_get(bs5, q, r) - height_get(bs6, q, r);
+      if da < 0.0 { da = 0.0 - da; }
+      if db < 0.0 { db = 0.0 - db; }
+      if da > 0.0 || db > 0.0 { diff = diff + 1; }
+    }
+  }
+  println("determinism: re-derived field differs in {diff} cells");
+  if diff != 0 { ok = false; }
+
+  if ok { println("=== CANOPYVOL OK ==="); } else { println("=== FAIL ==="); }
+}
