@@ -102,12 +102,33 @@ Its reach is fixed by arithmetic already in the repo, not by taste:
      (both shrink together, so the ratio does not improve with range)
 ```
 
-So the *structures* half is sound and the *trees* half is the claim to falsify first: the
-displaced field can only ever give a tree its **mass**, never its trunk. That is adequate
-only past the range where the trunk goes sub-pixel (~1000 m at 1080p/0.8 rad, where the
-trunk is 0.72 px); nearer than that the trunk is visible and unrepresentable, and plan #9's
-**canopy cards** carry the band. Heightfields also cannot overhang, which is the same
-statement from the other side: a crown wider than its trunk is not a height function.
+So the *structures* half is sound by construction. The *trees* half looked like the claim to
+falsify — a heightfield can never resolve a 0.3 m trunk, nor overhang a crown past it — until
+the framing corrected it (user, 2026-07-22): **a tree is mostly its canopy, and a trunk is
+only ever seen on a stand-alone tree or at the side of a wood.** That dissolves both
+objections instead of working around them, because:
+
+- **A closed canopy IS a height function.** The overhang a heightfield cannot express is
+  *interior* to the wood, and interior is exactly what you never see from outside it. Better:
+  plan #9 already stores it that way — `canopy_heights(..., top, base)` fills a per-cell
+  `top` **Heights** raster, gated by `canopyvoltest`. The far field's canopy layer is not
+  built, it is *read*.
+- **The boundary only says WHICH TREES are exposed — it is an indicator, not geometry.** The
+  traced edge of the canopy set (`trace(s: HexSet)`, plan #5) plus its isolated components
+  selects the stand-alone and wood-edge trees; the partition's `Labels` map each such cell to
+  its owning tree, and **that tree's trunk is then drawn from its own skeleton** — the
+  position `Trees` already assigned it (which is under its crown, not at the boundary cell),
+  the radius from T5's pipe model, the lean from T3. So the pass is *select, then emit what
+  the tree already knows*, and the interior trees keep their skeletons unrendered. Trunks
+  stay optional in the other direction too: past the range where even an edge trunk is
+  sub-pixel, the selector drops it and only the canopy surface remains.
+
+> **The trunk set must be derived from the FIELD, never from the view.** "Draw a trunk where
+> you can see the silhouette" is the natural formulation and it is wrong: it makes the trunk
+> set camera-dependent, so every rotation invalidates the cached layers and **I-PARALLAX
+> collapses** — the exact motion that was supposed to be free becomes the most expensive.
+> Deriving it from `trace()` is view-independent, so it caches. This is the one place where
+> two invariants in this plan can quietly destroy each other.
 
 > **This is the third appearance of one rule** — plan #5's resolution floor, plan #9 T8's
 > `R > 2√3` field/object fork, and now this. `src/scale.loft` already exposes it as
