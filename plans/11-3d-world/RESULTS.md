@@ -334,16 +334,37 @@ measuring nothing**, each in a different way: wrong geometry, too-small perturba
 tautology. The pattern worth carrying: *a green control deserves the same suspicion as a red
 gate — read what it would take for it to go red, and check that is reachable.*
 
-### Unverified, and the likely first defect
+### VERIFIED — the frames, once `xvfb` was installed
 
-**Depth.** `gl_clear` is documented as clearing colour and says nothing about depth;
-`gl_create_window` does not document a depth attachment; and this is the **first pass in the
-repo ever to enable `GL_DEPTH_TEST`** — every other one only disables it. Depth state is set
-before the clear, the ordering under which a combined clear would work. If frame 1 looks
-right and later frames do not, that is it → `LOFT-HANDOFF.md` **G1**.
+`src/shot3d.loft` renders one first-person frame headlessly and writes a PNG. **The world
+draws.** A dungeon reads as an enclosed stone room — warm floor, dark faceted walls, sky
+above the wall tops; turning 90° gives a different wall layout, so the camera is genuinely
+read rather than baked; the surface reads as open green country under sky with actor boards
+standing on the ground.
+
+**The prediction I wrote was wrong, and measuring cost less than the hedging.** G1 said depth
+might be missing. A 40-line probe — near quad drawn first, far quad drawn second, read one
+pixel — came back blue. **Depth works.** Install the instrument before writing the risk.
+
+**What the frames DID find, and it is silent:** `gl_window_height()` reports **576** while the
+GL drawable is **541**. Measured three ways: a full-screen NDC quad covers 541 of 576 rows; the
+shortfall is a constant 35 px at 400, 576 and 720 px windows; and a ±0.9 quad stops at row 548,
+which rules out a capture offset (that would run to 575). So **any camera taking its aspect
+from `gl_window_height()` renders the world ~6.5% too tall** — and a stretched world looks
+like a world. Exactly the class I-STAND exists to forbid, found only because the frame was
+finally looked at. → `LOFT-HANDOFF.md` **G3**.
 
 Also recorded: **G2**, a cross-module struct return failing with `expected Camera, got
 Camera`, fixed by qualifying the type. The cost there is the diagnostic, not the fix.
+
+### Still open on the picture
+
+- **The aspect** (G3) — needs the drawable size from `graphics`; subtracting 35 would
+  hard-code one host's answer.
+- **The dark ring** on the surface frame is unexplained: plausibly the overland's mountain
+  faces, but *plausible is not measured*. Count the solid cells around the player before
+  believing it.
+- Actors are **flat colours**, not sprites — the texture atlas rides with P8.
 
 ## P5, restated — the seam that has never been connected
 

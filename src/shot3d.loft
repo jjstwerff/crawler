@@ -1,0 +1,58 @@
+// shot3d — render ONE first-person frame headlessly and write it to a PNG, so the plan #11
+// P3/P4 picture can be looked at instead of assumed. Run under xvfb:
+//
+//   xvfb-run -a -s "-screen 0 1024x576x24" \
+//     loft --interpret --path ../loft/ --lib ... --lib src/ src/shot3d.loft
+//
+// `gl_screenshot` reads the GL back buffer, which is reliable headlessly (CLAUDE.md — it is
+// what `make probe` uses); only `make shot`'s window-grab is positionally unreliable.
+//
+// It prints the numbers a still frame cannot show — scene vertex count, actor count, the
+// camera's own position — so a black PNG can be told apart from an empty world.
+use graphics;
+use sim;
+use hex_grid;
+use hexscene;
+use view3d;
+
+fn shot_at(s: Sim, name: text, prog: integer, avbo: integer) {
+  (pq, pr) = sim_player_hex(s);
+  (svao, sn) = build_scene3d(s);
+  view3d_frame(s, prog, svao, sn, 1024.0, 576.0);
+  na = view3d_actors(s, prog, avbo, 1024.0, 576.0);
+  ok = graphics::gl_screenshot(1024, 576, "/tmp/{name}.png");
+  hz = horizon_y(view3d_camera(s, 1024.0, 576.0));
+  println("{name}: hex=({pq},{pr}) scene_verts={sn} actor_verts={na} horizon_y={hz} png={ok}");
+  graphics::gl_delete_vao(svao);
+}
+
+fn main() {
+  if !graphics::gl_create_window(1024, 576, "story 3d shot") {
+    println("shot3d: no window (need xvfb / a display)");
+    return;
+  }
+  prog = make_view3d_shader();
+  avbo = make_actor_vbo();
+  println("shot3d: shader={prog} actor_vbo={avbo}");
+
+  // A DUNGEON level: enclosed, so walls should fill much of the frame.
+  d = sim_new_gen(777, 1);
+  sim_compute_fov(d);
+  graphics::gl_poll_events();
+  shot_at(d, "p3_dungeon", prog, avbo);
+
+  // Turned 90 degrees from the same spot — a different wall layout must appear, which is
+  // the cheapest check that the camera is actually being read rather than baked.
+  d.heading = d.heading + 1.5707963267948966;
+  graphics::gl_poll_events();
+  shot_at(d, "p3_dungeon_turned", prog, avbo);
+
+  // The SURFACE: open country, so the frame should be mostly ground and sky with the
+  // horizon across it. If the dungeon looks right and this does not, the fault is scale.
+  u = sim_new_gen(777, 0);
+  sim_compute_fov(u);
+  graphics::gl_poll_events();
+  shot_at(u, "p3_surface", prog, avbo);
+
+  graphics::gl_destroy_window();
+}

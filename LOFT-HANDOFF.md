@@ -348,26 +348,55 @@ directly *and* through a struct parameter). If `u16` becomes index-assignable, n
 1.7× of the P6 minimisation. `src/edgetest.loft` already asserts the footprint, so the
 gain shows up as a gate change rather than a claim.
 
-## G1 — `gl_clear` does not say whether it clears DEPTH, and `gl_create_window` does not say whether there IS one
+## G1 — RESOLVED, and my prediction was WRONG: depth works fine
 
-`sev:low` · `wa:partial` · `area:graphics` · `hit-by:crawler` — **not yet reproduced, because
-this box has no display and no `xvfb`.** Written up so it is not rediscovered.
+Written up as a risk, then **measured once `xvfb` was installed, and refuted.** Kept because
+the refutation is the useful part.
 
-`graphics::gl_clear(color)` is documented as *"Clear the screen with an RGBA color"* and says
-nothing about the depth buffer; `gl_create_window` does not document whether the context is
-created with a depth attachment at all. Crawler's plan #11 P3 pass is the FIRST consumer in
-the repo to `gl_enable(GL_DEPTH_TEST)` — every other pass (`gpushot`, `gpuatlas`, `observe`,
-`postprobe`, `worldprobe`) only ever *disables* it, so the question has never been asked.
+**Claim:** `gl_clear` is documented as clearing colour only and `gl_create_window` does not
+document a depth attachment, so plan #11's 3D pass — the first in the repo ever to
+`gl_enable(GL_DEPTH_TEST)` — might have no depth buffer.
 
-**Symptom to expect if it bites:** the first frame is correct and every later frame is wrong
-(nothing new draws, or the world z-fights), because stale depth is never cleared.
+**Measurement:** draw a NEAR quad (z=-0.5) FIRST, then a FAR quad (z=+0.5) over it. Without
+depth the last draw wins and the centre pixel is the far colour; with depth the near one
+survives. Centre pixel came back `(0, 76, 255)` — **blue, the near quad. Depth works.**
 
-**Workaround in place (partial):** enable depth test and `gl_depth_mask(true)` *before*
-`gl_clear`, which is the ordering under which a combined clear would take effect. If the
-implementation clears colour only, this does not help and the API needs a depth-clear.
+The lesson is the cheapness: one 40-line probe and one pixel settled a question I had
+written two paragraphs of hedging about. **Install the instrument before writing the risk.**
 
-**Ask:** document what `gl_clear` clears, and whether `gl_create_window` requests a depth
-buffer — or add `gl_clear_depth()`.
+## G3 — `gl_window_height()` overstates the DRAWABLE by a constant 35 px
+
+`sev:medium` · `wa:partial` · `area:graphics` · `hit-by:crawler` — **measured, not inferred.**
+
+`gl_create_window(1024, 576, …)` succeeds and `gl_window_height()` returns **576**, but the
+GL drawable is **541**. A full-screen NDC quad (±1 in both axes) covers only rows 35..575 of
+a 576-row screenshot — 541 rows — anchored at GL's bottom-left, so the shortfall appears as a
+black band along the TOP of every captured frame.
+
+**It is a constant, not a scale factor:**
+
+| requested window height | content rows | drawn | missing |
+|---|---|---|---|
+| 576 | 35..575 | 541 | **35** |
+| 400 | 35..399 | 365 | **35** |
+| 720 | 35..719 | 685 | **35** |
+
+**It is the drawable, not a screenshot offset.** A quad at NDC ±0.9 lands at rows 62..548. A
+35-row capture offset would push content to 64..575 — hard against the bottom edge. It stops
+at 548, which is exactly `35 + 0.95·541`. `gl_viewport(0,0,1024,576)` does not help: the
+drawable clamps it.
+
+**Why it matters beyond the black band:** any camera that takes its aspect ratio from
+`gl_window_height()` is wrong by `576/541 = 1.065`, so **the world renders ~6.5% too tall**.
+That is silent — a stretched world looks like a world — and it is exactly the class of defect
+plan #11's I-STAND exists to forbid.
+
+**Workaround (partial):** none that is clean. The 35 is environment-specific (it smells like a
+decoration inset, though this was measured under `xvfb` with no window manager), so
+subtracting it would hard-code one host's answer.
+
+**Ask:** have `gl_window_width`/`gl_window_height` report the **framebuffer** size, or add
+`gl_drawable_width`/`gl_drawable_height`. A camera cannot be correct without it.
 
 ## G2 — "expected Camera, got Camera" on a cross-module struct return
 
