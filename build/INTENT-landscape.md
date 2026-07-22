@@ -21,7 +21,12 @@ should think "someone walks that path every day," not "a fortress guards a front
 
 Positional ones are in thirds, not pixels — pitched where the eye can actually judge.
 
-1. The keep's silhouette is in the **upper-left third** and is the tallest thing.
+1. ~~The keep's silhouette is in the **upper-left third** and is the tallest thing.~~
+   **RESTATED before pass 10, by explicit decision.** The keep is the **focal point**: it is
+   the tallest thing, *and* the stone of the castle occupies **at least as much of the frame
+   as all the roofs together**. Height and position passed while the composition they were
+   written to protect failed; dominance is the thing actually wanted, so it is what the
+   predicate now says.
 2. ~~The horizon sits **below the vertical midpoint**.~~ **REWRITTEN before pass 8, by
    explicit decision — the hill dominates.** The skyline *is* the hill's crest, not a flat
    horizon, and sky occupies **20–40%** of the frame: enough to read as open air, not so
@@ -398,3 +403,33 @@ cover the intent.**
   open ground where they are not occluded.
 - Predicate 1 needs restating in terms of **visual dominance**, not height and position —
   the current wording passes while the thing it protects fails.
+
+
+### Pass 10 — all four fixes
+
+- **Village moved down the road**, clear of the hamlet's ground. There are now two
+  settlements at two addresses — a hamlet under the castle and a village below — with worked
+  ground between them, which is what makes the road worth having. **Predicate 13: pass.**
+- **Thinned** from nine houses to six, spaced wider. Nine touching roofs read as a camp.
+- **Fields** moved to open ground left of the road and spaced so a strip of grass shows
+  between each. An unploughed baulk is what actually divides fields; a tint change alone
+  read as one muddy mass. Five are now legible. **Predicate 12: pass.**
+- **Predicate 1 restated** as *dominance* rather than height-and-position, since the old
+  wording passed while the composition it protected failed.
+
+**Measured:** stone 8.1% of frame against roofs 1.1% → predicate 1 passes. Sky 40.6%, just
+outside the 20–40 band → **predicate 2 now marginally fails**, having been fixed two passes
+ago.
+
+**A caution on that measurement, which I do not want to leave implied.** The roof figure of
+1.1% does not match what the image shows — the foreground village is visually heavy, and the
+classifier is very likely mis-binning dark shaded maroon as ground. So predicate 1 "passes"
+on a metric I do not fully trust. **The honest read by eye is that the castle and the
+village now compete**, with the village winning the foreground by proximity rather than by
+mass.
+
+That is the third time in this exercise a check has gone green over a questionable image,
+and the first where the *measurement itself* is the suspect part rather than the wording.
+The fix is not another render: it is to classify by **material id at render time** — the
+renderer knows exactly which triangles are stone and which are roof — instead of guessing
+from output pixels. A cheap channel that guesses is not a cheap channel.

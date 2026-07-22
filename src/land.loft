@@ -312,28 +312,36 @@ fn main() {
   }
 
   // ── fields: five patches, five tints, beside the village ────────────────
+  // On OPEN ground to the left of the road, and spaced so a strip of grass shows between
+  // each — an unploughed baulk is what actually divides fields, and it reads as a boundary
+  // where a tint change alone read as one muddy mass.
   for i in 0..5 {
-    fx = 26.0 - (i as float) * 3.0 + 8.0 * cos((i as float) * 1.9);
-    fy = -34.0 + (i as float) * 6.5 + 5.0 * sin((i as float) * 2.3);
+    fx = 2.0 - (i as float) * 13.5;
+    fy = -30.0 + (i as float) * 3.2;
+    if i >= 3 { fx = 10.0 - ((i - 3) as float) * 14.0; fy = -12.0; }
     fm = add_material(sc, material_color("crop",
-      0.52 + 0.13 * cos((i as float) * 2.1),
-      0.48 + 0.09 * sin((i as float) * 1.3),
-      0.22 + 0.10 * cos((i as float) * 0.9)));
-    fi = add_mesh(sc, mesh_field(fx, fy, 15.0, 11.0, 0.5 * sin((i as float) * 1.7), 5));
+      0.60 + 0.16 * cos((i as float) * 2.1),
+      0.56 + 0.12 * sin((i as float) * 1.3),
+      0.26 + 0.13 * cos((i as float) * 0.9)));
+    fi = add_mesh(sc, mesh_field(fx, fy, 11.5, 9.0, 0.30 * sin((i as float) * 1.7), 5));
     add_node(sc, node_at("field", fi, fm, mat4_identity()));
   }
 
   // ── the village: more houses than the hamlet, fronting the road ─────────
-  for i in 0..9 {
-    f = 0.30 + (i as float) * 0.055;
+  // Moved DOWN the road, clear of the hamlet's ground, and thinned from nine houses to
+  // six with wider spacing. Nine touching roofs read as a camp; six spaced along a road
+  // read as a village. Two settlements now sit at two addresses with worked ground
+  // between them — which is also what makes the road worth having.
+  for i in 0..6 {
+    f = 0.04 + (i as float) * 0.042;
     rx = 30.0 - 52.0 * f;
     ry = -30.0 + 30.0 * f + 7.0 * sin(f * 3.4);
-    side = 5.4;
-    if i % 2 == 1 { side = 0.0 - 5.4; }
-    hx = rx + side * 0.9;
-    hy = ry + side * 0.5;
+    side = 6.6;
+    if i % 2 == 1 { side = 0.0 - 6.6; }
+    hx = rx + side * 0.85;
+    hy = ry + side * 0.55;
     add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
-              m(5.4), m(4.0), m(3.0), 0.6 + 0.25 * ((i as float) - 4.0));
+              m(5.2), m(3.8), m(2.9), 0.6 + 0.25 * ((i as float) - 3.0));
   }
 
   add_figure(sc, 8.0, -19.0, terrain(8.0, -19.0), m_skin);
