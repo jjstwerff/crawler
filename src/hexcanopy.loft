@@ -395,3 +395,75 @@ pub fn crown_residual(lx: float, ly: float, alpha: float) -> float {
 pub fn crown_radius(t: Trees, i: integer) -> float {
   sqrt(((t.tr_d[i] ?? 0) as float) * 0.25) ?? 0.0
 }
+
+// ── T6: RELAXATION ──────────────────────────────────────────────────────────
+//
+// The circularity T1 and T2 both met at small scale, now met properly: a tree that holds
+// more crown has more leaf area, so it grows taller, so it holds more crown. That is
+// positive feedback, and positive feedback is exactly what does NOT obviously settle.
+//
+// The design asked whether to run a fixed number of iterations (cheap, arbitrary) or to a
+// proven fixed point (correct, but we have no proof). Neither is needed, and the reason is
+// a payoff from a decision made back in T1:
+//
+//     I-EXACT forces heights to be INTEGERS, so the state space is FINITE.
+//     A deterministic map on a finite space must reach a fixed point or enter a cycle.
+//     Both are detectable exactly, by remembering the states already visited.
+//
+// So termination is DETECTED rather than assumed, and the caller is told which of the three
+// outcomes happened rather than being handed a number and a hope. Measured: fixed points
+// everywhere tried, in 1-8 iterations, and reached from very different starting states.
+pub const RELAX_FIXED  = 0;   // settled: the heights stopped moving
+pub const RELAX_CYCLE  = 1;   // returned to a state already visited
+pub const RELAX_BUDGET = 2;   // ran out of iterations having done neither
+
+// One step: re-partition, then set each height from the crown it actually holds.
+//   H_next = H0 * (won/potential)^p          rounded to nearest, kept integral
+fn relax_step(t: Trees, s: HexSet, lb: Labels, ct: Labels,
+              h0: vector<integer>, p: integer) -> boolean {
+  moved = false;
+  canopy_partition(t, s, lb, ct);
+  for i in 0..t.tr_n {
+    pot = crown_potential(t, i, s);
+    won = crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0);
+    if pot > 0 {
+      num = h0[i] ?? 0;
+      den = 1;
+      for j in 0..p { num = num * won; den = den * pot; }
+      nh = (2 * num + den) / (2 * den) ?? 0;
+      if nh < 1 { nh = 1; }
+      if nh != (t.tr_p[i] ?? 0) { moved = true; }
+      t.tr_p[i] = nh;
+    }
+  }
+  moved
+}
+
+// Relax to termination, and say which kind it was.
+pub fn canopy_relax(t: Trees, s: HexSet, lb: Labels, ct: Labels,
+                    h0: vector<integer>, p: integer, maxit: integer) -> (integer, integer) {
+  hist: vector<integer> = [];
+  for j in 0..maxit * t.tr_n { hist += [0]; }
+  seen = 0;
+  for it in 0..maxit {
+    // has this exact state been visited before?  (finite space => must repeat or settle)
+    for h in 0..seen {
+      same = true;
+      for i in 0..t.tr_n {
+        if (hist[h * t.tr_n + i] ?? 0) != (t.tr_p[i] ?? 0) { same = false; }
+      }
+      if same {
+        canopy_partition(t, s, lb, ct);
+        return (it, RELAX_CYCLE);
+      }
+    }
+    for i in 0..t.tr_n { hist[seen * t.tr_n + i] = t.tr_p[i] ?? 0; }
+    seen = seen + 1;
+    if !relax_step(t, s, lb, ct, h0, p) {
+      canopy_partition(t, s, lb, ct);
+      return (it, RELAX_FIXED);
+    }
+  }
+  canopy_partition(t, s, lb, ct);
+  (maxit, RELAX_BUDGET)
+}

@@ -421,8 +421,9 @@ Most of it is reuse — §2 is why. That is the point of having built the rest f
    constrained to the tree's own cells (I-NOTRESPASS), then contracted so that a run of
    collinear nodes becomes one branch segment. Contraction is the same idea as the 2D
    matcher (§P2): recover runs, do not emit per-cell geometry.
-4. **Relaxation** — crown extent affects height affects competition. This is iterative and
-   needs a convergence criterion. **The main open risk in this design.**
+4. ~~**Relaxation**~~ — **BUILT, T6.** Crown extent affects height affects competition, and
+   the feedback is positive, so it does not obviously settle. The risk turned out to be
+   answerable rather than merely survivable — see below.
 
 ## 6. How it is drawn — and why that changes the design
 
@@ -506,7 +507,7 @@ per species?
 | **T3** | lean + trunk placement | Case B: signs and ordering of the lean vectors; lean bounded by crown radius |
 | **T4** | `Skeleton` + shortest-path derivation | I-REACH on every cell; I-NOTRESPASS with a negative control (a deliberately trespassing route must be caught) |
 | **T5** | pipe-model radii + the mesh/card split | `d ∝ √cells` at the trunk; `Σ child² = parent²` at every node to float tolerance; the split falls out of `cells_supported ≥ N` |
-| **T6** | relaxation to convergence | fixed point reached; identical from two different starting states |
+| **T6** | relaxation to convergence | **DONE** — fixed point in 2–8 iterations; identical heights *and* label field from three very different starts |
 | **T7** | levels: canopy over understory | an understory tree is a distinct level; `sight_clear` to the sky decides suppression |
 | **T8** | object/field split | a crown below the resolution floor is emitted as an object, not a field |
 | **T9** | branch-aligned cards | terminal directions are smooth (no per-cell jitter); no card leaves its own crown, by I-NOTRESPASS |
@@ -526,9 +527,13 @@ written rather than after.
    decisively: it is the only one of the three that depends on `d²` rather than `d`, so it
    alone keeps the partition in exact integer arithmetic (I-EXACT). The other two would
    reintroduce the rounding asymmetry T1 was built to remove.
-3. **Relaxation**: is a fixed number of iterations acceptable (cheap, deterministic), or
-   must it run to a proven fixed point (correct, and a convergence proof we do not yet
-   have)?
+3. ~~**Relaxation**: fixed iteration count or a proven fixed point?~~ **ANSWERED by T6 —
+   neither was needed.** I-EXACT makes heights integers, so the state space is **finite**,
+   so a deterministic map on it must reach a fixed point or enter a cycle. Both are
+   detectable by remembering the states visited, so **termination is detected rather than
+   assumed** and the caller is told which of `FIXED` / `CYCLE` / `BUDGET` happened. No
+   convergence proof required, and no arbitrary iteration count. A direct payoff from the
+   exact-arithmetic decision made in T1.
 4. **Species**: is one parameter set enough for now, or do you want species from the start
    (they change crown profile, shade tolerance and branching angle — and shade tolerance is
    what makes mixed forests interesting)?
@@ -544,3 +549,43 @@ written rather than after.
    not a fork of it and not a phase inside it: #5 stays the geometry library, trees become
    its first consumer that is not architecture. Recommend a separate issue + directory,
    with #5 listed as a dependency — but it is your call.
+
+
+## 9. T6 — what relaxation actually does
+
+The loop is: partition → measure crowns → set heights from them → partition again. The
+feedback is positive (more crown → taller → more crown), which is precisely the shape that
+need not settle.
+
+**Termination is detected, not assumed.** I-EXACT keeps heights integral, so the state
+space is finite and a deterministic map on it must reach a fixed point or cycle. Recording
+the visited states catches either, and the caller gets `FIXED` / `CYCLE` / `BUDGET` rather
+than a number and a hope. Measured: fixed points everywhere tried, never a cycle.
+
+**The fixed point belongs to the scene, not to the starting state.** Case B from three very
+different starts:
+
+```
+   start 200/200/120  ->  FIXED after 2   ->  124 / 177 / 95
+   start  50/ 50/ 50  ->  FIXED after 2   ->  124 / 177 / 95
+   start 400/ 20/300  ->  FIXED after 3   ->  124 / 177 / 95
+```
+
+identical heights **and** identical label fields (0 cells differing). Had that failed, the
+"fixed point" would have been an artefact of where we started and the whole derivation
+arbitrary.
+
+**Competitive exclusion falls out.** Five trees packed 9 apart with `R = 8`:
+
+```
+   182 / 11 / 164 / 11 / 182       FIXED after 8
+```
+
+The flanked trees collapse to near nothing while the outer pair, each with an open side,
+keep their height — and the stand stays exactly mirror-symmetric. Suppression is coded
+nowhere; it is what the partition plus the pipe model do when trees are too close.
+
+It also amplifies the T3 finding: at Case B's fixed point B is 43% taller than A, because A
+is pressed by two rivals and B by one. The relaxation does not merely preserve that
+asymmetry, it compounds it — which is why measuring it before relaxing (T3) and after (T6)
+gives different-looking answers to the same question.

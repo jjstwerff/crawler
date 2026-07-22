@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — T1–T5 done**, gated in `make test`. The design is settled enough to build against:
+**Active — T1–T6 done**, gated in `make test`. The design is settled enough to build against:
 **[TREES.md](TREES.md)** is the document; this README is the phase tracker.
 
 ## Goal
@@ -38,13 +38,13 @@ architecture.
 | **T3** | lean + trunk placement | **DONE** — `src/canopyleantest.loft` |
 | **T4** | `Skeleton` + constrained shortest-path derivation | **DONE** — `src/canopyskeltest.loft` |
 | **T5** | pipe-model radii + the mesh/card split | **DONE** — `src/canopypipetest.loft` |
-| **T6** | relaxation to convergence | |
+| **T6** | relaxation to convergence | **DONE** — `src/canopyrelaxtest.loft` |
 | **T7** | levels: canopy over understory | |
 | **T8** | object/field split below the resolution floor | |
 | **T9** | branch-aligned cards | |
 | **T10** | opacity calibration (I-OPACITY) | |
 
-**T6 and T10 are the real work remaining.** T1–T3 were mostly reuse; T4 is done.
+**T10 is the real work remaining.** T1–T6 are done; T7–T9 are mostly reuse of plan #5.
 
 ## The one idea to keep hold of
 
@@ -56,7 +56,8 @@ mesh/card threshold without an artistic choice.
 
 ## Open questions
 
-Carried in [TREES.md §8](TREES.md). Case B has now been **run and printed** (TREES.md §3)
-— it contradicted the design's predicted crown ordering, and the measured numbers are
-awaiting confirmation. The one that blocks work beyond T5 is whether relaxation needs a
-proven fixed point or a fixed iteration count.
+Carried in [TREES.md §8](TREES.md). Case B has been **run and printed** (TREES.md §3) — it
+contradicted the design's predicted crown ordering, and the numbers await confirmation. The
+relaxation question is **answered** (TREES.md §9): termination is detected, because exact
+arithmetic makes the state space finite. What remains open is species, card art, and how
+`r_min` is picked.

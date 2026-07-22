@@ -1,0 +1,150 @@
+// canopyrelaxtest — plan #9 T6: relaxation.
+//
+// The design flagged this as the main risk, and the risk is real: a tree that holds more
+// crown grows taller and so holds more crown. Positive feedback does not obviously settle.
+//
+// The design offered a choice between a fixed iteration count (cheap, arbitrary) and a
+// proven fixed point (correct, unproven). Neither was needed, and the reason is a payoff
+// from T1: I-EXACT makes heights INTEGERS, so the state space is finite, so a
+// deterministic map on it must reach a fixed point or enter a cycle — and both are
+// detectable by remembering the states visited. Termination is DETECTED, not assumed.
+use hexform;
+use hexcanopy;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn kindname(k: integer) -> text {
+  if k == RELAX_FIXED { return "FIXED"; }
+  if k == RELAX_CYCLE { return "CYCLE"; }
+  "BUDGET"
+}
+
+fn main() {
+  println("=== story canopy relaxation test (plan #9 T6) ===");
+  ok = true;
+  q0 = -26; r0 = -20; gw = 53; gh = 41;
+
+  // ── 1. it settles, and it says so ────────────────────────────────────────
+  s = hexset_chunk(q0, r0, gw, gh);
+  fill(s);
+  t = trees_new();
+  tree_add(t,  0,  0, 200, 64, 0);
+  tree_add(t, 14,  0, 200, 64, 1);
+  tree_add(t,  0, 18, 120, 36, 2);
+  h0: vector<integer> = [200, 200, 120];
+  lb = labels_new(q0, r0, gw, gh);
+  ct = labels_new(q0, r0, gw, gh);
+  (it, kind) = canopy_relax(t, s, lb, ct, h0, 2, 40);
+  println("Case B relaxed: {kindname(kind)} after {it} iterations");
+  println("   final heights {t.tr_p[0] ?? 0} / {t.tr_p[1] ?? 0} / {t.tr_p[2] ?? 0}");
+  if kind != RELAX_FIXED { ok = false; }
+  if it <= 0 { ok = false; }
+
+  // ── 2. PATH INDEPENDENCE — the design's stated gate ──────────────────────
+  // Very different starting heights must reach the identical fixed point, heights AND
+  // label field. If they did not, the "fixed point" would be an artefact of where we
+  // started and the whole derivation would be arbitrary.
+  s2 = hexset_chunk(q0, r0, gw, gh);
+  fill(s2);
+  t2 = trees_new();
+  tree_add(t2,  0,  0, 50, 64, 0);      // all three start equal and low
+  tree_add(t2, 14,  0, 50, 64, 1);
+  tree_add(t2,  0, 18, 50, 36, 2);
+  lb2 = labels_new(q0, r0, gw, gh);
+  ct2 = labels_new(q0, r0, gw, gh);
+  (it2, kind2) = canopy_relax(t2, s2, lb2, ct2, h0, 2, 40);
+  println("from a different start (50/50/50): {kindname(kind2)} after {it2}");
+  println("   final heights {t2.tr_p[0] ?? 0} / {t2.tr_p[1] ?? 0} / {t2.tr_p[2] ?? 0}");
+  same = true;
+  for i in 0..3 { if (t.tr_p[i] ?? 0) != (t2.tr_p[i] ?? 0) { same = false; } }
+  diff = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if label_get(lb, q, r) != label_get(lb2, q, r) { diff = diff + 1; }
+    }
+  }
+  println("   identical heights {same}, label field differs in {diff} cells");
+  if !same { ok = false; }
+  if diff != 0 { ok = false; }
+
+  // a third start, deliberately lopsided
+  s3 = hexset_chunk(q0, r0, gw, gh);
+  fill(s3);
+  t3 = trees_new();
+  tree_add(t3,  0,  0, 400, 64, 0);
+  tree_add(t3, 14,  0,  20, 64, 1);
+  tree_add(t3,  0, 18, 300, 36, 2);
+  lb3 = labels_new(q0, r0, gw, gh);
+  ct3 = labels_new(q0, r0, gw, gh);
+  (it3, kind3) = canopy_relax(t3, s3, lb3, ct3, h0, 2, 40);
+  same3 = true;
+  for i in 0..3 { if (t.tr_p[i] ?? 0) != (t3.tr_p[i] ?? 0) { same3 = false; } }
+  println("from a lopsided start (400/20/300): {kindname(kind3)} after {it3}, identical {same3}");
+  if !same3 { ok = false; }
+  println("   -> the fixed point belongs to the SCENE, not to where the iteration began");
+
+  // ── 3. competitive exclusion emerges ─────────────────────────────────────
+  // Pack five trees at a spacing well under their crown diameter. The interior ones should
+  // be suppressed — which is what a real stand does, and it is not coded anywhere.
+  s4 = hexset_chunk(q0, r0, gw, gh);
+  fill(s4);
+  t4 = trees_new();
+  hh: vector<integer> = [200, 200, 200, 200, 200];
+  tree_add(t4, -18, 0, 200, 64, 0);
+  tree_add(t4,  -9, 0, 200, 64, 1);
+  tree_add(t4,   0, 0, 200, 64, 2);
+  tree_add(t4,   9, 0, 200, 64, 3);
+  tree_add(t4,  18, 0, 200, 64, 4);
+  lb4 = labels_new(q0, r0, gw, gh);
+  ct4 = labels_new(q0, r0, gw, gh);
+  (it4, kind4) = canopy_relax(t4, s4, lb4, ct4, hh, 2, 40);
+  println("five trees packed at 9 apart with R=8: {kindname(kind4)} after {it4}");
+  println("   heights {t4.tr_p[0] ?? 0} / {t4.tr_p[1] ?? 0} / {t4.tr_p[2] ?? 0} / {t4.tr_p[3] ?? 0} / {t4.tr_p[4] ?? 0}");
+  if kind4 != RELAX_FIXED { ok = false; }
+  // the outer pair keeps the open side; the ones flanked on both sides are suppressed
+  if (t4.tr_p[1] ?? 0) >= (t4.tr_p[0] ?? 0) { ok = false; }
+  if (t4.tr_p[3] ?? 0) >= (t4.tr_p[4] ?? 0) { ok = false; }
+  // and the stand stays symmetric
+  if (t4.tr_p[0] ?? 0) != (t4.tr_p[4] ?? 0) { ok = false; }
+  if (t4.tr_p[1] ?? 0) != (t4.tr_p[3] ?? 0) { ok = false; }
+  println("   -> the flanked trees are suppressed and the stand stays mirror-symmetric.");
+  println("      Competitive exclusion is not coded anywhere; it falls out.");
+
+  // ── 4. NEGATIVE CONTROL: termination is detected, not assumed ────────────
+  // Run a scene that needs several iterations with a budget of one. It must report
+  // BUDGET, not quietly hand back a state as though it had settled.
+  s5 = hexset_chunk(q0, r0, gw, gh);
+  fill(s5);
+  t5 = trees_new();
+  tree_add(t5, -18, 0, 200, 64, 0);
+  tree_add(t5,  -9, 0, 200, 64, 1);
+  tree_add(t5,   0, 0, 200, 64, 2);
+  tree_add(t5,   9, 0, 200, 64, 3);
+  tree_add(t5,  18, 0, 200, 64, 4);
+  lb5 = labels_new(q0, r0, gw, gh);
+  ct5 = labels_new(q0, r0, gw, gh);
+  (it5, kind5) = canopy_relax(t5, s5, lb5, ct5, hh, 2, 1);
+  println("negative control — the same scene with a budget of 1: {kindname(kind5)}");
+  if kind5 != RELAX_BUDGET { ok = false; }
+  println("   -> a caller is told which of the three outcomes happened, never just a number");
+
+  // ── 5. the relaxed state is still a valid partition ──────────────────────
+  n0 = crown_count_strict(s4, lb4, ct4, 0);
+  n2 = crown_count_strict(s4, lb4, ct4, 2);
+  tot = 0;
+  for i in 0..5 { tot = tot + crown_count(s4, lb4, i); }
+  owned = 0;
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw {
+      if label_get(lb4, q, r) >= 0 { owned = owned + 1; }
+    }
+  }
+  println("post-relaxation I-PART: owned {owned} == sum of crowns {tot} -> {owned == tot}");
+  if owned != tot { ok = false; }
+
+  if ok { println("=== CANOPYRELAX OK ==="); } else { println("=== FAIL ==="); }
+}
