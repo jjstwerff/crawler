@@ -419,8 +419,27 @@ re-run instead of read, which is exactly how a real failure gets waved through. 
 a bad call here — a commit was made on a red gate on the assumption it was this flake, which
 happened to be true and should not have been assumed.
 
-**Suspicion (unverified):** a race or staleness in the per-library native cdylib build /
-program cache — the first failure names a cdylib compile, and `LOFT_NO_CACHE=1` is the known
+3. **Third instance — CAUSE FOUND.** `FAIL: crystal`, a native crash inside
+   `loft_shared_n_hexset_chunk` (`panic_cannot_unwind` through `shared_store_dispatch`).
+   Timestamps settled it: `hex_field/src/hex_field.loft` mtime **20:00:30**, its cdylib
+   `libloft_auto_hex_field.so` **19:59:57** — **the source was 33 seconds newer than the
+   native artifact**, and the file was uncommitted-modified because another agent was
+   editing that tree live. Crawler compiled loft-side against new source while calling an
+   old cdylib. Re-run after the build settled: green.
+
+**So the root is not a race in the toolchain but a STALE-CDYLIB WINDOW**, and `--lib` on a
+shared working tree makes that window routine rather than rare: any sibling save between the
+cdylib build and the consumer's run produces a native/source mismatch. The two earlier
+instances fit the same shape (a cdylib compile failure, then a diagnostic-free compile
+failure).
+
+**Consumer-side rule this earns:** a native crash or a diagnostic-free compile failure in a
+`--lib` sibling is a **staleness symptom until proven otherwise** — compare the source mtime
+against the cdylib mtime BEFORE debugging anything. That check is two `ls` calls and it would
+have saved every one of the three.
+
+**Suspicion for the remaining half (unverified):** the toolchain does not appear to detect
+that the cdylib is older than its source — the first failure names a cdylib compile, and `LOFT_NO_CACHE=1` is the known
 lever for the sibling `--lib` staleness bug (#322, not re-verified on 2026.7.2).
 
 **Ask:** make the compile gate's failure output always include the diagnostic, and make a
