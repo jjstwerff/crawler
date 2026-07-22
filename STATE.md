@@ -7,37 +7,39 @@ table in `tools/run_tests.sh` is the roster). Written as a handoff.
 where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
 first-person 3D and the hex field becomes the world the player stands in.
 
-> ## → NEXT, in this order (user ruling, 2026-07-22): **1. the EdgeSet merge, 2. the towers**
+> ## → NEXT: **the towers + doors** (plan #11 P5's tail). The EdgeSet merge is DONE.
 >
-> ### 1. The `hex_field` / `hexedge` EdgeSet merge — cross-repo, do it first
+> ### 1. The `hex_field` / `hexedge` EdgeSet merge — ✅ DONE 2026-07-22
 >
-> `loft-libs-world@dev` grew `hex_field::EdgeSet` mid-session (*"stencils carry walls — an
-> EdgeSet ported, not invented"*). It collided with crawler's on three names; crawler's is now
-> **`EdgeCollider`** (`collider_new`, `edge_material`) and `make test` is green — **but that
-> rename is not the merge.**
+> Library `5b4bba1`, crawler `2a72763`. `edgetest` and `sweeptest` pass **unchanged**, which
+> was the contract. Crawler is **−192 lines** and owns no edge storage at all.
 >
-> **The question the merge turns on, and the answer:** *which layer owns `Surfaces`?*
-> **The library owns the STORAGE; crawler keeps the PHYSICS — for now.** Measured:
-> `hexedge` has 49 public names, of which only ~27 touch storage; the rest are `Surfaces`,
-> `Materials`, `Features`, `collide`, `sweep_path`, `sight_clear`. The two already agree on
-> the edge key (doubled midpoint), the canonical slot set `{0,2,3}` and the type widths —
-> those were ported *from* crawler — so the merge is a lift, not a redesign.
+> **The question was posed as *which layer owns `Surfaces`* and that was the wrong axis.** The
+> real one is **where the WRITE POLICY lives**: the library owns the storage *and* the surface
+> slot, and crawler owns the rule that decides what goes in it. `edge_set_surf` writes what it
+> is told; first-writer-wins and nearest-surface arbitration stay at the call site where a
+> reader can see which rule is in force. Baking either into storage would silently settle
+> junctions for every consumer — a physics decision hidden in a data structure.
+> `Surfaces`/`Materials`/`Features` did stay crawler-side, but as a *consequence* of that rule.
 >
-> **Migration, in order:**
-> 1. `hex_field::EdgeSet` gains a **surface slot** (`eg_surf: vector<i32>`, 0 = passable) beside
->    `eg_mat`, plus `edge_set_surf`/`edge_surf`. That is the only library change.
-> 2. It must also expose its index — `eg_index` is **private** today, and crawler cannot build
->    accessors on storage it cannot address. Either make it `pub`, or export enough
->    get/set pairs that crawler never needs it.
-> 3. Crawler deletes `EdgeCollider`'s storage (`ee_surf`/`ee_mat`/`ee_index`) and re-points
->    `passable`/`collide`/`sweep_path`/`edges_solid`/`edges_cut` at the library type.
->    `Surfaces`/`Materials`/`Features` stay crawler-side until P5 settles their shape.
-> 4. Gate: `edgetest` and `sweeptest` must pass **unchanged** — they are already
->    contract-shaped (24 headings, negative controls), which is what makes this checkable.
+> `eg_index` stayed **private**: publishing `(cell, direction, slot)` would freeze the layout
+> into the contract for both consumers, against a saving of one index computation per write in
+> a build-time loop. Instead `edgeset_equal`/`edgeset_digest`/`edgeset_bytes` let consumers
+> compare, checksum and gate the footprint without reading the vectors.
 >
-> **Coordinate before touching `loft-libs-world`** — another agent works that tree on `dev`.
+> **Two lessons, both about verification rather than geometry:**
+> - **The precondition was gated, then deleted.** `mergetest` proved the two index maps were
+>   the same permutation — halo included, origin-spanning, negative control firing at exactly
+>   2 — and was removed in the same commit that made it a tautology. *A test whose subject has
+>   been deleted does not become a regression test; it becomes a check that passes for the
+>   wrong reason.*
+> - **Two agents in one working tree is the real hazard**, and it is worse than the git-index
+>   one because it has no undo: ~40 minutes of a transiently uncompilable shared library, a
+>   silently-failed edit, and each agent debugging the other's errors. Detection is `stat -c
+>   %Y` twice. → `EXTRACTION.md`, and **LOFT-HANDOFF G5** for the misleading diagnostic it
+>   produced.
 >
-> ### 2. Then the towers + doors (plan #11 P5's tail)
+> ### 2. NOW: the towers + doors (plan #11 P5's tail)
 >
 > Towers are **hexagons** (`hex_distance == rad`), doors are **gaps** (`v = 0`). One phase
 > across four layers — builder → `Sim` → `build_field` → renderer — because stopping short of

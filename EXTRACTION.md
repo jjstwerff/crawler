@@ -863,10 +863,11 @@ two share only the field types they both read.
 
 1. **`hex_scene` camera — extractable NOW**, and it is a file move plus a `loft.toml`. It was
    written package-clean from the first line for exactly this. Blocked on nothing.
-2. **`hex_field`'s `EdgeSet` half** — after plan #11 P5, when real surfaces go on edges and
-   the shape of `Features`/`Materials` stops moving. Extracting a model that is still
-   changing costs two migrations. Its gate travels with it: `edgetest` is already
-   contract-shaped (24 headings, a negative control), `sweeptest` likewise.
+2. **`hex_field`'s `EdgeSet` half — DONE 2026-07-22** (library `5b4bba1`, crawler `2a72763`).
+   It did not wait for P5 after all: the library grew an `EdgeSet` of its own from the
+   authoring side, and two structures sharing an edge key, a slot set and their type widths
+   were going to drift, so converging them became the cheaper move. `edgetest` and
+   `sweeptest` pass **unchanged**, which was the contract.
 
    > **It started arriving from the other side on 2026-07-22.** `hex_field` gained its own
    > `EdgeSet` — material-only, for stencils that carry walls, i.e. the **authoring** layer —
@@ -878,6 +879,15 @@ two share only the field types they both read.
    > midpoint), the canonical slot set `{0,2,3}` and the type widths, because those were
    > ported from here, so the merge is a lift rather than a redesign. The open question is
    > which layer owns `Surfaces`, and that is still P5's to answer.
+   >
+   > **RESOLVED — and the answer was not "which layer owns `Surfaces`" but WHERE THE WRITE
+   > POLICY LIVES.** The library owns the storage *and* the surface slot; crawler owns the
+   > policy that decides what goes in it. `edge_set_surf` writes what it is told;
+   > first-writer-wins and nearest-surface arbitration stay at the call site, where a reader
+   > can see which rule is in force. Baking either into storage would silently settle
+   > junctions for every consumer of the library — a physics decision made in a data
+   > structure. `Surfaces`/`Materials`/`Features` stayed crawler-side, but that turned out to
+   > be a consequence of the rule rather than the question itself.
    >
    > **The "lift, not a redesign" claim is now GATED, not read** (2026-07-22, `src/mergetest.loft`).
    > Reading the two index functions side by side agrees they are the same permutation; this
@@ -910,6 +920,27 @@ two share only the field types they both read.
    > (`a0a3c2e` carries `mergetest.loft` under a LOFT-HANDOFF message that has nothing to do
    > with it). Files survive, the message is lost. Stage and commit in **one** command, or
    > commit explicit paths — never leave work staged across a tool call.
+   >
+   > **Its companion, from the other side of the same near-miss:** `git diff` before
+   > committing in a shared tree and check whether any of it is someone else's. The rule
+   > above stops you *losing* your work to their commit; this one stops you *taking* theirs
+   > into yours. Both were nearly violated on the same day, in opposite directions.
+   >
+   > **And the file-level hazard is worse than the git one, because it has no undo.** Two
+   > agents edited `hex_field.loft` in one working tree for ~40 minutes: the tree was
+   > transiently uncompilable for BOTH consumers, one agent's constructor edit silently
+   > failed to apply (→ LOFT-HANDOFF G5), and each was debugging errors the other was
+   > creating. Detection is cheap — `stat -c %Y` on the file twice, or `ls -l` against the
+   > clock — and worth doing the moment a sibling library errors in a way that does not match
+   > your own edit. The structural fix is a smaller file: one 1350-line module with two
+   > writers is the actual defect, and splitting `EdgeSet` out would have removed the
+   > collision entirely.
+   >
+   > *The loop worth keeping:* `edgeset_equal` compares the **halo** because this package's
+   > own negative control had once failed to fail in exactly those slots — a finding recorded
+   > by one agent that changed a design decision made by the other, with neither asking. That
+   > is the shared-repo model paying off, and it is the reason to fix the collision rather
+   > than retreat to private copies.
 3. **The extrusion** — after P3 ships a view worth reusing. Do not extract a renderer that has
    never rendered.
 

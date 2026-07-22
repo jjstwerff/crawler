@@ -467,6 +467,43 @@ signature resolves to something the checker treats as distinct from `hexscene::C
 **The cost is the diagnostic, not the fix.** "expected X, got X" gives the reader nothing to
 act on; printing the fully-qualified names on both sides would make it self-explanatory.
 
+## G5 — assigning to an UNDECLARED struct field reports a type error on the RECEIVER
+
+**Observed 2026-07-22, during the EdgeSet merge.** Writing to a field that does not exist on
+a struct does not say "no such field". It says the struct variable is changing type:
+
+```
+error: Variable 'e' cannot change type from EdgeSet to integer;
+       use a new variable name or cast with 'as'
+  1230 |   if was == 0 && mat != 0 { e.eg_live = e.eg_live + 1; }
+```
+
+`eg_live` was never declared in `EdgeSet` — a constructor edit had silently not applied. The
+diagnostic names `e`, names its type, and says "integer", none of which is the problem, and
+it points at the *use* site rather than at the missing declaration.
+
+**Why it is worth recording: it produces a plausible WRONG fix.** The message reads as a
+restriction on self-referential field assignment (`x.f = x.f + 1` "retyping" `x`), so the
+natural response is to restructure the assignment through a local — which does not help,
+because the field still does not exist. That happened here, and the error simply moved.
+
+**The disproof is one line:** an identical self-referential assignment on a field that IS
+declared compiles and runs clean —
+
+```loft
+if was == 0 && surf != 0 { e.eg_count = e.eg_count + 1; }   // eg_count IS in the struct
+```
+
+— green through all 44 `hex_field` package tests. So the form is fine; the declaration is
+what was missing.
+
+**Rule:** on "cannot change type from `<Struct>` to `<something>`", check that every field
+named on that line is actually declared, BEFORE touching the assignment. Two seconds against
+a restructure that cannot work.
+
+Not filed upstream yet — the fix is a diagnostic change (name the unknown field, point at the
+struct), which is `sev:low` / `wa:clean` but a real time sink.
+
 ## Filed
 
 *(nothing yet — move entries here with their issue numbers)*
