@@ -350,3 +350,48 @@ pub fn canopy_heights(t: Trees, s: HexSet, lb: Labels, ct: Labels,
 pub fn canopy_depth(top: Heights, base: Heights, q: integer, r: integer) -> float {
   height_get(top, q, r) - height_get(base, q, r)
 }
+
+// ── T3: LEAN AND TRUNK PLACEMENT ────────────────────────────────────────────
+//
+// The lean is the crown's centre of mass measured from the trunk that carries it. It is
+// not an effect added for looks: it is what the partition already says about which side of
+// the tree kept its light.
+//
+// Its bound is a THEOREM, not a measurement. Every owned cell lies within R of the trunk
+// (that is what the crown test is), and a centroid of points inside a disc is inside that
+// disc — so |lean| < R always. A trunk can never lean outside the crown it carries, and no
+// clamp is needed to make that true.
+pub fn crown_lean_world(s: HexSet, lb: Labels, ct: Labels,
+                        t: Trees, i: integer) -> (float, float) {
+  n = crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0);
+  if n <= 0 { return (0.0, 0.0); }
+  (sk, sm) = crown_lean(s, lb, ct, t, i);
+  nf = n as float;
+  (((sk as float) / nf ?? 0.0) * 0.8660254037844386,
+   ((sm as float) / nf ?? 0.0) * 0.5)
+}
+
+// Where the crown attaches to the trunk.
+//
+// A tree leans TOWARD its crown's centre of mass, because that is the load it has to stand
+// under — but the roots anchor the base, so it cannot get all the way there. `alpha` is
+// how much of the imbalance the trunk takes out by tilting; the REMAINDER is what the
+// branches have to carry asymmetrically, which is the whole reason T4's branch structure
+// comes out unequal on a crowded tree.
+pub fn trunk_top(t: Trees, i: integer, lx: float, ly: float,
+                 alpha: float) -> (float, float) {
+  rx = ((t.tr_k[i] ?? 0) as float) * 0.8660254037844386;
+  ry = ((t.tr_m[i] ?? 0) as float) * 0.5;
+  (rx + lx * alpha, ry + ly * alpha)
+}
+
+// The imbalance the branches must carry: the part of the lean the trunk did not take out.
+pub fn crown_residual(lx: float, ly: float, alpha: float) -> float {
+  rx = lx * (1.0 - alpha);
+  ry = ly * (1.0 - alpha);
+  sqrt(rx * rx + ry * ry) ?? 0.0
+}
+
+pub fn crown_radius(t: Trees, i: integer) -> float {
+  sqrt(((t.tr_d[i] ?? 0) as float) * 0.25) ?? 0.0
+}

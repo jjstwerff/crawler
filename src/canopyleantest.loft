@@ -1,0 +1,139 @@
+// canopyleantest — plan #9 T3: lean and trunk placement.
+//
+// The lean is the crown's centre of mass measured from the trunk carrying it. Everything
+// about it is already in T1's partition; T3 only reads it out and decides what the trunk
+// does about it.
+//
+// This gate also runs the design's CASE B for the first time, and prints it in full so the
+// numbers can be corrected — the design left open whether they should be plotted first or
+// printed for correction, and printing them is the cheaper way round.
+use hexform;
+use hexcanopy;
+
+fn fill(s: HexSet) {
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) { hexset_set(s, q, r, true); }
+  }
+}
+
+fn main() {
+  println("=== story canopy lean test (plan #9 T3) ===");
+  ok = true;
+  q0 = -26; r0 = -20; gw = 53; gh = 41;
+  alpha = 0.6;
+
+  // ── 1. an isolated tree does not lean. At all. ───────────────────────────
+  s1 = hexset_chunk(q0, r0, gw, gh);
+  fill(s1);
+  t1 = trees_new();
+  tree_add(t1, 0, 0, 10, 64, 0);
+  l1 = labels_new(q0, r0, gw, gh);
+  c1 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t1, s1, l1, c1);
+  (lx1, ly1) = crown_lean_world(s1, l1, c1, t1, 0);
+  println("isolated tree: lean ({lx1}, {ly1})");
+  if lx1 != 0.0 || ly1 != 0.0 { ok = false; }
+
+  // ── 2. the bound is a theorem: |lean| < R, with no clamp ─────────────────
+  // Every owned cell is within R of the trunk, and a centroid of points inside a disc is
+  // inside that disc. So the design's "a trunk cannot lean outside the crown it carries"
+  // needs no enforcement — it cannot be violated.
+  println("lean magnitude against crown radius, as competition grows:");
+  prev = -1.0;
+  for j in 0..4 {
+    sj = hexset_chunk(q0, r0, gw, gh);
+    fill(sj);
+    tj = trees_new();
+    tree_add(tj, 0, 0, 10, 64, 0);
+    if j >= 1 { tree_add(tj, 13, 0, 10, 64, 1); }
+    if j >= 2 { tree_add(tj, 11, 12, 10, 64, 2); }
+    if j >= 3 { tree_add(tj, 11, -12, 10, 64, 3); }
+    lj = labels_new(q0, r0, gw, gh);
+    cj = labels_new(q0, r0, gw, gh);
+    canopy_partition(tj, sj, lj, cj);
+    (lx, ly) = crown_lean_world(sj, lj, cj, tj, 0);
+    mag = sqrt(lx * lx + ly * ly) ?? 0.0;
+    rad = crown_radius(tj, 0);
+    println("   {j} rival(s) to the east: lean ({lx}, {ly}) |lean| {mag} < R {rad}");
+    if mag >= rad { ok = false; }
+    // every rival is to the EAST, so the tree must lean west, harder each time
+    if j >= 1 && lx >= 0.0 { ok = false; }
+    if mag < prev - 0.000001 { ok = false; }
+    prev = mag;
+  }
+  println("   -> leans away from its rivals, monotonically, and never leaves its own crown");
+
+  // ── 3. the trunk takes part of it out; the branches carry the rest ───────
+  s3 = hexset_chunk(q0, r0, gw, gh);
+  fill(s3);
+  t3 = trees_new();
+  tree_add(t3, 0, 0, 10, 64, 0);
+  tree_add(t3, 13, 0, 10, 64, 1);
+  l3 = labels_new(q0, r0, gw, gh);
+  c3 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t3, s3, l3, c3);
+  (lx3, ly3) = crown_lean_world(s3, l3, c3, t3, 0);
+  (tx, ty) = trunk_top(t3, 0, lx3, ly3, alpha);
+  res = crown_residual(lx3, ly3, alpha);
+  full = sqrt(lx3 * lx3 + ly3 * ly3) ?? 0.0;
+  println("trunk tilt at alpha={alpha}: root (0, 0) -> crown attaches at ({tx}, {ty})");
+  println("   lean {full}, taken out by tilting {full - res}, left for the branches {res}");
+  if tx >= 0.0 { ok = false; }                       // the trunk tilts away from the rival
+  if res <= 0.0 || res >= full { ok = false; }       // it takes out some, not all
+  // alpha = 1 would balance the tree perfectly and leave the branches nothing to do
+  if crown_residual(lx3, ly3, 1.0) > 0.000001 { ok = false; }
+
+  // ── 4. CASE B, printed in full for correction ────────────────────────────
+  // A open on three sides · B an equal rival east · C weaker, north of A.
+  println("");
+  println("CASE B — A open on three sides, B equal rival east, C weaker north:");
+  s4 = hexset_chunk(q0, r0, gw, gh);
+  fill(s4);
+  t4 = trees_new();
+  tree_add(t4,  0,  0, 10, 64, 0);     // A
+  tree_add(t4, 14,  0, 10, 64, 1);     // B — equal
+  tree_add(t4,  0, 18,  6, 36, 2);     // C — weaker, north
+  l4 = labels_new(q0, r0, gw, gh);
+  c4 = labels_new(q0, r0, gw, gh);
+  ties4 = canopy_partition(t4, s4, l4, c4);
+  top4 = heights_new(q0, r0, gw, gh);
+  bas4 = heights_new(q0, r0, gw, gh);
+  canopy_heights(t4, s4, l4, c4, top4, bas4);
+  for i in 0..3 {
+    nm = "A"; if i == 1 { nm = "B"; } if i == 2 { nm = "C"; }
+    won = crown_count_strict(s4, l4, c4, i);
+    pot = crown_potential(t4, i, s4);
+    (lx, ly) = crown_lean_world(s4, l4, c4, t4, i);
+    bo = crown_bole(t4, i, s4, l4, c4);
+    println("   {nm}: won {won}/{pot}  lean ({lx}, {ly})  bole {bo}");
+  }
+  println("   contested {ties4}");
+  nA = crown_count_strict(s4, l4, c4, 0);
+  nB = crown_count_strict(s4, l4, c4, 1);
+  nC = crown_count_strict(s4, l4, c4, 2);
+  (ax, ay) = crown_lean_world(s4, l4, c4, t4, 0);
+  (bx, by) = crown_lean_world(s4, l4, c4, t4, 1);
+  (cx, cy) = crown_lean_world(s4, l4, c4, t4, 2);
+  // The SIGNS are what the design predicts and what is unambiguous:
+  //   A is pressed from the east (B) and the north (C) -> leans south-west
+  //   B is pressed from the west only                  -> leans east
+  //   C is pressed from the south only                 -> leans north
+  println("   signs: A ({ax < 0.0} west, {ay < 0.0} south)  B ({bx > 0.0} east)  C ({cy > 0.0} north)");
+  if ax >= 0.0 || ay >= 0.0 { ok = false; }
+  if bx <= 0.0 { ok = false; }
+  if cy <= 0.0 { ok = false; }
+  // C is the weakest and must hold the least crown
+  if nC >= nA || nC >= nB { ok = false; }
+  println("   |C_C| smallest: {nC < nA && nC < nB}");
+  println("   (numbers printed for correction — the design left them open)");
+
+  // ── 5. determinism ───────────────────────────────────────────────────────
+  l5 = labels_new(q0, r0, gw, gh);
+  c5 = labels_new(q0, r0, gw, gh);
+  canopy_partition(t4, s4, l5, c5);
+  (ax2, ay2) = crown_lean_world(s4, l5, c5, t4, 0);
+  println("determinism: lean re-derived identical {ax2 == ax && ay2 == ay}");
+  if ax2 != ax || ay2 != ay { ok = false; }
+
+  if ok { println("=== CANOPYLEAN OK ==="); } else { println("=== FAIL ==="); }
+}

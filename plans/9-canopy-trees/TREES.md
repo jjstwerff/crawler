@@ -301,12 +301,30 @@ of failure this plan has been catching all along (§10's bridge, §14's silent e
 
 This replaces drainage as the canopy's correctness invariant.
 
-### I-LEAN — the lean is the centroid offset, and it is bounded
+### I-LEAN — the lean is the centroid offset, and its bound is a theorem  — **BUILT, T3**
 ```
    lean_t = centroid(C_t) − trunk_t
 ```
-Zero for an isolated tree (Case A). Non-zero and directed away from competitors when
-crowded. Bounded by crown radius — a trunk cannot lean outside the crown it carries.
+Zero for an isolated tree — exactly zero, by I-EXACT. Non-zero and directed away from
+competitors when crowded, growing monotonically with them.
+
+**The bound needs no enforcement.** Every owned cell lies within `R` of the trunk (that is
+what the crown test *is*), and a centroid of points inside a disc is inside that disc, so
+`|lean| < R` always. "A trunk cannot lean outside the crown it carries" is not a clamp to
+apply, it is a fact that cannot be violated. Gated at four crowding levels.
+
+**The trunk takes out part of the lean, and the branches carry the rest.** A tree leans
+toward its crown's centre of mass because that is the load it stands under, but the roots
+anchor the base, so it cannot get all the way there:
+
+```
+   trunk_top = root + α·lean          residual = (1−α)·|lean|
+```
+
+At `α = 1` the tree is perfectly balanced and the branches have nothing to correct; at
+`α = 0.6` a lean of 0.80 leaves 0.32 for the branches. **That residual is why T4's branch
+structure comes out unequal on a crowded tree** — the asymmetry is inherited, not
+generated.
 
 ## 5. What is reused, and what is new
 

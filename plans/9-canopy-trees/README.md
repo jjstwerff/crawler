@@ -5,7 +5,7 @@
 
 ## Status
 
-**Active — T1 and T2 done**, gated in `make test`. The design is settled enough to build against:
+**Active — T1–T3 done**, gated in `make test`. The design is settled enough to build against:
 **[TREES.md](TREES.md)** is the document; this README is the phase tracker.
 
 ## Goal
@@ -35,7 +35,7 @@ architecture.
 |---|---|---|
 | **T1** | `Labels` + the argmax partition | **DONE** — `src/canopytest.loft` |
 | **T2** | crown profiles + canopy height (base *and* top) | **DONE** — `src/canopyvoltest.loft` |
-| **T3** | lean + trunk placement | |
+| **T3** | lean + trunk placement | **DONE** — `src/canopyleantest.loft` |
 | **T4** | `Skeleton` + constrained shortest-path derivation | |
 | **T5** | pipe-model radii + the mesh/card split | |
 | **T6** | relaxation to convergence | |
@@ -56,6 +56,7 @@ mesh/card threshold without an artistic choice.
 
 ## Open questions
 
-Carried in [TREES.md §8](TREES.md). The two that block work beyond T3 are the Case B
-expected partition (plot it, or have the first run print it for correction) and whether
-relaxation needs a proven fixed point or a fixed iteration count.
+Carried in [TREES.md §8](TREES.md). Case B has now been **run and printed** (TREES.md §3)
+— it contradicted the design's predicted crown ordering, and the measured numbers are
+awaiting confirmation. The one that blocks work beyond T5 is whether relaxation needs a
+proven fixed point or a fixed iteration count.
