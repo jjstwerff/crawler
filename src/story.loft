@@ -358,8 +358,14 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     if w.mode3d {
       // The world only: actors are boards through the presentation seam (P4) and the
       // full HUD comes with P9. Toggle back with V for the 2D plan view.
-      view3d_frame(w.s, w.s3prog, w.s3vao, w.s3n, WIN_W as float, WIN_H as float);
-      view3d_actors(w.s, w.s3prog, w.s3actor, WIN_W as float, WIN_H as float);
+      // Aspect from the LIVE window, never from the requested constants: a resized
+      // window would otherwise stretch the world silently. Exact for a borderless /
+      // fullscreen window; a decorated one still overstates the drawable by its
+      // chrome inset until `graphics` can report the framebuffer size — LOFT-HANDOFF G3.
+      vpw = graphics::gl_window_width() as float;
+      vph = graphics::gl_window_height() as float;
+      view3d_frame(w.s, w.s3prog, w.s3vao, w.s3n, vpw, vph);
+      view3d_actors(w.s, w.s3prog, w.s3actor, vpw, vph);
     } else {
       view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln, postprog, postfbo, posttex);
       draw_msglog(painter, w.s, w.hud, w.ml);

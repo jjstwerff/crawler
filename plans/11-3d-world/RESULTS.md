@@ -357,14 +357,37 @@ finally looked at. → `LOFT-HANDOFF.md` **G3**.
 Also recorded: **G2**, a cross-module struct return failing with `expected Camera, got
 Camera`, fixed by qualifying the type. The cost there is the diagnostic, not the fix.
 
+### The aspect, fixed without a magic number
+
+The inset is **window chrome**, established by testing the borderless path: a fullscreen
+window reports 2560×1600 and a full-screen NDC quad covers **all 1600 rows — zero missing**.
+So `gl_window_*` is exact whenever there is no chrome, and the fix needs no constant:
+
+- **`story.loft`** takes the camera's aspect from the **live** `gl_window_width/height`
+  rather than the requested `WIN_W/WIN_H` constants. Exact borderless; a decorated window
+  still overstates by its inset until `graphics` reports the framebuffer (G3), and a resized
+  window now tracks instead of silently stretching.
+- **`shot3d.loft`** renders **borderless fullscreen** deliberately, so the verification
+  harness cannot lie about the very thing it verifies. Re-rendered: **0 rows missing** on all
+  three frames.
+
+### The ring — measured, and it is correct
+
+The dark ring around the surface frame was recorded as *unexplained* rather than waved
+through. Counting solid cells by distance from the player settles it:
+
+| hexes from player | 0–6 | 6–12 | **12–18** | 18–24 | 24–30 | 30+ |
+|---|---|---|---|---|---|---|
+| solid cells | **0** | 35 | **195** | 45 | 49 | 72 |
+
+Half the world's solid cells sit in one band at 12–18 hexes (21–31 world units) and **none
+within 6** — which is `surfacetest`'s cleared start ring with terrain around it. The ring is
+the world, not the renderer.
+
 ### Still open on the picture
 
-- **The aspect** (G3) — needs the drawable size from `graphics`; subtracting 35 would
-  hard-code one host's answer.
-- **The dark ring** on the surface frame is unexplained: plausibly the overland's mountain
-  faces, but *plausible is not measured*. Count the solid cells around the player before
-  believing it.
 - Actors are **flat colours**, not sprites — the texture atlas rides with P8.
+- A decorated window is still ~6.5% tall until `graphics` exposes the drawable (G3).
 
 ## P5, restated — the seam that has never been connected
 

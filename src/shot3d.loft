@@ -15,22 +15,29 @@ use hex_grid;
 use hexscene;
 use view3d;
 
-fn shot_at(s: Sim, name: text, prog: integer, avbo: integer) {
+fn shot_at(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float) {
   (pq, pr) = sim_player_hex(s);
   (svao, sn) = build_scene3d(s);
-  view3d_frame(s, prog, svao, sn, 1024.0, 576.0);
-  na = view3d_actors(s, prog, avbo, 1024.0, 576.0);
-  ok = graphics::gl_screenshot(1024, 576, "/tmp/{name}.png");
-  hz = horizon_y(view3d_camera(s, 1024.0, 576.0));
+  view3d_frame(s, prog, svao, sn, vw, vh);
+  na = view3d_actors(s, prog, avbo, vw, vh);
+  ok = graphics::gl_screenshot(vw as integer, vh as integer, "/tmp/{name}.png");
+  hz = horizon_y(view3d_camera(s, vw, vh));
   println("{name}: hex=({pq},{pr}) scene_verts={sn} actor_verts={na} horizon_y={hz} png={ok}");
   graphics::gl_delete_vao(svao);
 }
 
 fn main() {
-  if !graphics::gl_create_window(1024, 576, "story 3d shot") {
+  // BORDERLESS FULLSCREEN, deliberately. A decorated window's drawable is shorter than
+  // gl_window_height() reports (35 px here — LOFT-HANDOFF G3), which would stretch this
+  // frame ~6.5% vertically and make the harness lie about the very thing it verifies.
+  // Fullscreen was measured to have ZERO inset, so here w/h are exactly the drawable.
+  if !graphics::gl_create_fullscreen_window("story 3d shot") {
     println("shot3d: no window (need xvfb / a display)");
     return;
   }
+  vw = graphics::gl_window_width() as float;
+  vh = graphics::gl_window_height() as float;
+  println("shot3d: drawable {vw}x{vh} (aspect {vw / vh ?? 0.0})");
   prog = make_view3d_shader();
   avbo = make_actor_vbo();
   println("shot3d: shader={prog} actor_vbo={avbo}");
@@ -39,20 +46,20 @@ fn main() {
   d = sim_new_gen(777, 1);
   sim_compute_fov(d);
   graphics::gl_poll_events();
-  shot_at(d, "p3_dungeon", prog, avbo);
+  shot_at(d, "p3_dungeon", prog, avbo, vw, vh);
 
   // Turned 90 degrees from the same spot — a different wall layout must appear, which is
   // the cheapest check that the camera is actually being read rather than baked.
   d.heading = d.heading + 1.5707963267948966;
   graphics::gl_poll_events();
-  shot_at(d, "p3_dungeon_turned", prog, avbo);
+  shot_at(d, "p3_dungeon_turned", prog, avbo, vw, vh);
 
   // The SURFACE: open country, so the frame should be mostly ground and sky with the
   // horizon across it. If the dungeon looks right and this does not, the fault is scale.
   u = sim_new_gen(777, 0);
   sim_compute_fov(u);
   graphics::gl_poll_events();
-  shot_at(u, "p3_surface", prog, avbo);
+  shot_at(u, "p3_surface", prog, avbo, vw, vh);
 
   graphics::gl_destroy_window();
 }
