@@ -6,7 +6,7 @@ carried through to a **roof** and to the renderer.
 
 [`DRAWING.md`](DRAWING.md) says *why*, `DRAWING-API.md` says *what must exist*. This file
 says **how**. It is written from measurements, and the routines it describes now exist:
-**`src/housedraw.loft`**, gated by **`src/housetest.loft`** (in `make test`, 3 s). Every
+**`../hexbody/src/housedraw.loft`**, gated by **`../hexbody/src/housetest.loft`** (in `make test`, 3 s). Every
 number below that carries a ✅ is measured by that gate, in the engine, on the real
 lattice; every negative control there has been seen to fire.
 
@@ -276,7 +276,7 @@ panels**, and the first-person camera is the thing that finds exactly this class
 `DRAWING.md`'s fit pass recovers the straight surface and the renderer draws one flat quad,
 as `mesh_walls_fitted` already does. Store the zigzag, draw the line.
 
-`src/houseshot.loft` renders the 12 orientations with walls drawn as the raw stored
+`../hexbody/src/houseshot.loft` renders the 12 orientations with walls drawn as the raw stored
 edges — that contact sheet (`/tmp/house12.png`) is the picture of what the fit has to fix.
 
 ---

@@ -575,7 +575,7 @@ fn spec_rot(n: integer, m: boolean) -> integer {
 }
 ```
 
-Applied in `src/housetest.loft`; `--native` then compiles and the gate prints `HOUSE OK`
+Applied in `../hexbody/src/housetest.loft`; `--native` then compiles and the gate prints `HOUSE OK`
 identically on both backends.
 
 ---

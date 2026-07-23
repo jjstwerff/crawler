@@ -234,7 +234,7 @@ primary channel here.
 
 | channel | what it proves | what it cannot see |
 |---|---|---|
-| **headless numeric** (`src/housetest.loft`) | equivariance, headroom, drainage, storey stacking, the 12-way identity | anything about appearance |
+| **headless numeric** (`../hexbody/src/housetest.loft`) | equivariance, headroom, drainage, storey stacking, the 12-way identity | anything about appearance |
 | **GLB → `tools/glbview.py`** | the geometry a renderer would receive: massing, roof, wall runs, openings | shader, lighting, the live camera |
 | **`make play`, `V`** | it in the game, at eye height | nothing automatable — the user's eyes |
 
@@ -288,7 +288,7 @@ sequence. A single hero image cannot show a 1-in-12 defect.
 
 **H7 depends on the wall fit**, not just on H5: without it every wall renders as the raw
 zigzag/staircase (15.5 % / 29.9 % longer — `BUILDING.md` §4) and the contact sheet is
-judging the wrong thing. `src/houseshot.loft` already produces that sheet from the real
+judging the wrong thing. `../hexbody/src/houseshot.loft` already produces that sheet from the real
 stored edges, so the defect is visible now rather than hypothetical.
 
 ---

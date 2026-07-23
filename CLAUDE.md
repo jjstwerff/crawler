@@ -138,9 +138,9 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently 40 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
+  (currently 39 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
   msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
-  idle-skip/mesh/kernel/replay/house/…). Keep it **warning-clean**. Pixel-level render checks
+  idle-skip/mesh/kernel/replay/…). Keep it **warning-clean**. Pixel-level render checks
   live in **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7)
   P0). The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
 - **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under
@@ -153,7 +153,7 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   pattern); (2) **WebGL** — the `loft --html` build in headless Chrome via loft's
   `tools/html_render_check.mjs` (CDP screenshot + canvas color-count gate). For plain 2D
   diagnostics the `graphics` **`Canvas`** (`fill_triangle`/`draw_line`/`save_png`) needs no GL
-  or Xvfb at all — `src/houseshot.loft` is the worked example. The **user still judges
+  or Xvfb at all — `../hexbody/src/houseshot.loft` is the worked example. The **user still judges
   *aesthetics***, but the agent self-checks structure/regressions. Recipe + the
   scene-`--smoke`-then-`gl_screenshot` idiom: **plans/7-render/**.
 - **2D sprites → `SPRITES.md`** (the `draw` skill + `tools/draw.py`; done-criterion,
@@ -245,11 +245,14 @@ Where the siblings, toolchain and library stores live: **`LOFT-NOTES.md`**.
   dispatching to BUNDLE routines via the generated `spell_defs_gen`/effect arms.
 - `worldmesh.loft` — the kernel-side terrain mesh (hexagon fans, stride 10, R4
   tint bake pre-composed into vertex colors; the view only uploads/draws it).
-- **`housedraw.loft`** — buildings in any of the **12 orientations** (6 rotations × mirror):
-  `draw_floor` (massing → HexSet+Labels), `draw_walls` (its boundary → EdgeSet — **thin**, so
-  no floor is lost), `place_opening` (doors/windows as N edges at `(side, t)`, annotating not
-  deleting), `draw_roof` (a ridge, via `hexroof`). Gated by `src/housetest.loft`;
-  `src/houseshot.loft` renders the 12-orientation contact sheet. Design: `plans/11-3d-world/
+- **The geometry-body work lives in the `hexbody` PROJECT** (`../hexbody`, a sibling split out
+  2026-07-23), not crawler: `housedraw` (buildings in the 12 orientations — `draw_floor`,
+  `draw_walls` thin/edge-based, `place_opening`, `draw_roof`), gated by its own `make test`
+  (`housetest`), with `houseshot` the 12-orientation contact sheet. It is the harness where
+  produced geometry stands in for meshes so a system can be tested before art exists — the
+  vehicle/body/proxy/destruction line this whole thread designed. crawler will consume it once
+  `stamp_house` becomes a caller; today crawler's game does not use it. Design + goals:
+  `../hexbody/{VISION,ARCHITECTURE}.md`; the detailed geometry spec is still `plans/11-3d-world/
   BUILDING.md`.
 - `hexroof.loft` — every roof form as one distance read through a profile (ridge/hip/cone/
   dome/vaults) + the `roof_ponds` / `eave_spread` / `clear_height` gates.

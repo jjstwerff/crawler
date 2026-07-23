@@ -6,9 +6,9 @@ falsified it in six places, and the routines now exist, so **the code is the spe
 | for | read |
 |---|---|
 | **how it works, and why** | [`BUILDING.md`](BUILDING.md) |
-| **the routines** | `src/housedraw.loft` |
-| **what is proved, with controls** | `src/housetest.loft` — in `make test`, 3 s |
-| **what it looks like at all 12 orientations** | `src/houseshot.loft` → `/tmp/house12.png` |
+| **the routines** | `../hexbody/src/housedraw.loft` |
+| **what is proved, with controls** | `../hexbody/src/housetest.loft` — in `make test`, 3 s |
+| **what it looks like at all 12 orientations** | `../hexbody/src/houseshot.loft` → `/tmp/house12.png` |
 
 This file is kept **only** so `BUILDING.md`'s citations to its section numbers resolve.
 It is ~60 lines instead of ~320 because reading the rest costs a session ~3k tokens of
@@ -32,7 +32,7 @@ spec that is wrong in six places. The substance is below, compressed.
 - **§7 The shape table** is the library/consumer seam: shape *classes* are mechanisms and
   closed; wall/road *type values* are things and open (`BUNDLE.md` decision 2).
 - **§8 Every gate needs a control that has been SEEN to fire.** Carried into
-  `src/housetest.loft` unchanged, and it is the reason the wrong figures below were caught.
+  `../hexbody/src/housetest.loft` unchanged, and it is the reason the wrong figures below were caught.
 - **§10 Out of scope**, still: two touching shapes of one type merge under connectivity
   alone (needs a run id); junction arbitration; tagging cost on a 101×101 world.
 

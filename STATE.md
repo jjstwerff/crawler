@@ -9,12 +9,15 @@ first-person 3D and the hex field becomes the world the player stands in.
 
 > ## → NEXT: **the wall FIT** — the routines exist, their output still renders as a zigzag.
 >
-> **Plan #11 P5. `src/housedraw.loft` is built and gated** (`src/housetest.loft`, in
-> `make test`): `draw_floor` (massing → HexSet+Labels), `draw_walls` (its boundary → EdgeSet,
-> **thin**, so no floor is lost), `place_opening` (doors/windows as N edges at `(side, t)`,
-> **annotating, never deleting**), `draw_roof` (a ridge, via `hexroof`). 12/12 equivariant in
-> cells **and** edges; per-side edge counts identical at all 12. `src/houseshot.loft` renders
-> the contact sheet → `/tmp/house12.png`.
+> **The geometry-body work now lives in the `hexbody` project** (`../hexbody`, split out
+> 2026-07-23 — its VISION/ARCHITECTURE carry the harness thesis, the vehicle/proxy/animation/
+> destruction line, and the roadmap to a *Shadow of the Colossus*-class body). **Plan #11 P5.
+> `housedraw` is built and gated** (`hexbody`'s own `make test`): `draw_floor` (massing →
+> HexSet+Labels), `draw_walls` (its boundary → EdgeSet, **thin**, so no floor is lost),
+> `place_opening` (doors/windows as N edges at `(side, t)`, **annotating, never deleting**),
+> `draw_roof` (a ridge, via `hexroof`). 12/12 equivariant in cells **and** edges; per-side edge
+> counts identical at all 12. `hexbody`'s `houseshot` renders the contact sheet →
+> `/tmp/house12.png`. The wall fit below is the next piece and belongs in `hexbody`.
 >
 > **What that sheet shows is the next job.** A thin wall is a *strip of hex edges*, so it runs
 > longer than the line it stands on by one of **two exact amounts** — `2/√3 = 15.5 %` where the
@@ -191,12 +194,12 @@ python3 tools/glbview.py build/x.glb out.png --eye 30,-46,12 --target=-4,0,6 \
 **Iterate on ONE test** (~0.5 s), not the whole gate (minutes). Read `/tmp/story_<name>.log`
 rather than re-running `make test` to check a result.
 
-**`--native` is NOT the speed win it looks like here.** Measured 2026-07-23 on `housetest`:
-warm, native is **0.34 s vs 0.47 s interpreted — ~1.4×**. These tests are too small for codegen
-to matter; startup dominates. It also currently costs correctness: `save_png` returns **false**
-under `--native` (LOFT-HANDOFF **N2**), so `houseshot` writes no PNG, and `%` as an if-branch
-tail expression breaks native codegen outright (**N1**). Use `--interpret` unless profiling says
-otherwise.
+**`--native` is NOT the speed win it looks like here.** Measured 2026-07-23 on the `hexbody`
+gate: warm, native is **0.34 s vs 0.47 s interpreted — ~1.4×**. These tests are too small for
+codegen to matter; startup dominates. It also currently costs correctness: `save_png` returns
+**false** under `--native` (LOFT-HANDOFF **N2**), so a `Canvas` render writes no PNG, and `%` as
+an if-branch tail expression breaks native codegen outright (**N1**). Use `--interpret` unless
+profiling says otherwise.
 
 **`loft-libs-world` is consumed from its shared `dev` branch** — both projects check it out; no
 PR per change until stabilisation. `--lib` reads the **working tree**, so a consumer on the
@@ -204,4 +207,4 @@ wrong branch silently compiles different code. Check the branch before debugging
 
 **`xvfb-run` IS installed** — the native `gl_screenshot` path and `make probe` work. For plain
 2D diagnostics the `graphics` `Canvas` (`fill_triangle`/`save_png`) needs no GL or Xvfb at all;
-`src/houseshot.loft` is the worked example. `glbview.py` needs neither either.
+`../hexbody/src/houseshot.loft` is the worked example. `glbview.py` needs neither either.
