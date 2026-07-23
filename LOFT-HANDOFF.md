@@ -213,7 +213,12 @@ would have had silently broken content.
 
 ## H4 — a struct built INLINE in an argument list, beside a store-allocated value, corrupts from the 2nd loop iteration
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FIXED upstream — verified 2026-07-23 on loft 2026.7.2** (`@PLN118` store-UAF fixes).
+Re-ran the reproducer: the INLINE section now matches the hoisted one exactly (27/23/27/23 where it
+previously read 27/10/9/8). hexbody keeps the hoisting as ordinary style, not as a workaround.
+**Original report below, kept for the record.**
+
+**Status (original):** not filed · **Repo:** `loft-lang/loft`
 **Labels:** `sev:high`, `wa:clean`, `area:store-lifetime`, `area:runtime`, `hit-by:hexbody`, `bug`
 **Suggested title:** `interpreter: struct temp built in an argument list is corrupted from the second loop iteration when the call also takes a store-allocated value`
 
@@ -292,7 +297,11 @@ rasterisation result and written into a design doc as a measured constant.
 
 ## H5 — a binary op whose operands are BOTH forward-declared calls resolves as `integer`
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FIXED upstream — verified 2026-07-23 on loft 2026.7.2.**
+`v = lo() - hi()` with both helpers below `main` now compiles and prints `-1`; the three
+non-triggering variants still behave. **Original report below, kept for the record.**
+
+**Status (original):** not filed · **Repo:** `loft-lang/loft`
 **Labels:** `sev:medium`, `wa:clean`, `area:type-inference`, `area:frontend`, `hit-by:hexbody`, `bug`
 **Suggested title:** `two-pass inference: binary op with two forward-declared operands locks to the integer overload`
 
@@ -358,7 +367,12 @@ twenty minutes before the pattern was recognised.
 
 ## H6 — reading a file INVALIDATES a live `list_dir()` result (2nd listing onward)
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FIXED upstream — verified 2026-07-23 on loft 2026.7.2**, and guarded there:
+loft commit `018bea06` *"test(@PLN118): guard crawler-H6 — a live list_dir survives a file read"*.
+Re-ran the reproducer: both directories now report `len AFTER = 4, matched = 4`.
+**Original report below, kept for the record.**
+
+**Status (original):** not filed · **Repo:** `loft-lang/loft`
 **Labels:** `sev:high`, `wa:clean`, `area:stdlib`, `area:store-lifetime`, `hit-by:hexbody`, `bug`
 **Suggested title:** `list_dir result is invalidated by a subsequent file read (silently, from the second listing on)`
 
