@@ -356,6 +356,90 @@ a type that appears nowhere in the expression. Nothing in the message suggests "
 order", so the reader looks for a nonexistent integer in their own arithmetic. It cost about
 twenty minutes before the pattern was recognised.
 
+## H6 — reading a file INVALIDATES a live `list_dir()` result (2nd listing onward)
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:high`, `wa:clean`, `area:stdlib`, `area:store-lifetime`, `hit-by:hexbody`, `bug`
+**Suggested title:** `list_dir result is invalidated by a subsequent file read (silently, from the second listing on)`
+
+### Summary
+
+Iterate a `list_dir()` result and open any file inside that loop: from the **second** directory
+listed onward the vector is silently emptied mid-iteration. `len(ns)` reads its true length before
+the loop and **0** after, and only a couple of entries are visited. No error, no warning, exit 0 —
+the directory just looks smaller than it is.
+
+The first listing in a program is unaffected, which is what makes it nasty: a single-directory
+program is correct, and the bug appears only when a second directory is walked.
+
+### Minimal reproducer (20 lines, no imports)
+
+```loft
+fn main() {
+  for s in 1..3 {
+    d = "{source_dir()}/lb{s}";
+    mkdir_all(d);
+    for i in 0..4 { file("{d}/f{i}.t").write("x"); }
+  }
+  for b in 1..3 {
+    d2 = "{source_dir()}/lb{b}";
+    ns = list_dir(d2);
+    before = len(ns);
+    seen = 0;
+    for i2 in 0..len(ns) {
+      nm = ns[i2] ?? "";
+      if nm.ends_with(".t") { c = file("{d2}/{nm}").content(); seen = seen + 1; }
+    }
+    println("dir lb{b}: len BEFORE loop = {before}, len AFTER = {len(ns)}, matched = {seen}"
+            + "   (want 4, 4, 4)");
+  }
+}
+```
+
+### Expected / Actual
+
+```
+dir lb1: len BEFORE loop = 4, len AFTER = 4, matched = 4   (want 4, 4, 4)
+dir lb2: len BEFORE loop = 4, len AFTER = 0, matched = 2   (want 4, 4, 4)
+                              ^^^^^^^^^^^^^            ^
+```
+
+### The boundary — what does and does not trigger it
+
+Verified, each as its own probe:
+
+| variant | result |
+|---|---|
+| iterate `list_dir`, **read a file** in the loop, 2nd directory | **BROKEN** (len -> 0 mid-loop) |
+| iterate `list_dir`, read a file, **1st** directory only | OK |
+| iterate `list_dir`, **append to another vector** in the loop (no file read) | OK |
+| reassign `list_dir` to the same variable across loop iterations, no file read | OK |
+| a plain fn returning `vector<text>`, reassigned in a loop | OK |
+| **snapshot the names into a local vector, THEN read the files** | OK |
+
+So the trigger is specifically a **file open while a `list_dir` vector is still live**, and only
+after the first listing — consistent with the listing's backing store being freed or reused by the
+file handle.
+
+### Workaround (verified, and now a hexbody rule)
+
+**Snapshot the names before touching any file:**
+
+```loft
+ns = list_dir(dir);
+picks: vector<text> = [];
+for i in 0..len(ns) { … picks += [ns[i] ?? ""]; }   // no file I/O in this loop
+for j in 0..len(picks) { … file("{dir}/{picks[j] ?? ""}").content() … }
+```
+
+### Impact on hexbody (why `sev:high`)
+
+The round-trip gate walks `corpus/a1` and `corpus/a2` and diffs every committed entry. It loaded
+**3 of 22** entries from the second directory and reported a clean pass on the 13 it saw. A gate
+that silently tests a third of its corpus and says OK is worse than one that fails: the corpus
+exists precisely so that nothing is checked against freshly-generated output, and this quietly
+shrank it.
+
 ## Secondary — library behaviour changes worth a note (not necessarily bugs)
 
 These are almost certainly intentional, but each is a **silent** source-compatible break: existing
