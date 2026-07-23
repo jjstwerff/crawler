@@ -290,6 +290,72 @@ Caught by `hexbody`'s `tests/box.loft` because two independent sections disagree
 9, 8. Had only the inlining form existed, the numbers were plausible enough to have been read as a
 rasterisation result and written into a design doc as a measured constant.
 
+## H5 — a binary op whose operands are BOTH forward-declared calls resolves as `integer`
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:medium`, `wa:clean`, `area:type-inference`, `area:frontend`, `hit-by:hexbody`, `bug`
+**Suggested title:** `two-pass inference: binary op with two forward-declared operands locks to the integer overload`
+
+### Summary
+
+`v = lo() - hi();` where BOTH `lo` and `hi` are defined LOWER in the file fails to compile with
+a type error on `v`. The same expression compiles and runs correctly if either helper is moved
+above the caller, if one operand is a literal, or if the call is used bare.
+
+**Mechanism** (diagnosed by the reporter, not guessed): loft is two-pass. A forward call is
+`Unknown` in pass 1, so operator overload resolution — unable to type EITHER operand — picks the
+first candidate, `OpMinInt` / `OpMulInt`, locking the result to `integer`. Pass 2 re-resolves the
+calls to `float`, and the assignment then errors. The unary case is already guarded (**loft#592**);
+this is the binary case of the same gap.
+
+### Minimal reproducer (6 lines, no imports)
+
+```loft
+fn main() {
+  v = lo() - hi();          // BOTH operands forward-declared
+  println("both forward: {v}   (want -1.0)");
+}
+fn lo() -> float { 1.0 }
+fn hi() -> float { 2.0 }
+```
+
+```
+error: Variable 'v' cannot change type from integer to float; use a new variable name or cast with 'as'
+error: Cannot assign float to a field of type integer — use 'as integer' to cast explicitly
+```
+
+### The boundary — what does and does not trigger it
+
+Verified, each as its own file:
+
+| variant | result |
+|---|---|
+| `v = lo() - hi()` — both operands forward | **BROKEN** |
+| `a = lo()` — bare forward call | OK (prints 1) |
+| `b = lo() - 1.0` — one operand a literal | OK (prints 0) |
+| `v = lo() - hi()` with both helpers ABOVE `main` | OK (prints -1) |
+
+So the trigger needs *both* operands untypeable in pass 1. One known-typed operand is enough for
+overload resolution to pick the float candidate.
+
+### Expected
+
+All four compile and produce the float result; a forward-declared function's return type is part
+of its signature and is available before its body is needed.
+
+### Workaround (verified, and now a hexbody rule)
+
+**Define helpers above their callers.** hexbody hit this porting `wall_from_run`, which computed
+`fbx - fax` from two forward-declared `tri_x` calls; moving the function below `tri_x` fixed it.
+The rule is in hexbody's `CLAUDE.md` traps.
+
+### Why `sev:medium` despite the clean workaround
+
+The diagnostic points at the *assignment*, which is correct-looking code, and names `integer` —
+a type that appears nowhere in the expression. Nothing in the message suggests "declaration
+order", so the reader looks for a nonexistent integer in their own arithmetic. It cost about
+twenty minutes before the pattern was recognised.
+
 ## Secondary — library behaviour changes worth a note (not necessarily bugs)
 
 These are almost certainly intentional, but each is a **silent** source-compatible break: existing
