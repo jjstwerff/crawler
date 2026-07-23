@@ -211,6 +211,85 @@ would have had silently broken content.
 
 ---
 
+## H4 — a struct built INLINE in an argument list, beside a store-allocated value, corrupts from the 2nd loop iteration
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:high`, `wa:clean`, `area:store-lifetime`, `area:runtime`, `hit-by:hexbody`, `bug`
+**Suggested title:** `interpreter: struct temp built in an argument list is corrupted from the second loop iteration when the call also takes a store-allocated value`
+
+### Summary
+
+`f(MkStruct(...), hexset)` inside a loop: **iteration 0 is correct, every later iteration is
+wrong.** The callee reads garbage from the struct — it walks a smaller region and writes fewer
+cells — and its returned count does not even agree with the resulting `HexSet`:
+
+```
+INLINE — the same struct built inside the argument list:
+   rot=0  fill=27  count=27      <- correct
+   rot=1  fill=10  count=11      <- returned 10, but 11 cells are set
+   rot=2  fill=9   count=11
+   rot=3  fill=8   count=11
+```
+
+Hoisting the constructor into a local **completely fixes it**:
+
+```
+HOISTED — the struct is a local before the call:
+   rot=0  fill=27  count=27
+   rot=1  fill=23  count=23
+   rot=2  fill=27  count=27
+   rot=3  fill=23  count=23
+```
+
+Silent: no error, no warning, exit 0. Same family as **H2** (a struct temp passed by value into a
+call), but the trigger differs — H2 needs the *result appended to a vector*; here the result is a
+plain `integer` and the corrupted party is the **struct argument itself**.
+
+### Reproducer (in-repo recipe; I could NOT reduce it to a standalone file)
+
+`hexbody` at `a515850`, `plans/m0-roundtrip/probes/inline_struct.loft`:
+
+```sh
+cd hexbody
+loft --interpret --path ../loft/ --lib ../loft/lib/ --lib ../loft-libs-world/ --lib src/ \
+     plans/m0-roundtrip/probes/inline_struct.loft
+```
+
+`box_fill(b: Box, cells: HexSet) -> integer` iterates the HexSet window, calls
+`box_to_local(b, x, y) -> (float, float)` per cell, and `hexset_set`s the ones inside.
+`box_new(...) -> Box` is the constructor. Broken: `box_fill(box_new(...), cs)`.
+Correct: `bx = box_new(...); box_fill(bx, cs)`.
+
+### What I ruled out (please do not re-derive)
+
+Each of these was probed separately and is **NOT** sufficient to trigger it:
+
+| tried | result |
+|---|---|
+| the same shape in a **single file**, no imports | correct |
+| the same shape **cross-module** via `--lib` | correct |
+| struct passed by value into a **nested call returning a tuple**, once per cell | correct |
+| a helper `fn fresh() -> HexSet` vs inline `hexset_chunk` | no difference; both correct |
+| **dense store churn** — 24 sets filled to 1681 cells, dropped, then a fresh one | fresh set is clean |
+| allocation **order** of the two HexSets | changes the symptom but is not the cause |
+
+So the minimal trigger is narrower than any of those alone, and I could not find it from the
+consumer side. The hexbody recipe is deterministic and reproduces every run.
+
+### Workaround (verified, and now a hexbody rule)
+
+**Never construct a struct inside an argument list.** Hoist it to a local first. hexbody's
+`CLAUDE.md` now carries this in "the traps that bite"; it cost about an hour of isolation and the
+symptom looked exactly like a geometry bug (wrong cell counts per rotation), not like a
+store-lifetime one — which is what makes it `sev:high` despite the clean workaround.
+
+### Impact
+
+Caught by `hexbody`'s `tests/box.loft` because two independent sections disagreed: section 1
+(which hoisted) reported 27/23 cells per orientation, section 5 (which inlined) reported 27, 10,
+9, 8. Had only the inlining form existed, the numbers were plausible enough to have been read as a
+rasterisation result and written into a design doc as a measured constant.
+
 ## Secondary — library behaviour changes worth a note (not necessarily bugs)
 
 These are almost certainly intentional, but each is a **silent** source-compatible break: existing
