@@ -946,3 +946,92 @@ There is no workaround for actually **reading** binary content back into loft.
 The failure is silent and inverts a test's meaning rather than breaking it. Any gate of the form
 *"write bytes, read them back, compare"* passes trivially on non-UTF-8 data, because both sides are
 `""`. That is the same shape as the false-green test moros documents in its own round trip.
+
+---
+
+## H8 — a registry-style `[dependencies]` entry that is NOT resolvable from the registry does not fall back to a library on the `--lib` path
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:medium`, `wa:clean`, `area:packages`, `hit-by:hexbody`, `bug`
+**Suggested title:** `packages: a >= registry dep with no registry match is NOT resolved from --lib — dependent library's symbols go unresolved`
+**Related:** #337 (CLOSED — *compile-time use-resolution consults `[dependencies]` **path** entries; it does not*). This is the sibling case for `>=` **registry** entries + `--lib`.
+
+### Summary
+
+A library `B` declares `[dependencies] A = ">=0.1"` and `use A;`. `A` is **not yet in the
+registry**, but its source is present on the `--lib` search path (both `A` and `B` live under a
+`--lib`'d chunk directory). When a program consumes `B` via `--lib`, loft does **not** fall back to
+the `--lib` copy of `A`: `A`'s symbols are unresolved and compilation fails **inside B** with
+`Unknown variable '<x>'` at the first use of an `A` function.
+
+The library resolves fine the moment `A` **is** in the registry (published, or cached). So the gap
+is specifically: *registry constraint present, registry match absent, `--lib` copy available and
+ignored.*
+
+### Confirmed cause ⇄ fix (in the real tree, not a claim)
+
+Measured in hexbody, which produces a chunk of 10 inter-dependent `hex_*` libraries under one
+`loft-libs-world` `--lib` root:
+
+- With `hex_field` **unpublished** and `hex_edge/loft.toml` declaring `hex_field = ">=0.1"`, a
+  consuming gate fails **deterministically** — `Unknown variable 'nq'` inside `hex_edge` (at its
+  first `hex_at(...)` call, `hex_at` being a `hex_field` function). Across a multi-gate suite the
+  *set* of failing gates shifted run to run, but any single gate failed 4/4.
+- **Publishing `hex_field`** (making `>=0.1` resolvable from the registry cache) and re-adding the
+  identical dep line: the same gate **passes 2/2**. Nothing else changed.
+
+So the dependency machinery is correct once the dep is registry-resolvable; the defect is only the
+**missing `--lib` fallback** while it is not.
+
+### Reproducer (in-repo recipe; I could NOT reduce it to a standalone file)
+
+The in-repo trigger:
+
+```sh
+# in loft-libs-world (a --lib chunk of inter-dependent libs), with hex_field UNPUBLISHED:
+#   add to hex_edge/loft.toml:   [dependencies]\n hex_field = ">=0.1"
+# then from hexbody:
+loft --interpret --path /usr/local/share/loft/ --lib ../loft-libs-world/ --lib src/ tests/censusb.loft
+#   -> error: Unknown variable 'nq'  (inside hex_edge, at (cq,cr) = hex_at(...))
+# publish hex_field (or otherwise make it registry-resolvable), keep the dep line -> passes.
+```
+
+⚠ **Do not re-run these — they PASS and do not reproduce the bug** (recorded so the next person
+does not repeat them): a minimal standalone `A <- B <- C` chain of trivial libraries, all with
+unpublished `>=` deps consumed via `--lib`, **falls back to `--lib` correctly** — on the
+interpreter, with `--path`, with two `--lib` flags, and in the mixed case (one dep published from
+the registry, one unpublished on `--lib`). So the trigger needs something the synthetic chain lacks
+— likely the dep being reached **transitively** through another `--lib` library inside a
+multi-library chunk. The confound is not yet isolated, which is why this is a recipe and not a
+minimal repro.
+
+### Expected
+
+When a `>=` dependency has no registry match, loft resolves it from the `--lib` search path if a
+library of that name is present there (the same trees `use` already resolves against), rather than
+leaving its symbols unresolved. `--lib` is the local-development path; a WIP library that depends on
+another WIP library in the same chunk should build before either is published.
+
+### Actual
+
+The `>=` constraint is treated as registry-only. With no registry match and no fallback, the
+dependent library fails to compile at the first use of the missing dependency's symbols.
+
+### Workaround (verified, and it is what hexbody shipped)
+
+Two, both clean:
+
+1. **Keep the deps out of `loft.toml`; put them in the registry INDEX entry at publish time.**
+   Install reads a package's deps from `version.deps` in the index, not from the tarball's
+   `loft.toml` (`loft/src/install.rs::resolve_recursive`), and `loft package` omits deps for the
+   author to add to the index. So the working-tree manifest can stay dep-free — `--lib` consumption
+   works — while the published package still carries correct deps. This is what hexbody did.
+2. **Publish bottom-up.** Publish `A` before `B` declares `A = ">=0.1"`; then `A` is always
+   registry-resolvable and the fallback never has to fire.
+
+### Why `sev:medium`
+
+Not silent and not a crash — it fails loudly at compile time with a clear (if misleading) location
+*inside* the dependency. But it makes a chunk of inter-dependent WIP libraries un-buildable via
+`--lib` the moment they declare their real deps, which is exactly the local-dev loop for the first
+inter-dependent library family in a chunk. The workaround is clean, so it does not block.
