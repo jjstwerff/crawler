@@ -871,3 +871,78 @@ is the first thing to check.
 
 Same family as loft#392 (`vector` arguments crossing the native FFI boundary), which also
 fails silently with no diagnostic.
+
+---
+
+## H7 — `file().content()` returns EMPTY for non-UTF-8 bytes, silently, on both backends
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:high`, `wa:partial`, `area:stdlib`, `hit-by:hexbody`, `bug`, `both-backends`
+**Suggested title:** `stdlib: file().content() silently returns "" for a file that is not valid UTF-8`
+
+### Summary
+
+`file(path).content()` returns an **empty text** for any file whose bytes are not valid UTF-8.
+There is no error, no refusal code, and no diagnostic — the call succeeds and yields `""`, which is
+indistinguishable from *"the file is empty"*.
+
+loft can **write** such files: `f#format = LittleEndian` plus `f += (v as u8)` is the documented way
+to produce binary, and `hex_field`'s `doc_write` uses exactly that to emit its `HXF1` documents. So
+the language writes a file it then cannot measure or read back, and reports success either way.
+
+This is the silent-wrong-answer class, not a missing feature: any consumer that sizes, checksums or
+verifies a binary file it just wrote gets `0` and a green result.
+
+### Minimal reproducer
+
+Standalone — no libraries, no flags. `loft --interpret repro.loft` (and `--native`).
+
+```loft
+// file().content() returns EMPTY for non-UTF-8 bytes, silently.
+fn main() {
+  ok = "/tmp/loftrepro-ok.bin";
+  f = file(ok);
+  f#format = LittleEndian;
+  f += (65 as u8); f += (0 as u8); f += (66 as u8);        // "A\0B" — valid UTF-8
+  println("valid UTF-8 (3 bytes on disk): content().len() = {file(ok).content().len()}");
+
+  bad = "/tmp/loftrepro-bad.bin";
+  g = file(bad);
+  g#format = LittleEndian;
+  g += (65 as u8); g += (255 as u8); g += (66 as u8);      // 0xFF — never valid UTF-8
+  println("invalid UTF-8 (3 bytes on disk): content().len() = {file(bad).content().len()}");
+}
+```
+
+### Expected
+
+Either a **refusal** the caller can see (a null/`?` result, or a diagnostic), or a byte-oriented
+accessor that returns all 3 bytes. Anything except "success, and the answer is 0".
+
+### Actual — identical on `--interpret` and `--native`
+
+```
+valid UTF-8 (3 bytes on disk): content().len() = 3
+invalid UTF-8 (3 bytes on disk): content().len() = 0
+```
+
+Both files are **3 bytes on disk** (`ls -l` confirms). Exit code 0, no warning either way.
+
+A NUL byte is *not* the trigger — `A\0B` reads back fine at length 3. Size is not the trigger
+either: a 5000-byte ASCII file reads back at 5000. The trigger is UTF-8 validity alone.
+
+### Workaround (partial)
+
+Measure the file by something other than its bytes. hexbody's `tests/foxel.loft` needed to prove
+that `hex_field`'s `doc_write` **appends** rather than truncates; the natural instrument (write
+twice, compare lengths) reads `0` and `0`, and `0 == 0 * 2` is **vacuously true** — the gate printed
+a confident, meaningless "it appended" until this was caught. It now measures the document's *cell
+count* instead, which is a real instrument.
+
+There is no workaround for actually **reading** binary content back into loft.
+
+### Why `sev:high`
+
+The failure is silent and inverts a test's meaning rather than breaking it. Any gate of the form
+*"write bytes, read them back, compare"* passes trivially on non-UTF-8 data, because both sides are
+`""`. That is the same shape as the false-green test moros documents in its own round trip.
