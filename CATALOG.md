@@ -16,7 +16,18 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 
 ---
 
-## 0. KEY DECISION — adopt moros's 8 stats (DECIDED 2026-06-27)
+## 0. KEY DECISION — adopt moros's 8 stats (DECIDED 2026-06-27, ⚠ NOT BUILT)
+
+> ⚠ **Decided, never executed — measured 2026-08-09.** The engine runs Angband's SIX
+> (`str/int/wis/dex/con/chr` — `gameflow::stat_name`, `sim::stat_index`); Might, Endurance
+> and the rest appear in no code path. Six weeks between the decision and the measurement,
+> and nothing said so.
+>
+> ⚠ **This is crawler's own open decision, not a dependency on anybody.** moros has nothing
+> to write for it (`MOROS.md`): the stat set was *seeded* here in June and the mapping
+> below is crawler's document about crawler's game. Executing it, or reversing it, is a
+> crawler call — and it is a real one, because §12a's derived stats, the powers below and
+> `RESOLUTION.md` §5a are all authored against the eight while the engine answers six.
 
 **Decided: crawler adopts moros's 8 statistics**, replacing Angband's 6 (§12a's
 STR/INT/WIS/DEX/CON/CHR). The powers are authored against the 8, and they map onto
@@ -668,3 +679,33 @@ trust/contact (§5e/§5g), spirit (§6.6), cure/repair, and barter systems.)*
 - **Bundle mapping.** Races → `bundles/<race>/`; backgrounds → `bundles/<class>/`
   (the soft-start package); the capability pool + element cards → a shared content
   bundle the engine merges generically (BUNDLE.md "library-like" check).
+
+---
+
+## Open work
+
+*(The lightest workflow that fits — `plans/README.md`: the row and the design share a
+file. Escalate to a plan only where noted.)*
+
+### `OW1` — the 8 stats are decided and not built ⚠ **needs a decision, not a build**
+
+§0 adopted moros' eight on 2026-06-27; measured 2026-08-09, the engine answers Angband's
+**six** (`gameflow::stat_name`, `sim::stat_index`) and the eight appear in no code path.
+Six weeks, and nothing said so.
+
+**The fork is crawler's alone** (`MOROS.md`: moros has nothing to write for this — the
+stat set was seeded here in June and this document is crawler's own):
+
+| | cost, measured 2026-08-09 |
+|---|---|
+| **execute the eight** | 7 engine files · 16 `stat_index`/`stat_name` sites · ⚠ **18 bundles carrying stat blocks**, each needing its values **re-authored** against 8 axes — content work, not a rename. Plus re-keying the derived stats (`RESOLUTION.md` §2a) and the character page |
+| **reverse to six** | edit §0, §12a and the power table here so they stop describing a system the engine does not have. Cheap, and it makes the docs true today |
+
+⚠ **The cost is asymmetric and the docs are wrong either way until it is settled** — §12a,
+the 37 powers below and `RESOLUTION.md` §5a are all authored against eight axes while the
+engine offers six, so a reader implementing from them builds against a system that is not
+there.
+
+⚠ **If the answer is "execute", this earns a plan** (multi-phase, and 18 bundles of
+content re-authoring). If it is "reverse", it is a doc edit and stays a row here.
+Note `plans/README.md` caps active plans at **2–3** and there are currently **6**.

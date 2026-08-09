@@ -1,127 +1,74 @@
-# MOROS.md — what crawler depends on moros for, and what it must never depend on
+# MOROS.md — what moros must write for crawler: nothing
 
-crawler and `../moros` share a world, a hex convention and a library layer. This file is
-the **register of the first two only**: the things crawler would be wrong about if moros
-changed them, and which no version number would catch.
+moros is a **tabletop** game in a shared world. crawler is a **computer RPG** in the same
+world. Two different games, one setting — which means crawler holds its own documentation
+for its own game, and the register of "things moros owes us" is **empty on purpose**.
 
-⚠ **NO LIBRARIES IN THIS FILE.** *"Each project is allowed to change libraries as long as
-the contract of them stays valid"* (user, 2026-08-09). A library dependency is not a moros
-dependency at all — it is a **contract** (`api_compatible_with` / `data_compatible_with`,
-`loft.lock`), owned by nobody, changeable by anybody, and enforced by machinery rather
-than goodwill. Writing `hex_grid` in here would be claiming a veto crawler does not have
-and does not want. See `ADOPTION.md` → *No project owns a library*.
+This file exists to say that clearly, because the opposite assumption is easy to drift
+into and expensive: a project that believes it is waiting on a sibling stops writing its
+own docs.
 
-⚠ **AND `../moros` IS READ-ONLY** — it has its own agent (`CLAUDE.md`). Everything below
-is something crawler *reads, follows or waits on*, never something crawler changes there.
-A finding becomes a document **here**; delivery is the user's call.
+## Measured 2026-08-09 — the coupling is zero
 
----
-
-## What this file IS for
-
-A dependency belongs here when **all three** hold:
-
-1. crawler would be **wrong**, not merely out of date, if moros changed it;
-2. **no contract would catch it** — no version, no lockfile, no compile error;
-3. it is a **decision or a fact**, not code. Code that both projects use is a library, and
-   libraries are governed by contract, not by this register.
-
----
-
-## D1 — The shared world: stats, races, powers, names
-
-**The largest dependency, and the least visible.** crawler's character model is *seeded
-from moros* (`CATALOG.md`), not derived from Angband:
-
-| | |
+| probe | result |
 |---|---|
-| **the 8 statistics** | Adopted 2026-06-27, **replacing Angband's 6** (STR/INT/WIS/DEX/CON/CHR). Might, Endurance, Dexterity … each mapped to a crawler combat role (`CATALOG.md` §0). |
-| **races, powers, capabilities** | 37 capabilities seeded directly from moros `html/data.js`, regrouped by their role in crawler combat. |
-| **the names themselves** | *"Names are moros's own (shared world, DESIGN §2) — **not** an IP concern"*. ⚠ This is the ONE place crawler's clean-room rule is deliberately suspended, and it is suspended *because* the world is shared. |
-| **the advancement economy** | Spell/casting economy *"goes the moros way"* (`CATALOG.md` §6.3) — the content stays Angband's, the economy is moros'. |
+| anything in `src/`, `tools/`, `Makefile`, `bundles/` reading moros | **nothing** — no path into that tree at build or run time |
+| the races | **crawler's own bundles** — `dwarf`, `elf`, `gnome`, `half_elf`, `halfling`, `half_orc`, `half_troll`, `highborn`, `high_elf`, `human` |
+| the stats | **crawler's own code** (`gameflow::stat_name`, `sim::stat_index`) |
 
-**What crawler needs:** that the shared world's stat set, race list and power names stay
-the shared world's. A rename there is a rename here.
+crawler cannot be broken by a moros edit, because nothing here reads anything there.
 
-**What would break silently:** everything content-facing. There is no version on
-`data.js`, no gate on either side that compares the two, and a divergence would look like
-crawler content drifting rather than a shared world moving. ⚠ **This is the only entry
-with no instrument at all** — see *Open* below.
+## So what was the "shared world" dependency?
 
-## D2 — The hex convention
+**A seeding event, already finished** — not a live dependency. `CATALOG.md` was *seeded
+from* moros' `html/data.js` in June 2026: the races, the powers, and a decision to adopt
+its stat set. Seeding is a one-time act of copying and mapping; what came out of it is
+**crawler's document about crawler's game**, and it is already written.
 
-**Pointy-top, odd-r, `L = √3`** — `CLAUDE.md` calls it "moros geometry", `EXTRACTION.md`
-calls `hex_grid` "the canonical **moros-convention** hex geometry".
+⚠ **AND THE PART THAT WAS NEVER EXECUTED PROVES THE POINT.** `CATALOG.md` §0 says *"KEY
+DECISION — adopt moros's 8 statistics (DECIDED 2026-06-27), replacing Angband's 6"*. The
+engine runs **STR/INT/WIS/DEX/CON/CHR** — Angband's six. The eight (Might, Endurance, …)
+appear in no code path.
 
-**What crawler needs:** the convention, not the code. The *code* is `hex_grid` and is a
-library — out of scope here by the rule above. What is in scope is that moros keeps
-answering the same lattice, because crawler's world, its stored coordinates and every
-golden fixture assume it.
+That is not a moros problem and there is nothing for them to write. It is **crawler's own
+open decision**, sitting unexecuted in a crawler doc for six weeks, and the honest place
+for it is crawler's tracker — see `CATALOG.md` §0, now marked.
 
-⚠ **This one HAS an instrument, and it earned itself on its first run.** `hex_grid` ships
-a cross-language parity fixture (`tests/fixtures/lattice.tsv`) asserted on *both* sides —
-loft and moros' JS — precisely because two implementations of one convention drift in
-silence. It immediately found that `html/hex-lattice.js` tested row parity with
-`row % 2 === 1`, and JavaScript `%` keeps the dividend's sign, so the half-hex shift
-stopped on every **negative** odd row: the browser map and `hex_grid` were half a hex
-apart below `y = 0`.
+## What is genuinely shared, and how each part is governed
 
-**Doubled-lattice integers, not sampled floats** — the fixture holds `k = 2·col + (row & 1)`,
-`m = 3·row`, exact in both languages, because a float fixture needs a tolerance and *a
-tolerance is exactly where a half-hex error hides*.
+| | what it is | who governs it |
+|---|---|---|
+| **the setting** — race and power NAMES | shared-world IP both games draw on (`DESIGN` §2). The one place crawler's clean-room rule is deliberately suspended | nobody "writes it for" anybody. crawler transcribes what it uses and holds the transcription |
+| **the hex convention** — pointy-top, odd-r, `L = √3` | a lattice both implementations answer | **the library** (`hex_grid`) and its cross-language parity fixture. Contract territory |
+| **the `hex_*` family** | code | **the contract** — `api_compatible_with`, `loft.lock`. Any project may change a library while the contract holds (`ADOPTION.md`) |
+| **scoped identity** (moros plan 21 ↔ crawler `plans/13-scoped-identity/`) | a library DESIGN question | the contract, once it lands. Until then crawler writes down what its scope needs (`S1` → `REVIEW.md`) and proposes; it does not wait |
 
-## D3 — Scoped identity: a decision crawler is waiting on
+⚠ **Every row is either crawler's own or contract-governed. No row is an obligation on
+moros.** That is the whole content of this file.
 
-moros plan 21 — *"regions own the mapping: one byte is not one identity"* — is building
-the half of an idea crawler holds the other half of (`plans/13-scoped-identity/`, issue
-#13). crawler is **not** waiting on their code; it is waiting on three decisions, because
-a design validated against one project is not yet universal for the class:
+## The one thing worth keeping an eye on, and it is not a dependency
 
-1. Does the palette handle take an **opaque scope handle** or a region id? (crawler has no
-   regions; its scope is a bundle.)
-2. What happens when a **stored world is read under a different palette**? (crawler's
-   bundles compose; moros' regions tile.)
-3. Is `0 = nothing` enough, or does a consumer need *"not in this palette"* distinct from
-   *"nothing here"*?
+crawler and moros are **the library layer's two consumers**, and `EXTRACTION.md`'s
+reusability argument rests on there being two. If moros stopped consuming the `hex_*`
+family, crawler's "this is reusable" claim would rest on a single user again.
 
-**Status:** unanswered. `plans/13-scoped-identity/` `S1` writes crawler's scope up as
-`REVIEW.md` **in this repo**; how it reaches moros is the user's call.
+Nothing to request and nothing to coordinate — recorded because losing it would be
+invisible, and because it is why `EXTRACTION.md`'s Definition of Done means anything.
 
-## D4 — moros as the second consumer of the library layer
+## The rule this file encodes
 
-`EXTRACTION.md` → *The editor as the second consumer* makes a load-bearing claim: the
-`hex_*` seam is proven because something other than crawler uses it. moros' `hex_editor`
-does — it depends on `hex_field`, `hex_edge`, `hex_way`, `hex_draw`, `hex_form`,
-`hex_shape`.
+> **crawler holds the docs for the computer game.** A design that is crawler's to make is
+> crawler's to write down, here, whatever its provenance. Reading a sibling's work creates
+> no dependency — and neither does having been seeded by it.
 
-**What crawler needs:** not a library (those are contract-governed and may change freely)
-but the **fact of a second consumer**. If moros stopped consuming the family, crawler's
-extraction argument would lose its evidence and every "this is reusable" claim would rest
-on one user again.
+Corollaries, each of which was a live mistake before it was written down:
 
-⚠ Nothing to coordinate and nothing to ask for — recorded because losing it would be
-invisible, and because it is the reason `EXTRACTION.md`'s Definition of Done is worth
-anything.
-
----
-
-## What is deliberately NOT here
-
-- **Every `hex_*` package, `graphics`, `mesh3d`, `glb`, `random`.** Libraries. Contract
-  territory: `loft.toml` floors, `loft.lock`, and `libcheck` L1/L2. Any project may change
-  them within the contract, including moros, including crawler.
-- **The gate harness, the parallel runner, the plan shape.** Borrowed *methods*
-  (`tools/run-gates.sh` inspired `libcheck`'s reporting and the quiet gate; moros' plan
-  shape is adopted in `plans/README.md`). Borrowing an idea creates no dependency — crawler
-  owns its copies outright and moros may change theirs freely.
-- **Anything in the moros tree.** Read-only, and its agent's.
-
-## Open
-
-1. **D1 has no instrument.** D2 has a parity fixture that caught a real bug on day one; D1
-   — the larger dependency — has nothing. A `data.js`-vs-`CATALOG.md` check (stat names,
-   race keys, power keys) would be cheap and would make a shared-world drift *loud*.
-   Not built, and not obviously crawler's to build alone.
-2. **D3 has a deadline crawler cannot see.** moros 21 `R1` shipped and `R2`–`R5` are
-   designed; whichever half lands first sets the design. crawler can write its review but
-   cannot time it.
+1. **Do not record a finished transcription as an ongoing dependency.** `CATALOG.md` is
+   crawler's document now; its provenance is a footnote, not a subscription.
+2. **Do not list a library here.** That is a contract, owned by nobody
+   (`ADOPTION.md` → *No project owns a library*).
+3. **Do not wait.** Where a decision spans both projects, write crawler's half down and
+   propose it. `plans/13-scoped-identity/` `S1` is the worked example — a `REVIEW.md` in
+   this repo, delivered at the user's discretion.
+4. **`../moros` is read-only** — it has its own agent (`CLAUDE.md`). Findings become a
+   document here.
