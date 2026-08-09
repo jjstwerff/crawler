@@ -125,5 +125,32 @@ fn main() {
   if tsafe == 0 { println("FAIL: the town is entirely unsafe — no worker could ever leave"); ok = false; }
   if civs == 0 { println("FAIL: no civilians in the town — the predicate has nobody to govern"); ok = false; }
 
+  // ── 6. at least one PRODUCER works outside the ring the guards hold ───────────────
+  // ⚠ The measurement this row exists to defend: the town's fields (68,50 / 68,52) and its
+  // fishing spot sit inside the guarded ring, so they are safe BY CONSTRUCTION — making
+  // them unsafe needs a monster standing where safety already denies. Across 8 monster
+  // placements they were safe 8 times out of 8. The ONE producer site danger reaches is
+  // the MINE at 25,8, ~45 hexes out — unsafe in 5 of those 8.
+  //
+  // So the whole loop rides on work that happens OUTSIDE the walls. If a change ever pulls
+  // every producer inside the ring, safety stops being able to touch production at all and
+  // every step from S3 on goes quietly inert — passing its own tests, gating nothing.
+  far_producer = 0;
+  for i in 0..sim_enemy_count(t) {
+    if sim_enemy_alive(t, i) {
+      rl2 = sim_enemy_role(t, i);
+      if rl2 == 2 || rl2 == 4 || rl2 == 9 || rl2 == 10 {
+        (wq, wr) = sim_enemy_work(t, i);
+        (hq, hr) = sim_enemy_home(t, i);
+        if hex_distance(wq, wr, hq, hr) > GUARD_R + THREAT_R { far_producer += 1; }
+      }
+    }
+  }
+  println("producers working beyond guard+threat reach of home: {far_producer}");
+  if far_producer == 0 {
+    println("FAIL: every producer works inside the guarded ring — safety cannot reach production");
+    ok = false;
+  }
+
   if ok { println("=== SAFETY OK ==="); } else { println("=== FAIL ==="); }
 }

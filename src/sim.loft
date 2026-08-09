@@ -2611,6 +2611,29 @@ pub fn sim_enemy_role(s: Sim, i: integer) -> integer {
   -1
 }
 
+// Where this civilian WORKS — the field, the fishing spot, the picking ground, patrol leg A.
+// ⚠ This is the hex `I-SAFE` actually turns on. A settlement's unsafe FRACTION says nothing
+// on its own: unsafe empty hillside costs it nothing, and one unsafe field costs it a crop.
+// Exposed so that overlap can be gated rather than estimated from area.
+pub fn sim_enemy_work(s: Sim, i: integer) -> (integer, integer) {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return (e.wq2, e.wr2); }
+  }
+  (0, 0)
+}
+
+// Home / night anchor — the other end of every daily route.
+pub fn sim_enemy_home(s: Sim, i: integer) -> (integer, integer) {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return (e.hq, e.hr); }
+  }
+  (0, 0)
+}
+
 // Smoothly-interpolated enemy world position (cur -> tgt by clock fraction).
 pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
   enemies = s.enemies;

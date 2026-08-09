@@ -163,6 +163,73 @@ nothing and the loop stays invisible (`F6`). Stock must be measured against **fi
 grounds and routes**, not area — and if the overlap turns out to be near zero, that is a
 placement problem to fix in `overland`'s scorer, not a number to tune.
 
+## The overlap, measured 2026-08-09 — and it is ONE MINE
+
+Every civilian carries its own work site (`wq2`/`wr2` — *"the field / fishing spot / patrol
+leg A"*), so the overlap is **countable, not estimable**. ⚠ `ov_seed` is hard-coded to **7**
+(`overland.loft:945`) — the depth-0 surface is the *example world authored as data*
+(`OVERLAND.md` §12) — so a seed sweep varies **monster placement only**, never the town. Eight
+placements, one town:
+
+| | | |
+|---|---|---|
+| open ground unsafe | **14–20 %** | the number that means least |
+| civilian work sites unsafe | **0–3 of 22** | ~9 % — already well under the area figure |
+| **producer** sites unsafe | **0 or 2 of 5** | and always the *same* two |
+
+**The five producers, and why three of them can never be starved:**
+
+| producer | work site | from home | unsafe |
+|---|---|---|---|
+| farmer ×2 | fields `68,50` / `68,52` | ~12 | **0 of 8** |
+| fisher | `44,67` | ~10 | **0 of 8** |
+| **miner ×2** | **the mine `25,8`** | **~45** | **5 of 8** |
+
+⚠ **THE FIELDS ARE SAFE BY CONSTRUCTION, NOT BY LUCK.** They sit inside the ring the guards
+already hold (guard posts at `65,50` ×2, `43,61`, `42,39`, `GUARD_R = 4`), so making a field
+unsafe needs a monster standing exactly where safety already denies. **The food supply is not
+the lever and cannot be made into one** — which is not a defect: you put your fields where you
+can defend them.
+
+**The lever is the mine** — 45 hexes out, unsafe in five placements of eight. That is the
+correct shape for `I-SAFE`, and today it is the loop's *entire* surface: **one site, two
+workers.** ⚠ `safetytest` row 6 now gates the structure behind it (a producer must work beyond
+guard+threat reach), because if a change ever pulls every producer inside the ring, safety
+stops being able to touch production and every step from `S3` on goes **inert while still
+passing its own tests**.
+
+### ⚠ And there are no picking grounds — anywhere
+
+The alchemist's gatherer (role **9**) needs **scree or meadow ≥14 hexes from the town
+centre**. Terrain census of the home window: **grass 2 686 · field 1 805 · sea 5 588 · sand
+31** — and **zero scree, zero meadow**. So no gatherer spawns, and the home town is a coastal
+lowland.
+
+Widening to the **whole 13 500 × 9 100 overland** (48 600 samples) does not rescue it:
+
+| kind | share | |
+|---|---|---|
+| sea | 424 ‰ | |
+| forest | 208 ‰ | |
+| grass | 167 ‰ | |
+| stone face | 93 ‰ | impassable |
+| **scree** | **26 ‰** | exists — but up in the mountains, and no town window sampled has it |
+| **meadow** | **0.3 ‰** (15 of 48 600) | ⚠ **effectively does not exist in this world** |
+
+⚠ **So `CRAFTING.md`'s "shipped: gatherers with real gathering" is true of the CODE and false
+of this MAP.** The spawn needs scree-or-meadow *and* `tsize >= 3` *and* `bfar > 12`
+simultaneously, and meadow is 15 samples world-wide. The alchemist half of the economy is
+written, gated by nothing, and unreachable in play. **That is the `F6` failure arriving early
+and in the one place nobody was watching** — a system can be complete, tested, and never
+execute.
+
+⚠ **Open, and it is the user's call** (recorded, not chosen): the home window is coastal *by
+design*, so does the gatherer (a) accept the terrain that is actually there — forest is 208 ‰
+and unused for picking, (b) get alpine terrain brought into a town window, or (c) belong to
+mountain windows only, leaving the home town's single lever as the mine? ⚠ **(c) is the cheap
+answer and the weakest one** — it leaves the starting settlement with one threatened work site
+and two workers to show the whole loop with.
+
 ### `S5` — contested safety, designed
 
 ⚠ **Safety is not a ratchet** (user, 2026-08-09): monsters spread, wars move fronts,
