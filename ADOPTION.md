@@ -266,9 +266,20 @@ by measuring the two paths against each other rather than by anything going wron
 Refreshing the lock moved `random` **0.1.0 → 0.3.0**, and `random` is the seeded RNG behind
 crawler's determinism invariants (`replaytest`, scene_key-identical worlds). A silent sequence
 change there is not a regression the gate would call a failure — it would simply be a different
-world. So the bump is **not taken on faith from a version number**: it is measured, by the same
-normalised-output diff P1 used. Identical output ⇒ the sequences did not move ⇒ the bump is
-safe *and proven*. Any divergence ⇒ pin `random` at 0.2.0 and take the bump as its own step.
+world. So the bump was **not taken on faith from a version number**: it was measured, by the
+same normalised-output diff P1 used.
+
+✅ **MEASURED, AND IT HELD.** 88 OK, exit 0, and the diff against the P1 baseline contains
+**zero non-diagnostic lines** — every `println`, every number, every banner identical. So
+`random` 0.3.0 yields the same sequences as the 0.2.0 the build had been quietly using, and the
+worlds are unchanged. The diagnostic delta is **37 removed, 0 added**, all of one kind (`null`
+stored into a non-null `integer` return) — the registry copies are *cleaner* than the
+working-tree ones crawler was silently compiling against.
+
+⚠ **Note what the evidence does and does not cover.** This says the bump is safe *for what the
+gate exercises*, which includes the determinism gates. It is not a proof that no sequence
+anywhere differs. Had a single number moved, the response was already decided: pin `random` at
+0.2.0 and take the bump as its own measured step.
 
 ⚠ **The compatibility contract could not help here, and that is worth knowing.**
 `api_compatible_with` / `data_compatible_with` were declared across the libraries on
