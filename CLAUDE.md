@@ -232,6 +232,15 @@ text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `ran
 wallgeo/gen after one decoupling each; roguelike-kit + the bundle system deliberately gated).
 Where the siblings, toolchain and library stores live: **`LOFT-NOTES.md`**.
 
+**What crawler depends on moros FOR — `MOROS.md`.** The shared world (the 8 stats, races,
+powers and their names, seeded from `html/data.js` — the one place the clean-room rule is
+deliberately suspended), the hex convention, the scoped-identity decision crawler waits on,
+and moros being the library layer's second consumer. ⚠ **No libraries in it**: a library
+dependency is a **contract** (`api_compatible_with`/`loft.lock`), owned by nobody and
+changeable by anybody within it — listing one there would claim a veto crawler does not
+have. A dependency belongs there only if crawler would be *wrong* when it changed, and *no
+contract would catch it*.
+
 ⚠ **OTHER PEOPLE'S TREES ARE READ-ONLY — `../moros` HAS ITS OWN AGENT RUNNING** (user
 instruction, 2026-08-09), and it moved through four commits during one crawler session.
 Read it freely and write down what you learn *here*; **do not edit that tree, and do not
