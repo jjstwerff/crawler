@@ -5,9 +5,15 @@
 
 ## Status
 
-**Designed, not built** — `status:future`, holding no active slot (the roster is
-`#11`/`#12`/`#13`). `S0` is shipped: the design (`CRAFTING.md`) and the measurement of what
-already exists, which turned out to be most of it.
+**`status:active` from 2026-08-09** (user), taking `#12`'s slot — the roster is
+`#11`/`#13`/`#17`, still at the cap of three. `S0` is shipped: the design (`CRAFTING.md`)
+and the measurement of what already exists, which turned out to be most of it. `S1`–`S6`
+are **designed, not built**, and each is written out below.
+
+**Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
+on it by construction (`M3` authors 18 Handiness values against this system), and its own
+first steps are small — `S1`/`S2` are one predicate and one category, against machinery
+that already exists.
 
 ⚠ **This plan comes BEFORE [#16](../16-eight-statistics/)** (user, 2026-08-09). #16's `M3`
 re-authors 18 race blocks with a `Handiness` value each, and under this design the hero

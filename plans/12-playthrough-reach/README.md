@@ -5,6 +5,16 @@
 
 ## Status
 
+> ⚠ **FUTURE as of 2026-08-09 — demoted so `#17` could take the slot** (user). `A0` stays
+> shipped and keeps paying: the harness and three scripts (`walk`, `descend`, `respawn`)
+> run in every gate, so the *loop* is built and only its *reach* is parked.
+>
+> ⚠ **What that costs, stated plainly:** `A1`–`A4` are the scripts for combat, the drop,
+> pickup-across-a-descent and the XP → clevel → stat-raise chain. Until they land, those
+> systems have **no session-level coverage** — the 92 unit gates test them a function at a
+> time, which is the exact blind spot this plan exists to close. Nothing regresses by
+> waiting; it simply stays unwatched.
+
 `A0` is **shipped** — the harness, three scripts (`walk`, `descend`, `respawn`), and the
 measurements below that decided the rest of this plan. `A1`–`A4` are **designed, not
 built**: each is written out here, so the next session builds rather than re-derives.

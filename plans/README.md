@@ -71,8 +71,10 @@ status.** This drifts silently; when you touch a closed plan, check the label ma
 
 ## The active roster — decided 2026-08-09
 
-**`#11` 3D world · `#12` playthrough reach · `#13` scoped identity.** Everything else is
+**`#11` 3D world · `#13` scoped identity · `#17` safe supply.** Everything else is
 `status:future`; `#9`/`#10` are finished.
+
+*(`#17` took `#12`'s slot on 2026-08-09, the same day both were created — see below.)*
 
 ⚠ **"Active" means work is happening or is next — not that the plan is unfinished.** The
 roster had drifted to **six** against this file's own cap of three, so it was decided from
@@ -82,7 +84,7 @@ evidence rather than intent: excluding doc edits, **no plan had been genuinely w
 | | why active |
 |---|---|
 | **`#11`** | the declared direction (`CLAUDE.md`), 28 of the last 40 file touches, and `STATE.md`'s NEXT — paused mid-step at the wall fit |
-| **`#12`** | small, `A0` shipped, and it makes the rest *verifiable* — a 3D world you cannot script-walk is one you cannot regression-test. It serves `#11` |
+| **`#17`** | the design everything else queues behind — `#16` waits on it by construction, and `S1`/`S2` are one predicate and one category against machinery that already exists |
 | **`#13`** | the only plan with an **external** deadline: moros plan 21 is finishing the other half of one mechanism now. `S1` is a cheap review that **expires** — unscheduled, it is effectively declined |
 
 Each demotion says why in its own Status block, because a label with no reason gets
@@ -91,7 +93,12 @@ neither done nor unimportant** — its live edge moved into `../hexbody` and `#1
 it, so holding both would double-count one body of work.
 
 ⚠ **A slot is a claim on attention, so freeing one is as much work as filling one.** Three
-of the six were created on 2026-08-09 by the session that then had to cut them back.
+of the six were created on 2026-08-09 by the session that then had to cut them back — and
+`#12` lost its slot to `#17` **on the day it was created**, which is the cap doing exactly
+what it is for. What that costs is written in `#12`'s own Status rather than left implied:
+`A1`–`A4` are the combat, drop, pickup and level-up scripts, so those systems keep **no
+session-level coverage** until it resumes. Nothing regresses by waiting; it stays
+unwatched, which is a different and quieter risk.
 
 ## Value categories — what KIND of value
 
