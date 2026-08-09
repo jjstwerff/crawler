@@ -1,0 +1,49 @@
+# walk.play — a session, not a unit. Every row goes through flow_move/flow_action,
+# the same intents the host applies and an observer replays.
+#
+# The claims here are RELATIONS wherever a relation is the real claim, so a content
+# or tuning change does not turn this red for no reason. Where an exact number IS
+# the claim, the comment above it says why.
+
+genesis 1337 1
+echo --- a fresh warrior, before anything has happened
+
+# The kit is granted at genesis (flow_genesis runs bundle_activate) — a replica that
+# skipped that boot step was a real bug, which is why genesis is shared at all.
+expect inv > 0
+expect alive == 1
+expect hp > 0
+expect depth == 1
+
+# ⚠ HP AT FULL IS THE CLAIM, NOT A NUMBER. Whatever the class tuning says the pool is,
+# an untouched warrior starts at it; `hp == hpmax` survives every retune of the pool.
+expect hp == hpmax
+
+echo --- turning is FREE: the distance clock must not advance on a pure turn
+# The clock is distance-driven (every HEX_LEN travelled = one sim_tick), so a spin
+# costs nothing. If turning ever starts ticking, the whole cost model has moved and
+# this row is the cheapest place to notice.
+note msgs
+move 0 1 24
+expect alive == 1
+expect hp == hpmax
+
+echo --- glide forward across several hexes
+move 1 0 120
+expect alive == 1
+
+# Gliding cannot leave the level by itself: a depth change needs a stair walked onto.
+expect depth == 1
+
+echo --- wait in place: the one intent that forces the clock without moving
+wait 10
+expect alive == 1
+
+echo --- try to pick up whatever is underfoot (harmless when nothing is)
+act 2 0 0
+expect inv > 0
+
+echo --- the world survived the whole session
+expect alive == 1
+expect hp <= hpmax
+expect gold >= 0
