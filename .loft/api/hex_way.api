@@ -1,0 +1,85 @@
+# hex_way 0.1.0 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_way-0.1.0
+# use it with: use hex_way;
+
+## src/hex_way.loft
+
+pub const WAY_STRAIGHT = 1
+
+pub const WAY_ARC      = 2
+
+pub struct Track
+
+pub fn track_new() -> Track
+
+pub fn track_straight(t: Track, x0: float, y0: float, x1: float, y1: float)
+
+pub fn track_arc(t: Track, cx: float, cy: float, r: float, a0: float, a1: float)
+
+pub fn seg_len(t: Track, i: integer) -> float
+
+pub fn track_len(t: Track) -> float
+
+// Point at arc-length `s` along segment i.
+pub fn seg_point(t: Track, i: integer, s: float) -> (float, float)
+
+pub fn seg_tangent(t: Track, i: integer, s: float) -> (float, float)
+
+// Signed curvature: + turning left (centre on the left of travel), - turning right.
+pub fn seg_curvature(t: Track, i: integer) -> float
+
+// I-CURV — an offset degenerates when |d| >= R.  This IS the minimum curve radius, and
+// it falls out of the geometry rather than being a tuning constant.
+pub fn offset_legal(t: Track, d: float) -> boolean
+
+// The parallel track at distance d (left normal positive).  For straights and arcs the
+// offset is again a straight / a concentric arc, so equidistance is EXACT here — the
+// only cost anywhere is flattening, err ~ c^2/(8R).
+pub fn track_offset(t: Track, d: float) -> Track
+
+// Distance from a point to the centreline (min over segments).
+pub fn seg_distance(t: Track, i: integer, px: float, py: float) -> float
+
+pub fn track_distance(t: Track, px: float, py: float) -> float
+
+// Register this track's segments as surfaces; returns the id of the FIRST one (ids are
+// contiguous, so segment i has id first+i).
+pub fn way_surfaces(t: Track, sf: Surfaces) -> integer
+
+// Which segment of the track is nearest this point?  This is the P3 arbitration rule in
+// embryo: nearest-surface-wins, ties to the lower index — deterministic, order-free.
+pub fn nearest_seg(t: Track, px: float, py: float) -> integer
+
+// MARK ONLY — phase 1 of the two-phase build.
+// 
+// P3 lesson: marking cells and cutting edges must NOT be interleaved per part. If each
+// part cuts its own boundary as it lands, a later part can turn an already-blocked edge
+// into an interior one — and that stale edge is never cleared, so the result depends on
+// which part ran first. Mark every part, THEN cut once.
+pub fn way_mark(t: Track, halfwidth: float, s: HexSet)
+
+// CUT ONCE — phase 2. For each boundary edge of the FINAL footprint, pick the nearest
+// surface among ALL registered ones (ties to the lower id). Order-independent by
+// construction: it never looks at what was stamped when, only at the finished cells.
+pub fn cut_arb(s: HexSet, e: EdgeSet, sf: Surfaces, nsurf: integer, mat: integer)
+
+// Mark the way's footprint into `s`, cut its boundary into `e`, and tag every blocked
+// edge with the surface of the NEAREST segment.  One walk, one source of truth.
+pub fn way_stamp(t: Track, halfwidth: float, s: HexSet, e: EdgeSet,
+
+// Arc length from the start of segment i to the point on it nearest (px,py).
+pub fn seg_param(t: Track, i: integer, px: float, py: float) -> float
+
+// Arc length from the START OF THE WAY to the point on it nearest (px,py).  This is the
+// milepost: the parameter stations, signals, steps and mileage markers are all stated in.
+pub fn way_param(t: Track, px: float, py: float) -> float
+
+// A STAIRCASE: every `tread` of travel along the way raises the ground by `rise`.
+// 
+// The same routine is a terraced hillside, or a ramp at rise = 0.  What makes it a good
+// test of the whole model is that the tread is quantised by the CELL ROWS, and the row
+// spacing depends on the direction of travel (the 24-direction tiers) — so a tread that
+// is clean along one heading skips whole steps along another, which shows up as a DOUBLE
+// RISER between adjacent cells.  That is a real defect (a trip hazard), and it is what
+// sets the minimum tread per direction.
+pub fn way_steps(t: Track, s: HexSet, f: Heights, rise: float, tread: float)

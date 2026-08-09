@@ -1,0 +1,100 @@
+# hex_roof 0.1.0 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_roof-0.1.0
+# use it with: use hex_roof;
+
+## src/hex_roof.loft
+
+// z = peak - slope*d about a point.  Clamping d at dmax is not a detail: it is what makes
+// an eave LEVEL on a quantised footprint, where the boundary cells sit at a spread of true
+// radii (rooftest measures the difference).
+pub fn roof_cone(s: HexSet, f: Heights, cx: float, cy: float,
+
+// The same profile about a ridge.  A full-length ridge gives a gable; shorten it and the
+// ends hip in, because track_distance clamps to the segment.
+pub fn roof_ridge(s: HexSet, f: Heights, t: Track,
+
+// The SOFFIT of a barrel vault or an arch: spring + sqrt(R^2 - d^2), d measured from the
+// crown line.  Beyond the springing the opening has closed, so the soffit is the springing
+// itself.  Pass a radius larger than the half-span for a segmental arch; equal to it for a
+// semicircular one.
+pub fn vault_arc(s: HexSet, f: Heights, t: Track, spring: float, radius: float)
+
+// THE DISTANCE-TO-BOUNDARY ROOF — the one that actually matters on a quantised footprint.
+// 
+// Every cell rises at a constant slope from its NEAREST EAVE, which is the definition of a
+// hip roof. On a circular footprint that is a cone; on an octagonal one a pyramid; on an
+// L-shaped hall a properly mitred hip-and-valley. The FORM is entirely the footprint's
+// shape — there is one function here, not a catalogue, and that is the whole reason "roof
+// forms" stopped being a list.
+// 
+// Driving it from the FOOTPRINT rather than from the ideal circle is also what makes the
+// eave level. Boundary cells are at ring 0 by definition, whatever their true radius. Drive
+// a cone from each cell's own radius instead and the eave inherits the footprint's
+// roundness deviation, wobbling by slope x that spread — rooftest measures both, because
+// the failure is invisible until you look at the eave rather than the apex.
+// 
+// Multi-source BFS inward from the boundary, on the pre-allocated array + index-write
+// idiom (appending while a head pointer walks the same vector is the broken shape).
+pub fn roof_hip(s: HexSet, f: Heights, eave: float, per_ring: float) -> integer
+
+// A DOME — a point source with a CIRCULAR profile, where a cone is a point source with a
+// linear one.  That single swap is the whole difference, and it is also why a dome is the
+// harder object: a cone's slope is constant, a dome's diverges at the springing
+// (dz/dr = -r/sqrt(R^2-r^2)).  Past the 45-degree point r = R/sqrt(2) the surface is more
+// wall than roof and a per-cell height stops being able to carry it — which is exactly why
+// real domes sit on a vertical DRUM and only the cap is vaulted.  vaulttest measures it.
+pub fn dome(s: HexSet, f: Heights, cx: float, cy: float, base: float, radius: float)
+
+pub fn vault_groin(s: HexSet, f: Heights, t1: Track, t2: Track,
+
+pub fn vault_cloister(s: HexSet, f: Heights, t1: Track, t2: Track,
+
+// What can pass here: the gap between floor and soffit.
+pub fn clear_height(fl: Heights, so: Heights, q: integer, r: integer) -> float
+
+// PONDING — the roof's correctness invariant, and the analogue of a stair's monotonicity.
+// An INTERIOR cell (all six neighbours in the footprint) every one of whose neighbours is
+// strictly higher is a local minimum: water collects and never leaves. A roof that sheds
+// has none. Boundary cells are exempt — they drain off the eave, which is their job.
+pub fn roof_ponds(s: HexSet, f: Heights) -> integer
+
+// The spread of eave heights around a footprint's boundary — 0 for a level eave.
+pub fn eave_spread(s: HexSet, f: Heights) -> float
+
+// ── RECOVERING THE FORM: the inverse of everything above ────────────────────
+// 
+// Cells are STORAGE; the analytic surface is the truth.  hexmatch already does this for a
+// traced 2D boundary (loop of lattice points -> straights + arcs).  A height field needs
+// the same service: read the per-cell z back, decide the profile, recover its exact
+// parameters, and hand the renderer a real cone — not a staircase of hexes wearing one.
+// 
+// Nothing downstream should ever draw the quantised heights directly.  Once the form is
+// recovered, the drawn surface is exact at any resolution, and the grid has served its
+// purpose as a compact way to STORE the roof rather than as the shape itself.
+pub const ROOF_UNKNOWN = 0
+
+pub const ROOF_PLANE   = 1
+
+pub const ROOF_CONE    = 2
+
+pub const ROOF_DOME    = 3
+
+pub struct RoofFit
+
+// Least squares z = a*x + b*y + c.  Covers flat and every shed/mono-pitch.
+pub fn roof_plane_fit(s: HexSet, f: Heights) -> RoofFit
+
+// A cone: seed the centre at the highest cell, then refine.  The apex cell is only within
+// one circumradius of the true apex, so the seed alone is not good enough — the refinement
+// is what makes the recovery exact rather than approximately right.
+pub fn roof_cone_fit(s: HexSet, f: Heights) -> RoofFit
+
+pub fn roof_dome_fit(s: HexSet, f: Heights) -> RoofFit
+
+// Decide what the field IS.  A plane wins ties: it is the simpler statement, and a cone
+// fitted to a flat roof would put its apex somewhere arbitrary.
+pub fn roof_match(s: HexSet, f: Heights, tol: float) -> RoofFit
+
+// The recovered ANALYTIC surface — what a renderer should draw, at any resolution, instead
+// of the cells it came from.
+pub fn roof_eval(fit: RoofFit, x: float, y: float) -> float

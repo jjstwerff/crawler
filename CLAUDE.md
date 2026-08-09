@@ -239,6 +239,17 @@ other half (**36** literal-tile sites; plus **24** dispatch-on-content-key sites
 `itemfx`/`sim` that BUNDLE.md's standing check forbids). ⚠ **Do not close those privately** —
 that is the third implementation of one idea. **ADOPTION.md → "Universal for the class"**.
 
+**ONE RESOLUTION PATH — THE REGISTRY IS AUTHORITATIVE** (ADOPTION.md P3). A `--lib` sibling
+tree **outranks** the registry copy, so every one is a silent override: `random` was locked at
+0.1.0 while the build quietly took the working tree's 0.2.0 — and `sim.loft` uses 0.2.0's
+`RandStream`, so **the lock described a build that could not compile**, unreported, for weeks.
+⚠ **The only legal `--lib` in the Makefile is a package that is NOT published, and it must say
+why there** — today exactly one, `../loft/lib/` for `engine_host`. Testing against an
+unreleased sibling goes on the **command line for that run**. And ⚠ **`loft update` does not
+notice a newly declared dependency** (it walks the lock, not the manifest, and still reports
+"up-to-date" — LOFT-HANDOFF H9): after adding a dep, **compile once, then check `loft.lock`
+names it.**
+
 The **pull** side is **ADOPTION.md**: what is already in the family and is still here as a
 copy. `hexedge`/`hexway`/`hexroof` are the same construction as the published
 `hex_edge`/`hex_way`/`hex_roof` (100 % shared API, 30 semantics-neutral differing lines) and

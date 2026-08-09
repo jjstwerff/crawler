@@ -71,20 +71,27 @@ endif
 # Character bundles live in bundles/<name>/; add each as a lib dir so the generated
 # src/bundles.loft can `use` them. Auto-discovered — drop a bundle dir and it's included.
 # (BUNDLE_LIBS is separate so loft-doctor's installed-binary smoke can use it too.)
-# LIB_DEPS: extracted library packages crawler consumes during development (EXTRACTION.md).
-# ../loft-libs-core-main is a read-only `git worktree` of that repo's origin/main (create:
-# `git -C ../loft-libs-core worktree add ../loft-libs-core-main origin/main`) so crawler
-# tracks the MERGED lib state regardless of which branch the working repo has checked out.
-# After a registry release these move to version deps and the worktree flag drops.
-# ../loft/lib carries the @PLN18 games kernel (engine_host — story's loop since
-# plan #6 K1); its natives ride the installed loft binary. Sibling checkout
-# required until engine_host is registry-published.
-# NOTE (plan #7 L0): consuming the `graphics` sibling (--lib ../loft-libs-graphics/)
-# is VERIFIED to outrank the registry copy — but the installed 0.8.5 has the #322
-# stale-program-cache bug, so it keeps the registry binding until the cache is busted.
-# Wire it at P5 (when the §6(a) substrate edits begin) AFTER a toolchain refresh past
-# the #322 fix; until then it'd make resolution cache-state-dependent for no gain.
-LIB_DEPS    := --lib ../loft-libs-core-main/ --lib ../loft-libs-world/ --lib ../loft/lib/
+# LIB_DEPS — ONE RESOLUTION PATH (ADOPTION.md P3, 2026-08-09).
+#
+# THE REGISTRY IS AUTHORITATIVE. Every published package crawler uses resolves from
+# loft.lock and nowhere else; a --lib sibling tree OUTRANKS the registry copy, so each
+# one here is a silent override waiting to happen. Two paths that can disagree without
+# a word is what this line used to be: `random` was locked at 0.1.0 while the build
+# quietly took the working tree's 0.2.0 — and the source uses 0.2.0's `RandStream`, so
+# the LOCK DESCRIBED A BUILD THAT COULD NOT COMPILE. Nothing reported it, because the
+# path that worked was never the path that was written down.
+#
+# ⚠ THE ONLY LEGAL --lib IS A PACKAGE THAT IS NOT PUBLISHED, and it must say why here.
+#   ../loft/lib   — engine_host (@PLN18 games kernel, story's loop since plan #6 K1).
+#                   Not on the registry; its natives ride the installed loft binary.
+#                   Drop this the day engine_host is published.
+# Removed when their packages went to the registry, as the previous note here
+# anticipated ("after a registry release these move to version deps"):
+#   ../loft-libs-core-main  — random/regex/crypto/cbor/arguments, all published.
+#   ../loft-libs-world      — the hex_* family, all published.
+# To test against an unreleased sibling, add --lib ON THE COMMAND LINE for that run.
+# Do not put it back here: an override that outlives the experiment is the bug above.
+LIB_DEPS    := --lib ../loft/lib/
 BUNDLE_LIBS := $(addprefix --lib ,$(wildcard bundles/*/) $(wildcard bundles/*/items/))
 LOFTFLAGS := $(LOFTFLAGS) $(LIB_DEPS) $(BUNDLE_LIBS)
 

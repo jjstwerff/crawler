@@ -12,9 +12,9 @@ deps = ["glb", "mesh3d"]
 
 [[package]]
 name = "random"
-version = "0.1.0"
-url = "https://github.com/loft-lang/loft-libs-core/releases/download/random-v0.1.0/random-0.1.0.tar.gz"
-sha256 = "7599297598bfec378135c90868766ad23046d47c001690a42d79a48d4bb1acaa"
+version = "0.3.0"
+url = "https://github.com/loft-lang/loft-libs-core/releases/download/random-v0.3.0/random-0.3.0.tar.gz"
+sha256 = "beb7c5ec9ba5df00725ca776c3fa837e8757cff865589bcfb5ea85cd0fc53386"
 source = "registry"
 
 [[package]]
@@ -26,9 +26,9 @@ source = "registry"
 
 [[package]]
 name = "hex_terrain"
-version = "0.1.0"
-url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_terrain-v0.1.0/hex_terrain-0.1.0.tar.gz"
-sha256 = "98669010662c92b5d6a26a1d6829e96458fa79c2ed57929568d87f3b78c7249c"
+version = "0.1.1"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_terrain-v0.1.1/hex_terrain-0.1.1.tar.gz"
+sha256 = "0ac6d756c694584954ff9b9d6215ec9738008bd16713b77a01b91ada95f39f49"
 source = "registry"
 
 [[package]]
@@ -52,3 +52,27 @@ version = "0.1.0"
 url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_field-v0.1.0/hex_field-0.1.0.tar.gz"
 sha256 = "b15e31ac9791bf4188911951bd04e5cda3dece15a22af613750a7a8ca66fe7b1"
 source = "registry"
+
+[[package]]
+name = "hex_edge"
+version = "0.1.0"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_edge-v0.1.0/hex_edge-0.1.0.tar.gz"
+sha256 = "cc88accb3324d90fc37bf0a49d9c0d28ef2f7520a19a90c24d82911f4adb8a4c"
+source = "registry"
+deps = ["hex_field"]
+
+[[package]]
+name = "hex_way"
+version = "0.1.0"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_way-v0.1.0/hex_way-0.1.0.tar.gz"
+sha256 = "03cc160ba0d34076403a4e862f78ea59a39a4dbb2fad0767acdfdb4268de060f"
+source = "registry"
+deps = ["hex_edge", "hex_field"]
+
+[[package]]
+name = "hex_roof"
+version = "0.1.0"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_roof-v0.1.0/hex_roof-0.1.0.tar.gz"
+sha256 = "88119b2e3922993c1c8f21282024c695c5ecfef2e16d076042b2f89df830fde3"
+source = "registry"
+deps = ["hex_field", "hex_way"]

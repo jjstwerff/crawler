@@ -1035,3 +1035,86 @@ Not silent and not a crash — it fails loudly at compile time with a clear (if 
 *inside* the dependency. But it makes a chunk of inter-dependent WIP libraries un-buildable via
 `--lib` the moment they declare their real deps, which is exactly the local-dev loop for the first
 inter-dependent library family in a chunk. The workaround is clean, so it does not block.
+
+---
+
+## H9 — `loft update` iterates the LOCKFILE, not the manifest: a newly declared dependency is never locked, and the report says "up-to-date"
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:medium`, `wa:clean`, `area:packages`, `hit-by:crawler`, `bug`
+**Suggested title:** `loft update: a dependency declared in loft.toml but absent from loft.lock is skipped silently — "all N packages up-to-date" counts the lock, not the manifest`
+
+### Summary
+
+Add a dependency to `[dependencies]` **and use it in the source**, then run `loft update`. The
+package is **not added to `loft.lock`**, and the command reports success — counting the packages
+already in the lock, not the ones declared:
+
+```
+loft update: all 1 packages up-to-date.
+```
+
+…with **two** declared and used. The lock keeps lagging the manifest until some later build
+happens to compile against the package, at which point resolution writes the entry as a side
+effect. `loft update <pkg>` on the missing package is no better: it answers
+`already on the highest satisfying version` and still writes nothing.
+
+The silence is what makes this bite. `loft update` is the command a consumer runs to make the
+lock describe the manifest, and it affirmatively reports that it does.
+
+### Repro (minimal, from scratch)
+
+```sh
+mkdir -p lockrepro/src && cd lockrepro
+cat > loft.toml <<'EOF'
+[package]
+name    = "lockrepro"
+version = "0.0.0"
+loft    = ">=0.8"
+
+[dependencies]
+random = ">=0.2"
+EOF
+printf 'use random;\nfn main() { r = RandStream { s1: 1, s2: 2 }; println("{r.s1}"); }\n' > src/main.loft
+
+loft --interpret --check src/main.loft     # lock created:  random
+# now DECLARE AND USE a second package
+sed -i 's|^random = ">=0.2"|random = ">=0.2"\nhex_grid = ">=0.1"|' loft.toml
+sed -i '1i use hex_grid;' src/main.loft
+
+loft update                                # -> "all 1 packages up-to-date"   <-- WRONG
+grep '^name' loft.lock                     # -> random          (hex_grid absent)
+
+loft --interpret --check src/main.loft     # "[registry] resolving hex_grid from registry"
+grep '^name' loft.lock                     # -> random, hex_grid
+loft update                                # -> "all 2 packages up-to-date"   (correct now)
+```
+
+### Expected
+
+`loft update` reads `[dependencies]`, resolves every declared package, and writes a lock entry
+for each — so the lockfile describes the manifest after the command that exists to make it do
+so. A package it cannot resolve should be an error, not a silent omission.
+
+### Actual
+
+It walks the existing `loft.lock` and refreshes those entries only. A dependency the manifest
+gained since the lock was written is invisible to it, and the summary line counts lock entries,
+so the omission reads as success.
+
+### Why it matters to a consumer
+
+The lockfile stops being the authority it is meant to be. In crawler, `hex_edge`, `hex_way` and
+`hex_roof` were declared in `loft.toml` and used by 55 files while absent from `loft.lock`;
+`loft update` reported everything up-to-date. Each then resolved from wherever it could be
+found — the local registry cache, or a `--lib` sibling tree that outranks the registry — which
+is precisely the two-paths-that-disagree problem the lockfile is supposed to prevent. A fresh
+clone plus `loft update` reproduces an incomplete lock.
+
+### Workaround (verified, clean)
+
+Build once before trusting the lock: any compile that exercises the new dependency writes its
+entry, after which `loft update` behaves. Concretely — `loft --interpret --check <a file that
+uses it>`, then `loft update`. Verifying the lock names every declared package is the check
+that catches it.
+

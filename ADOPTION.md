@@ -229,20 +229,69 @@ Rename `crawler::Stencil` → `RoomStencil` in `src/worldtypes.loft` and its use
 vocabulary, not geometry; the geometry meaning belongs to `hex_field` and crawler should stop
 competing for the word. Closes F7, and removes a shadow that a future reader will misread.
 
-### P3 — one resolution path (the chokepoint)
+### P3 — one resolution path (the chokepoint) — **DONE**
 
-The step that actually reduces brittleness, and the only one that does:
+The step that actually reduces brittleness, and the only one that does.
 
-- make `loft.toml` describe reality — every `use`d package declared, floors that match what we
-  need (`graphics >= 0.5`, not `>= 0.2`);
-- refresh `loft.lock` so it does not contradict its own manifest (`random` 0.1.0 vs `>=0.2`;
-  `hex_terrain` 0.1.0 vs 0.1.1 published);
-- **decide, once and in writing, which path is authoritative** — working tree or registry —
-  and make the other one fail loudly rather than quietly resolve differently.
+**THE DECISION: the registry is authoritative.** A `--lib` sibling tree *outranks* the registry
+copy, so every entry on that line was a silent override waiting to fire. The rule is now one
+sentence: **the only legal `--lib` is a package that is NOT published, and it must say why in
+the Makefile.** Today that is exactly one — `../loft/lib/` for `engine_host`, which has no
+registry entry; it goes the day `engine_host` is published. To test against an unreleased
+sibling, pass `--lib` **on the command line for that run** — an override that outlives the
+experiment is the defect below.
 
-⚠ This phase has a **dependency we do not control**: the 2026-08-03 `hex_field` work is
-unpublished. If registry is chosen as authoritative, `hex_field` 0.2.0 must be cut first. That
-is a `loft-libs-world` decision, not ours — raise it, don't route around it.
+⚠ **This was not a new policy. It was an intent already written on that line and never
+triggered** — *"after a registry release these move to version deps and the worktree flag
+drops."* Both repos were published on 2026-07-24 and the flags stayed. An intent with no
+trigger is not a plan, and the cost of the gap is the next paragraph.
+
+#### What the two paths had already silently disagreed about — the load-bearing find
+
+| package | `loft.lock` said | the build actually used | |
+|---|---|---|---|
+| `random` | **0.1.0** | **0.2.0** (working tree) | ⚠ |
+| `hex_terrain` | 0.1.0 | 0.1.1 (working tree) | |
+| `hex_edge`, `hex_way`, `hex_roof` | *absent* | working tree | |
+
+⚠ **The `random` row is the one that matters: the lock described a build that could not
+compile.** `src/sim.loft` uses `random::RandStream`, which is a **0.2.0** API and does not
+exist in 0.1.0. So the pinned version had been wrong — not merely stale — for as long as the
+`--lib` line covered for it, and nothing reported it, because *the path that worked was never
+the path that was written down.* That is the exact failure this phase exists to remove, found
+by measuring the two paths against each other rather than by anything going wrong.
+
+#### The version question, kept separate on purpose
+
+Refreshing the lock moved `random` **0.1.0 → 0.3.0**, and `random` is the seeded RNG behind
+crawler's determinism invariants (`replaytest`, scene_key-identical worlds). A silent sequence
+change there is not a regression the gate would call a failure — it would simply be a different
+world. So the bump is **not taken on faith from a version number**: it is measured, by the same
+normalised-output diff P1 used. Identical output ⇒ the sequences did not move ⇒ the bump is
+safe *and proven*. Any divergence ⇒ pin `random` at 0.2.0 and take the bump as its own step.
+
+⚠ **The compatibility contract could not help here, and that is worth knowing.**
+`api_compatible_with` / `data_compatible_with` were declared across the libraries on
+2026-07-28, but they are **additive manifest fields that only reach the index on the next
+publish** — and nothing crawler depends on has been republished since. So **not one package in
+crawler's graph carries a published floor**. Until that changes, "is this bump a drop-in?" has
+no answer in the registry and must be answered by building.
+
+#### A defect found on the way — the lock does not describe the declared set
+
+`loft update` reports `hex_edge: already on the highest satisfying version` and writes **no
+lock entry**. The entry appears only once something *compiles* against the package: `hex_edge`
+landed when `make check` built `story.loft`, and `hex_way` / `hex_roof` only after a test that
+uses them was checked. So a freshly-declared dependency is absent from `loft.lock` until an
+unrelated build happens to exercise it — the lockfile lags the manifest, silently. Filed; see
+`LOFT-HANDOFF.md`.
+
+#### Also fixed here
+
+- `graphics` floor `>=0.2` → `>=0.5`; CLAUDE.md has required 0.5.0 (the len/size flip) all
+  along, and only the lock was keeping it honest.
+- `.loft/api/*.api` stubs regenerated for all ten packages. `.gitignore` already exempts that
+  directory from the `.loft/` ignore (loft#362) — they are meant to be committed.
 
 ### P4 — the standing rules
 
@@ -410,7 +459,7 @@ Not this plan's work, and named so it is not lost:
 | risk | severity | why it is acceptable |
 |---|---|---|
 | Upstream drifts and our build changes underneath us | **high** — this is F4, and it is live *today* | P3 + P4 are the answer; the risk exists **now**, adoption does not create it |
-| `hex_field` 0.2.0 is not ours to cut | medium | P3 can land against the working tree and re-point later; say so out loud rather than quietly pinning |
+| ~~`hex_field` 0.2.0 is not ours to cut~~ — **retired, and it was never real** | — | The registry 0.1.0 source is the working tree's **minus three functions**: `stencil_unstamp`, `_layers`, `_all`. Zero removals, zero modifications, and crawler calls none of them. So going registry-authoritative is behaviour-neutral for `hex_field` and needs **no upstream publish at all**. The blocker was assumed from a version number and dissolved on one `diff` |
 | The P0 rename hides a second 2026.8.0 breakage in the 18 unrun tests | medium | P0 is not done until all 86 run; that is the point of doing it first |
 | 57 mechanical edits go wrong | **low** | every failure is a compile error, none is silent (`N × silence = 0`) |
 

@@ -1,0 +1,378 @@
+# hex_field 0.1.0 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_field-0.1.0
+# use it with: use hex_field;
+
+## src/hex_field.loft
+
+// Occupancy over a BOUNDED CHUNK of hex coords: q in [hs_q0 .. hs_q0+hs_w),
+// r in [hs_r0 .. hs_r0+hs_h).  Deliberately a chunk, not a global graph — every
+// routine here is O(chunk) and never walks an unbounded neighbourhood, so the same
+// code serves a 32x32 world chunk (plan #2) as serves a one-off tower window.
+// Anything spanning chunks is traced per chunk (with a halo) and stitched; nothing
+// here assumes the form is centred, or that the world is reachable.
+pub struct HexSet
+
+// A vector map: loops concatenated, loop i occupying [vm_start[i], vm_start[i+1]).
+pub struct VecMap
+
+// A chunk anchored at (q0,r0), w x h cells.  THE primitive — everything else builds
+// on it, so no routine can accidentally depend on a global frame.
+pub fn hexset_chunk(q0: integer, r0: integer, w: integer, h: integer) -> HexSet
+
+// Convenience: a window centred on the origin, radius `w`.
+pub fn hexset_new(w: integer) -> HexSet
+
+pub fn hexset_q0(s: HexSet) -> integer
+
+pub fn hexset_r0(s: HexSet) -> integer
+
+pub fn hexset_w(s: HexSet) -> integer
+
+pub fn hexset_h(s: HexSet) -> integer
+
+pub fn hexset_get(s: HexSet, q: integer, r: integer) -> boolean
+
+pub fn hexset_set(s: HexSet, q: integer, r: integer, on: boolean)
+
+pub fn hexset_count(s: HexSet) -> integer
+
+// Hex (q,r) -> exact integer lattice centre.  Matches hex_grid::hex_to_px scaled by
+// (sqrt(3)/2, 1/2) — verified against the library before porting.
+pub fn lattice_k(q: integer, r: integer) -> integer
+
+pub fn lattice_m(_q: integer, r: integer) -> integer
+
+// Neighbour (q,r) in direction d, odd-r offset.  Same SET as hex_grid::hex_neighbor.
+pub fn nb_q(q: integer, r: integer, d: integer) -> integer
+
+pub fn nb_r(_q: integer, r: integer, d: integer) -> integer
+
+// ── HEIGHTS ─────────────────────────────────────────────────────────────────
+// 
+// A per-CELL height, chunk-indexed exactly like a HexSet.  Everything before stairs got by
+// with height on the material (how tall a wall is); a staircase is the first thing that
+// needs the GROUND itself to have a z, because each step is a different floor.
+// 
+// It is deliberately a separate structure rather than a field on HexSet: most of the world
+// is flat and should not pay for a height it never reads, and a height field is derived
+// (from a way, a contour, a terrace) exactly as the edge field is.
+pub struct Heights
+
+pub fn heights_new(q0: integer, r0: integer, w: integer, h: integer) -> Heights
+
+pub fn height_set(f: Heights, q: integer, r: integer, z: float)
+
+pub fn height_get(f: Heights, q: integer, r: integer) -> float
+
+// ── LABELS ──────────────────────────────────────────────────────────────────
+// 
+// A per-CELL integer, chunk-indexed exactly like Heights.  Heights answers "how high is
+// this cell"; Labels answers "whose is it".  Plan #9 (canopy-first trees) needs the second
+// because a canopy is a PARTITION under competition rather than a stamped footprint — the
+// assignment is the output, not a tie-break.
+// 
+// -1 means unowned, which is a real state: a cell no crown reaches belongs to nobody.
+pub struct Labels
+
+pub fn labels_new(q0: integer, r0: integer, w: integer, h: integer) -> Labels
+
+pub fn label_set(f: Labels, q: integer, r: integer, v: integer)
+
+pub fn label_get(f: Labels, q: integer, r: integer) -> integer
+
+// World point -> the cell that contains it.  The exact inverse of the centre map
+// (lattice_k / lattice_m), by the standard axial-fractional + cube-round route.  Gated two
+// ways in sighttest: it must round-trip every cell of a chunk, and it must agree cell for
+// cell with hex_grid::px_to_hex, which is the canonical convention this whole plan follows.
+pub fn hex_at(px: float, py: float) -> (integer, integer)
+
+// Corner i of a cell, as an offset from its lattice centre.  Ordered so consecutive
+// corners bound one edge; index matches the Python CORNER table exactly.
+// CANONICAL corner order — this is hex_grid::hex_corner_offset / worldmesh.loft's
+// hex_lat_offset (the watertight instanced floor depends on it), in exact lattice
+// units.  Do NOT invent another ordering: downstream code reads corner i by index.
+pub fn corner_k(i: integer) -> integer
+
+pub fn corner_m(i: integer) -> integer
+
+pub fn form_hexdisk(w: integer, n: integer) -> HexSet
+
+// Fill a hex-distance disk centred anywhere INTO an existing chunk.  Cells outside the
+// chunk are simply not written — the caller decides the halo.  This is the chunk-local
+// form of form_hexdisk and the one a world chunk actually uses.
+pub fn hexdisk_into(s: HexSet, cq: integer, cr: integer, n: integer)
+
+// Hex distance on odd-r offset, via cube coords.
+pub fn hex_dist(q1: integer, r1: integer, q2: integer, r2: integer) -> integer
+
+// Euclidean disk: the hex CENTRE must lie within `radius` world units of the origin.
+// Compared in squared lattice units to keep it integer until the final test.
+pub fn form_circle(w: integer, radius: float) -> HexSet
+
+// Regular octagon, apothem `a`, one flat side on the world x-axis (canonical
+// orientation — an octagon is 8-fold symmetric and the grid is 6-fold, so the
+// orientation is FROZEN, not free).
+pub fn form_octagon(w: integer, apothem: float) -> HexSet
+
+pub fn wall_count(s: HexSet) -> integer
+
+// Trace the boundary into ordered closed loops.  Each boundary edge is emitted directed
+// corner_i -> corner_i+1, which gives every loop a consistent orientation (outer one
+// way, enclosed holes the other) — what a fill rule and a triangulator both need.
+pub fn trace(s: HexSet) -> VecMap
+
+// Twice the signed area of loop i, in integer lattice units.  Exact.
+pub fn shoelace2(v: VecMap, i: integer) -> integer
+
+pub fn shoelace_total(v: VecMap) -> integer
+
+// Returns 0 when the vector map is safe to consume; otherwise a failure code:
+// 1 no loops   2 degenerate loop   3 segment is not a hex edge
+// 4 area round-trip failed         5 wrong number of outer loops
+pub fn validate(v: VecMap, cells: integer) -> integer
+
+pub const HXF_MAGIC   = 0x31465848
+
+pub const HXF_SCHEMA  = 1
+
+pub const HXF_HEADER  = 32
+
+pub const TAG_OCCU = 0x5543434F
+
+pub const TAG_HGHT = 0x54484748
+
+pub const TAG_LABL = 0x4C42414C
+
+pub const TAG_EDGE = 0x45474445
+
+// 'LAYR' — one NAMED integer layer.  Payload: name_len i32, the name's bytes,
+// then w*h i32 values.  One section per layer, so a file carries as many as the
+// author made and a reader that wants none skips them all by their lengths.
+// TAG_LABL predates this and is the unnamed primary layer; it stays because the
+// committed fixtures are written with it, and because "the material" needing no
+// name is the common case.
+pub const TAG_LAYR = 0x5259414C
+
+// Refusal codes.  0 = loaded.  Every one of these is a REFUSAL, never a
+// partial parse: a half-read field is worse than no field.
+pub const HXF_OK            = 0
+
+pub const HXF_BAD_MAGIC     = 1
+
+pub const HXF_BAD_SCHEMA    = 2
+
+pub const HXF_BAD_RESERVED  = 3
+
+pub const HXF_BAD_SECTION   = 4
+
+pub const HXF_TRUNCATED     = 5
+
+pub const HXF_MISSING_OCCU  = 6
+
+// What a load produced.  `doc_code` is the refusal code; the field members are
+// meaningful only when it is HXF_OK.
+pub struct HexDoc
+
+// Write a field.  `heights` / `labels` are optional: pass has_h/has_l false to
+// leave the section out entirely rather than writing a zero-filled one, so a
+// stencil that only carries occupancy costs only occupancy.
+pub fn doc_write(
+
+// As doc_write, plus the wall layer.  The EDGE payload is the halo grid — gw*gh*3
+// slots — because an edge on the chunk boundary belongs to a cell outside it, and
+// dropping those would silently open the walls of every stamped building's rim.
+pub fn doc_write_edges(
+
+// The full form: cells, optional heights/labels/edges, and any number of NAMED
+// integer layers.
+pub fn doc_write_all(
+
+pub fn doc_read(path: text) -> HexDoc
+
+pub const ROT_OK           = 0
+
+pub const ROT_NOT_MULTIPLE = 1
+
+// Inverse of (lattice_k, lattice_m).  m is always 3r and k − (r&1) always even,
+// so both divisions are exact rather than truncating.
+pub fn lattice_to_cell(k: integer, m: integer) -> (integer, integer)
+
+// One 60° step counter-clockwise about the lattice origin.
+pub fn lattice_rot60(k: integer, m: integer) -> (integer, integer)
+
+// Rotate a cell n × 60° about cell (0,0).  n may be any integer; six steps are
+// the identity, so it wraps.
+pub fn cell_rot(q: integer, r: integer, n: integer) -> (integer, integer)
+
+// Reflect a cell in the vertical axis (k → −k).  With the six rotations this
+// gives the 12 orientations handed content needs — an L-shaped house, a stair.
+pub fn cell_mirror(q: integer, r: integer) -> (integer, integer)
+
+pub struct Stencil
+
+// Build the field FIRST, then construct the stencil: these take their arguments
+// by value, so cells set on the HexSet afterwards do not reach the stencil.  The
+// failure is quiet — the stencil reports the right layer count and extent, and
+// only the contents are missing.
+pub fn stencil_from(s: HexSet, hz: Heights, lb: Labels, has_h: boolean, has_l: boolean) -> Stencil
+
+// A stencil that carries walls.  Separate constructor so the common case — a
+// footprint with no walls — does not allocate an edge layer it never reads.
+pub fn stencil_with_edges(s: HexSet, hz: Heights, lb: Labels, eg: EdgeSet,
+
+// Rotate a whole stencil n × 60° about its own (0,0), re-fitting the extent to
+// whatever the rotated cells need.
+pub fn stencil_rotate(st: Stencil, n: integer) -> Stencil
+
+// Reflect a whole stencil (k -> -k).  With the six rotations this is the other
+// half of the TWELVE orientations: six placements, and the remaining six reached
+// by flipping.  Handed content — an L-shaped house, a staircase — needs it, and
+// it is exact for the same reason the rotation is.
+pub fn stencil_mirror(st: Stencil) -> Stencil
+
+// Degrees, refused rather than rounded when they are not a multiple of 60.
+// A rotation that silently rounds is how an exact lattice quietly becomes an
+// approximate one, so this returns an EMPTY stencil carrying ROT_NOT_MULTIPLE.
+pub fn stencil_rotate_deg(st: Stencil, deg: integer) -> Stencil
+
+// Stamp `st` so its (0,0) lands on target cell (aq, ar).  Occupied stencil
+// cells win; everything else in the target is untouched, which is what makes
+// two stamps at different places order-free.
+pub fn stencil_stamp(
+
+// Stamp the named layers too.  Separate from stencil_stamp so a consumer that
+// uses no layers pays nothing for them.
+pub fn stencil_stamp_layers(
+
+// Everything at once: cells, heights, labels, named layers and walls.  Exists so
+// a consumer does not stamp cells three times by calling the three narrower
+// forms, and so there is ONE place that knows the full payload.
+pub fn stencil_stamp_all(
+
+// Stamp including the wall layer.  Edges translate the same way cells do — in
+// lattice space — so a wall stamped on an odd row stays on the edge it was
+// authored on.
+pub fn stencil_stamp_edges(
+
+// TWO SLOTS, TWO OWNERS.  `eg_mat` is the PHYSICS of an edge — what it is made of — and
+// is authored: a stencil carries materials, a document round-trips them.  `eg_surf` is the
+// GEOMETRY — WHICH exact surface blocks here — and is derived at build time.
+// 
+// The surface slot exists because a hex edge has only 6 possible normals, and measured
+// against the true wall normal across 24 headings, using the edge's own normal is wrong by
+// up to 90 degrees: a bounce that sends you sideways.  So the edge stores an id and the
+// surface carries the exact geometry.  That makes the grid a SPATIAL INDEX — it says THAT
+// you hit something and WHICH thing — while the normal stays exact and mesh-free.
+// 
+// `eg_surf` is DELIBERATELY NOT SERIALIZED by the document format, and that is not an
+// omission to fix later: a surface id points into a `Surfaces` table this library does not
+// own, so writing ids to a file would persist dangling references.  Materials are ids into
+// a closed enumeration of mechanisms and travel fine; surfaces are not.  The TAG_EDGE
+// section stays exactly `(w+2)*(h+2)*3` material bytes, so existing documents keep loading.
+pub struct EdgeSet
+
+pub fn edgeset_new(q0: integer, r0: integer, w: integer, h: integer) -> EdgeSet
+
+// The doubled midpoint — an edge's identity, independent of which cell names it.
+pub fn edge_key(qa: integer, ra: integer, qb: integer, rb: integer) -> (integer, integer)
+
+// The storage slot for an edge, or -1.  PUBLIC because a consumer building its
+// own accessors on this layer cannot address storage it cannot index — crawler's
+// apply_features and its junction arbitration write by index.  Exposing the slot
+// is cheaper than exporting a get/set pair for every access pattern they have.
+// Unconditional write — the last writer wins.  The write POLICY is deliberately the
+// caller's: first-writer-wins is `if edge_mat(...) == 0 { edge_set_mat(...) }` at the call
+// site, where the reader can see which rule is in force.
+pub fn edge_set_mat(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer, mat: integer)
+
+pub fn edge_mat(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer
+
+// Write the surface blocking this edge, maintaining the blocked count exactly.
+// Unconditional — the WRITE POLICY belongs to the caller, because there is more than one:
+// crawler's collision layer wants first-writer-wins for plain construction and
+// nearest-surface arbitration where two parts meet.  A policy baked in here would silently
+// decide which surface owns a junction, which is a physics question, not a storage one.
+pub fn edge_set_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+
+pub fn edge_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> integer
+
+// Both halves of an edge in one call, so a caller cannot set geometry and forget physics.
+pub fn edge_set_both(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+
+// Blocked edges, O(1).  `edgeset_count` walks the grid and counts MATERIALS; this is the
+// derived-geometry count and is maintained on write, so it is free to call every frame.
+pub fn edgeset_surf_count(e: EdgeSet) -> integer
+
+// Exact element-wise equality over BOTH slots and the whole grid, halo included.
+// 
+// Exists because the obvious consumer test — "is the cached layer identical to a freshly
+// derived one?" — otherwise has to read the vectors directly, which would make the field
+// layout contract.  Compares the halo too: `edgeset_count` walks only in-chunk cells, so a
+// corruption in the 74-of-75 halo slots of a small layer round-trips faithfully and no
+// assertion sees it.  That is not hypothetical here — it is how a negative control in this
+// package failed to fail.
+pub fn edgeset_equal(a: EdgeSet, b: EdgeSet) -> boolean
+
+// An order-sensitive checksum of the whole layer — the cheap "did anything change at all?"
+// for a test that operates on a layer and asserts it was left alone.  Use `edgeset_equal`
+// when the answer must be exact; a digest can collide, and for a correctness gate that
+// matters.
+pub fn edgeset_digest(e: EdgeSet) -> integer
+
+// Actual bytes held, so a consumer can GATE the footprint instead of reasoning about it.
+// An edge layer is a per-region cache in at least one consumer, which makes its size a
+// real cost; `size` reports what is truly allocated, so an assertion on it is what stops
+// the structure quietly growing back.  Exposed as a function rather than leaving consumers
+// to read the vectors, which would make the field layout contract.
+pub fn edgeset_bytes(e: EdgeSet) -> integer
+
+pub fn edgeset_q0(e: EdgeSet) -> integer
+
+pub fn edgeset_r0(e: EdgeSet) -> integer
+
+pub fn edgeset_w(e: EdgeSet) -> integer
+
+pub fn edgeset_h(e: EdgeSet) -> integer
+
+// Every non-zero slot in the layer, INCLUDING the halo.  edgeset_count walks
+// only in-chunk cells, which leaves the halo — 74 of a 3x3 layer's 75 slots —
+// unverified: a corruption there round-trips faithfully and no assertion sees
+// it.  Found by a negative control that failed to fail.
+pub fn edgeset_count_all(e: EdgeSet) -> integer
+
+// How many edges carry a material.  Walks the canonical slots only, so each
+// edge is counted once however many cells touch it.
+pub fn edgeset_count(e: EdgeSet) -> integer
+
+pub struct Layers
+
+pub fn layers_new(q0: integer, r0: integer, w: integer, h: integer) -> Layers
+
+pub fn layer_count(ls: Layers) -> integer
+
+pub fn layer_name(ls: Layers, i: integer) -> text
+
+pub fn layers_q0(ls: Layers) -> integer
+
+pub fn layers_r0(ls: Layers) -> integer
+
+pub fn layers_w(ls: Layers) -> integer
+
+pub fn layers_h(ls: Layers) -> integer
+
+// Index of a named layer, or -1.  Names are the consumer's vocabulary; the
+// library never interprets them.
+pub fn layer_index(ls: Layers, name: text) -> integer
+
+// Add a layer, zero-filled.  Adding one that exists is a no-op, so a consumer
+// can call it defensively without checking first.
+pub fn layer_add(ls: Layers, name: text) -> integer
+
+pub fn layer_set(ls: Layers, name: text, q: integer, r: integer, v: integer)
+
+pub fn layer_get(ls: Layers, name: text, q: integer, r: integer) -> integer
+
+// By index, for the writer and for iterating without knowing the names.
+pub fn layer_get_at(ls: Layers, li: integer, q: integer, r: integer) -> integer
+
+pub fn layer_set_at(ls: Layers, li: integer, q: integer, r: integer, v: integer)

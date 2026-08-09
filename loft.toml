@@ -5,7 +5,7 @@ version = "0.0.0"
 loft    = ">=0.8"
 
 [dependencies]
-graphics    = ">=0.2"
+graphics    = ">=0.5"       # 0.5.0 fixed the len/size flip; CLAUDE.md requires it
 hex_grid    = ">=0.1"
 hex_terrain = ">=0.1"
 random      = ">=0.2"       # the source already uses 0.2.0's RandStream
