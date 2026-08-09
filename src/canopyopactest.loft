@@ -139,10 +139,10 @@ fn main() {
   x1 = nx * 4.0 + 34.0 * cos(aa);
   y1 = ny * 4.0 + 34.0 * sin(aa);
   L = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
-  Ns = ray_card_count(sparse, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  nsparse = ray_card_count(sparse, top, bas, x0, y0, 7.0, x1, y1, 7.0);
   tfield = exp(0.0 - k * L) ?? 0.0;
   tsparse = 1.0;
-  for i in 0..Ns { tsparse = tsparse * (1.0 - alpha); }
+  for i in 0..nsparse { tsparse = tsparse * (1.0 - alpha); }
   // Compared as a RATIO, not a difference: transmittances this deep in a canopy are
   // fractions of a percent, so an absolute gap would look small however wrong it was.
   ratio = tsparse / tfield ?? 1.0;
@@ -187,18 +187,18 @@ fn main() {
   if worst_off < 15.0 { ok = false; }         // branches must reach well off-axis
 
   // ── 4. a ray that misses the canopy is transparent in both ───────────────
-  Lm = ray_canopy_length(lb, top, bas, -30.0, 40.0, 8.0, 30.0, 40.0, 8.0);
-  Nm = ray_card_count(marks, top, bas, -30.0, 40.0, 8.0, 30.0, 40.0, 8.0);
-  println("a ray clear of the crown: L {Lm}, N {Nm} -> both layers transparent");
-  if Lm > 0.000001 || Nm != 0 { ok = false; }
+  len_miss = ray_canopy_length(lb, top, bas, -30.0, 40.0, 8.0, 30.0, 40.0, 8.0);
+  n_miss = ray_card_count(marks, top, bas, -30.0, 40.0, 8.0, 30.0, 40.0, 8.0);
+  println("a ray clear of the crown: L {len_miss}, N {n_miss} -> both layers transparent");
+  if len_miss > 0.000001 || n_miss != 0 { ok = false; }
 
   // ── 5. and the whole thing is deterministic ──────────────────────────────
-  La = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
-  Lb = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
-  Na = ray_card_count(marks, top, bas, x0, y0, 7.0, x1, y1, 7.0);
-  Nb = ray_card_count(marks, top, bas, x0, y0, 7.0, x1, y1, 7.0);
-  println("determinism: same ray twice -> L {La == Lb}, N {Na == Nb}");
-  if La != Lb || Na != Nb { ok = false; }
+  len_a = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  len_b = ray_canopy_length(lb, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  n_a = ray_card_count(marks, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  n_b = ray_card_count(marks, top, bas, x0, y0, 7.0, x1, y1, 7.0);
+  println("determinism: same ray twice -> L {len_a == len_b}, N {n_a == n_b}");
+  if len_a != len_b || n_a != n_b { ok = false; }
 
   if ok { println("=== CANOPYOPAC OK ==="); } else { println("=== FAIL ==="); }
 }
