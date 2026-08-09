@@ -60,6 +60,14 @@ an **upstream loft** plan (UPSTREAM-PLANS.md); crawler's own are written `plan #
 ```sh
 make play     # native window (W/S glide, A/D turn, walk onto stairs, . wait, g grab, N next world, Esc quit)
 make test     # headless deterministic gate — RUN THIS before committing
+              #   QUIET ON PASS: one `ok  <secs>  <name>` line per test, a header
+              #   naming the compiler (version + md5 — `--version` is NOT provenance),
+              #   and a closing line for anything over 5 s. A FAILURE prints its own
+              #   evidence, so you never go hunting for the log.
+              #   GATE_VERBOSE=1 make test  -> the old full stream.
+              #   ⚠ To prove a change behaviour-preserving, diff the PER-TEST logs
+              #   (/tmp/story_<name>.log), not the gate's stdout — they cannot
+              #   interleave, and stdout no longer carries the outputs.
 make check    # quiet compile-only gate (parse + bytecode), no display
 make shot     # one Xvfb frame -> story.png  (positionally unreliable, see below)
 make probe    # pixel-probe gate: Xvfb renders + tools/probe.py asserts probes/*.probe

@@ -37,12 +37,53 @@ if [ -d ../loft/.git ]; then
   fi
 fi
 
+# ── QUIET ON PASS, LOUD ON FAIL, AND ALWAYS SAY WHERE THE TIME WENT ─────────
+#
+# ⚠ A GREEN TEST'S OUTPUT IS NOISE, AND THE NOISE HID THINGS. `tee`ing every test's
+# stdout made a gate log ~100,000 lines, 98% of it compiler advice from runs that
+# passed. Diffing two runs — the way a behaviour-preserving change is actually proved
+# — meant filtering that by hand every time, and twice this month a real difference
+# sat inside it unnoticed for an hour. loft's own Goal F is the rule: a tool that
+# reports its good health teaches the reader to skip the line where it eventually
+# reports the opposite.
+#
+# So a passing test prints ONE line, a failing one prints everything that matters,
+# and the full output is still on disk per test (/tmp/story_<name>.log) — which is a
+# BETTER diff target than the old combined stream, because it cannot interleave.
+#
+# ⚠ THE SECONDS ARE NOT DECORATION. A suite that takes minutes has to say where they
+# went or nobody can shorten it: measured, six of 88 tests hold most of the wall time
+# (quest 51s, travel 30s, replay 26s, surface 26s, sweep 22s, mesh 20s) and most of
+# the rest are under two. That is only actionable if the gate prints it.
+#
+# GATE_VERBOSE=1 restores the old streaming behaviour for a single run.
+GATE_T0=$(date +%s)
+GATE_SLOW=$(mktemp)
+
 # run <src-file> <ok-marker> <log> <fail-text> <label>
 run() {
-  echo "  $5"
-  # shellcheck disable=SC2086  # FLAGS must word-split into --path/--lib
-  "$LOFT" --interpret $FLAGS "$1" | tee "$3"
-  grep -q "$2" "$3" || { echo "    FAIL: $4"; exit 1; }
+  t0=$(date +%s%N)
+  if [ -n "${GATE_VERBOSE:-}" ]; then
+    echo "  $5"
+    # shellcheck disable=SC2086  # FLAGS must word-split into --path/--lib
+    "$LOFT" --interpret $FLAGS "$1" | tee "$3"
+  else
+    # shellcheck disable=SC2086
+    "$LOFT" --interpret $FLAGS "$1" > "$3" 2>&1
+  fi
+  ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+  name=$(basename "$1" .loft)
+  printf '%s %s\n' "$ms" "$name" >> "$GATE_SLOW"
+  if grep -q "$2" "$3"; then
+    [ -n "${GATE_VERBOSE:-}" ] || printf '  ok %6d.%ds  %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name"
+  else
+    # ⚠ A FAILURE PRINTS ITS EVIDENCE. The old form printed only "FAIL: <text>" and
+    # left the reader to go find the log; the run had already scrolled past.
+    printf '  FAIL %4d.%ds  %s — %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$4"
+    echo "       ---- $3 (tail, compiler noise stripped) ----"
+    grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' "$3" | tail -12 | sed 's/^/       /'
+    exit 1
+  fi
 }
 
 # table <<EOF — file|marker|log|fail-text|label  (order = execution order)
@@ -53,11 +94,17 @@ table() {
   done
 }
 
-echo "  [1/14] kernel self-test (headless, deterministic) ..."
 # shellcheck disable=SC2086
-"$LOFT" --interpret $FLAGS "$KTEST" | tee /tmp/story_selftest.log
+if [ -n "${GATE_VERBOSE:-}" ]; then
+  echo "  [1/14] kernel self-test (headless, deterministic) ..."
+  "$LOFT" --interpret $FLAGS "$KTEST" | tee /tmp/story_selftest.log
+else
+  "$LOFT" --interpret $FLAGS "$KTEST" > /tmp/story_selftest.log 2>&1
+fi
 grep -q "ALL CHECKS PASS" /tmp/story_selftest.log || {
-  echo "    FAIL: kernel self-test did not pass"; exit 1; }
+  echo "  FAIL  kernel self-test did not pass — /tmp/story_selftest.log"
+  grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' /tmp/story_selftest.log | tail -12 | sed 's/^/       /'
+  exit 1; }
 
 table <<'EOF'
 src/combattest.loft|COMBAT OK|/tmp/story_combat.log|combat loop|[2/14] combat loop (player melee + enemy attacks) ...
@@ -184,10 +231,37 @@ EOF
 if [ -d ../loft/lib/engine_host ]; then
   echo "  [kernel] engine_host consumable: natives + schema table (plan #6 K0) ..."
   # shellcheck disable=SC2086
-  "$LOFT" --interpret $FLAGS --lib ../loft/lib/ src/kerneltest.loft | tee /tmp/story_kernel.log
-  grep -q "KERNEL OK" /tmp/story_kernel.log || { echo "    FAIL: kernel"; exit 1; }
+  if [ -n "${GATE_VERBOSE:-}" ]; then
+    "$LOFT" --interpret $FLAGS --lib ../loft/lib/ src/kerneltest.loft | tee /tmp/story_kernel.log
+  else
+    "$LOFT" --interpret $FLAGS --lib ../loft/lib/ src/kerneltest.loft > /tmp/story_kernel.log 2>&1
+  fi
+  grep -q "KERNEL OK" /tmp/story_kernel.log || {
+    echo "  FAIL  kernel (engine_host) — /tmp/story_kernel.log"
+    grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' /tmp/story_kernel.log | tail -12 | sed 's/^/       /'
+    exit 1; }
 else
   echo "  [kernel] SKIP — ../loft/lib not present (sibling-checkout dep, plans/6-games-kernel/)"
 fi
+
+# ── WHERE THE MINUTES WENT ──────────────────────────────────────────────────
+# Printed on the way out, so shortening the gate is a decision anyone can make from
+# its own output rather than from a profiling session nobody runs. The threshold is
+# absolute (5 s) rather than a top-N: a top-N always prints something and so says
+# nothing, while a fixed bar goes SILENT once the suite is uniformly fast, which is
+# the state we want it to be able to report.
+if [ -s "$GATE_SLOW" ]; then
+  slow=$(sort -rn "$GATE_SLOW" | awk '$1 >= 5000 {printf "%s %d.%ds", sep, $1/1000, ($1%1000)/100; sep=" ·"} {}' \
+         | sed 's/^ *//')
+  total=$(( $(date +%s) - GATE_T0 ))
+  n=$(wc -l < "$GATE_SLOW")
+  if [ -n "$slow" ]; then
+    printf '  %d tests in %dm%02ds · over 5s: %s\n' "$n" "$((total / 60))" "$((total % 60))" \
+      "$(sort -rn "$GATE_SLOW" | awk '$1 >= 5000 {printf "%s%s %d.%ds", sep, $2, $1/1000, ($1%1000)/100; sep=" · "}')"
+  else
+    printf '  %d tests in %dm%02ds · none over 5s\n' "$n" "$((total / 60))" "$((total % 60))"
+  fi
+fi
+rm -f "$GATE_SLOW"
 
 echo "  PASS"
