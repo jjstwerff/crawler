@@ -418,3 +418,35 @@ pub fn alchemy_key(i: integer) -> text {
   if i == 5 { return "potion_speed"; }
   "potion_cure_light"
 }
+
+// ── The producer seam: the engine's own repertoire, addressed by producer key ─────────
+//
+// The seven producer keys are MECHANISM and closed (the engine is what has a forge); the
+// entries are content. `catalog.loft` merges these with every bundle's `production` section
+// and `sim.loft` indexes the merged length — so a bundle can put an item in circulation
+// without an engine edit. See BUNDLE.md → "The `production` section".
+//
+// ⚠ len() and key(i) rather than a vector: see the branch-selector note above (loft#336).
+// Each length equals the entries its selector answers, and sim.loft no longer carries the
+// constant — if you add an entry above, add it here too or the tail becomes unreachable.
+pub fn engine_production_len(producer: text) -> integer {
+  if producer == "forge_weapon" { return 11; }
+  if producer == "forge_armor" { return 9; }
+  if producer == "alchemy" { return 6; }
+  if producer == "scriptorium_scroll" { return 5; }
+  if producer == "scriptorium_book" { return 3; }
+  if producer == "town_craft" { return 13; }
+  if producer == "import" { return 9; }
+  0
+}
+
+pub fn engine_production_key(producer: text, i: integer) -> text {
+  if producer == "forge_weapon" { return forge_weapon_key(i); }
+  if producer == "forge_armor" { return forge_armor_key(i); }
+  if producer == "alchemy" { return alchemy_key(i); }
+  if producer == "scriptorium_scroll" { return scribe_key(i); }
+  if producer == "scriptorium_book" { return book_key(i); }
+  if producer == "town_craft" { return town_craft_key(i); }
+  if producer == "import" { return import_key(i); }
+  ""
+}

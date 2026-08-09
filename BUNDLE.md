@@ -186,6 +186,67 @@ and the calling world's reach stops where the overlay's scope ends.
 *Concrete-now vs authored-later:* the scanner + the `classic` rooms registry exist today;
 `gen.loft` consuming the registry, the link mechanism, and the overlays are the staged next steps.
 
+### The `production` section — what a settlement's workshops MAKE (2026-08-09)
+
+A world bundle may extend what the towns produce. The engine simulates the workshops; a bundle
+says what comes out of them.
+
+```json
+"production": {
+  "forge_weapon":      ["rune_axe"],
+  "alchemy":           ["potion_sand_walk"],
+  "scriptorium_scroll":["scroll_dune_step"]
+}
+```
+
+**The seam, and it is the settled one.** *Which producers exist* is **mechanism and closed** —
+the engine is the thing that has a forge, an alchemist and a scriptorium, and it rotates them on
+its own clock (weapons on even days, brews on three weekdays, books at week's end). *What each
+one makes* is **content and open**. Seven producer keys, and a bundle may not invent an eighth:
+
+| producer key | the workshop | engine repertoire today |
+|---|---|---|
+| `forge_weapon` / `forge_armor` | the forge, alternating by day parity | 11 / 9 |
+| `alchemy` | the alchemist-factory, one brew per brewing day | 6 |
+| `scriptorium_scroll` / `scriptorium_book` | the scriptorium, scrolls then a realm book | 5 / 3 |
+| `town_craft` | simple goods, leatherwork, the fletcher | 13 |
+| `import` | the importer's caravan | 9 |
+
+> **I-PROD — a producer's repertoire is the ENGINE's entries followed by each contributing
+> bundle's, in bundle-sort order, and the clock indexes it modulo the TOTAL length.**
+
+That single rule gives the property that makes it safe to land: **with no bundle contributing,
+the total length equals the engine's own and the sequence is exactly what it was.** The change
+is inert until content uses it.
+
+#### What this deliberately does NOT hide
+
+⚠ **Contributing to a repertoire SHIFTS THE WHOLE ROTATION**, and that is correct rather than a
+flaw to engineer around. The forge cycles its repertoire; a longer repertoire cycles differently
+and every subsequent day's output moves. Adding a town-produced item is a visible content
+decision, not a free append — a bundle that wants one item in circulation is asking the town to
+make it *instead of* something on some day. Making that invisible would need per-producer
+weighting, which is a bigger design and is not this one.
+
+#### Failure paths, and where each is answered
+
+| | how it breaks | answer |
+|---|---|---|
+| **F1** | two bundles contribute and the order is arbitrary → non-deterministic worlds | bundle dirs are already **sorted** before scanning (`regen_bundles`); the merge walks that order |
+| **F2** | a bundle names a producer that does not exist (typo) | `libcheck` **L8** refuses it, naming the key and listing the seven. ⚠ *Not* the generator: `JsonValue` has no field enumeration, so the generator can only read the seven **by key** and a typo there is invisible to it. The checker enumerates the JSON in python instead — consume in loft, validate in the checker |
+| **F3** | a bundle names an item key that does not exist | `libcheck` **L7**: every produced key must resolve in engine + bundle item defs, or the town drops a nameless item and nothing says so |
+| **F4** | the repertoire is built as a `vector<text>` | **branch selectors only** — a `vector<text>` literal in a large function can hang the interpreter (loft#336); the generated form is `..._len()` + `..._key(i)`, same as the engine's |
+| **F5** | the engine's modulus stays hardcoded (`% 11`) and ignores contributions | the call site indexes `% game_production_len(<producer>)`; the constants are gone |
+
+#### Where the pieces live
+
+| | |
+|---|---|
+| engine repertoire | `items.loft` — `engine_production_len/key`, beside the defs it names |
+| bundle repertoires | `src/production_gen.loft`, **generated** from every `production` section |
+| the merge | `catalog.loft` — `game_production_len/key`, beside the other catalog merges |
+| the clock | `sim.loft` — rotation only; it names no item and no repertoire length |
+
 ## Persistence — deterministic base + delta; quest items are death-bound
 
 A place's layout is a pure function of its seed, so it is **never stored** — only the **delta**

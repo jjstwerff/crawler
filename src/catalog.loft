@@ -12,6 +12,7 @@ use classes;
 use bundle_defs;
 use race_defs_gen;
 use class_defs_gen;
+use production_gen;   // bundle_production_len/key — the `production` sections
 
 pub fn game_monsters() -> vector<MonsterDef> {
   t = monster_table();
@@ -45,4 +46,26 @@ pub fn class_catalog() -> vector<ClassDef> {
   src = bundle_classes();
   for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
   t
+}
+
+// ── The producer merge: engine repertoire, then every bundle's ───────────────────────
+//
+// I-PROD (BUNDLE.md): a producer's repertoire is the ENGINE's entries followed by each
+// contributing bundle's, in bundle-sort order, and the caller indexes it modulo the TOTAL.
+// With no bundle contributing the total equals the engine's own, so the sequence is exactly
+// what it was — the seam is inert until content uses it.
+//
+// ⚠ len()+key(i) rather than a merged vector<text>: a vector<text> literal in a large
+// function can hang the interpreter (loft#336, LOFT-NOTES). The concatenation is arithmetic
+// on an index, which needs no allocation at all.
+pub fn game_production_len(producer: text) -> integer {
+  engine_production_len(producer) + bundle_production_len(producer)
+}
+
+// The i-th entry of the merged repertoire. Engine entries occupy [0, engine_len); a bundle's
+// follow. Out of range yields "" — the caller drops nothing rather than an unnamed item.
+pub fn game_production_key(producer: text, i: integer) -> text {
+  en = engine_production_len(producer);
+  if i < en { return engine_production_key(producer, i); }
+  bundle_production_key(producer, i - en)
 }

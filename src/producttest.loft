@@ -1,0 +1,73 @@
+// producttest — I-PROD, the producer-repertoire merge (BUNDLE.md → "The `production` section").
+//
+// THE INVARIANT, and the whole reason this is safe to land:
+//
+//   a producer's repertoire is the ENGINE's entries followed by each contributing bundle's,
+//   and the caller indexes it modulo the TOTAL length.
+//
+// Stated that way it holds whether or not any bundle contributes today, so this gate does not
+// depend on the current content — which is what a gate over an OPEN enumeration has to do. If
+// it asserted "forge_weapon has 11 entries" it would fail the first time a bundle used the
+// feature, i.e. exactly when the feature started working.
+use items;
+use catalog;
+use production_gen;
+
+fn producer(i: integer) -> text {
+  if i == 0 { return "forge_weapon"; }
+  if i == 1 { return "forge_armor"; }
+  if i == 2 { return "alchemy"; }
+  if i == 3 { return "scriptorium_scroll"; }
+  if i == 4 { return "scriptorium_book"; }
+  if i == 5 { return "town_craft"; }
+  "import"
+}
+
+fn main() {
+  ok = true;
+  total_e = 0;
+  total_b = 0;
+
+  for pi in 0..7 {
+    p = producer(pi);
+    en = engine_production_len(p);
+    bn = bundle_production_len(p);
+    gn = game_production_len(p);
+    total_e += en;
+    total_b += bn;
+
+    // 1. the merged length IS the sum — no producer is silently dropped or double-counted
+    if gn != en + bn { println("FAIL {p}: len {gn} != {en}+{bn}"); ok = false; }
+
+    // 2. every engine entry keeps its index. This is the clause that makes the change inert:
+    //    with no bundle contributing, the sequence the clock walks is bit-for-bit the old one.
+    for i in 0..en {
+      if game_production_key(p, i) != engine_production_key(p, i) {
+        println("FAIL {p}[{i}]: engine entry moved"); ok = false;
+      }
+    }
+
+    // 3. bundle entries follow, in order, offset by exactly the engine's length
+    for i in 0..bn {
+      if game_production_key(p, en + i) != bundle_production_key(p, i) {
+        println("FAIL {p}[{en}+{i}]: bundle entry misplaced"); ok = false;
+      }
+    }
+
+    // 4. every index the clock can reach names SOMETHING — the town never drops a nameless
+    //    item, which is the failure L7 catches at author time and this catches at run time
+    for i in 0..gn {
+      if game_production_key(p, i) == "" { println("FAIL {p}[{i}]: empty key in range"); ok = false; }
+    }
+  }
+
+  // 5. an unknown producer is empty, not a crash and not a stray entry — the clock only ever
+  //    asks for the seven, but a typo in a future call site must fail loudly at that site
+  //    rather than quietly produce daggers.
+  if game_production_len("no_such_workshop") != 0 { println("FAIL: unknown producer has length"); ok = false; }
+  if game_production_key("no_such_workshop", 0) != "" { println("FAIL: unknown producer yields a key"); ok = false; }
+
+  println("producers 7: engine entries {total_e}, bundle entries {total_b}, merged {total_e + total_b}");
+  println("   engine entries hold their index; bundle entries follow; every index names an item");
+  if ok { println("=== PRODUCT OK ==="); } else { println("=== FAIL ==="); }
+}

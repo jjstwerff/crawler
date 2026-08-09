@@ -2071,7 +2071,7 @@ fn npc_land_cargo(s: &Sim, e: Enemy) {
   if ((s.ticks % DAY_LEN) ?? 0) != 300 { return; }
   if s.fi_n >= FLOOR_MAX - 4 { return; }
   day4 = (s.ticks / DAY_LEN) ?? 0;
-  mkey4 = import_key(day4 % 9 ?? 0);
+  mkey4 = game_production_key("import", day4 % game_production_len("import") ?? 0);
   // set it on the pier plank beside the anchorage
   for d4 in 0..6 {
     (nq4, nr4) = hex_neighbor(e.cur_q, e.cur_r, d4);
@@ -2104,10 +2104,10 @@ pub fn sim_tick(s: &Sim) {
       // THE FORGE rotates its whole repertoire: weapons on even days, armour
       // on odd — the heavy pieces never leave town (the cart's weight cap)
       if (day3 % 2 ?? 0) == 0 {
-        wkey3 = forge_weapon_key(((day3 / 2) ?? 0) % 11 ?? 0);
+        wkey3 = game_production_key("forge_weapon", ((day3 / 2) ?? 0) % game_production_len("forge_weapon") ?? 0);
         sim_drop_item(s, stq3, str3, wkey3);
       } else {
-        akey3 = forge_armor_key(((day3 / 2) ?? 0) % 9 ?? 0);
+        akey3 = game_production_key("forge_armor", ((day3 / 2) ?? 0) % game_production_len("forge_armor") ?? 0);
         sim_drop_item(s, stq3, str3, akey3);
       }
       // the MILL's bread reaches the stalls every morning
@@ -2118,21 +2118,21 @@ pub fn sim_tick(s: &Sim) {
       dow = day3 % 7 ?? 0;
       week3 = (day3 / 7) ?? 0;
       if dow == 1 || dow == 3 || dow == 5 {
-        pk = alchemy_key((week3 * 3 + (dow / 2 ?? 0)) % 6 ?? 0);
+        pk = game_production_key("alchemy", (week3 * 3 + (dow / 2 ?? 0)) % game_production_len("alchemy") ?? 0);
         for _ in 0..5 { sim_drop_item(s, stq3 + 1, str3 + 1, pk); }
       }
       // THE SCRIPTORIUM: scrolls on the quiet days, a realm book each week's end
       if dow == 0 || dow == 2 || dow == 4 {
-        skey3 = scribe_key((week3 * 3 + (dow / 2 ?? 0)) % 5 ?? 0);
+        skey3 = game_production_key("scriptorium_scroll", (week3 * 3 + (dow / 2 ?? 0)) % game_production_len("scriptorium_scroll") ?? 0);
         sim_drop_item(s, stq3 - 1, str3 + 1, skey3);
       }
       if dow == 6 {
-        bkey3 = book_key(week3 % 3 ?? 0);
+        bkey3 = game_production_key("scriptorium_book", week3 % game_production_len("scriptorium_book") ?? 0);
         sim_drop_item(s, stq3 - 1, str3 + 1, bkey3);
       }
     } else {
       // TOWNS: the simple goods + leatherwork + the FLETCHER's wood-craft
-      tkey3 = town_craft_key(day3 % 13 ?? 0);
+      tkey3 = game_production_key("town_craft", day3 % game_production_len("town_craft") ?? 0);
       sim_drop_item(s, stq3, str3, tkey3);
     }
   }

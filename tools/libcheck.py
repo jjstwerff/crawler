@@ -12,6 +12,8 @@ one falsifiable in about a second.
     L4  no crawler type name collides with a package    (loft 2026.8.0 bare names)
     L5  no crawler module NAMES an available package    (ADOPTION.md P1)
     L6  no ENGINE module names a BUNDLE-defined item    (BUNDLE.md standing check)
+    L7  every produced item key resolves to a def       (BUNDLE.md production F3)
+    L8  every `production` producer key is one of 7     (BUNDLE.md production F2)
 
 L3 and L5 divide one question by what evidence is available. L3 is the strong form and
 needs the package's API surface, which exists only for packages already in the lock — so
@@ -24,6 +26,7 @@ Reads only committed artifacts — loft.toml, loft.lock, Makefile, .loft/api/*.a
 src/ — so it needs no toolchain, no network and no build. Exit 0 clean, 1 on violation.
 """
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -245,9 +248,46 @@ def main():
                     f"    apply`, which the generated item_fx_gen dispatches by file name."
                 )
 
+    # L7 / L8 — the `production` section (BUNDLE.md). The generator reads it by KEY, because
+    # JsonValue has no field enumeration, so an unknown producer name there is a silent
+    # no-op and a misspelled item key is a runtime nothing. Both are refused here instead:
+    # python can enumerate the JSON, and this runs in `make test`.
+    PRODUCERS = {"forge_weapon", "forge_armor", "alchemy", "scriptorium_scroll",
+                 "scriptorium_book", "town_craft", "import"}
+    known_items = engine_items | set(bundle_items)
+    n_prod = 0
+    for man in sorted(ROOT.glob("bundles/*/bundle.json")):
+        try:
+            doc = json.loads(read(man))
+        except Exception as exc:                       # a broken manifest is its own failure
+            report("L8", man.parent.name,
+                f"L8  {man.relative_to(ROOT)} is not valid JSON ({exc}).")
+            continue
+        section = doc.get("production")
+        if not isinstance(section, dict):
+            continue
+        for producer, entries in sorted(section.items()):
+            if producer not in PRODUCERS:
+                report("L8", f"{man.parent.name}:{producer}",
+                    f"L8  {man.parent.name}/bundle.json declares production for `{producer}`,\n"
+                    f"    which is not one of the seven producers the engine simulates.\n"
+                    f"    Known: {', '.join(sorted(PRODUCERS))}.\n"
+                    f"    Which producers EXIST is engine mechanism and closed; a bundle says\n"
+                    f"    what one makes, not that a new kind of workshop exists (BUNDLE.md)."
+                )
+                continue
+            for key in entries if isinstance(entries, list) else []:
+                n_prod += 1
+                if key not in known_items:
+                    report("L7", f"{man.parent.name}:{key}",
+                        f"L7  {man.parent.name}/bundle.json has `{producer}` produce `{key}`,\n"
+                        f"    which no item def declares (engine items.loft or any bundle).\n"
+                        f"    The town would drop a nameless item; nothing else would say so."
+                    )
+
     print(f"libcheck: {len(deps)} declared deps, {len(locked)} locked, {len(api)} api stubs, "
           f"{len(avail)} packages available, {len(mods)} crawler modules, "
-          f"{len(bundle_only)} bundle-only items")
+          f"{len(bundle_only)} bundle-only items, {n_prod} production entries")
     if note:
         print("\n".join(note))
     if accepted:

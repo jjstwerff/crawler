@@ -13,6 +13,30 @@ FLAGS="${2-}"
 KTEST="$(trim "${3:?kernel selftest .loft required}")"
 SRC="$(trim "${4:?game entry .loft required}")"
 
+# ── WHICH COMPILER PRODUCED THIS LOG ────────────────────────────────────────
+#
+# ⚠ `loft --version` IS NOT PROVENANCE. The installed binary reports "2026.8.0" while
+# being ../loft's WORKING-TREE build, 15 commits past that tag and sometimes dirty —
+# `loft verify-self` says "not a release bundle". It is rebuilt by another agent while
+# our gates run: measured 2026-08-09, the binary changed mid-session and cdylibs were
+# recompiled DURING a run, whose cargo output landed in this log.
+#
+# So the hash is the identity. Two logs with different md5 are NOT comparable, and a
+# diff between them is not evidence about our code — which cost real time twice before
+# this line existed (a warning that appeared once and never again; eight that arrived
+# with no source change).
+bin="$(command -v "$LOFT" 2>/dev/null || echo "$LOFT")"
+echo "  [toolchain] $("$LOFT" --version 2>/dev/null | head -1) · md5 $(md5sum "$bin" 2>/dev/null | cut -c1-12) · $bin · built $(date -r "$bin" '+%Y-%m-%d %H:%M' 2>/dev/null)"
+if [ -d ../loft/.git ]; then
+  gd=$(git -C ../loft describe --tags --always --dirty 2>/dev/null)
+  sib=$(md5sum ../loft/target/release/loft 2>/dev/null | cut -c1-12)
+  if [ -n "$sib" ] && [ "$sib" = "$(md5sum "$bin" 2>/dev/null | cut -c1-12)" ]; then
+    echo "              IS ../loft's working-tree build: ${gd:-?}  — not a release; provenance is that tree"
+  else
+    echo "              ../loft describe: ${gd:-?} (the installed binary is NOT that tree's build)"
+  fi
+fi
+
 # run <src-file> <ok-marker> <log> <fail-text> <label>
 run() {
   echo "  $5"
@@ -63,6 +87,7 @@ run src/bundletest.loft "BUNDLE OK" /tmp/story_bundle.log "bundles" \
 table <<'EOF'
 src/bundledeftest.loft|BUNDLEDEF OK|/tmp/story_bundledef.log|bundle-defs|[bundle-defs] world bundle enemies/items -> catalog merge ...
 src/deftest.loft|DEFS OK|/tmp/story_defs.log|defs|[defs] class/race/item tables — races now per-bundle via race_catalog ...
+src/producttest.loft|PRODUCT OK|/tmp/story_product.log|production|[production] I-PROD: engine repertoire then bundles', indexed modulo the total (BUNDLE.md) ...
 src/roomtest.loft|ROOMS OK|/tmp/story_rooms.log|rooms|[rooms] rooms bundle -> room registry ...
 src/itemusetest.loft|ITEM-USE OK|/tmp/story_itemuse.log|item-use|[items] item-use (Explorer potions: heal + custom detect) ...
 src/clocktest.loft|CLOCK OK|/tmp/story_clock.log|clock|[clock] monster energy/speed (1.0x vs 1.5x) ...
