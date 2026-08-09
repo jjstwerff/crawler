@@ -24,6 +24,10 @@
 #   make check    Compile-only gate (parse + bytecode) — reports errors
 #                 without running.  Fast; needs no native toolchain.
 #
+#   make libcheck Library seam (ADOPTION.md P4): the lock names every declared
+#                 dep, no --lib tree shadows a locked package, no module is a
+#                 fork of one, no type name collides with one.  ~1 s, no build.
+#
 #   make check-native
 #                 Validate the NATIVE / wasm codegen path (run before
 #                 `make game`).  Needs the loft toolchain's rlibs to match
@@ -204,6 +208,12 @@ loft-doctor:
 
 test:
 	@tools/run_tests.sh "$(LOFT)" "$(LOFTFLAGS)" "$(KTEST)" "$(SRC)"
+
+# The library seam on its own (ADOPTION.md P4). `make test` runs it too; this is the
+# ~1 s standalone form for when you have just touched loft.toml, the lock, LIB_DEPS,
+# or added a module. Reads committed files only — no toolchain, no network, no build.
+libcheck:
+	@python3 tools/libcheck.py
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
 

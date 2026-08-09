@@ -195,7 +195,7 @@ pass, like a symbol table).
 | `items` | `ItemDef` | category, slot, magic, **use routine id** | `items.loft` (exists) |
 | `walls` | `WallBlock` | material, thickness, walkable-top, height range, junction policy (§9) | NEW |
 | `doors` | `DoorDef` | state (closed/locked/secret/portcullis), key req, **interact routine id** | NEW |
-| `stencils` | `Stencil` | layered grid + **legend** (refs other catalogs by key) | NEW — STENCILS.md |
+| `stencils` | `RoomStencil` | layered grid + **legend** (refs other catalogs by key) | NEW — STENCILS.md |
 | `stencil_sets` | `StencilSet` | themed group of stencil keys + assembly params | NEW |
 | `materials` / `terrain` | `MaterialDef` | colour, blocks, slope | LATER (→ hex_terrain) |
 | `quests` | `QuestDef` | objective, target, requirements, rewards, **routine ids** | NEW — world placement tier |

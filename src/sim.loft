@@ -16,7 +16,7 @@ use classes;          // ClassDef + class_find (the chosen class applies: stats/
 use random;           // RandStream (loft-libs-core): owned deterministic streams — combat rolls,
                       //   monster placement, flavour shuffles (EXTRACTION.md item 4 adoption)
 use overland;         // the contract wilderness: the surface samples ov_sample (OVERLAND.md 12)
-use worldtypes;       // Stencil / Placement — the world-bundle vocabulary
+use worldtypes;       // RoomStencil / Placement — the world-bundle vocabulary
 use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
 MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)

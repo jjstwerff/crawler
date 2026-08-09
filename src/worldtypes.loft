@@ -1,10 +1,15 @@
 // worldtypes — engine VOCABULARY for world bundles: the record types a bundle authors instances of.
-// A `Stencil` is a room template (a shape + a legend referencing monster keys); a `Placement` says
+// A `RoomStencil` is a room template (a shape + a legend referencing monster keys); a `Placement` says
 // where a bundle injects its content onto a linked place. Pure types, no behavior — the engine's
 // stamp/placer (in sim.loft, where the &Sim mutation is C4-safe) executes them. Dependency-free so
 // the bundle modules AND the engine consumer can both use it without an import cycle.
 
-pub struct Stencil {
+// NAMED `RoomStencil`, NOT `Stencil` (ADOPTION.md P2). `hex_field::Stencil` is the geometry
+// stamp — cells, heights, labels, edges — and it is in crawler's dependency graph, so a bare
+// `Stencil` here shadowed it and a reader meaning the field one silently got a room recipe.
+// STENCILS.md's scheduled design makes crawler's real stencil a small FIELD, i.e. that very
+// type; this placeholder was squatting on the name its successor needs.
+pub struct RoomStencil {
   sk:      text,                  // stencil key (a placement rule references it)
   shape:   text,                  // "round" — a hex disc of floor; later: "grid" with explicit cells
   radius:  integer not null,      // round-shape radius in hexes

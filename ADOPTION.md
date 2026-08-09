@@ -223,11 +223,35 @@ paying it here because we did not adopt.*
 **Definition of Done: `make test` produces the P0 output.** Not "passes" — *the same output*.
 Under I-SAME anything else is a real difference and must be explained before the commit lands.
 
-### P2 — name hygiene
+### P2 — name hygiene — **DONE**
 
-Rename `crawler::Stencil` → `RoomStencil` in `src/worldtypes.loft` and its uses. It is bundle
-vocabulary, not geometry; the geometry meaning belongs to `hex_field` and crawler should stop
-competing for the word. Closes F7, and removes a shadow that a future reader will misread.
+`crawler::Stencil` → **`RoomStencil`** (`src/worldtypes.loft`, the generator that emits it, the
+generated `world_place_gen.loft`, one bundle, and the four docs that publish the vocabulary).
+
+⚠ **The reason is stronger than "two things share a name".** `hex_field::Stencil` is the
+geometry stamp — cells, heights, labels, edges — and it is in crawler's dependency graph, so a
+bare `Stencil` here **shadowed** it: a reader meaning the field one silently got a room recipe
+with a boss and guards. And `STENCILS.md` is a *scheduled* design whose central claim is that
+**a stencil is a small field** — i.e. crawler's real stencil will BE that type. The placeholder
+was squatting on the name its own successor needs.
+
+This crosses the **engine↔bundle seam**, so per BUNDLE.md the seam was re-checked: the change
+is to the *vocabulary type's name* only. Content stays bundle-side (`ds_stencils.loft` still
+authors the instances), mechanism stays engine-side, and no engine code references a bundle by
+key. `make bundles` round-trips — only `world_place_gen.loft` moved, every other `*_gen.loft`
+byte-identical, which is CLAUDE.md's silent-corruption check for that generator.
+
+#### And the checker found a second one that hand-reading missed
+
+`P4`'s `libcheck` failed on its first run: **`Camera` is declared by both `src/hexscene.loft`
+and `mesh3d`.** Latent today — `hexscene.loft` imports nothing and no file uses both — but
+`hexscene` is destined to *become a package* (plan #11 P3), which puts its type names in the
+shared namespace beside `mesh3d`'s, and a 3D scene library that uses a mesh library is not a
+hypothetical. Renamed to **`SceneCamera`**.
+
+⚠ **That is the argument for P4 in one line: the rule found an instance the author of the rule
+did not.** `Stencil` was found by reading; `Camera` was not, and would have surfaced as a
+compile error in the middle of plan #11 P3.
 
 ### P3 — one resolution path (the chokepoint) — **DONE**
 
@@ -304,9 +328,51 @@ unrelated build happens to exercise it — the lockfile lags the manifest, silen
 - `.loft/api/*.api` stubs regenerated for all ten packages. `.gitignore` already exempts that
   directory from the `.loft/` ignore (loft#362) — they are meant to be committed.
 
-### P4 — the standing rules
+### P4 — the standing rules, and the gate that makes them fail — **DONE**
 
-Four sentences that make the state stay true:
+⚠ **A rule nobody can fail is a preference.** All four sentences below were true and written
+down *before* this plan; that is exactly how three modules stayed forks for two weeks and
+`hex_field` was used by 48 files while absent from `loft.toml`. So P4 is not the sentences —
+it is **`tools/libcheck.py`**, which makes each one falsifiable in about a second, and which
+found a violation the sentences alone had not.
+
+| | the rule, as a check | what it would have caught |
+|---|---|---|
+| **L1** | every dependency declared in `loft.toml` appears in `loft.lock` | `hex_field` undeclared through 48 files; `hex_edge`/`hex_way`/`hex_roof` unlocked — and `loft update` reporting "up-to-date" (H9) |
+| **L2** | no `--lib` tree in the Makefile provides a package the lock also pins | the `random` 0.1.0-vs-0.2.0 split — a lock naming a build that could not compile |
+| **L3** | no crawler module's public surface is contained in a **locked** package's | a fork of a package we have already adopted |
+| **L4** | no crawler type name is also declared by a locked package | `Stencil` shadowing `hex_field::Stencil`; **`Camera` vs `mesh3d::Camera`, which nobody had noticed** |
+| **L5** | no crawler module carries the **name** of an *available* package (`_` squashed) | `hexedge` vs `hex_edge` — **on day one, not two weeks later** |
+
+⚠ **L3 and L5 split one question by what evidence exists, and writing L3 alone would have been
+the comfortable mistake.** L3 is the strong form — it compares actual API surfaces — but a
+surface is only available for packages already in `loft.lock`. So L3 is structurally blind to
+the case that actually happened here: a module whose package we have *not yet adopted*. L5
+covers that gap with the one signal the registry catalog does carry, the name. The first draft
+of this table claimed L3 would have caught `hexedge`/`hexway`/`hexroof`. It would not have.
+
+It reads only committed artifacts — `loft.toml`, `loft.lock`, `Makefile`, `.loft/api/*.api`,
+`src/` — so it needs no toolchain, no network and no build. `make test` runs it; `make
+libcheck` is the ~1 s standalone form. L3 ignores modules with fewer than four public
+functions: below that, containment inside a large package is coincidence, not evidence.
+
+#### Accepted debt — priced, not silenced
+
+`libcheck` ships with an `ACCEPTED` table, and exactly one entry: **`hexplace` vs the published
+`hex_place`** — a name that is taken while the code is *not* a copy (0 shared functions;
+`hex_place` is `hexframe`/`hexseat`/`hexcombine`). By *The line* that is a rewrite, priced
+separately, so failing the gate on it daily would teach the team to disable the gate.
+
+⚠ **The entry is printed on every run.** A permanently-red check gets deleted; a debt that
+disappears from the output never gets paid. Each entry must carry a reason and a pointer —
+*if you cannot write the reason, you do not have one* — and anything not in the table fails.
+
+⚠ **What it deliberately does NOT do is decide.** L3 firing means *this module and that package
+are the same construction* — it does not say which should survive. Under the governing rule
+that is a cost question and sometimes the answer is *add ours to the package*. The check
+reports; a human prices it.
+
+The four sentences it enforces:
 
 1. **No project owns a library.** Crawler is one consumer among several; so is moros, so is
    hexbody, so is loft itself. A library serves all of them or it is in the wrong place.

@@ -136,7 +136,7 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
 }
 
 // The ADAPTER for the presentation seam. `ActorView` and `present_boards` live in
-// hexscene because they take a Camera and nothing else; this function takes `Sim`, which
+// hexscene because they take a SceneCamera and nothing else; this function takes `Sim`, which
 // is exactly the line EXTRACTION.md draws between library and game.
 // Kernel state -> presentation records. Reads only `sim_*` accessors, so it stays on the
 // kernel side of the architecture invariant and carries no drawing decisions at all.
@@ -165,7 +165,7 @@ pub fn actors_collect(s: Sim, tex_of: vector<integer>) -> vector<ActorView> {
 
 // The camera for this frame — a pure function of kernel state, which is I-STAND: the
 // renderer holds no position of its own, it reads the one the kernel moved.
-pub fn view3d_camera(s: Sim, vw: float, vh: float) -> hexscene::Camera {
+pub fn view3d_camera(s: Sim, vw: float, vh: float) -> hexscene::SceneCamera {
   camera_new(s.px, s.py, EYE3D_Z, s.heading, 0.0, 1.0471975511965976, vw, vh)
 }
 

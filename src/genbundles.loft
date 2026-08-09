@@ -226,7 +226,7 @@ fn gen_world_place(root: text, world: vector<JsonValue>, nl: text) -> (integer, 
     ax = all[i] ?? "";
     o += "use {ax};{nl}";
   }
-  o += `{nl}pub fn world_stencils() -> vector<Stencil> {{{nl}  t: vector<Stencil> = [];{nl}`;
+  o += `{nl}pub fn world_stencils() -> vector<RoomStencil> {{{nl}  t: vector<RoomStencil> = [];{nl}`;
   for i in 0..len(smods) { o += concat_lines(smods[i] ?? "", "room_stencils", nl); }
   o += `  t{nl}}}{nl}{nl}`;
   if len(pmods) > 0 {

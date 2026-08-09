@@ -93,6 +93,11 @@ if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then
   exit 1
 fi
 
+# The library seam, next to the bundle one: no forked module, no shadowed name, no second
+# resolution path (ADOPTION.md P4). Reads committed files only — no toolchain, ~1 s.
+echo "  [libs] library seam: lock complete, no --lib shadowing, no forked module (ADOPTION.md P4) ..."
+python3 tools/libcheck.py || exit 1
+
 table <<'EOF'
 src/traveltest.loft|TRAVEL OK|/tmp/story_travel.log|travel|[travel] window crossing + the desert gate ...
 src/idletest.loft|IDLESKIP OK|/tmp/story_idle.log|idle-skip|[idle-skip] scene key: hold when idle, bump on events (plan #7 P1) ...

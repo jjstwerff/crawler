@@ -2,7 +2,7 @@
 //
 // I-STAND: everything drawn stands where the kernel says it stands, at its true metric
 // size. The renderer holds NO world state of its own — a screen position is a pure
-// projection of kernel state — so this module is pure functions over an explicit Camera
+// projection of kernel state — so this module is pure functions over an explicit SceneCamera
 // and nothing else. It has no dependency at all: not on `Sim`, not on `graphics`, not
 // even on the hex grid. That is deliberate, and it is what makes the invariant testable
 // without a GL context and the package extractable by a file move.
@@ -17,7 +17,12 @@
 // height is z, matching `scenemesh::mesh_floor` and `tools/glbview.py --up 0,0,1`. `yaw`
 // is the kernel's own heading: 0 faces +x, and forward is (cos yaw, sin yaw) in plane.
 
-pub struct Camera {
+// NAMED `SceneCamera`, NOT `Camera` (ADOPTION.md P2, found by `tools/libcheck.py` L4).
+// `mesh3d::Camera` already holds that name in crawler's dependency graph. Today nothing
+// imports both, so the clash is latent — but this module is destined to BE the `hexscene`
+// package (plan #11 P3), and a 3D scene library that never meets a mesh library is not a
+// thing. Under loft 2026.8.0 the bare name would then be a hard error at every use site.
+pub struct SceneCamera {
   cx:    float,          // eye, world units
   cy:    float,
   cz:    float,
@@ -29,33 +34,33 @@ pub struct Camera {
 }
 
 pub fn camera_new(cx: float, cy: float, cz: float, yaw: float, pitch: float,
-                  fovy: float, vw: float, vh: float) -> Camera {
-  Camera { cx: cx, cy: cy, cz: cz, yaw: yaw, pitch: pitch, fovy: fovy, vw: vw, vh: vh }
+                  fovy: float, vw: float, vh: float) -> SceneCamera {
+  SceneCamera { cx: cx, cy: cy, cz: cz, yaw: yaw, pitch: pitch, fovy: fovy, vw: vw, vh: vh }
 }
 
 // The orthonormal basis. right = forward x worldUp, up = right x forward — so for a
 // level camera facing +x the basis is right = -y, up = +z, which is what a Z-up world
 // gives you. Only ONE definition of the basis exists, and both project and unproject
 // read it: a round-trip that used two spellings would verify nothing.
-pub fn cam_forward(c: Camera) -> (float, float, float) {
+pub fn cam_forward(c: SceneCamera) -> (float, float, float) {
   cp = cos(c.pitch);
   (cos(c.yaw) * cp, sin(c.yaw) * cp, sin(c.pitch))
 }
 
-pub fn cam_right(c: Camera) -> (float, float, float) {
+pub fn cam_right(c: SceneCamera) -> (float, float, float) {
   // forward x (0,0,1) = (fy, -fx, 0), whose length is cos(pitch) — normalise by the
   // planar part, which is why a straight-down camera has no defined right (see below).
   (sin(c.yaw), 0.0 - cos(c.yaw), 0.0)
 }
 
-pub fn cam_up(c: Camera) -> (float, float, float) {
+pub fn cam_up(c: SceneCamera) -> (float, float, float) {
   sp = sin(c.pitch);
   (0.0 - cos(c.yaw) * sp, 0.0 - sin(c.yaw) * sp, cos(c.pitch))
 }
 
 // World point -> pixel, plus the depth along the view direction. `depth <= 0` means the
 // point is behind the camera and the pixel is meaningless.
-pub fn project(c: Camera, wx: float, wy: float, wz: float) -> (float, float, float) {
+pub fn project(c: SceneCamera, wx: float, wy: float, wz: float) -> (float, float, float) {
   (fx, fy, fz) = cam_forward(c);
   (rx, ry, rz) = cam_right(c);
   (ux, uy, uz) = cam_up(c);
@@ -77,7 +82,7 @@ pub fn project(c: Camera, wx: float, wy: float, wz: float) -> (float, float, flo
 // parameter. `t <= 0` means the ray never reaches the plane ahead of the camera — which
 // is the ordinary case for any pixel ABOVE the horizon, not an error. A caller that
 // ignores the sign will happily "unproject" the sky onto the ground behind it.
-pub fn unproject_plane(c: Camera, sx: float, sy: float, gz: float) -> (float, float, float) {
+pub fn unproject_plane(c: SceneCamera, sx: float, sy: float, gz: float) -> (float, float, float) {
   (fx, fy, fz) = cam_forward(c);
   (rx, ry, rz) = cam_right(c);
   (ux, uy, uz) = cam_up(c);
@@ -105,7 +110,7 @@ pub fn unproject_plane(c: Camera, sx: float, sy: float, gz: float) -> (float, fl
 //
 // `w` carries the view depth, so after the perspective divide the NDC is exactly what
 // `project` computes before the pixel map.
-pub fn cam_mat4(c: Camera, near: float, far: float) -> vector<float> {
+pub fn cam_mat4(c: SceneCamera, near: float, far: float) -> vector<float> {
   (fx, fy, fz) = cam_forward(c);
   (rx, ry, rz) = cam_right(c);
   (ux, uy, uz) = cam_up(c);
@@ -128,7 +133,7 @@ pub fn cam_mat4(c: Camera, near: float, far: float) -> vector<float> {
 // The screen row where the ground plane vanishes. Pixels above it never meet the plane
 // ahead of the camera, so it is the exact boundary of where unproject_plane is defined —
 // worth having as a function rather than a magic number in each caller.
-pub fn horizon_y(c: Camera) -> float {
+pub fn horizon_y(c: SceneCamera) -> float {
   th = tan(c.fovy * 0.5);
   if c.pitch > 0.0 - 0.000001 && c.pitch < 0.000001 { return c.vh * 0.5; }
   // the ray with dz = 0: fz + uz*ay = 0  ->  ay = -fz/uz
@@ -174,7 +179,7 @@ pub struct ActorView {
 // Appends 6 vertices (stride 6: xyz + uv0) per actor into `buf`. Returns the vertex count.
 // Deliberately writes into a caller-owned buffer rather than returning one: loft#392 makes
 // a `fn -> vector<single>` reaching gl_upload_vertices abort the program silently.
-pub fn present_boards(c: Camera, views: vector<ActorView>, buf: vector<single>) -> integer {
+pub fn present_boards(c: SceneCamera, views: vector<ActorView>, buf: vector<single>) -> integer {
   (rx, ry, rz) = cam_right(c);
   n = 0;
   for i in 0..len(views) {

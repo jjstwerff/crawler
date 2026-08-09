@@ -386,11 +386,11 @@ module (no behavior to gate):
 | `monster_defs()` | `vector<MonsterDef>` | stats, `MF_*`/`RF_*` flags, tags, glyph/colour |
 | `<x>_class_defs()` / `<x>_race_defs()` | `vector<ClassDef>`/`vector<RaceDef>` | stat blocks, hit-die, skills, realm |
 | `<x>_spells_defs()` | `vector<SpellDef>` | name, SP cost, **effect-id** → a routine (face B) |
-| `room_stencils()` | `vector<Stencil>` | room paint masks |
+| `room_stencils()` | `vector<RoomStencil>` | room paint masks |
 | `place_rules()` | `Placement` | budget / weighting / start-safe |
 | (world) | `RoomDef` + `room_connect_*` | `world`-kind registry |
 
-Allow wholesale: a `kerneldefs` surface = the `*Def`/`Stencil`/`Placement`/`RoomDef` **types** +
+Allow wholesale: a `kerneldefs` surface = the `*Def`/`RoomStencil`/`Placement`/`RoomDef` **types** +
 the `MF_*`/`RF_*`/`IF_*`/`TAG_*`/`K_*` (tile-kind) **constants**. Declaration-only ⇒ no risk.
 
 **B. Behavior API (capability-gated).** Behavior routines receive a fixed **dispatch context** and

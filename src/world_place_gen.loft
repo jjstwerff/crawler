@@ -5,8 +5,8 @@ use worldtypes;
 use ds_stencils;
 use ds_placement;
 
-pub fn world_stencils() -> vector<Stencil> {
-  t: vector<Stencil> = [];
+pub fn world_stencils() -> vector<RoomStencil> {
+  t: vector<RoomStencil> = [];
   s_ds_stencils = ds_stencils::room_stencils();
   for i in 0..len(s_ds_stencils) { if i < len(s_ds_stencils) { t += [s_ds_stencils[i]]; } }
   t

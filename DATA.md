@@ -12,7 +12,7 @@ flags the §11b/loft#320 and determinism constraints that gate the build.
 
 **Current.** One `Sim` struct (`src/sim.loft`) holds the level + *the one player* (≈20
 flat fields) + a `vector<Enemy>`. Static content is **keyed catalog defs**
-(`MonsterDef`/`RaceDef`/`ClassDef`/`ItemDef`/`Stencil`/`Placement`) merged engine+bundle
+(`MonsterDef`/`RaceDef`/`ClassDef`/`ItemDef`/`RoomStencil`/`Placement`) merged engine+bundle
 by **key→index**, with **behaviour dispatched by routine-id** (`monster_act`/`item_use`/
 `quest_check`/…). World-gen emits `GenLevel`/`Overland`. **This architecture is strong
 and already library-like.**
