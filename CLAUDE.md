@@ -179,8 +179,14 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   newer one declares superseded. Editing a file with `sed`/heredoc makes the harness re-inject
   the WHOLE file — use the Edit tool. (Plan #11 P5 lost ~17k tokens to exactly that.)
 - Commits: branch **`combat`** (not `main`); end messages with
-  `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`. Push only
-  when asked.
+  `Co-Authored-By: Claude Opus <N> (1M context) <noreply@anthropic.com>` — **naming the model
+  that actually did the work**, not a version copied from this line.
+- **ALWAYS COMMIT AND PUSH — it is a SAFETY MEASURE, not a publication step** (user ruling,
+  2026-08-09). The remote is the backup; local-only work on a box that runs several agents is
+  fragile. ⚠ **Stage your own paths explicitly — `git add -A` is wrong here**, because another
+  agent's in-flight work is routinely sitting in the tree. Put the **finding** in the commit
+  message, not just the change. Still worth a word first: a PR, a published package, a
+  registry entry.
 
 ## loft — the traps that will bite you today
 
@@ -214,6 +220,31 @@ Definition of Done: **EXTRACTION.md** (hexgrid = the canonical moros-convention 
 text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `random` package;
 wallgeo/gen after one decoupling each; roguelike-kit + the bundle system deliberately gated).
 Where the siblings, toolchain and library stores live: **`LOFT-NOTES.md`**.
+
+**NO FIRST-CLASS PROJECT OWNS A LIBRARY** (user ruling, 2026-08-09) — not loft, not moros, not
+crawler, not lavition. A library must be useful to **everybody**, and **any project may add
+what it needs**; the only constraint is not breaking the others, which is what the library
+contract (`api_compatible_with` / `data_compatible_with`) makes checkable. So "we wrote it" is
+never a reason to keep a copy, "they wrote it" is never a reason to refuse a package, and
+*"the library doesn't have it"* is a reason to **extend the library**, not to grow a private
+module.
+
+**AND ITS CONSTRUCTIVE HALF — a library design must be UNIVERSAL FOR THE CLASS**, not for one
+project's scope. The live case is **indexing of walls / items / ground**: a stored identity is
+an **index into a table owned by a SCOPE**, `0 = nothing` the only fixed one — the library owns
+the *indirection*, each project owns its *palette*, and the **scope is a parameter** (a region
+in moros, a bundle in crawler, a level elsewhere), never an enum of known scopes. crawler has
+solved half of this (bundles + `catalog.loft` merge, for open enumerations) and hard-codes the
+other half (**36** literal-tile sites; plus **24** dispatch-on-content-key sites in
+`itemfx`/`sim` that BUNDLE.md's standing check forbids). ⚠ **Do not close those privately** —
+that is the third implementation of one idea. **ADOPTION.md → "Universal for the class"**.
+
+The **pull** side is **ADOPTION.md**: what is already in the family and is still here as a
+copy. `hexedge`/`hexway`/`hexroof` are the same construction as the published
+`hex_edge`/`hex_way`/`hex_roof` (100 % shared API, 30 semantics-neutral differing lines) and
+must be consumed, not carried — **a duplicate of a library module is a fork.** The rest of the
+family shares 0–1 function names with crawler, so switching costs a rewrite: those are
+**deferred on price, not refused on principle**, and they close by convergence in the library.
 
 ## Where things are
 
