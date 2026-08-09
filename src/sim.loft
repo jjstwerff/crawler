@@ -1914,6 +1914,64 @@ pub fn sim_phase(s: Sim) -> integer {
   if ((s.ticks % DAY_LEN) ?? 0) < 280 { 0 } else { 1 }
 }
 
+// ── SAFETY: the category a worker refuses to enter (plan #17 S1) ────────────────────────
+//
+// I-SAFE (CRAFTING.md): a settlement's output is a function of the danger around it, and
+// the hero's only lever on it is the one they already hold. This is that danger, as a
+// CATEGORY rather than a gradient — "get an area into the safe category" is a threshold a
+// player can cross and see crossed; a sliding float is unreadable in play and untestable
+// in a gate.
+//
+// Two terms, and the second is what keeps the town from being scenery: a living hostile
+// makes ground unsafe, and a guard within reach makes it safe again. The player is one
+// input to safety, never the only one.
+//
+// ⚠ PRESENCE, NOT WAKEFULNESS — and the gate found this on its first run. Keyed on `awake`
+// the predicate reported a freshly generated level as ENTIRELY safe (416 open hexes, 0
+// unsafe), because monsters sleep until they perceive the PLAYER. That is backwards for a
+// farmer: a sleeping monster in the woods is exactly why nobody goes into the woods.
+// Wakefulness describes a monster's reaction to the hero; danger to a worker does not wait
+// for the hero to arrive.
+pub const THREAT_R = 6;      // hexes: how far a living hostile spoils the ground around it
+pub const GUARD_R  = 4;      // hexes: how far a guard's presence holds ground safe
+
+pub fn hex_safe(s: Sim, q: integer, r: integer) -> boolean {
+  es = s.enemies;
+  for i in 0..len(es) {
+    e = es[i];
+    if e != null && e.alive && e.role == 0
+       && hex_distance(e.cur_q, e.cur_r, q, r) <= THREAT_R {
+      // a hostile is near — unless a guard is holding this ground
+      for j in 0..len(es) {
+        g = es[j];
+        if g != null && g.alive && g.role == 3
+           && hex_distance(g.cur_q, g.cur_r, q, r) <= GUARD_R {
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+  true
+}
+
+// ⚠ ENTER, NEVER LEAVE. `npc_step` freezes an NPC when no neighbour is passable, so a
+// worker caught in newly-dangerous ground would be STUCK in it rather than walking out —
+// the opposite of avoiding. So the rule is asymmetric by construction: safety only blocks
+// a step INTO danger, and anyone already standing in it may always move.
+//
+// Guards are exempt (walking toward trouble is the job) and so are wild things, which keep
+// their own counsel. Hostiles never reach here — npc_step is only called for role != 0.
+// Takes role + origin rather than the Enemy, so a gate can ask it directly — the two
+// facts it uses are the only two it needs, and a predicate that cannot be asked in
+// isolation is one nobody writes a control for.
+pub fn npc_may_enter(s: Sim, role: integer, fq: integer, fr: integer,
+                     q: integer, r: integer) -> boolean {
+  if role == 3 || role == 12 { return true; }
+  if hex_safe(s, q, r) { return true; }
+  !hex_safe(s, fq, fr)                  // already in danger: leaving is always allowed
+}
+
 // Can this civilian stand on (q,r)? Boats live ON the water; walkers off it.
 fn npc_passable(s: Sim, role: integer, q: integer, r: integer) -> boolean {
   if q < 1 || r < 1 || q >= s.lw - 1 || r >= s.lh - 1 { return false; }
@@ -1968,7 +2026,7 @@ fn npc_step(s: Sim, e: &Enemy) {
     if (e.role == 5 || e.role == 6 || e.role == 1 || e.role == 11 || e.role == 12) && wob < 2 {
       dpick = ((s.ticks * 1103515245) ^ (e.hq * 12345)) % 6 ?? 0;
       (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, dpick);
-      if npc_passable(s, e.role, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
+      if npc_passable(s, e.role, nq, nr) && npc_may_enter(s, e.role, e.cur_q, e.cur_r, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
         e.tgt_q = nq;
         e.tgt_r = nr;
         return;
@@ -1983,7 +2041,7 @@ fn npc_step(s: Sim, e: &Enemy) {
   broad = false;
   for dd in 0..6 {
     (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, dd);
-    if npc_passable(s, e.role, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
+    if npc_passable(s, e.role, nq, nr) && npc_may_enter(s, e.role, e.cur_q, e.cur_r, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
       nd = hex_distance(nq, nr, tq, tr);
       onroad = false;
       if e.role == 7 {
@@ -2532,6 +2590,16 @@ pub fn sim_enemy_cur(s: Sim, i: integer) -> (integer, integer) {
 }
 
 // Smoothly-interpolated enemy world position (cur -> tgt by clock fraction).
+// The enemy's HEX, beside the float position the view draws with — a gate reasons in hexes.
+pub fn sim_enemy_hex(s: Sim, i: integer) -> (integer, integer) {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return (e.cur_q, e.cur_r); }
+  }
+  (0, 0)
+}
+
 pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
   enemies = s.enemies;
   ex = 0.0;

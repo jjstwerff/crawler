@@ -64,8 +64,8 @@ that only became visible once both were on the page:
 | Step | Effort | Verify | Status |
 |---|---|---|---|
 | **`S0`** — the design + measure what exists | S | `CRAFTING.md` | **Shipped** |
-| **`S1`** — a safety category over the surface | S | `make test` + a new `safetytest` | **Designed, not built** |
-| **`S2`** — `npc_passable` consults it; workers avoid | S | `make test`; a `scripts/*.play` walk | Blocked on `S1` |
+| **`S1`** — a safety category over the surface | S | `make test` (`safetytest`) | ✅ **Shipped** |
+| **`S2`** — workers refuse to ENTER unsafe ground | S | `make test` (`safetytest`) | ✅ **Shipped** |
 | **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (extend `producttest`) | Blocked on `S2` |
 | **`S4`** — the world shows it, with no panel | M | `make play`, a user read | Blocked on `S3` |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` + a `scripts/*.play` session | Blocked on `S2` |
@@ -98,6 +98,42 @@ that bundle already owns — `I-PROD`'s seam, unchanged.
 Thinner stalls, a skipped rotation, an unwalked route, an innkeeper's line. ⚠ **`F6` is the
 real risk and this step is the answer to it**: if the loop cannot be *seen in one session*,
 it is a simulation nobody plays. Measure that before polishing anything else.
+
+## What `S1`/`S2` turned up — measured 2026-08-09
+
+Both shipped. `hex_safe(s, q, r)` is the category (`THREAT_R = 6`, `GUARD_R = 4`); a living
+hostile spoils ground, a guard within reach holds it. `npc_may_enter` is the term, and
+`safetytest` gates four claims with each seen **both ways**.
+
+⚠ **THE GATE FOUND A DESIGN ERROR ON ITS FIRST RUN, and it was in the obvious term.**
+Keyed on `awake` — which is what "a dangerous monster" means everywhere else in this engine
+— the predicate reported a freshly generated level as **entirely safe: 416 open hexes, 0
+unsafe**. Monsters sleep until they perceive the **player**.
+
+That is backwards for `I-SAFE`. **A sleeping monster in the woods is exactly why nobody goes
+into the woods.** `awake` describes a monster's reaction to the *hero*; a farmer's danger
+does not wait for the hero to arrive. Keyed on **presence** instead: 87 safe, 329 unsafe on
+the same level. ⚠ The lesson generalises past this row — this system asks *"is it dangerous
+to a civilian"*, and every existing danger signal in the engine answers *"is it dangerous
+to the player"*.
+
+⚠ **AND THE ASYMMETRY IS LOAD-BEARING, not a nicety.** `npc_step` freezes an NPC when no
+neighbour is passable, so a symmetric rule would **trap** a worker in newly-dangerous ground
+instead of keeping it out. The rule is therefore *enter, never leave*: safety blocks a step
+**into** danger and anyone already standing in it may always move. `safetytest` asserts both
+halves, and finding a genuine **safe→unsafe border** to assert them on was itself the fiddly
+part — on a level that is 329/416 unsafe, any hex adjacent to an unsafe one is usually
+unsafe too, so the first version of that row failed for a reason that had nothing to do with
+the code.
+
+**Found while measuring:** guards are exempt by construction (walking toward trouble is the
+job) and so are wild things — and `npc_step` is only ever called for `role != 0`, so
+hostiles never reach the predicate at all.
+
+⚠ **Not yet measured: cost.** `hex_safe` scans the enemy list per call and is asked for up
+to six neighbours per NPC per step. The gate's own timing line is the instrument; if
+`safetytest` or the town tests move, `S3` should carry a cheaper form before it adds more
+callers.
 
 ### `S5` — contested safety, designed
 

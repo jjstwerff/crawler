@@ -1,0 +1,102 @@
+// safetytest — plan #17 `S1`/`S2`: the safety CATEGORY, and that a worker will not walk
+// into it.
+//
+// I-SAFE (CRAFTING.md): a settlement's output is a function of the danger around it. This
+// gates the half that decides everything downstream — what "unsafe" means, and that the
+// answer actually changes what a worker does.
+//
+// ⚠ EVERY CLAIM IS SEEN BOTH WAYS. A predicate that has only ever answered `true` is not
+// known to work; each row below has its opposite beside it.
+use sim;
+use gameflow;
+use hex_grid;
+
+DT = 0.016666;
+
+fn main() {
+  ok = true;
+  s = flow_genesis(1337, 1);
+
+  // ── 1. the category answers, and it answers BOTH ways ──────────────────────────────
+  // Find ground the generated level considers safe and ground it does not, by asking.
+  // ⚠ Not by placing anything: the point is that the predicate reads the world as it is.
+  nsafe = 0;
+  nunsafe = 0;
+  fq = -1; fr = -1;          // a remembered unsafe hex, for row 3
+  for q in 0..60 {
+    for r in 0..60 {
+      if tile_at(s, q, r) == 0 {
+        if hex_safe(s, q, r) { nsafe += 1; }
+        else { nunsafe += 1; if fq < 0 { fq = q; fr = r; } }
+      }
+    }
+  }
+  println("open floor: {nsafe} safe, {nunsafe} unsafe");
+  if nsafe == 0 { println("FAIL: nothing is safe — the predicate never answers true"); ok = false; }
+  if nunsafe == 0 { println("FAIL: nothing is unsafe — 16 awake-able hostiles and no danger anywhere"); ok = false; }
+
+  // ── 2. an awake hostile is what makes ground unsafe ────────────────────────────────
+  // Take the first hostile, wake it, and read the ground under it. Asleep it threatens
+  // nothing; awake it does. ⚠ The control is the SAME hex, so nothing else can explain it.
+  hi = -1;
+  for i in 0..sim_enemy_count(s) {
+    if hi < 0 && sim_enemy_alive(s, i) { hi = i; }
+  }
+  if hi < 0 { println("FAIL: no live hostile to test with"); ok = false; }
+  else {
+    (eq, er) = sim_enemy_hex(s, hi);
+    // ⚠ PRESENCE, NOT WAKEFULNESS. Keyed on `awake` this predicate called a fresh level
+    // entirely safe, because monsters sleep until they perceive the PLAYER — and a farmer's
+    // danger does not wait for the hero to arrive. Both rows below must hold.
+    sim_set_awake(s, hi, false);
+    asleep_unsafe = !hex_safe(s, eq, er);
+    sim_set_awake(s, hi, true);
+    awake_unsafe = !hex_safe(s, eq, er);
+    println("under hostile {hi} at {eq},{er}: unsafe asleep {asleep_unsafe}, unsafe awake {awake_unsafe}");
+    if !awake_unsafe { println("FAIL: an awake hostile leaves its own ground safe"); ok = false; }
+    if !asleep_unsafe { println("FAIL: a SLEEPING hostile leaves its ground safe — danger must not wait for the hero"); ok = false; }
+  }
+
+  // ── 3. a worker will not step INTO danger, and CAN step out of it ──────────────────
+  // ⚠ This is the asymmetry the design turns on. npc_step freezes an NPC when nothing is
+  // passable, so a symmetric rule would trap a worker in danger rather than keep it out.
+  // ⚠ THE PAIR MUST BE A REAL BORDER — a SAFE hex with an UNSAFE neighbour. The first
+  // version of this row took any unsafe hex and its q+1 neighbour, which on a level that is
+  // 329/416 unsafe is almost always unsafe too — so "already in danger, leaving is allowed"
+  // fired and the row failed for a reason that had nothing to do with the code.
+  sq2 = -1; sr2 = -1; uq2 = -1; ur2 = -1;
+  for q in 0..60 {
+    for r in 0..60 {
+      if sq2 < 0 && tile_at(s, q, r) == 0 && hex_safe(s, q, r) {
+        for d in 0..6 {
+          (nq, nr) = hex_neighbor(q, r, d);
+          if sq2 < 0 && tile_at(s, nq, nr) == 0 && !hex_safe(s, nq, nr) {
+            sq2 = q; sr2 = r; uq2 = nq; ur2 = nr;
+          }
+        }
+      }
+    }
+  }
+  if sq2 >= 0 {
+    (gq, gr) = (uq2, ur2);
+    // a farmer standing on the SAFE side must refuse to cross into the unsafe hex
+    ok_enter = !npc_may_enter(s, 2, sq2, sr2, gq, gr);
+    // the same farmer, standing IN it, must be free to leave
+    ok_leave = npc_may_enter(s, 2, gq, gr, sq2, sr2);
+    println("border {sq2},{sr2} (safe) -> {gq},{gr} (unsafe): refuses to enter {ok_enter}, free to leave {ok_leave}");
+    if !ok_enter { println("FAIL: a worker walked into unsafe ground"); ok = false; }
+    if !ok_leave { println("FAIL: a worker in danger is TRAPPED — it must always be able to leave"); ok = false; }
+  } else {
+    println("FAIL: no safe hex borders an unsafe one — the border case cannot be tested");
+    ok = false;
+  }
+
+  // ── 4. a GUARD is exempt: walking toward trouble is the job ────────────────────────
+  if sq2 >= 0 {
+    guard_ok = npc_may_enter(s, 3, sq2, sr2, uq2, ur2);
+    println("a guard entering the same unsafe hex: {guard_ok}");
+    if !guard_ok { println("FAIL: guards refuse danger — then nothing holds ground"); ok = false; }
+  }
+
+  if ok { println("=== SAFETY OK ==="); } else { println("=== FAIL ==="); }
+}
