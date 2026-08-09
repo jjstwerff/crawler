@@ -1118,3 +1118,75 @@ entry, after which `loft update` behaves. Concretely — `loft --interpret --che
 uses it>`, then `loft update`. Verifying the lock names every declared package is the check
 that catches it.
 
+
+---
+
+## H10 — an auto-native cdylib fails to wire INTERMITTENTLY under concurrent `loft` processes, and the failure is a PANIC rather than a fallback
+
+**Status:** not filed · **Repo:** `loft-lang/loft`
+**Labels:** `sev:high`, `wa:partial`, `area:native`, `hit-by:crawler`, `bug`
+**Suggested title:** `auto-native: cdylib wiring fails intermittently when several loft processes run at once — "native function not loaded" panics instead of falling back to the interpreted body`
+
+### Summary
+
+Running independent `loft --interpret` programs **concurrently** makes some of them die with:
+
+```
+loft: native library …/hex_grid-0.1.0/native-auto/libloft_auto_hex_grid_….so
+      needs a system library at runtime, but it is not installed
+loft: auto-native fn `hex_distance` (loft_shared_n_hex_distance) is marked for cdylib
+      dispatch but could not be wired (bridge symbol not found in any loaded cdylib)
+      — calling it will panic
+thread 'main' panicked at src/compile.rs:365:17:
+native function not loaded: its library's native cdylib is missing or stale
+```
+
+Each program passes on its own. **Which** program dies moves between runs.
+
+### Measured (crawler's 88-test gate, 24-core box)
+
+| run | result |
+|---|---|
+| serial | 88/88 green |
+| `xargs -P8` | 87/88 — `fieldtest` |
+| `xargs -P8` (repeat) | 87/88 — `fieldtest` |
+| `xargs -P4` | 86/88 — **`wheeltest`, `linktest`** |
+| warm the cdylibs serially first, then `-P8` | 86/88 — **`fieldtest`, `meshtest`** |
+| **8 concurrent copies of the SAME failing program** | **8/8 green** |
+
+The last two rows are the informative ones. Pre-warming does **not** fix it, so it is not
+merely a cold artifact being built under contention. And one program run eight times over is
+fine — it takes a *mix* of programs to trigger, which points at concurrent access to the shared
+`~/.loft/…/native-auto/` artifacts rather than at any one library.
+
+### Two defects, and the second is the serious one
+
+1. **The wiring is not concurrency-safe.** Same inputs, same machine, different outcome
+   depending only on what else is running.
+2. ⚠ **A cdylib that cannot be wired PANICS at the call site instead of falling back to the
+   interpreted body.** loft has the loft-source implementation of `hex_distance` right there —
+   it is running the interpreter. The message even says the call *will* panic, so the condition
+   is known one step before the crash. Falling back would make defect 1 a performance
+   footnote rather than a red suite. As it stands, an optimisation that fails to load takes the
+   program with it.
+
+### Why it matters to a consumer
+
+It is the only thing between crawler's gate and a **15× speedup**: the suite is ~18 minutes
+serially and ~70 seconds at `-P8`, and the tests are genuinely independent. We cannot take that
+win, because a suite that fails a *different* test each run is worse than a slow one.
+
+### Workaround (partial)
+
+Run the gate serially. Pre-warming does not help. There appears to be no flag to disable
+auto-native dispatch (`--help` offers none, and the binary's `LOFT_*` env vars are
+`LOFT_COMPAT_SAMPLE`, `LOFT_LIVE_STDLIB`, `LOFT_STORE_GUARD`, `LOFT_TIMING`) — one would be a
+clean escape hatch on its own.
+
+### Note on the environment
+
+This box rebuilds the toolchain frequently, and the same runs showed loft invalidating and
+recompiling `loft_random` / `loft_graphics_native` cdylibs mid-suite ("loft-ffi's source changed
+since it was built"). That churn plausibly widens the window, but it is not required for the
+failure: the `-P8` runs above reproduced it with no rebuild in progress.
+
