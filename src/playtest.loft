@@ -26,8 +26,24 @@
 //   act <kind> <a1> <a2>    an action intent (2 = pick up, 4 = raise stat, …)
 //   expect <probe> <op> <v> assert; op is one of  ==  !=  >=  <=  >  <
 //   note <probe>            print a probe's value without asserting (for authoring)
+//   remember <name> <probe> snapshot a value now, to compare against later
 //
-// Probes: hp hpmax depth gold clevel xp inv enemies msgs q r ticks alive
+// ── WORLD POKES — these are NOT intents, and a row using one is ARRANGING A SITUATION
+// rather than claiming a player path. Say so in the comment above it, or the script
+// quietly starts asserting things about a state no play can produce.
+//
+//   teleport <q> <r>        put the player somewhere (no walk, no clock)
+//   findstair               scan for a DOWN stair ('>' or a cave mouth) and go there
+//   hurt <n>                apply n physical damage
+//   anchor <kind>           set the respawn anchor at the player's hex
+//
+// ⚠ A POKE MUST NOT DO THE THING UNDER TEST. `findstair` teleports ONTO the stair and
+// stops; the descent itself is left to the next `move`, so the claim being tested is
+// still flow_move's walk-onto rule and not a direct `sim_descend`. The same for death:
+// `hurt` empties the pool, and `move` is what discovers it and respawns.
+//
+// Probes: hp hpmax depth gold clevel xp inv enemies msgs q r alive
+//         stair savedepth anchor gravegold gravedepth
 //
 // ⚠ PREFER A RELATION TO A GOLDEN NUMBER. `expect hp <= hpmax` survives a content change;
 // `expect hp == 47` fails on the next tuning pass and teaches the reader to delete rows. Use
@@ -54,7 +70,30 @@ fn probe(s: Sim, name: text) -> integer {
   if name == "alive" { if sim_over(s) { return 0; } return 1; }
   if name == "q" { (pq, _pr) = sim_player_hex(s); return pq; }
   if name == "r" { (_pq, pr) = sim_player_hex(s); return pr; }
+  if name == "stair" { return sim_stair_under(s); }
+  if name == "savedepth" { return sim_save_depth(s); }
+  if name == "anchor" { return sim_anchor_kind(s); }
+  if name == "gravegold" { return sim_grave_gold(s); }
+  if name == "gravedepth" { return sim_grave_depth(s); }
   -999999
+}
+
+// Find a DOWN stair by scanning the level, and answer where it is. 2 = a built '>' and
+// 6 = a natural cave mouth; flow_move treats both as down, so a script that wants "the
+// way down" must accept either or it passes on dungeons and fails on caves.
+//
+// ⚠ SCANNING, NOT A CONSTANT. A stair's coordinates are a property of the generated
+// level, so a script naming one would be a golden number for a world nobody chose. The
+// scan is generous and cheap (tile_at answers "solid" outside the level, so no bounds
+// are needed) and it keeps the script readable: `findstair` says what it wants.
+fn find_down_stair(s: Sim) -> (integer, integer) {
+  for q in 0..140 {
+    for r in 0..140 {
+      t = tile_at(s, q, r);
+      if t == 2 || t == 6 { return (q, r); }
+    }
+  }
+  (-1, -1)
 }
 
 fn cmp(a: integer, op: text, b: integer) -> boolean {
@@ -96,8 +135,10 @@ fn main() {
   // genbundles builds its paths the same way for the same reason.
   root = env_variable("PWD") ?? "";
   path = "{root}/scripts/walk.play";
+  // arguments() is 0-indexed and holds only the PROGRAM's arguments — the .loft path
+  // is not element 0. (Measured; the off-by-one silently ran the default script.)
   args = arguments();
-  if len(args) > 1 { path = "{root}/{args[1] ?? \"scripts/walk.play\"}"; }
+  if len(args) > 0 { path = "{root}/{args[0] ?? \"scripts/walk.play\"}"; }
 
   println("=== story play test (walk the world, assert while walking) ===");
   println("  script: {path}");
@@ -110,6 +151,8 @@ y`;
   nl = two[1..2];
   rows = file(path).content().split_text(nl);
 
+  mem_name: vector<text> = [];
+  mem_val: vector<integer> = [];
   ok = true;
   booted = false;
   checks = 0;
@@ -145,6 +188,30 @@ y`;
       for _k in 0..num(word(raw, 1)) { _r = flow_action(s, 1, 0, 0); }
     } else if verb == "act" {
       _r = flow_action(s, num(word(raw, 1)), num(word(raw, 2)), num(word(raw, 3)));
+    } else if verb == "teleport" {
+      sim_teleport(s, num(word(raw, 1)), num(word(raw, 2)));
+    } else if verb == "findstair" {
+      (fq, fr) = find_down_stair(s);
+      if fq < 0 {
+        println("FAIL line {li + 1}: no down stair on this level — the script cannot proceed");
+        ok = false;
+      } else {
+        sim_teleport(s, fq, fr);
+        println("  findstair -> {fq},{fr} (tile {sim_stair_under(s)})");
+      }
+    } else if verb == "hurt" {
+      sim_damage(s, num(word(raw, 1)), "physical");
+    } else if verb == "anchor" {
+      sim_anchor_here(s, num(word(raw, 1)));
+    } else if verb == "remember" {
+      // ⚠ THE CLAIM THAT MATTERS IS USUALLY "IT DID NOT CHANGE", and that cannot be
+      // written against a literal without pinning this week's content. `remember inv0
+      // inv` then `expect inv == inv0` says the real thing — the kit crossed intact —
+      // and stays true when the kit is retuned. moros' scripts take a BASELINE row for
+      // the same reason, and call it a claim rather than a warm-up.
+      mem_name += [word(raw, 1)];
+      mem_val += [probe(s, word(raw, 2))];
+      println("  remember {word(raw, 1)} = {probe(s, word(raw, 2))}  (from {word(raw, 2)})");
     } else if verb == "note" {
       println("  note {word(raw, 1)} = {probe(s, word(raw, 1))}");
     } else if verb == "expect" {
@@ -156,6 +223,11 @@ y`;
       // character is at full) where `expect hp == 70` states this week's pool and
       // teaches the next reader to delete the row. A bare integer still works.
       want = rhs as integer?;
+      if want == null {
+        for mi in 0..len(mem_name) {
+          if (mem_name[mi] ?? "") == rhs { want = mem_val[mi]; }
+        }
+      }
       if want == null {
         want = probe(s, rhs);
         if want == -999999 {

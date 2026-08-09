@@ -60,19 +60,24 @@ fi
 GATE_T0=$(date +%s)
 GATE_SLOW=$(mktemp)
 
-# run <src-file> <ok-marker> <log> <fail-text> <label>
+# run <src-file> <ok-marker> <log> <fail-text> <label> [program-arg]
+#
+# ⚠ THE OPTIONAL 6th ARG IS WHAT LETS ONE PROGRAM BE SEVERAL TESTS. playtest.loft is a
+# driver; each scripts/*.play is a different claim. Without it they would all report as
+# "playtest" and a red one would not say which playthrough broke.
 run() {
   t0=$(date +%s%N)
   if [ -n "${GATE_VERBOSE:-}" ]; then
     echo "  $5"
     # shellcheck disable=SC2086  # FLAGS must word-split into --path/--lib
-    "$LOFT" --interpret $FLAGS "$1" | tee "$3"
+    "$LOFT" --interpret $FLAGS "$1" ${6:+"$6"} | tee "$3"
   else
     # shellcheck disable=SC2086
-    "$LOFT" --interpret $FLAGS "$1" > "$3" 2>&1
+    "$LOFT" --interpret $FLAGS "$1" ${6:+"$6"} > "$3" 2>&1
   fi
   ms=$(( ($(date +%s%N) - t0) / 1000000 ))
   name=$(basename "$1" .loft)
+  [ -z "${6:-}" ] || name="$name:$(basename "$6" .play)"
   printf '%s %s\n' "$ms" "$name" >> "$GATE_SLOW"
   if grep -q "$2" "$3"; then
     [ -n "${GATE_VERBOSE:-}" ] || printf '  ok %6d.%ds  %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name"
@@ -218,6 +223,19 @@ src/formtest.loft|FORM OK|/tmp/story_form.log|forms|[forms] hex->vector map vs t
 src/meshtest.loft|MESH OK|/tmp/story_mesh.log|world-mesh|[mesh] world mesh: counts + exact R4 tint-bake colors (plan #7 P2) ...
 src/replaytest.loft|REPLAY OK|/tmp/story_replay.log|replay|[replay] K2 replica invariant: intents + wire codec -> identical worlds ...
 src/playtest.loft|PLAY OK|/tmp/story_play.log|playthrough|[play] scripts/walk.play: walk the world through flow_* and assert while walking ...
+EOF
+
+# ⚠ ONE ROW PER SCRIPT, NOT A LOOP OVER scripts/*.play. A glob would let a script be
+# added and silently never run if it failed to match, and would hide WHICH playthrough
+# broke behind one label. Each is named here, and each names what it claims.
+run src/playtest.loft "PLAY OK" /tmp/story_play_descend.log "playthrough: descend" \
+  "[play] scripts/descend.play: walking onto a stair rebuilds the level, the character crosses ..." \
+  scripts/descend.play
+run src/playtest.loft "PLAY OK" /tmp/story_play_respawn.log "playthrough: respawn" \
+  "[play] scripts/respawn.play: death is a setback — checkpoint respawn keeps the kit (DESIGN 3a) ..." \
+  scripts/respawn.play
+
+table <<'EOF'
 src/chunktest.loft|CHUNK OK|/tmp/story_chunk.log|chunk|[chunk] @PLN2 detail chunk: base+0.1m round-trip / watertight seam / 32x32 addressing ...
 src/chunkgeotest.loft|CHUNKGEO OK|/tmp/story_chunkgeo.log|chunk-geo|[chunk-geo] @PLN2 S1 two-tier map: overworld hex + detail raster round-trips / tier sizes ...
 src/chunkgentest.loft|CHUNKGEN OK|/tmp/story_chunkgen.log|chunk-gen|[chunk-gen] @PLN2 S2 overworld chunk from the engine: faithful sample + deterministic ...

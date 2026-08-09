@@ -1,0 +1,63 @@
+# respawn.play — DEATH IS A SETBACK, NOT AN ENDING, AND THE CHARACTER SURVIVES IT.
+#
+# DESIGN §3a puts checkpoint respawn among the deliberate departures from Angband: the
+# systems are faithful, the DEATH MODEL is friendlier. That is a design commitment, so
+# it deserves a gate that fails if someone quietly restores permadeath — and the only
+# place the whole rule exists is flow_move, which discovers `sim_over` and respawns.
+#
+# ⚠ THE SETUP USES POKES AND THE CLAIM DOES NOT. `findstair` and `hurt` arrange a death
+# at depth 2; the respawn itself is left to a `move` row, so what is being tested is
+# still the shipped movement path. A script that called sim_respawn directly would pass
+# while the game was broken.
+#
+# ⚠ AND THE STRONGEST CLAIM IS "IT DID NOT CHANGE". The kit surviving death is exactly
+# the class of bug that made flow_genesis a SHARED boot in the first place — a replica
+# that missed a step looked fine until you inspected the pack. `remember` before, compare
+# after; a literal there would only pin this week's starting kit.
+
+genesis 1337 1
+echo --- go down one level, so the checkpoint is somewhere we are NOT
+
+findstair
+move 0 0 1
+expect depth == 2
+
+remember died_at depth
+remember kit inv
+remember purse gold
+remember pool hpmax
+note savedepth
+
+echo --- die (a poke: empty the pool; nothing has discovered it yet)
+hurt 999
+expect hp == 0
+expect alive == 0
+
+# ⚠ THE WORLD DOES NOT KNOW YET. Death is discovered by the movement path, not by the
+# damage — this row is the difference between testing the rule and testing sim_damage.
+expect depth == died_at
+
+echo --- one movement tick: flow_move discovers the death and respawns
+move 0 0 1
+
+echo --- alive again, at the checkpoint, with the character intact
+expect alive == 1
+expect depth == savedepth
+expect depth != died_at
+
+# Restored to FULL, and to the same pool as before — a respawn that quietly rerolled
+# the character would satisfy `hp > 0` and be a different person.
+expect hp == hpmax
+expect hpmax == pool
+
+# The pack crosses death untouched. This is the row the whole script exists for.
+expect inv == kit
+
+echo --- and the price was paid in gold, left where we fell
+# Half the purse is staked on a grave at the depth of the death: measured 30 -> 15 with
+# 15 on the grave. Asserted as relations because the FRACTION is tuning, but the two
+# facts that are not tuning are that something is staked and that it is left BEHIND.
+expect gravegold > 0
+expect gravedepth == died_at
+expect gold < purse
+expect gold > 0
