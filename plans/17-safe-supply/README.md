@@ -63,7 +63,7 @@ that only became visible once both were on the page:
 | **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (extend `producttest`) | Blocked on `S2` |
 | **`S4`** — the world shows it, with no panel | M | `make play`, a user read | Blocked on `S3` |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` + a `scripts/*.play` session | Blocked on `S2` |
-| **`S6`** — decide durability: does gear degrade at all? | XS | a decision recorded in `CRAFTING.md` | **Designed, not built** |
+| **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` + a `scripts/*.play` session | **Designed, not built** |
 
 ### `S1` — the safety category, designed
 
@@ -113,6 +113,23 @@ a difficulty dial keyed to the player, or it reads as punishment for progress (`
 enough that clearing is worth doing, contested enough that the world stays alive. The
 counters already exist: guards patrol, walls ring the towns, roads carry carts.
 
+### `S6` — damage is an event, designed
+
+⚠ **Settled 2026-08-09: NO running degradation.** Gear does not wear out with use; a
+**failure or a special circumstance** damages an item, and it stays damaged until repaired.
+
+That distinction is the whole cost difference — wear-per-use is a maintenance chore with a
+meter behind it, event damage is one state the causing event teaches. ⚠ **And the second is
+Angband's actual model** (acid ruins armour, fire burns scrolls), so `CLAUDE.md`'s
+faithfulness rule settles it rather than taste.
+
+**Small:** one damaged state per item (the `IF_*` bitmask has room), set by a visible cause,
+cleared by a smith — or in the field, worse and slower, with `Handiness` setting how well.
+
+⚠ **The causes do not exist yet, and that is fine**: `sim_damage` branches on `"physical"`
+alone. Land the state with one honest cause and grow it with the damage model — but **every
+cause must be legible in play**, or this is wear-per-use in an event's clothes.
+
 ## What this plan does NOT change
 
 - **The player's verbs.** Zero new keys, no crafting screen, no recipe list, no material
@@ -137,7 +154,8 @@ Carried from `CRAFTING.md`, and the fourth is the one that blocks `#16`:
    qualifies (the same *stat + mastery* shape `CATALOG.md` §6.3 already uses). `#16` `M3`
    is unblocked. ⚠ Improvisation is free (the `Ingenuity` card exists); **repairs need a
    durability mechanic that does not exist** and charges the interface budget — that call
-   is still open and is `S6`.
+   is `S6`, and it is now settled: **damage is an EVENT, never running wear** — Angband's
+   own model, so it costs one item state rather than a maintenance loop.
 
 ## See also
 

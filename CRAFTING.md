@@ -157,19 +157,42 @@ field. Two halves, and measuring them found they cost very differently.
 | | state today | cost |
 |---|---|---|
 | **improvised gear** | ✅ **already designed** — `Ingenuity` (Hand·Will), *"improvise a weapon/tool mid-scene"* (`CATALOG.md` §1), and races already carry it (Badgers, Beavers) | **none.** It is a **card**, priced in an action under §6.3's economy. No new verb, no new system |
-| **repairs** | ⚠ **nothing exists.** No durability, condition, wear or broken state anywhere in `items.loft` or `sim.loft` | ⚠ **a new mechanic with an interface charge** — the player must learn that gear degrades and can be restored |
+| **repairs** | ⚠ nothing exists — no condition or damaged state in `items.loft`/`sim.loft`, and `sim_damage` branches on `"physical"` only | **small** — one item state, caused by events, ✅ **no running degradation** (below) |
 
-⚠ **THE SECOND HALF IS NOT FREE AND MUST NOT BE SMUGGLED IN.** §3a pillar 0 says a derived
-system buys *coherence, not mechanics*, and that every addition must answer *does this add
-something the player must learn?* Durability does. So it is a **decision**, not an
-implementation detail — and durability is exactly the kind of mechanic §3a's *friendly
-tuning* clause exists to be sceptical of.
+### ⚠ NO RUNNING DEGRADATION — damage is an EVENT, and my scepticism was aimed at the wrong mechanic
 
-**The argument in its favour, stated so it can be judged:** repair is what gives the player
-a *personal* stake in `I-SAFE`. Without it the supply loop improves the stalls — someone
-else's gear. With it, an unsafe valley eventually means **your** sword stays chipped, and
-the forge you protected is the one that fixes it. That closes the loop on the player rather
-than on the town.
+> **There is no running durability degradation, but there can be problems that are the
+> result of failures or special circumstances that can degrade an item until it is
+> repaired.** — user, 2026-08-09
+
+Two mechanics wear the word *durability* and they are not the same thing:
+
+| | what the player does | interface cost |
+|---|---|---|
+| ⚠ **wear per use** | watches a meter, maintains gear on a schedule, repairs *because time passed* | **high** — a maintenance chore, invisible until it bites, and the thing §3a's friendly-tuning clause is right to refuse |
+| ✅ **damage from an EVENT** | notices *something happened*, and gets it fixed | **small** — one state on one item, and the **event itself teaches the rule** |
+
+⚠ **AND THE SECOND IS ANGBAND'S ACTUAL MODEL**, which settles it under `CLAUDE.md`'s
+faithfulness rule rather than as a preference. Angband has no wear-per-swing: it has acid
+damaging armour, fire burning scrolls, specific attacks ruining specific things. So this is
+the **faithful** design, and the durability I was sceptical of is a mechanic Angband does
+not have either.
+
+**What it needs, and it is small:** one damaged state per item (the `IF_*` bitmask has
+room, or a small condition integer), set by a *cause* the player can see — a failure, an
+elemental hit, a special circumstance — and cleared by a smith, or in the field with
+`Handiness` setting how well.
+
+⚠ **THE CAUSES DO NOT EXIST YET AND THAT IS FINE.** `sim_damage` branches on `"physical"`
+alone; there are no elemental types to burn a scroll with. The state can land first with a
+single honest cause, and gain more as the damage model grows — but ⚠ **each cause must be
+legible in play**, or this becomes wear-per-use wearing an event's clothes: gear that
+degrades for reasons the player cannot attribute is a meter with extra steps.
+
+**Why it earns its place:** it is what gives the player a *personal* stake in `I-SAFE`.
+Without it the supply loop improves the stalls — someone else's gear. With it, an unsafe
+valley eventually means **your** sword stays chipped and the forge you protected is the one
+that fixes it. The loop closes on the player, not only on the town.
 
 **The cheap form, if it is taken:** condition is a small integer on an equipped item,
 degraded by use, restored by a smith — or in the field, worse and slower, with `Handiness`
