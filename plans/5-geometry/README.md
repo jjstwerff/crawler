@@ -3,6 +3,11 @@
 **Issue:** [`jjstwerff/crawler#5`](https://github.com/jjstwerff/crawler/issues/5) ·
 **Value:** `F` · **Effort:** `VH`
 
+**Anchors:** `WALLS.md` · **`FORMS.md`** (the kit-of-parts requirements — DESIGN SESSION,
+no geometry pinned) · **`STENCILS.md`** (layered composable stencils → castles; consumed by
+this plan's later phases). ⚠ Both are DESIGN docs; their schedule and step status live
+here, so progress is never recorded twice.
+
 ## Status
 
 **ACTIVE — blueprint phase running** (2026-07-21). `plans/5-geometry/hexforms.py` is the

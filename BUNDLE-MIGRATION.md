@@ -5,6 +5,11 @@ Move every **class** and **race** out of the engine data tables (`src/classes.lo
 generically — **and** make each one mechanically live. A class/race is **not "finished"**
 by a data-move alone.
 
+**Owned by [plan #4](plans/4-theme-bundles/) — theme bundles: ALL content moves out of the
+engine.** ⚠ Not its own plan, deliberately: one body of work with two trackers drifts, and
+plan #4's phases B–G *are* this migration. This doc owns the Definition of Done and the
+per-class detail; the plan owns the schedule and the step status.
+
 ## Definition of Done — a class/race may be checked off ONLY when ALL hold
 
 1. **Bundle-owned content** — its `ClassDef`/`RaceDef` row lives in `bundles/<name>/` and is

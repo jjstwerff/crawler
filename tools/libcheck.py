@@ -14,6 +14,7 @@ one falsifiable in about a second.
     L6  no ENGINE module names a BUNDLE-defined item    (BUNDLE.md standing check)
     L7  every produced item key resolves to a def       (BUNDLE.md production F3)
     L8  every `production` producer key is one of 7     (BUNDLE.md production F2)
+    L9  a doc declaring future work names its plan      (plans/README.md)
 
 L3 and L5 divide one question by what evidence is available. L3 is the strong form and
 needs the package's API surface, which exists only for packages already in the lock — so
@@ -284,6 +285,54 @@ def main():
                         f"    which no item def declares (engine items.loft or any bundle).\n"
                         f"    The town would drop a nameless item; nothing else would say so."
                     )
+
+    # L9 — a root doc that declares FUTURE WORK must name the plan that owns it.
+    #
+    # ⚠ THE PLANS WERE NEVER THE WEAK POINT. Every plans/<N>-* directory has a tracker
+    # issue; what nothing checked was the other direction — a design doc could say
+    # "DESIGN SESSION" or "staged epic" and sit outside the tracker indefinitely.
+    # Measured 2026-08-09: SCRIPTING.md (470 lines, "its own staged epic") had no plan
+    # and no issue at all, and was being spent piecemeal. Same shape as every other rule
+    # here before it was gated: true, written down, and impossible to fail.
+    #
+    # "Names its plan" is deliberately loose — a plans/<N>- path, an issue link, or
+    # "plan #<N>". The claim is that a reader can get from the design to its tracker,
+    # not that the reference takes one particular form.
+    # ⚠ TUNED AGAINST REALITY, NOT GUESSED. The first version matched "scheduled"
+    # case-insensitively and was 50% false positives: OVERLAND's "civilians are scheduled
+    # entities" (a mechanic) and VISION's "nothing in it was scheduled" (prose). A check
+    # that cries wolf half the time is one people learn to skip. So: the STATUS-MARKER
+    # spellings only — `DESIGN SESSION`, an upper-case `SCHEDULED`, and "staged epic" only
+    # as a HEADING. A heading means the doc owns that epic; an inline mention means it is
+    # pointing at somebody else's (BUNDLE-MIGRATION cites SCRIPTING's, and is not itself
+    # the untracked thing).
+    # The two status markers are case-SENSITIVE on purpose (that is what makes them
+    # markers rather than prose); only the heading alternative is case-insensitive.
+    FUTURE = re.compile(r"DESIGN SESSION|SCHEDULED|(?i:^#+ .*staged epic)", re.M)
+    # ⚠ `@PLN<N>` DOES NOT COUNT. CLAUDE.md: "@PLN<N> always means an UPSTREAM loft plan;
+    # crawler's own are written plan #<N>". Accepting it let SCRIPTING.md pass on the
+    # strength of an @PLN86 reference while having no crawler plan at all — the exact
+    # doc this rule exists for.
+    OWNED = re.compile(r"jjstwerff/crawler/issues/(\d+)|plan #(\d+)")
+    for doc in sorted(ROOT.glob("*.md")):
+        text = read(doc)
+        m = FUTURE.search(text)
+        if not m:
+            continue
+        # ⚠ A plans/<N>-<slug> path counts ONLY if that directory exists HERE. SCRIPTING.md
+        # cites `plans/86-sandbox-subset-flag`, which is a loft plan — it passed the first
+        # version of this check while having no crawler plan at all, which is the one doc
+        # the rule was written for.
+        local = any((ROOT / d).is_dir() for d in re.findall(r"plans/\d+-[a-z0-9-]+", text))
+        if local or OWNED.search(text):
+            continue
+        line = text[: m.start()].count("\n") + 1
+        report("L9", doc.name,
+            f"L9  {doc.name}:{line} declares future work (\"{m.group(0)}\") and names no plan.\n"
+            f"    A design outside the tracker gets consumed slice by slice and never built —\n"
+            f"    SCRIPTING.md was 470 lines of staged epic with no issue. Add the plan that\n"
+            f"    owns it (plans/<N>-…, an issue link, or `plan #<N>`), or open one."
+        )
 
     print(f"libcheck: {len(deps)} declared deps, {len(locked)} locked, {len(api)} api stubs, "
           f"{len(avail)} packages available, {len(mods)} crawler modules, "

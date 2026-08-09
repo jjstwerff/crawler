@@ -127,3 +127,23 @@ numbers went into commit messages, where the next reader will not think to look.
 Plus the fence: **`What this plan does NOT change`**, so a reader does not build on a
 guarantee nobody made. `plans/12-playthrough-reach/` is the first plan written to the
 full shape.
+
+### And a doc that declares future work must name its plan — gated
+
+⚠ **The plans were never the weak point.** Every `plans/<N>-*` directory has a tracker
+issue; what nothing checked was the other direction — a design doc could say
+`DESIGN SESSION` or carry a `## Staged epic` heading and sit outside the tracker
+indefinitely. `SCRIPTING.md` did exactly that: 470 lines, no plan, no issue, and being
+**spent piecemeal** (the item routine-by-id seam shipped straight out of its routine
+table as a bug fix).
+
+`tools/libcheck.py` **L9** now requires any root `*.md` carrying one of those markers to
+name a plan — a local `plans/<N>-…` path, a `jjstwerff/crawler` issue link, or
+`plan #<N>`. ⚠ `@PLN<N>` does **not** count: that is an upstream *loft* plan, and
+accepting it is what let `SCRIPTING.md` pass on an `@PLN86` reference while having no
+crawler plan at all.
+
+**One doc, one owner.** Where a design belongs to an existing plan, LINK it both ways
+rather than opening a number — `BUNDLE-MIGRATION.md` → plan #4, `STENCILS.md` and
+`FORMS.md` → plan #5. The doc owns the design; the plan owns the schedule and the step
+status, so progress is never recorded twice.

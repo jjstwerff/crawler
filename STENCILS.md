@@ -6,6 +6,11 @@
 
 ## Status
 
+**Owned by [plan #5](plans/5-geometry/) — geometry.** Its later phases consume this doc
+directly (the castle pillar, *a tower you climb*; the STENCILS-pinned flat layout
+`(L·h + y)·w + x`). ⚠ This doc is the DESIGN; plan #5 carries the schedule and the step
+status — do not track progress in both, or they drift.
+
 **DESIGN SESSION — no implementation, and now SCHEDULED (2026-07-22).** A lean flat-grid
 MVP was drafted and then **parked** (reverted from the tree) because the model below changes
 the core data shape. That wait is over: the mechanism is settled in `EXTRACTION.md` →

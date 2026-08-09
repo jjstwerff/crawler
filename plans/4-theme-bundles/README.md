@@ -3,6 +3,11 @@
 **Issue:** [`jjstwerff/crawler#4`](https://github.com/jjstwerff/crawler/issues/4) ·
 **Value:** `G` · **Effort:** `VH`
 
+**Anchors:** `BUNDLE.md` (architecture + the standing check) ·
+**`BUNDLE-MIGRATION.md`** (this plan's phases B–G in detail: the Definition of Done for a
+class/race, and the per-class list) · `SCRIPTING.md` → [plan #15](../15-bundle-scripting/)
+for the behaviour ceiling this migration leans on but does not own.
+
 ## Status
 
 **Partly shipped.** The two *mechanism* phases are in — **Phase A** (the trait seam

@@ -3,8 +3,16 @@
 How crawler lifts its modding ceiling from *"set the flags the engine defined"* to *"ship
 mechanics the engine never imagined"* — without breaking the determinism / multiplayer /
 performance invariants. Companion to **BUNDLE.md** (the bundle architecture + standing check)
-and **BUNDLE-MIGRATION.md** (classes/races/spells → bundles). Goal alignment: the
-*everything-is-a-reusable-library* direction.
+and **BUNDLE-MIGRATION.md** (classes/races/spells → bundles).
+
+Goal alignment: the *everything-is-a-reusable-library* direction.
+
+**Tracked by [plan #15](plans/15-bundle-scripting/)**, which adopts the Stage 1–5 ids
+below verbatim rather than minting a second numbering. ⚠ This doc owns the DESIGN — the
+stages, their checklists, proof moves and gates; the plan owns the STATUS, so progress is
+never recorded in both. Stage 0 (routine-by-id, shipped twice — spells, then items on
+2026-08-09) was spent before either the plan or the issue existed, which is why the plan
+exists at all.
 
 ## The ceiling, stated exactly
 
