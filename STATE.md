@@ -1,5 +1,29 @@
 # STATE.md — where things stand (2026-07-23)
 
+> ## ⚠ SINCE THIS WAS WRITTEN — 2026-08-09
+>
+> The body below is still the design position and still the NEXT job. Four things about it
+> have moved, and the first one contradicts it outright:
+>
+> - **The halt is OVER.** §"the user HALTED the other agent" no longer holds — `../moros`
+>   has its own agent running and committed four times this evening (through *"A4 closes"*
+>   at 22:12). ⚠ **That tree is READ-ONLY** (`CLAUDE.md`); findings become documents here.
+> - **The active roster is `#11`, `#12`, `#13`** — decided 2026-08-09 from evidence
+>   (`plans/README.md` → *The active roster*). Excluding doc edits, **no plan had been
+>   genuinely worked since 2026-07-23**: #11 is paused mid-step at the wall fit, which is
+>   still the NEXT job below.
+> - **The toolchain is 2026.8.0** — and it is `../loft`'s *working-tree build*, 15+ commits
+>   past the tag, rebuilt while gates run. `make test` now stamps version + md5 in its
+>   header, because `loft --version` is not provenance.
+> - **The gate is quiet and 92 tests** (~6 min): one `ok <secs> <name>` line per test, a
+>   closing line for anything over 5 s, `GATE_VERBOSE=1` for the old stream. ⚠ To prove a
+>   change behaviour-preserving, diff the **per-test** logs (`/tmp/story_<name>.log`), not
+>   the gate's stdout.
+>
+> New since: `ADOPTION.md` (the library pull side, P0–P4 shipped), `MOROS.md` (what moros
+> must write for crawler: nothing), `tools/libcheck.py` (9 gated rules), the playthrough
+> harness (`src/playtest.loft` + `scripts/*.play`), and the `production` bundle section.
+
 Branch **`combat`**, **the full gate green** (`make test` — run it, don't trust a count; the
 table in `tools/run_tests.sh` is the roster). Written as a handoff: read after a `/clear`.
 

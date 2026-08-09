@@ -69,6 +69,30 @@ grow one.
 **A closed issue must carry `status:finished` or `status:declined` — never a live
 status.** This drifts silently; when you touch a closed plan, check the label matches.
 
+## The active roster — decided 2026-08-09
+
+**`#11` 3D world · `#12` playthrough reach · `#13` scoped identity.** Everything else is
+`status:future`; `#9`/`#10` are finished.
+
+⚠ **"Active" means work is happening or is next — not that the plan is unfinished.** The
+roster had drifted to **six** against this file's own cap of three, so it was decided from
+evidence rather than intent: excluding doc edits, **no plan had been genuinely worked since
+2026-07-23**. One paused thrust, and five slots held by things nobody was doing.
+
+| | why active |
+|---|---|
+| **`#11`** | the declared direction (`CLAUDE.md`), 28 of the last 40 file touches, and `STATE.md`'s NEXT — paused mid-step at the wall fit |
+| **`#12`** | small, `A0` shipped, and it makes the rest *verifiable* — a 3D world you cannot script-walk is one you cannot regression-test. It serves `#11` |
+| **`#13`** | the only plan with an **external** deadline: moros plan 21 is finishing the other half of one mechanism now. `S1` is a cheap review that **expires** — unscheduled, it is effectively declined |
+
+Each demotion says why in its own Status block, because a label with no reason gets
+reverted by the next reader. The pattern worth naming: **`#5` was demoted although it is
+neither done nor unimportant** — its live edge moved into `../hexbody` and `#11` P5 tracks
+it, so holding both would double-count one body of work.
+
+⚠ **A slot is a claim on attention, so freeing one is as much work as filling one.** Three
+of the six were created on 2026-08-09 by the session that then had to cut them back.
+
 ## Value categories — what KIND of value
 
 Same letters as loft, so the convention reads the same across repos; the examples are

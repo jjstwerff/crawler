@@ -5,6 +5,11 @@
 
 ## Status
 
+> ⚠ **FUTURE as of 2026-08-09 — by its own words.** This plan's Status says *"nothing here
+> is urgent, and that is the risk"*. A priced debt with no schedule does not need an active
+> slot; it needs to stay visible, which `libcheck`'s accepted-debt line already does on
+> every gate run.
+
 `C0` is **shipped** — `ADOPTION.md` P0–P4, the three forked modules deleted, the registry
 made authoritative, and `libcheck` gating five rules. `C1`–`C3` are **designed, not
 built**: the debt is measured and priced below, and none of it is paid.

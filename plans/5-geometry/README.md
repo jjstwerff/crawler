@@ -10,6 +10,12 @@ here, so progress is never recorded twice.
 
 ## Status
 
+> ⚠ **FUTURE as of 2026-08-09 — demoted, and NOT because it is done.** Its live edge moved:
+> the wall FIT (`STATE.md`'s NEXT) now belongs in `../hexbody`, and plan **#11 P5** tracks
+> it. Keeping this active as well would double-count one body of work and spread the
+> attention the 2–3 cap exists to protect. `STENCILS.md` and `FORMS.md` still anchor here
+> and come back when #11 reaches them.
+
 **ACTIVE — blueprint phase running** (2026-07-21). `plans/5-geometry/hexforms.py` is the
 bench; first results below. Neither loft track has landed, and `wallgeo.loft`'s
 corner-graph smoother is still today's stand-in. This plan **blocks the theme-bundles

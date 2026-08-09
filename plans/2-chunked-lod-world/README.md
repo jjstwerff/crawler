@@ -5,6 +5,11 @@
 
 ## Status
 
+> ⚠ **FUTURE as of 2026-08-09.** Idle since 2026-07-21 with no stated next step, while six
+> of its gates (`chunk`, `chunkgeo`, `chunkgen`, `detail`, `meshchunk`, `talus`) run green
+> in every `make test`. Shipped work holding an active slot is what pushed the roster to
+> six against a cap of three.
+
 **Active** — S0–S5 done (the full LOD viewer); aesthetic sign-off + S6 remain.
 
 ## Context
