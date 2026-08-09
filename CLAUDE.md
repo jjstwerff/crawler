@@ -232,6 +232,16 @@ text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `ran
 wallgeo/gen after one decoupling each; roguelike-kit + the bundle system deliberately gated).
 Where the siblings, toolchain and library stores live: **`LOFT-NOTES.md`**.
 
+⚠ **OTHER PEOPLE'S TREES ARE READ-ONLY — `../moros` HAS ITS OWN AGENT RUNNING** (user
+instruction, 2026-08-09), and it moved through four commits during one crawler session.
+Read it freely and write down what you learn *here*; **do not edit that tree, and do not
+post to its tracker either** — an edit it did not make destroys its ability to tell its
+own work from yours. This is the mirror of moros' own rule about `../crawler` (*"raise
+findings instead"*), and the same holds for `../loft`, where the standing grant is **read
+plus FILE TICKETS, nothing else** (`LOFT-NOTES.md`). Cross-project findings become a
+document in crawler; **how one reaches the other project is the user's call**, not an
+action to take unasked — plan #13 `S1` is the worked example.
+
 **NO FIRST-CLASS PROJECT OWNS A LIBRARY** (user ruling, 2026-08-09) — not loft, not moros, not
 crawler, not lavition. A library must be useful to **everybody**, and **any project may add
 what it needs**; the only constraint is not breaking the others, which is what the library

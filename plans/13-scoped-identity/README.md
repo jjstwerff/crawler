@@ -67,22 +67,32 @@ the metre must not.
 | Step | Effort | Verify | Status |
 |---|---|---|---|
 | **`S0`** — measure both halves; name the seam | XS | this file | **Shipped** |
-| **`S1`** — bring crawler's scope to moros' design **before** it publishes | S | a written review on moros#21 | **Designed, not built** |
+| **`S1`** — write crawler's scope up as a review, HERE | S | `plans/13-scoped-identity/REVIEW.md` | **Designed, not built** |
 | **`S2`** — the mechanism lands in a `hex_*` package, scope-parameterised | M | the package's own gate | **Designed, not built** |
 | **`S3`** — crawler's ground/walls consume it; the 36 literals go | M | `make test` + a new `identtest` | Blocked on `S2` |
 | **`S4`** — a bundle supplies a palette; `libcheck` gains the L6-shaped rule for ground | S | `make test` | Blocked on `S3` |
 
 ### `S1` — the contribution, designed
 
-Not code: a review of moros#21's design against crawler's scope, answering three
-questions its author cannot answer alone. **Does the palette handle takes an opaque
-scope handle, or a region id?** (crawler has no regions.) **What happens at a scope
-boundary when a stored world is read under a different palette?** (crawler's bundles
-compose; moros' regions tile.) **Is `0 = nothing` enough, or does a consumer need a
-"not in this palette" answer distinct from "nothing here"?**
+Not code: crawler's scope written up as a review of the palette design, answering three
+questions its author cannot answer alone. **Does the palette handle take an opaque scope
+handle, or a region id?** (crawler has no regions.) **What happens at a scope boundary
+when a stored world is read under a different palette?** (crawler's bundles compose;
+moros' regions tile.) **Is `0 = nothing` enough, or does a consumer need a "not in this
+palette" answer distinct from "nothing here"?**
 
-⚠ This step is the only one with an external deadline, and it is cheap. Doing `S2`–`S4`
-without it risks building against a design that was never checked by a second scope.
+⚠ **THE REVIEW IS WRITTEN IN THIS REPO AND GOES NO FURTHER ON ITS OWN.** `../moros` has
+its own agent working in it (user instruction, 2026-08-09) — crawler does not edit that
+tree, and does not post to its tracker either. The deliverable is
+`plans/13-scoped-identity/REVIEW.md`; **how it reaches moros is the user's call** — handed
+to that agent, raised on the issue by them, or simply kept as the record of what
+crawler's scope demands. This mirrors moros' own rule about `../crawler`: *raise
+findings, do not edit*.
+
+⚠ It is still the only step with an external deadline, and it is still cheap. Doing
+`S2`–`S4` without it risks building against a design never checked by a second scope —
+and if `S1` arrives too late to inform moros' design, it is not wasted: it becomes the
+statement of what crawler needs from whatever ships.
 
 ### `S2` — the package, designed
 
@@ -106,8 +116,9 @@ Gate it the way `L6` gates the item half, or it rots the same way.
 
 - **Storage.** A cell stays a byte/integer; this is about what the byte MEANS.
 - **The bundle format's other sections.** `production` (BUNDLE.md) is done and separate.
-- **moros' plan 21.** crawler contributes a scope and a review; it does not redesign
-  someone else's plan, and `S1` is explicitly a conversation, not a patch.
+- **moros — anything at all.** That tree has its own agent. crawler reads it and writes
+  down what it learns; it does not edit the tree, the tracker, or the plan. `S1` produces
+  a document here, and delivery is the user's decision.
 - **Item identity.** Already solved here (bundles + `catalog` merge + `libcheck` L6).
 
 ## Open questions
