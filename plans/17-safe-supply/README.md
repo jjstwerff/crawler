@@ -131,10 +131,37 @@ the code.
 job) and so are wild things — and `npc_step` is only ever called for `role != 0`, so
 hostiles never reach the predicate at all.
 
-⚠ **Not yet measured: cost.** `hex_safe` scans the enemy list per call and is asked for up
-to six neighbours per NPC per step. The gate's own timing line is the instrument; if
-`safetytest` or the town tests move, `S3` should carry a cheaper form before it adds more
-callers.
+### Cost, and the town — measured 2026-08-09
+
+`S1` left cost unmeasured and named the gate's timing line as the instrument. ⚠ **That
+instrument is invalid on this box and the reading it gave was pure noise.** An A/B of
+`traveltest` said 27.7 s with the safety term and 65–70 s without — a 2.5× *speed-up* from
+doing more work, which should have been disqualifying on its face. `uptime` explains it:
+**load average ~20**, because this machine runs several agents. Re-running the identical
+no-safety build gave **34 s, 44 s and 51 s**. ⚠ **Wall-clock A/B is not available here** —
+any cost claim needs an operation count, not a stopwatch.
+
+The **behavioural** measurement is load-independent, and it is the one that answers the
+question. Over 40 ticks in the town, with the safety term and with it stubbed to `true`:
+**19 civilians moved, 4 frozen — identical both ways.** So the term is not currently costing
+the town its liveness, and it is not currently changing it either.
+
+⚠ **And rows 1–4 had been proving the predicate on a level with no civilians on it.** A role
+census settles it: `flow_genesis(1337, 1)` is **16 hostiles and nothing else**. The town is a
+different world — **23 civilians in 11 trades**, and open ground that is **82 % safe** (4 940
+/ 1 064) against the dungeon's 21 %. `safetytest` row 5 now gates the town directly, because a
+town that generated entirely safe would leave every step from `S3` on **inert while still
+passing its own tests**.
+
+**The number `S3` has to answer to: right now exactly 2 civilian neighbour-steps are
+refused.** The rule has territory — 1 064 unsafe hexes — but it barely touches anyone yet,
+because nothing downstream consumes the avoidance.
+
+⚠ **Which sharpens `S3`: the global ratio is the wrong measure. What matters is whether the
+unsafe ground is where the WORK is.** A settlement whose unsafe 18 % is empty hillside loses
+nothing and the loop stays invisible (`F6`). Stock must be measured against **fields, picking
+grounds and routes**, not area — and if the overlap turns out to be near zero, that is a
+placement problem to fix in `overland`'s scorer, not a number to tune.
 
 ### `S5` — contested safety, designed
 

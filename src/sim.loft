@@ -2589,7 +2589,6 @@ pub fn sim_enemy_cur(s: Sim, i: integer) -> (integer, integer) {
   (rq, rr)
 }
 
-// Smoothly-interpolated enemy world position (cur -> tgt by clock fraction).
 // The enemy's HEX, beside the float position the view draws with — a gate reasons in hexes.
 pub fn sim_enemy_hex(s: Sim, i: integer) -> (integer, integer) {
   es = s.enemies;
@@ -2600,6 +2599,19 @@ pub fn sim_enemy_hex(s: Sim, i: integer) -> (integer, integer) {
   (0, 0)
 }
 
+// 0 = hostile, and everything else is a civilian trade (3 = guard, 9 = gatherer, …).
+// Exposed for the same reason as the hex above: safety is a rule ABOUT roles, so a gate
+// that cannot read one cannot check it.
+pub fn sim_enemy_role(s: Sim, i: integer) -> integer {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return e.role; }
+  }
+  -1
+}
+
+// Smoothly-interpolated enemy world position (cur -> tgt by clock fraction).
 pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
   enemies = s.enemies;
   ex = 0.0;

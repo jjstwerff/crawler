@@ -22,12 +22,10 @@ fn main() {
   // ⚠ Not by placing anything: the point is that the predicate reads the world as it is.
   nsafe = 0;
   nunsafe = 0;
-  fq = -1; fr = -1;          // a remembered unsafe hex, for row 3
   for q in 0..60 {
     for r in 0..60 {
       if tile_at(s, q, r) == 0 {
-        if hex_safe(s, q, r) { nsafe += 1; }
-        else { nunsafe += 1; if fq < 0 { fq = q; fr = r; } }
+        if hex_safe(s, q, r) { nsafe += 1; } else { nunsafe += 1; }
       }
     }
   }
@@ -97,6 +95,35 @@ fn main() {
     println("a guard entering the same unsafe hex: {guard_ok}");
     if !guard_ok { println("FAIL: guards refuse danger — then nothing holds ground"); ok = false; }
   }
+
+  // ── 5. the rule has TERRITORY IN THE TOWN, which rows 1-4 do not prove ─────────────
+  // ⚠ Rows 1-4 run on a dungeon (depth 1), and a dungeon has NO CIVILIANS AT ALL — role
+  // census: 16 hostiles, nothing else. So every claim above is about a predicate no worker
+  // was ever standing next to. The settlement is the level this plan is FOR, and it is a
+  // different world: 23 civilians in 11 trades, and open ground that is 82% safe rather
+  // than the dungeon's 21%.
+  //
+  // ⚠ What this row is really guarding is `F6` — that the loop can be SEEN. If the town
+  // ever generates entirely safe, every step from S3 on is inert while still passing its
+  // own tests, because production would consume an input that never falls.
+  t = flow_genesis(1337, 0);
+  tsafe = 0;
+  tunsafe = 0;
+  for q in 0..80 {
+    for r in 0..80 {
+      if tile_at(t, q, r) == 0 {
+        if hex_safe(t, q, r) { tsafe += 1; } else { tunsafe += 1; }
+      }
+    }
+  }
+  civs = 0;
+  for i in 0..sim_enemy_count(t) {
+    if sim_enemy_alive(t, i) && sim_enemy_role(t, i) > 0 { civs += 1; }
+  }
+  println("town: {tsafe} safe, {tunsafe} unsafe, {civs} civilians");
+  if tunsafe == 0 { println("FAIL: the town is entirely safe — nothing downstream can ever fall"); ok = false; }
+  if tsafe == 0 { println("FAIL: the town is entirely unsafe — no worker could ever leave"); ok = false; }
+  if civs == 0 { println("FAIL: no civilians in the town — the predicate has nobody to govern"); ok = false; }
 
   if ok { println("=== SAFETY OK ==="); } else { println("=== FAIL ==="); }
 }
