@@ -35,6 +35,9 @@
 //   teleport <q> <r>        put the player somewhere (no walk, no clock)
 //   findstair               scan for a DOWN stair ('>' or a cave mouth) and go there
 //   hurt <n>                apply n physical damage
+//   findloot                stand on the first live, non-gold floor item
+//   charge <n>              n frames of "aim at the nearest live foe and glide in"
+//   xp <n>                  award n experience
 //   anchor <kind>           set the respawn anchor at the player's hex
 //
 // ⚠ A POKE MUST NOT DO THE THING UNDER TEST. `findstair` teleports ONTO the stair and
@@ -43,7 +46,7 @@
 // `hurt` empties the pool, and `move` is what discovers it and respawns.
 //
 // Probes: hp hpmax depth gold clevel xp inv enemies msgs q r alive
-//         stair savedepth anchor gravegold gravedepth
+//         stair savedepth anchor gravegold gravedepth statpts floor livefloor livefoes
 //
 // ⚠ PREFER A RELATION TO A GOLDEN NUMBER. `expect hp <= hpmax` survives a content change;
 // `expect hp == 47` fails on the next tuning pass and teaches the reader to delete rows. Use
@@ -75,6 +78,18 @@ fn probe(s: Sim, name: text) -> integer {
   if name == "anchor" { return sim_anchor_kind(s); }
   if name == "gravegold" { return sim_grave_gold(s); }
   if name == "gravedepth" { return sim_grave_depth(s); }
+  if name == "statpts" { return sim_stat_points(s); }
+  if name == "floor" { return sim_floor_count(s); }
+  if name == "livefloor" {
+    n = 0;
+    for i in 0..sim_floor_count(s) { if sim_floor_live(s, i) { n += 1; } }
+    return n;
+  }
+  if name == "livefoes" {
+    n = 0;
+    for i in 0..sim_enemy_count(s) { if sim_enemy_alive(s, i) { n += 1; } }
+    return n;
+  }
   -999999
 }
 
@@ -199,6 +214,41 @@ y`;
         sim_teleport(s, fq, fr);
         println("  findstair -> {fq},{fr} (tile {sim_stair_under(s)})");
       }
+    } else if verb == "findloot" {
+      // Stand on the first LIVE, non-gold floor item. Gold is skipped because it is
+      // collected by walking over it, not by the pickup verb — a script aiming at the
+      // itemfx seam would otherwise "pick up" a coin pile and prove nothing.
+      fi = -1;
+      for i in 0..sim_floor_count(s) {
+        if fi < 0 && sim_floor_live(s, i) && !sim_floor_is_gold(s, i) { fi = i; }
+      }
+      if fi < 0 {
+        println("FAIL line {li + 1}: no live non-gold floor item on this level");
+        ok = false;
+      } else {
+        (fx, fy) = sim_floor_pos(s, fi);
+        s.px = fx; s.py = fy;      // a poke: the walk there is not what is under test
+        println("  findloot -> item {fi} (category {sim_floor_cat(s, fi)})");
+      }
+    } else if verb == "charge" {
+      // combattest's idiom, through flow_move: re-aim at the nearest live enemy each
+      // frame and glide in, letting BUMP-MELEE do the fighting. The aim is a poke (a
+      // precise heading is not an intent); the movement and every blow are the shipped
+      // path. Coordinate-agnostic, so it survives a change of hex layout.
+      for _k in 0..num(word(raw, 1)) {
+        tgt = -1;
+        for ei in 0..sim_enemy_count(s) {
+          if tgt < 0 && sim_enemy_alive(s, ei) { tgt = ei; }
+        }
+        if tgt >= 0 {
+          (ex, ey) = sim_enemy_pos(s, tgt);
+          s.heading = atan2(ey - s.py, ex - s.px);
+        }
+        (s2, nq, nr, _chg) = flow_move(s, 1, 0, DT, sq, sr);
+        s = s2; sq = nq; sr = nr;
+      }
+    } else if verb == "xp" {
+      sim_award_xp(s, num(word(raw, 1)));
     } else if verb == "hurt" {
       sim_damage(s, num(word(raw, 1)), "physical");
     } else if verb == "anchor" {

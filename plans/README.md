@@ -98,3 +98,32 @@ in two days and "quick" takes weeks; effort buckets stay stable, projections don
 
 **Length budget: 100–300 lines per plan README.** Longer means reference content is
 leaking in — extract it to the doc that owns it.
+
+## What a plan must carry (adopted from `../loft` and `../moros`, 2026-08-09)
+
+Both siblings write plans the same way, and the three habits below are what make theirs
+outlive the session that produced them. Crawler's template now requires all three.
+
+1. **The title is a CLAIM.** *"Regions own the mapping: one byte is not one identity"*
+   (moros 21), *"A hash insert that allocates once and never re-hashes"* (loft 135). A
+   topic — *"region mappings"* — commits to nothing, and a plan that commits to nothing
+   cannot be shown to be finished.
+2. **Steps have STABLE IDS, and status is per step.** `A1`, `A1b`, `A2c`, `R1`. *"`A1`,
+   `A1b` and `A2c`'s along half are shipped; `A2`–`A5` are designed, not built"* is a
+   status you can check; *"in progress"* is not. ⚠ **"Designed, not built" is a
+   first-class state** — it says the thinking survived even though the code has not been
+   written, which is the point of a plan over a ticket. Such a step is **written out in
+   full**: that is the step documentation of future work.
+3. **Dated findings, one section per step — `What <step> turned up`.** loft 135 is mostly
+   dated measurements; moros 21 has *"What `R1` turned up"*. ⚠ Include the ones that
+   **refuted the step's own premise**, and the ones found on the way (loft 135: *"Found
+   while measuring: growing a hash ABANDONS every previous bucket table"*).
+
+⚠ **The third is the one crawler kept losing.** `plans/11-3d-world/RESULTS.md` has done
+it since July — *"`P1` result — one passability predicate, measured 2026-07-22"* — and it
+is the ONLY plan that does, because nothing told the next author to. Everywhere else the
+numbers went into commit messages, where the next reader will not think to look.
+
+Plus the fence: **`What this plan does NOT change`**, so a reader does not build on a
+guarantee nobody made. `plans/12-playthrough-reach/` is the first plan written to the
+full shape.
