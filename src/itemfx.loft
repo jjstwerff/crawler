@@ -4,16 +4,21 @@
 // inventory and consume the item) and it drives effects through the Player API (player.loft) +
 // per-item scripts. The view calls use_item() on a use-key; the kernel never imports this.
 //
-// EFFECTS are scripts: a DEFAULT effect (cure potions heal by their i_power — data-driven) or a
-// CUSTOM script that ships with the item inside its bundle (the Explorer's detect-monsters
-// potion → bundles/explorer/items/). This hand-written dispatch is the precursor to a scanned
-// gen_items.py index (one arm per usable item, exactly like the bundles index).
+// EFFECTS are scripts, and THIS FILE NAMES NONE OF THEM — the scanned index the old
+// hand-written dispatch was a "precursor to" now exists. Two arms, by owner:
+//   bundle item -> bundles/<b>/items/<item_key>.loft `apply`, reached through the GENERATED
+//                  item_fx_gen (the routine-by-id seam, exactly as spells work);
+//   engine item -> itemeffects.loft, beside the defs it belongs to.
+// So a bundle can ship a usable item with a custom effect and src/ is untouched — which is
+// the property BUNDLE.md's standing check exists to protect, and which this file used to
+// break by naming `naga_antivenin` and importing the explorer's potion module directly.
 use sim;
 use items;
 use catalog;   // game_items() — the merged catalog (engine + bundle items)
 use player;
 use castfx;    // the E-key falls through to quick-cast when no item is bound there
-use potion_detect_monsters;
+use itemeffects;   // engine-owned item effects
+use item_fx_gen;   // GENERATED: bundle-owned item effects, discovered from bundles/*/items/
 
 // Use the consumable in inventory slot `slot`: run its effect, then consume one on success.
 // Returns whether anything happened (so the view can message "nothing happens" otherwise).
@@ -79,38 +84,11 @@ pub fn use_slot(s: &Sim, k: integer) -> integer {
   0
 }
 
-// Effect dispatch by item key. Cure/heal potions restore HP by their i_power (data-driven); scrolls
-// blink / map / etc.; the Explorer's detect-monsters potion runs its CUSTOM script. Effects use the
-// Player API + the kernel verbs; unhandled keys return false -> the caller says "Nothing happens."
+// Effect dispatch by item key — BY OWNER, and this function names no key of either kind.
+// Bundle items first: a bundle may ship a usable item whose key the engine has never heard
+// of, and it must win for its own key. Then the engine's own. An unhandled key returns false
+// and the caller says "Nothing happens." — still honest for an item whose effect is unbuilt.
 fn item_effect(s: &Sim, p: Player, key: text) -> boolean {
-  if key == "potion_cure_light" || key == "potion_cure_serious" || key == "potion_healing" {
-    itbl = game_items();
-    p.heal(s, item_power(itbl, item_index(itbl, key)));   // heal amount = i_power
-    return true;
-  }
-  if key == "potion_restore" {                            // Restoration: undo any stat drain
-    p.restore_stat(s, "str"); p.restore_stat(s, "int"); p.restore_stat(s, "wis");
-    p.restore_stat(s, "dex"); p.restore_stat(s, "con"); p.restore_stat(s, "chr");
-    return true;
-  }
-  if key == "potion_detect_monsters" {
-    potion_detect_monsters::apply(s, p);   // custom script (bundles/explorer/items/)
-    return true;
-  }
-  if key == "scroll_phase_door" { sim_blink(s, 5); return true; }    // short random blink
-  if key == "scroll_teleport"   { sim_blink(s, 40); return true; }   // long-range escape
-  if key == "scroll_magic_mapping" { sim_reveal_map(s); return true; }
-  if key == "scroll_identify" {                                      // reveal a carried mystery
-    di = sim_identify_carried(s);
-    if di >= 0 { sim_log(s, "It was {item_name(game_items(), di)}!"); }
-    else { sim_log(s, "You sense nothing you carry is a mystery."); }
-    return true;
-  }
-  if key == "naga_antivenin" {
-    itbl = game_items();
-    sim_cure_venom(s, item_power(itbl, item_index(itbl, key)));   // i_power = the venom-ward ticks
-    sim_log(s, "Your blood runs clear and cold.");
-    return true;
-  }
-  false
+  if bundle_item_effect(s, p, key) { return true; }
+  engine_item_effect(s, p, key)
 }

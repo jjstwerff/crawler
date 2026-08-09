@@ -396,11 +396,20 @@ the `MF_*`/`RF_*`/`IF_*`/`TAG_*`/`K_*` (tile-kind) **constants**. Declaration-on
 **B. Behavior API (capability-gated).** Behavior routines receive a fixed **dispatch context** and
 return a result the engine acts on — they never hold the loop:
 
-| Routine kind | Signature | Returns |
-|---|---|---|
-| class/race onboarding | `activate(s: &Sim, p: Player)` | — |
-| spell / item effect | `fx_<name>(s: &Sim, p: Player, power: integer) -> boolean` | did-fire |
-| quest hook | `on_<event>(s: &Sim, …)` | per-event |
+| Routine kind | Signature | Where the generator finds it | Returns |
+|---|---|---|---|
+| class/race onboarding | `activate(s: &Sim, p: Player)` | the bundle's `entry` | — |
+| spell effect | `fx_<effect_id>(s: &Sim, p: Player, power: integer) -> boolean` | scanned in the `spells` module | did-fire |
+| **item effect** | `apply(s: &Sim, p: Player)` | **`bundles/<b>/items/<item_key>.loft` — the FILE NAME is the key** | — (dispatch reports fired) |
+| quest hook | `on_<event>(s: &Sim, …)` | — | per-event |
+
+⚠ **The two effect kinds are found differently, and the difference is not cosmetic.** A spell's
+routine is keyed by an **effect id** the def names (`s_effect`), so several spells may share one
+routine. An item's is keyed by the **item key itself**, taken from the file name — because
+`ItemDef` has no effect-id field and adding one would mean touching ~88 struct literals. One
+file per usable item is the cheaper spelling of the same seam, and it makes def-and-routine
+drift impossible. Both emit a generated dispatch (`spell_defs_gen`, `item_fx_gen`); in neither
+case does the engine name the content. See **BUNDLE.md → "A usable item's routine"**.
 
 Within those, the callable engine surface (today ~165 `sim_*` + the `Player` method sugar +
 `random`) splits into capability groups. **The split is by EFFECT, and it encodes crawler's two

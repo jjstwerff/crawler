@@ -1,0 +1,44 @@
+// itemeffects — the effect routines for the ENGINE's own usable items (the ones defined in
+// items.loft). One arm per item key, the same shape a bundle uses for its own.
+//
+// WHY THIS IS A MODULE OF ITS OWN, and not a chain inside itemfx.loft: `itemfx` is the VERB
+// ("use the thing in slot N") — mechanism. Which key heals and which key blinks is CONTENT.
+// Keeping the two in one file is what let a BUNDLE item's key (naga_antivenin) and a bundle
+// MODULE import (potion_detect_monsters) sit in the engine's API layer, which BUNDLE.md's
+// standing check forbids. Split apart, the verb names nothing and this file names only
+// engine-owned items — content beside content, which is allowed.
+//
+// It cannot live in items.loft beside the defs: that module imports nothing and is imported
+// BY sim, so pulling in sim/player for the effects would close a cycle.
+//
+// A bundle's items are NOT here. They ship their own routine in
+// bundles/<b>/items/<item_key>.loft and are reached through the generated item_fx_gen.
+use sim;
+use items;
+use catalog;   // game_items() — the merged catalog (effect magnitudes come from the def)
+use player;
+
+// Run the engine item `key`'s effect. Returns false for a key with no effect yet, which the
+// caller reports honestly as "Nothing happens." rather than pretending it worked.
+pub fn engine_item_effect(s: &Sim, p: Player, key: text) -> boolean {
+  if key == "potion_cure_light" || key == "potion_cure_serious" || key == "potion_healing" {
+    itbl = game_items();
+    p.heal(s, item_power(itbl, item_index(itbl, key)));   // heal amount = i_power
+    return true;
+  }
+  if key == "potion_restore" {                            // Restoration: undo any stat drain
+    p.restore_stat(s, "str"); p.restore_stat(s, "int"); p.restore_stat(s, "wis");
+    p.restore_stat(s, "dex"); p.restore_stat(s, "con"); p.restore_stat(s, "chr");
+    return true;
+  }
+  if key == "scroll_phase_door" { sim_blink(s, 5); return true; }    // short random blink
+  if key == "scroll_teleport"   { sim_blink(s, 40); return true; }   // long-range escape
+  if key == "scroll_magic_mapping" { sim_reveal_map(s); return true; }
+  if key == "scroll_identify" {                                      // reveal a carried mystery
+    di = sim_identify_carried(s);
+    if di >= 0 { sim_log(s, "It was {item_name(game_items(), di)}!"); }
+    else { sim_log(s, "You sense nothing you carry is a mystery."); }
+    return true;
+  }
+  false
+}

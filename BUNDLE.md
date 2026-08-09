@@ -62,6 +62,37 @@ The flip side of this check is the ceiling it implies — a bundle can only *set
 engine defined. How we lift that (an event/hook bus, a general deterministic script API,
 flags-as-routines, runtime-interpreted bundles) is its own staged epic: **SCRIPTING.md**.
 
+⚠ **The check is now GATED, not just written down** — `tools/libcheck.py` **L6**, run by `make
+test`: no engine runtime module may contain the key of a bundle-defined item. Tests are exempt
+(a gate asserting *"the antivenin cures venom"* must name it); generated files are exempt by
+their own header, since naming bundle content is their entire job. This exists because the
+rule had drifted while nobody could fail it — see the item half immediately below.
+
+#### A usable item's routine — the item half of routine-by-id (closed 2026-08-09)
+
+`itemfx.loft` used to dispatch item effects with a hand-written `if key == …` chain, which put
+**`naga_antivenin`** (a `desert_surprise` item) and a direct `use potion_detect_monsters` (an
+*explorer* module) inside the engine's API layer. A stranger's bundle could not ship a usable
+item without editing `src/` — precisely the property this section protects.
+
+It now works exactly as spells do:
+
+| | where it lives | who names it |
+|---|---|---|
+| **bundle item** | `bundles/<b>/items/<item_key>.loft`, `pub fn apply(s, p)` | nobody — the generator **scans** for it |
+| **engine item** | `itemeffects.loft`, one arm per key | itself: engine content beside engine content |
+| the verb | `itemfx.loft` | **names neither**; tries bundle, then engine |
+
+**The file NAME is the item key**, so the def and its routine cannot drift, and adding a usable
+item to a bundle is one new file plus `make bundles` — no engine edit. The dispatch is emitted
+into `src/item_fx_gen.loft`.
+
+⚠ The routine cannot live in the bundle's item-*defs* module (`ds_items.loft`): that is reached
+from `bundle_defs` ← `catalog` ← `sim`, so importing `sim` for an effect would close a cycle.
+The separate per-item file is what keeps the def side dependency-free — which is why the
+explorer's potion had that shape from the start, and why the convention was scanned rather
+than invented.
+
 ### The TRAIT seam — how the engine asks for content without naming it
 
 *(Shipped 2026-06-11. This is what makes "the engine never references a bundle by key"

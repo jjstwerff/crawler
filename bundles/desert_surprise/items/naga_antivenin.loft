@@ -1,0 +1,20 @@
+// Custom item effect — the desert_surprise bundle's Naga's Antivenin.
+//
+// The boss-drop escape hatch: drunk, it clears venom from the blood and wards the veins
+// for a time. This lives WITH the item, inside the owning bundle, and the generated
+// dispatch (src/item_fx_gen.loft) reaches it by FILE NAME — the file stem is the item
+// key, so `ds_items.loft`'s def and this routine cannot drift apart.
+//
+// It sits here rather than in ds_items.loft because that module is reached from
+// bundle_defs <- catalog <- sim; importing sim for the effect would close a cycle. The
+// def side stays dependency-free, exactly as the explorer's potion does.
+use sim;
+use player;
+use catalog;   // game_items() — to read this item's OWN i_power, so the number lives in the def
+
+// Ward duration is the def's i_power (ticks), not a constant repeated here.
+pub fn apply(s: &Sim, p: Player) {
+  itbl = game_items();
+  sim_cure_venom(s, item_power(itbl, item_index(itbl, "naga_antivenin")));
+  sim_log(s, "Your blood runs clear and cold.");
+}
