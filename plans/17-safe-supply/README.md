@@ -63,6 +63,7 @@ that only became visible once both were on the page:
 | **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (extend `producttest`) | Blocked on `S2` |
 | **`S4`** — the world shows it, with no panel | M | `make play`, a user read | Blocked on `S3` |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` + a `scripts/*.play` session | Blocked on `S2` |
+| **`S6`** — decide durability: does gear degrade at all? | XS | a decision recorded in `CRAFTING.md` | **Designed, not built** |
 
 ### `S1` — the safety category, designed
 
@@ -131,8 +132,12 @@ Carried from `CRAFTING.md`, and the fourth is the one that blocks `#16`:
    classic beat; allowing it costs an item and no verb.)
 2. Stock per producer, or per settlement?
 3. What exactly is in the safety expression, and can it be evaluated cheaply per worker?
-4. ⚠ **Does `Handiness` gate anything, if the hero never crafts?** If not, an axis has no
-   consumer — and `#16` `M3` writes a Handiness value into 18 race blocks.
+4. ✅ **RESOLVED 2026-08-09.** `Handiness` gates **repairs and improvised gear, not
+   crafting**, and it is a **degree, never a key** — learned skills permit, the stat
+   qualifies (the same *stat + mastery* shape `CATALOG.md` §6.3 already uses). `#16` `M3`
+   is unblocked. ⚠ Improvisation is free (the `Ingenuity` card exists); **repairs need a
+   durability mechanic that does not exist** and charges the interface budget — that call
+   is still open and is `S6`.
 
 ## See also
 

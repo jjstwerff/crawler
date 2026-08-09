@@ -146,6 +146,65 @@ walked, the innkeeper says the roads are bad. ⚠ **The player must be able to r
 state without being told it** — that is the `SCRIPTING.md` *no markers* rule, and it is
 the difference between a living town and a resource meter.
 
+## Handiness — repairs and improvised gear, NOT crafting
+
+> **Handiness gates repairs and improvised gear, not crafting.** — user, 2026-08-09
+
+That resolves the axis question and keeps `I-SAFE` intact: the hero still never *makes*
+anything the settlement makes. They **keep what they have working**, and **make do** in the
+field. Two halves, and measuring them found they cost very differently.
+
+| | state today | cost |
+|---|---|---|
+| **improvised gear** | ✅ **already designed** — `Ingenuity` (Hand·Will), *"improvise a weapon/tool mid-scene"* (`CATALOG.md` §1), and races already carry it (Badgers, Beavers) | **none.** It is a **card**, priced in an action under §6.3's economy. No new verb, no new system |
+| **repairs** | ⚠ **nothing exists.** No durability, condition, wear or broken state anywhere in `items.loft` or `sim.loft` | ⚠ **a new mechanic with an interface charge** — the player must learn that gear degrades and can be restored |
+
+⚠ **THE SECOND HALF IS NOT FREE AND MUST NOT BE SMUGGLED IN.** §3a pillar 0 says a derived
+system buys *coherence, not mechanics*, and that every addition must answer *does this add
+something the player must learn?* Durability does. So it is a **decision**, not an
+implementation detail — and durability is exactly the kind of mechanic §3a's *friendly
+tuning* clause exists to be sceptical of.
+
+**The argument in its favour, stated so it can be judged:** repair is what gives the player
+a *personal* stake in `I-SAFE`. Without it the supply loop improves the stalls — someone
+else's gear. With it, an unsafe valley eventually means **your** sword stays chipped, and
+the forge you protected is the one that fixes it. That closes the loop on the player rather
+than on the town.
+
+**The cheap form, if it is taken:** condition is a small integer on an equipped item,
+degraded by use, restored by a smith — or in the field, worse and slower, with `Handiness`
+setting how well. ⚠ **No repair kits, no material cost to the player, no menu**: the moment
+it needs an inventory of parts it is crafting, which is the thing this design says the hero
+does not do.
+
+### Handiness is a DEGREE, never a KEY
+
+> **Handiness is still very useful for a crafter, but learned skills are the gate there.**
+> — user, 2026-08-09
+
+⚠ **So the axis never grants permission — anywhere.** It says *how well*, not *whether*:
+
+| | the gate (permission) | Handiness (degree) |
+|---|---|---|
+| **crafting** | a **learned skill** | how good the result is |
+| **repairs** | a smith, or the field option | how much condition returns, how fast |
+| **improvised gear** | the `Ingenuity` **card** — learned or innate by race | what the improvisation is worth |
+
+**This is already the adopted economy's own shape, not a new rule.** `CATALOG.md` §6.3
+gates a spell *"by stat **and mastery** instead of a fail-roll"* — mastery is the learned
+half, the stat is the degree. Crafting reads identically: **skill permits, Handiness
+qualifies.**
+
+⚠ **AND IT KEEPS `I-SAFE` HONEST WITHOUT LOCKING A DOOR.** The hero does not craft because
+they have not *learned* to — not because a stat forbids it. That is a content decision a
+bundle could revisit, and it would still not add a verb: a crafting skill would be a
+learned thing priced like every other learned thing. What the hero must never become is the
+*supplier*, because then the settlement stops mattering and `I-SAFE` is dead.
+
+**For `#16` `M3` this is the statable thing a race's Handiness means:** *how good this
+people are at fixing and making do* — and, for the NPC smiths a settlement holds, why one
+forge turns out better work than another. Not a permission anywhere.
+
 ## Failure paths
 
 | | how it breaks | the answer |
@@ -179,10 +238,14 @@ the difference between a living town and a resource meter.
 3. **What is the safety expression?** Guards, distance from the walls, hostiles alive nearby,
    time since the player cleared something — and it must be **derivable and cheap**, since it
    runs per NPC per day.
-4. ⚠ **Does `Handiness` gate anything here?** If the hero never crafts, the axis has no
-   consumer in this design — and [plan #16](plans/16-eight-statistics/) `M3` re-authors 18
-   race blocks with a Handiness value each. **That is why this design comes first**
-   (user, 2026-08-09): those numbers are a bet on this system.
+4. ✅ **RESOLVED 2026-08-09 — `Handiness` gates repairs and improvised gear, not crafting**
+   (see the section above). [Plan #16](plans/16-eight-statistics/) `M3` is unblocked: a
+   race's Handiness is a bet on *keeping gear working and making do*, which is a statable
+   thing. ⚠ **One sub-decision remains**: improvisation is free (it is already the
+   `Ingenuity` card), **repairs need a durability mechanic that does not exist** and that
+   charges the interface budget. Decide that before `M3` writes 18 values, or the numbers
+   are again a bet on something undesigned. ⚠ Note the axis is a **degree, never a key**
+   (above), so `M3` can proceed on the *meaning* even while the durability call is open.
 
 ## See also
 

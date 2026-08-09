@@ -83,6 +83,18 @@ adding axes changes derived values by construction, so `M2`'s gate is *green*, n
 
 ### `M3` — the 18 bundles, designed
 
+✅ **UNBLOCKED 2026-08-09 — `Handiness` has a meaning to author against.** It *"gates
+repairs and improvised gear, not crafting"*, and it is a **degree, never a key**: learned
+skills permit, the stat qualifies (`CRAFTING.md` → *Handiness is a DEGREE, never a KEY*).
+So a race's value states **how good this people are at fixing and making do** — a statable
+thing, not a bet on an undesigned system, which is why [#17](../17-safe-supply/) was
+designed first.
+
+⚠ **One sub-decision is still open and it only affects half the axis**: improvisation is
+free (it is already the `Ingenuity` card), **repairs need a durability mechanic that does
+not exist**. `M3` can author the meaning regardless; if durability is declined, Handiness
+keeps the improvisation half and the values still stand.
+
 The expensive step and the one that must not be automated. Each race and class states what
 it is on the new axes: a half-troll's Might is not its old `r_str`, and its Speed and
 Perception have never been written down. ⚠ **Author, then read the roster as a set** — the
