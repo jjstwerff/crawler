@@ -26,8 +26,10 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 > ⚠ **This is crawler's own open decision, not a dependency on anybody.** moros has nothing
 > to write for it (`MOROS.md`): the stat set was *seeded* here in June and the mapping
 > below is crawler's document about crawler's game. Executing it, or reversing it, is a
-> crawler call — and it is a real one, because §12a's derived stats, the powers below and
-> `RESOLUTION.md` §5a are all authored against the eight while the engine answers six.
+> crawler call — and it was made on 2026-08-09: **adopt the eight**, tracked as
+> [plan #16](plans/16-eight-statistics/) (`status:future` — decided, not scheduled).
+> Until it lands, §12a's derived stats, the powers below and `RESOLUTION.md` §5a all
+> describe eight axes the engine does not have. Read them as the target, not the state.
 
 **Decided: crawler adopts moros's 8 statistics**, replacing Angband's 6 (§12a's
 STR/INT/WIS/DEX/CON/CHR). The powers are authored against the 8, and they map onto
@@ -687,7 +689,14 @@ trust/contact (§5e/§5g), spirit (§6.6), cure/repair, and barter systems.)*
 *(The lightest workflow that fits — `plans/README.md`: the row and the design share a
 file. Escalate to a plan only where noted.)*
 
-### `OW1` — the 8 stats are decided and not built ⚠ **needs a decision, not a build**
+### `OW1` — the 8 stats ✅ **RESOLVED 2026-08-09 → [plan #16](plans/16-eight-statistics/)**
+
+> **Decided: adopt the eight** (user, *"we will adopt moros"*), **not scheduled** (*"but
+> not today"*). The fork below is closed; the work and its measured cost now live in
+> plan #16, `status:future`. ⚠ Two findings from that measurement change the shape of it:
+> **it is not a save break** (no stat vector persists), and **it is not a rename**
+> (Perception and Speed are new axes, so the 18 bundles need re-authoring, not mapping).
+> Left here for the reasoning; the schedule and step status are the plan's.
 
 §0 adopted moros' eight on 2026-06-27; measured 2026-08-09, the engine answers Angband's
 **six** (`gameflow::stat_name`, `sim::stat_index`) and the eight appear in no code path.
