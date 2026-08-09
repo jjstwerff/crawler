@@ -2004,70 +2004,10 @@ fn npc_step(s: Sim, e: &Enemy) {
   }
 }
 
-// Production repertoires as branch selectors — vector<text> literals HANG or
-// PANIC the interpreter in deep contexts (LOFT_ISSUES C27); never build them.
-fn forge_weapon_key(i: integer) -> text {
-  if i == 0 { return "dagger"; }
-  if i == 1 { return "short_sword"; }
-  if i == 2 { return "mace"; }
-  if i == 3 { return "spear"; }
-  if i == 4 { return "quarterstaff"; }
-  if i == 5 { return "long_sword"; }
-  if i == 6 { return "war_hammer"; }
-  if i == 7 { return "broad_sword"; }
-  if i == 8 { return "battle_axe"; }
-  if i == 9 { return "halberd"; }
-  "light_crossbow"
-}
-fn forge_armor_key(i: integer) -> text {
-  if i == 0 { return "leather_boots"; }
-  if i == 1 { return "chain_mail"; }
-  if i == 2 { return "small_shield"; }
-  if i == 3 { return "iron_helm"; }
-  if i == 4 { return "gauntlets"; }
-  if i == 5 { return "iron_shod_boots"; }
-  if i == 6 { return "plate_mail"; }
-  if i == 7 { return "large_shield"; }
-  "brass_lantern"
-}
-fn scribe_key(i: integer) -> text {
-  if i == 0 { return "scroll_identify"; }
-  if i == 1 { return "scroll_phase_door"; }
-  if i == 2 { return "scroll_magic_mapping"; }
-  if i == 3 { return "scroll_teleport"; }
-  "scroll_recall"
-}
-fn book_key(i: integer) -> text {
-  if i == 0 { return "book_arcane_primer"; }
-  if i == 1 { return "book_holy_litany"; }
-  "book_nature_lore"
-}
-fn town_craft_key(i: integer) -> text {
-  if i == 0 { return "ration_of_food"; }
-  if i == 1 { return "wooden_torch"; }
-  if i == 2 { return "cloak"; }
-  if i == 3 { return "soft_leather_armor"; }
-  if i == 4 { return "arrow"; }
-  if i == 5 { return "short_bow"; }
-  if i == 6 { return "leather_gloves"; }
-  if i == 7 { return "hard_leather_cap"; }
-  if i == 8 { return "sling"; }
-  if i == 9 { return "iron_shot"; }
-  if i == 10 { return "long_bow"; }       // the fletcher's masterwork
-  if i == 11 { return "bolt"; }
-  "hard_leather_armor"
-}
-fn import_key(i: integer) -> text {
-  if i == 0 { return "wand_magic_bolt"; }
-  if i == 1 { return "staff_light"; }
-  if i == 2 { return "ring_protection"; }
-  if i == 3 { return "amulet_slow_digestion"; }
-  if i == 4 { return "wand_frost_bolt"; }
-  if i == 5 { return "staff_detection"; }
-  if i == 6 { return "ring_strength"; }
-  if i == 7 { return "amulet_resist_fire"; }
-  "staff_teleport"
-}
+// Production repertoires (WHICH item each workshop makes) live in items.loft, beside the
+// defs they name — content beside content. What stays here is the ROTATION: the forge
+// alternates by day parity, the alchemist brews on three weekdays, the scriptorium on the
+// others. Mechanism engine-side, content content-side (BUNDLE.md standing check).
 
 // WHERE THE WILD THINGS LIVE: each terrain kind carries its natural fauna
 // (branch selectors — C27). Tier 1 = the nearer wilds, tier 2 = the far and
@@ -2178,13 +2118,7 @@ pub fn sim_tick(s: &Sim) {
       dow = day3 % 7 ?? 0;
       week3 = (day3 / 7) ?? 0;
       if dow == 1 || dow == 3 || dow == 5 {
-        pidx = (week3 * 3 + (dow / 2 ?? 0)) % 6 ?? 0;
-        pk = "potion_cure_light";
-        if pidx == 1 { pk = "potion_detect_monsters"; }
-        if pidx == 2 { pk = "potion_cure_serious"; }
-        if pidx == 3 { pk = "potion_restore"; }
-        if pidx == 4 { pk = "potion_healing"; }
-        if pidx == 5 { pk = "potion_speed"; }
+        pk = alchemy_key((week3 * 3 + (dow / 2 ?? 0)) % 6 ?? 0);
         for _ in 0..5 { sim_drop_item(s, stq3 + 1, str3 + 1, pk); }
       }
       // THE SCRIPTORIUM: scrolls on the quiet days, a realm book each week's end

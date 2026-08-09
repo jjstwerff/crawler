@@ -133,6 +133,13 @@ casts, store pressure, struct-literal comprehensions). What remains:
 - **NEVER build `vector<text>` literals in large functions** — they can HANG the interpreter;
   indexing one in a call argument can PANIC the allocator (loft#336). Use branch-selector
   functions returning text (`fn key(i) -> text { if ... }`).
+  ⚠ **Re-measured 2026-08-09 on 2026.8.0 and NOT cleared.** A synthetic probe (a big
+  `vector<text>` literal, indexed in a call argument, in a loop) passes — but the recorded
+  trigger is a *large function / deep context*, which the probe does not reproduce, so a
+  green probe is not evidence the defect is gone. The workaround therefore **stays**: the
+  town-production repertoires in `items.loft` are branch selectors and say so at the top.
+  Do not "simplify" them to vectors on the strength of the small probe; if you need this
+  lifted, reproduce it in a real deep caller first.
 - Manifest `{ path = ... }` deps: **#337 is FIXED** (verified 2026-06-14), so the `--lib` dev
   dirs can now become `{ path = … }` deps in `loft.toml`. **`--lib` outranks the registry**
   (VERIFIED) so a sibling shadows a same-named registry copy. The **#322 stale-program-cache**

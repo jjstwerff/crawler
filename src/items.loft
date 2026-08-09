@@ -327,3 +327,94 @@ pub fn item_index(table: vector<ItemDef>, key: text) -> integer {
   }
   -1
 }
+
+// ── Production repertoires — WHICH items each kind of workshop makes ─────────────────
+//
+// CONTENT, and it lives here beside the defs it names rather than in sim.loft, which owns
+// only the MECHANISM above it: a forge alternates weapons and armour by day parity, the
+// alchemist brews on three weekdays, the scriptorium writes on the others. The rotation is
+// the engine's; the repertoire is not. (Moved out of sim.loft 2026-08-09 — BUNDLE.md
+// standing check: mechanism engine-side, content beside content.)
+//
+// ⚠ BRANCH SELECTORS, NOT `vector<text>` LITERALS, AND THAT SHAPE IS LOAD-BEARING: a
+// vector<text> literal in a large function can HANG the interpreter and indexing one in a
+// call argument can PANIC the allocator (loft#336). A synthetic probe passes on 2026.8.0,
+// but the recorded trigger is a DEEP context and this is exactly such a caller, so the
+// workaround stays until something needs it lifted. Do not "simplify" these to vectors.
+// The caller supplies the index; each falls through to its last entry.
+// Production repertoires as branch selectors — vector<text> literals HANG or
+// PANIC the interpreter in deep contexts (LOFT_ISSUES C27); never build them.
+pub fn forge_weapon_key(i: integer) -> text {
+  if i == 0 { return "dagger"; }
+  if i == 1 { return "short_sword"; }
+  if i == 2 { return "mace"; }
+  if i == 3 { return "spear"; }
+  if i == 4 { return "quarterstaff"; }
+  if i == 5 { return "long_sword"; }
+  if i == 6 { return "war_hammer"; }
+  if i == 7 { return "broad_sword"; }
+  if i == 8 { return "battle_axe"; }
+  if i == 9 { return "halberd"; }
+  "light_crossbow"
+}
+pub fn forge_armor_key(i: integer) -> text {
+  if i == 0 { return "leather_boots"; }
+  if i == 1 { return "chain_mail"; }
+  if i == 2 { return "small_shield"; }
+  if i == 3 { return "iron_helm"; }
+  if i == 4 { return "gauntlets"; }
+  if i == 5 { return "iron_shod_boots"; }
+  if i == 6 { return "plate_mail"; }
+  if i == 7 { return "large_shield"; }
+  "brass_lantern"
+}
+pub fn scribe_key(i: integer) -> text {
+  if i == 0 { return "scroll_identify"; }
+  if i == 1 { return "scroll_phase_door"; }
+  if i == 2 { return "scroll_magic_mapping"; }
+  if i == 3 { return "scroll_teleport"; }
+  "scroll_recall"
+}
+pub fn book_key(i: integer) -> text {
+  if i == 0 { return "book_arcane_primer"; }
+  if i == 1 { return "book_holy_litany"; }
+  "book_nature_lore"
+}
+pub fn town_craft_key(i: integer) -> text {
+  if i == 0 { return "ration_of_food"; }
+  if i == 1 { return "wooden_torch"; }
+  if i == 2 { return "cloak"; }
+  if i == 3 { return "soft_leather_armor"; }
+  if i == 4 { return "arrow"; }
+  if i == 5 { return "short_bow"; }
+  if i == 6 { return "leather_gloves"; }
+  if i == 7 { return "hard_leather_cap"; }
+  if i == 8 { return "sling"; }
+  if i == 9 { return "iron_shot"; }
+  if i == 10 { return "long_bow"; }       // the fletcher's masterwork
+  if i == 11 { return "bolt"; }
+  "hard_leather_armor"
+}
+pub fn import_key(i: integer) -> text {
+  if i == 0 { return "wand_magic_bolt"; }
+  if i == 1 { return "staff_light"; }
+  if i == 2 { return "ring_protection"; }
+  if i == 3 { return "amulet_slow_digestion"; }
+  if i == 4 { return "wand_frost_bolt"; }
+  if i == 5 { return "staff_detection"; }
+  if i == 6 { return "ring_strength"; }
+  if i == 7 { return "amulet_resist_fire"; }
+  "staff_teleport"
+}
+
+// The alchemist's brew rotation — one potion type per brewing day (see the caller's day/week
+// mechanism in sim.loft). Index 0 is also the fallback, so a widened modulus degrades to the
+// common brew rather than to "".
+pub fn alchemy_key(i: integer) -> text {
+  if i == 1 { return "potion_detect_monsters"; }
+  if i == 2 { return "potion_cure_serious"; }
+  if i == 3 { return "potion_restore"; }
+  if i == 4 { return "potion_healing"; }
+  if i == 5 { return "potion_speed"; }
+  "potion_cure_light"
+}
