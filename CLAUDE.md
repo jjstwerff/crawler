@@ -199,17 +199,20 @@ authorization needed), work around it, keep moving. Toolchain **2026.7.2**; `gra
   and `%`. Discharge at the root with `?? 0.0`. A `??` default must match the type EXACTLY —
   on a `vector<single>` write `?? 0.0f`.
 - **`text as integer|float|single` is a nullable parse** — settle with `?? 0` at the cast.
-- **`vec += [f(struct_temp)]` silently nulls every element but the first** (loft#496,
-  INTERPRETER ONLY). Hoist the call into a local first: `ne = mk_enemy(...); enemies += [ne];`.
-- **A self-referential `??` default SIGSEGVs the compiler** — `x = v[i] ?? x;`. Use a separate
-  fallback variable.
+- ~~`vec += [f(struct_temp)]` nulls every element but the first~~ (loft#496) and ~~a
+  self-referential `??` default SIGSEGVs the compiler~~ — ✅ **BOTH FIXED, verified 2026-08-09
+  on 2026.8.0** by re-running LOFT-HANDOFF's own repros (H2 prints all four records; H1 prints
+  `key=rat lvl=1`). **The hoist-into-a-local and separate-fallback workarounds are obsolete —
+  stop writing them.** Existing ones are harmless; no sweep needed. ⚠ Do not re-add either
+  from memory: both were true for months, so they read as folklore.
 - **A `fn(...) -> vector<single>` passed to a native FFI call silently ABORTS the program**
   (loft#392) — no stdout, no PNG, exit 0. Inline the buffer-building loop in the caller.
 - **`!x` on a non-boolean is a NULL test, not logical-not** — compare `== 0`.
 - **Never swap struct vector elements via a temp link**, and **never build `vector<text>`
   literals in large functions**.
-- **Do NOT delete a `?? ""` / `?? 0` guard** the compiler calls "redundant" — the checker
-  reasons about types; #496 still makes those fields null at RUNTIME.
+- **Do NOT delete a `?? ""` / `?? 0` guard** the compiler calls "redundant" on the strength of
+  the advice alone. ⚠ Its original reason (#496 nulling fields at RUNTIME) is **gone** — so if
+  you want one removed now, *measure it*, don't cite #496.
 - `make bundles` is a **silent-corruption** surface (JSON `kind()` now splits `JInteger` out of
   `JNumber`). Round-trip check: the generated `src/*_gen.loft` must be byte-identical to HEAD.
 

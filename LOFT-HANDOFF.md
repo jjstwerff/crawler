@@ -20,7 +20,7 @@ H3 is `sev:medium` with a clean workaround.
 
 ## H1 — a self-referential `??` default SIGSEGVs the compiler
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FIXED upstream — verified 2026-08-09 on loft 2026.8.0** (`v2026.8.0-16-gb75887df`). NOT filed: re-running the repro below, the recorded repro prints `key=rat lvl=1` — no SIGSEGV. Kept for the record; the workaround it documents is obsolete.
 **Labels:** `sev:high`, `wa:clean`, `area:codegen`, `hit-by:crawler`, `bug`, `both-backends`
 **Suggested title:** `codegen: self-referential ?? default (x = v[i] ?? x) SIGSEGVs the compiler on both backends`
 
@@ -91,7 +91,7 @@ hits it.
 
 ## H2 — `vec += [f(struct_temp)]` silently nulls every element but the first (interpreter only)
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FIXED upstream — verified 2026-08-09 on loft 2026.8.0** (`v2026.8.0-16-gb75887df`). NOT filed: re-running the repro below, the recorded repro prints all four entries correctly (rat/bat/wolf/orc, lvl 1/1/2/4); the nulls are gone. Kept for the record; the workaround it documents is obsolete.
 **Labels:** `sev:high`, `wa:clean`, `area:store-lifetime`, `area:runtime`, `hit-by:crawler`, `bug`
 **Suggested title:** `interpreter: vec += [f(struct_temp)] in a loop nulls all but the first element (native is correct)`
 
@@ -509,8 +509,10 @@ would turn an abort into a diagnostic.
 
 ## H3 — narrow-width vectors: `u16`/`i16` reject index assignment, and `u32` LOSES IT SILENTLY
 
-**Status: the loft side is already working on this (2026-07-21) — do NOT file, it would
-duplicate.** Kept here for the reproducer and for the re-verify trigger below.
+**Status:** ✅ **FIXED upstream — verified 2026-08-09 on loft 2026.8.0** (`v2026.8.0-16-gb75887df`).
+The re-verify trigger below was run: the repro now prints `direct=5  via_fn=7`, so the write
+through a fn parameter lands. Still not filed, and now there is nothing to file.
+*(Was: "the loft side is already working on this (2026-07-21) — do NOT file, it would duplicate.")*
 · **Repo:** `loft-lang/loft`
 **Labels:** `sev:high`, `wa:clean`, `area:codegen`, `hit-by:crawler`, `bug`
 **Suggested title:** `vector<u32> element write through a struct parameter is silently discarded; vector<u16>/<i16> reject index assignment outright`
@@ -876,7 +878,7 @@ fails silently with no diagnostic.
 
 ## H7 — `file().content()` returns EMPTY for non-UTF-8 bytes, silently, on both backends
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FILED as [loft#829](https://github.com/loft-lang/loft/issues/829)** (2026-08-09, still reproducing on 2026.8.0) · **Repo:** `loft-lang/loft`
 **Labels:** `sev:high`, `wa:partial`, `area:stdlib`, `hit-by:hexbody`, `bug`, `both-backends`
 **Suggested title:** `stdlib: file().content() silently returns "" for a file that is not valid UTF-8`
 
@@ -951,7 +953,7 @@ The failure is silent and inverts a test's meaning rather than breaking it. Any 
 
 ## H8 — a registry-style `[dependencies]` entry that is NOT resolvable from the registry does not fall back to a library on the `--lib` path
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FIXED upstream — verified 2026-08-09 on loft 2026.8.0** (`v2026.8.0-16-gb75887df`). NOT filed: re-running the repro below, an unpublished `pkga` declared `>=0.1` by `pkgb` now resolves from `--lib`: prints `b=43`. Kept for the record; the workaround it documents is obsolete.
 **Labels:** `sev:medium`, `wa:clean`, `area:packages`, `hit-by:hexbody`, `bug`
 **Suggested title:** `packages: a >= registry dep with no registry match is NOT resolved from --lib — dependent library's symbols go unresolved`
 **Related:** #337 (CLOSED — *compile-time use-resolution consults `[dependencies]` **path** entries; it does not*). This is the sibling case for `>=` **registry** entries + `--lib`.
@@ -1040,7 +1042,7 @@ inter-dependent library family in a chunk. The workaround is clean, so it does n
 
 ## H9 — `loft update` iterates the LOCKFILE, not the manifest: a newly declared dependency is never locked, and the report says "up-to-date"
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FILED as [loft#830](https://github.com/loft-lang/loft/issues/830)** (2026-08-09, measured today on 2026.8.0) · **Repo:** `loft-lang/loft`
 **Labels:** `sev:medium`, `wa:clean`, `area:packages`, `hit-by:crawler`, `bug`
 **Suggested title:** `loft update: a dependency declared in loft.toml but absent from loft.lock is skipped silently — "all N packages up-to-date" counts the lock, not the manifest`
 
@@ -1123,7 +1125,7 @@ that catches it.
 
 ## H10 — an auto-native cdylib fails to wire INTERMITTENTLY under concurrent `loft` processes, and the failure is a PANIC rather than a fallback
 
-**Status:** not filed · **Repo:** `loft-lang/loft`
+**Status:** ✅ **FILED as [loft#831](https://github.com/loft-lang/loft/issues/831)** (2026-08-09, measured today on 2026.8.0) · **Repo:** `loft-lang/loft`
 **Labels:** `sev:high`, `wa:partial`, `area:native`, `hit-by:crawler`, `bug`
 **Suggested title:** `auto-native: cdylib wiring fails intermittently when several loft processes run at once — "native function not loaded" panics instead of falling back to the interpreted body`
 

@@ -75,18 +75,21 @@ corruption, not compile errors** — that is the lesson to carry.
 - **FIXED — loft#497** (interpreter SIGSEGV consuming a generated Sim): `walltest.loft` runs
   clean, **verified 2026-07-21**. `make play` and `make probe` are NO LONGER blocked by it.
   (`make probe` now needs only `xvfb-run`, which **is installed** on this box.)
-- **STILL LIVE — loft#496, in a WIDER form: `vec += [f(struct_temp)]` silently nulls every
+- ✅ **FIXED (verified 2026-08-09, loft 2026.8.0) — loft#496, `vec += [f(struct_temp)]` nulling every
   element but the first.** A struct temp reassigned in a loop and passed BY VALUE into a fn
   whose result is appended → the copy is elided to a borrow and freed under the vector.
   **INTERPRETER ONLY — `--native` is correct**, so it is a backend divergence. It corrupted
   every monster spawn (empty names, garbage `mlvl`) and only `depthtest` caught it.
-  **Workaround (clean, VERIFIED): hoist the call result into a local first** — `ne =
-  mk_enemy(md, q, r); enemies += [ne];`. Hoisting keeps the single call, so RNG order is
-  preserved; inlining the call twice does NOT. (Repro + variant matrix: **LOFT-HANDOFF.md →
-  H2**.)
-- **NEW — a self-referential `??` default SIGSEGVs the COMPILER**: `x = v[i] ?? x;` kills
-  `--check` on BOTH backends in 14 lines. Workaround (clean): use a separate fallback
-  variable (`x = v[i] ?? fallback;`). (Repro: **LOFT-HANDOFF.md → H1**.)
+  ⚠ **THE WORKAROUND IS OBSOLETE.** Re-running H2's own repro on 2026.8.0 prints all four
+  records correctly (rat/bat/wolf/orc, lvl 1/1/2/4) where the bug gave nulls. Stop writing
+  `ne = mk_enemy(...); enemies += [ne];` for this reason; the hoists already in the tree are
+  harmless and need no sweep. This entry said "STILL LIVE ... in a WIDER form" for weeks after
+  the narrow #496 was fixed on 2026-07-04 — a workaround outlives its defect unless somebody
+  re-runs the repro, which is the whole point of keeping one. (Repro: **LOFT-HANDOFF.md → H2**.)
+- ✅ **FIXED (verified 2026-08-09, loft 2026.8.0) — a self-referential `??` default no longer
+  SIGSEGVs the compiler**: `x = v[i] ?? x;` compiles and runs (H1's repro prints
+  `key=rat lvl=1`). The separate-fallback-variable workaround is obsolete.
+  (Repro: **LOFT-HANDOFF.md → H1**.)
 - **NEW (library, silent) — JSON `kind()` split `JInteger` out of `JNumber`.** Whole numbers
   now report `"JInteger"`; a `kind() == "JNumber"` test falls through to its DEFAULT for every
   integer. This zeroed every dimension in the generated room registry while text fields still
@@ -101,8 +104,11 @@ corruption, not compile errors** — that is the lesson to carry.
   `story.loft` already uses, or the view silently falls back to coloured squares. (Write-up:
   **LOFT-HANDOFF.md → S2/S3**.)
 - **Do NOT delete a `?? ""` / `?? 0` guard just because the compiler calls it "Redundant null
-  coalescing."** The checker reasons about TYPES; the #496 use-after-free above still makes
-  those fields null at RUNTIME. Those guards are load-bearing.
+  coalescing"** — the checker reasons about TYPES, so the advice alone is not evidence.
+  ⚠ **But its ORIGINAL reason is gone**: #496 no longer makes those fields null at runtime
+  (verified 2026-08-09, above). So a guard here is no longer *presumed* load-bearing — if you
+  want one removed, **measure that specific site**; do not cite #496, and do not delete on the
+  lint's say-so either.
 
 ### The older minefield — what still bites
 
