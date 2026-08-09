@@ -4,9 +4,9 @@
 // the ground is displaced hexes, the walls are edges, the roofs are the profile x distance
 // table from plan #5, the trees are plan #9's canopy.
 use hex_field;
-use hexedge;
-use hexway;
-use hexroof;
+use hex_edge;
+use hex_way;
+use hex_roof;
 use hexprim;
 use hexpart;
 use hexseat;

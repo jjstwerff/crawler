@@ -9,7 +9,7 @@
 // and because the phase is computed FROM the distance, that identity holds by construction
 // rather than by tuning. The negative control is the important half — a timer-driven phase
 // must FAIL it, or the gate proves nothing.
-use hexway;
+use hex_way;
 use hexwheel;
 
 fn main() {

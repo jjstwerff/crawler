@@ -14,7 +14,7 @@
 // turns 10% more than the ground it covers, which is a spinning drive wheel — a deliberate
 // effect, stated once.
 use mesh3d;
-use hexway;
+use hex_way;
 use hexprim;
 
 // Turns, not radians: a phase of 1.0 is one revolution, which is the number a wheel's

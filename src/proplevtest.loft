@@ -5,8 +5,8 @@
 // present and comparing bit for bit. The same proof is what makes props safe to place: a
 // cart in a gateway must not be able to alter the gate.
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 use hexcache;
 use hexplace;
 

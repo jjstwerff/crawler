@@ -20,7 +20,7 @@
 // and simulation sharing ONE cache: a region is wanted when either must touch it, so the
 // residency policy cannot belong to either alone.
 use hex_field;
-use hexedge;
+use hex_edge;
 
 pub struct FieldCache {
   fc_cx:    vector<integer>,

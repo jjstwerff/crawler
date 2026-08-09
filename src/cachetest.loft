@@ -5,8 +5,8 @@
 // that — and because the derivation is a pure function of an L1 region, already proven
 // order-independent (P3/P4) and chunk-local (formtest).
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 use hexcache;
 
 // Derive the field for chunk (cx,cy) at a given world version. The version changes the

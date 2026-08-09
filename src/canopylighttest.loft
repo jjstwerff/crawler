@@ -14,7 +14,7 @@
 use hex_field;
 use hexcanopy;
 use hexcache;
-use hexedge;
+use hex_edge;
 
 fn fill(s: HexSet) {
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {

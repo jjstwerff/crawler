@@ -16,8 +16,8 @@
 //
 // A tunnel is the same operation with the opposite sign, which is why they are one gate.
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 use hexcache;
 
 fn deg(v: float) -> float { v * 0.017453292519943295 }

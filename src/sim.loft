@@ -6,7 +6,7 @@
 
 use hex_grid;
 use hex_field;        // HexSet — the solid cell set the edge field is sealed from (plan #11 P2)
-use hexedge;          // EdgeSet + passable() — THE crossing predicate (plan #5's edge model)
+use hex_edge;          // EdgeSet + passable() — THE crossing predicate (plan #5's edge model)
 use gen;
 use monsters;
 use items;

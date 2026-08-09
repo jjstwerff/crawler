@@ -2,7 +2,7 @@
 //
 // Cell-authored content (a stamped stencil, a hand-drawn footprint) carries no surfaces,
 // so it has no normals — which makes this load-bearing for physics, not kit polish. The
-// job is the inverse of hexway's rasteriser:
+// job is the inverse of hex_way's rasteriser:
 //
 //     traced boundary loop (exact integer lattice points)  ->  straights + arcs
 //
@@ -12,7 +12,7 @@
 // tolerance: large enough to absorb the zigzag (worst measured residual on a straight
 // wall is 0.81), small enough that a real corner never fits inside it.
 use hex_field;
-use hexedge;
+use hex_edge;
 
 pub const MATCH_TOL = 1.0;
 
@@ -194,7 +194,7 @@ pub fn fit_distance(f: Fit, i: integer, px: float, py: float) -> float {
 }
 
 // Tag every boundary edge of `s` with the recovered surface NEAREST it — the same
-// arbitration rule hexway uses, so cell-authored and curve-authored content behave
+// arbitration rule hex_way uses, so cell-authored and curve-authored content behave
 // identically downstream. This is the whole point of P2.
 pub fn tag_edges(s: HexSet, f: Fit, first_surf: integer, e: EdgeSet, mat: integer) {
   for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {

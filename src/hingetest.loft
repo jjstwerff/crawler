@@ -5,8 +5,8 @@
 // field nothing, which is the level-crossing barrier result reused verbatim.
 use mesh3d;
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 use hexcache;
 use hexplace;
 use hexhinge;

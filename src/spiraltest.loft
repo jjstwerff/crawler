@@ -19,8 +19,8 @@
 // an OBJECT — one cell carrying a surface, like a tree or a piece of furniture. Knowing
 // exactly where that floor sits is what this gate is for.
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 use hexcache;
 
 fn deg(v: float) -> float { v * 0.017453292519943295 }

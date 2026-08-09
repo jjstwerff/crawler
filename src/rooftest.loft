@@ -1,7 +1,7 @@
 // rooftest — ROOF FORMS, THE CONE ON A ROUND TOWER, AND ARCHES.
 //
 // With a height per cell, "real architecture" is mostly roof profiles — and they turn out
-// to be one function of a distance, not a catalogue of cases (hexroof). This gate proves
+// to be one function of a distance, not a catalogue of cases (hex_roof). This gate proves
 // that, then goes after the two hard ones.
 //
 // THE CONE ON A ROUND TOWER is hard for a reason that has nothing to do with cones. The
@@ -15,8 +15,8 @@
 // ARCHES are the mirror: an opening whose SOFFIT varies between the pillars, so the clear
 // height varies along the span and what can pass depends on where you stand.
 use hex_field;
-use hexway;
-use hexroof;
+use hex_way;
+use hex_roof;
 
 fn main() {
   println("=== story roof / arch test ===");

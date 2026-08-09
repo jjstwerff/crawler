@@ -12,8 +12,8 @@
 //
 // The negative half matters as much: the matcher must REFUSE to call a gable a cone.
 use hex_field;
-use hexway;
-use hexroof;
+use hex_way;
+use hex_roof;
 
 fn main() {
   println("=== story roof-matching test ===");

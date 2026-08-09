@@ -3,7 +3,7 @@
 // A linkage solved wrongly still moves. The wheels turn, the crosshead slides, the picture
 // looks alive — and the con-rod quietly changes length as it goes. Nothing about the motion
 // reveals it, which is why the gate measures the ROD and not the look.
-use hexway;
+use hex_way;
 use hexwheel;
 use hexlink;
 

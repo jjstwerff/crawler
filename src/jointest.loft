@@ -7,8 +7,8 @@
 //
 // THE RULE: nearest surface to the edge's contact point wins; ties to the lower id.
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 
 // Build the same scene in a given order; return the EdgeSet for comparison.
 fn scene(order: integer, sf: Surfaces, mat: integer,
@@ -27,7 +27,7 @@ fn scene(order: integer, sf: Surfaces, mat: integer,
   tid = way_surfaces(tower, sf);
   wid = way_surfaces(wall, sf);
 
-  // two-phase: mark every part, THEN cut once — see hexway::way_mark
+  // two-phase: mark every part, THEN cut once — see hex_way::way_mark
   if order == 0 {
     way_mark(tower, 1.1, hs);
     way_mark(wall, 1.1, hs);

@@ -17,8 +17,8 @@
 // angle the grid offers is the only one that works, which is exactly why every real double
 // slip is shallow.
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 
 fn deg(d: float) -> float { d * 0.017453292519943295 }
 fn tanf(a: float) -> float { sin(a) / cos(a) ?? 0.0 }

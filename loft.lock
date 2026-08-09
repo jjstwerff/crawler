@@ -45,3 +45,10 @@ version = "0.1.1"
 url = "https://github.com/loft-lang/loft-libs-assets/releases/download/mesh3d-v0.1.1/mesh3d-0.1.1.tar.gz"
 sha256 = "de8fdb1fedea6521d90634bc40b4acab2c1bb965010d766a177e40b1e8e66cfd"
 source = "registry"
+
+[[package]]
+name = "hex_field"
+version = "0.1.0"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_field-v0.1.0/hex_field-0.1.0.tar.gz"
+sha256 = "b15e31ac9791bf4188911951bd04e5cda3dece15a22af613750a7a8ca66fe7b1"
+source = "registry"

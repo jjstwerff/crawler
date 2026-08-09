@@ -11,3 +11,12 @@ hex_terrain = ">=0.1"
 random      = ">=0.2"       # the source already uses 0.2.0's RandStream
 mesh3d      = ">=0.1"       # Mesh/Scene/Material for the GLB export path
 glb         = ">=0.1"       # save_scene_glb — verification renders
+
+# The exact-integer field core and the three modules built on it (ADOPTION.md P1,
+# 2026-08-09).  `hex_field` was used by 48 files while undeclared here; the other
+# three replace crawler-local copies of the same construction.  The chain runs
+# hex_field <- hex_edge <- hex_way <- hex_roof, so they are declared together.
+hex_field   = ">=0.1"       # HexSet/VecMap/Labels/Heights/EdgeSet/Stencil, trace/validate
+hex_edge    = ">=0.1"       # collision as an EDGE SET: passable/collide/sweep_path/sight_clear
+hex_way     = ">=0.1"       # ways as exact curves + the one rasterising pass
+hex_roof    = ">=0.1"       # every roof form as one distance read through a profile

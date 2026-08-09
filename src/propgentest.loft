@@ -5,7 +5,7 @@
 // single hole in a wall, and a derivation that placed two — or none — would be wrong in a
 // way that only shows when someone tries to walk through it.
 use hex_field;
-use hexedge;
+use hex_edge;
 use hexplace;
 use hexderive;
 

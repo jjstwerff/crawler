@@ -6,8 +6,8 @@
 //   I-CURV  an offset degenerates when |d| >= R  (the minimum curve radius)
 //   one pass: every blocked edge carries the surface of its nearest segment
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 
 fn main() {
   println("=== story way test (exact curves -> cells + edges + surfaces) ===");

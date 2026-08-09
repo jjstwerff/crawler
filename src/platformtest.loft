@@ -19,8 +19,8 @@
 // cut edge between the two ways (passable), a platform must HAVE one along its face (a
 // drop). Same machinery, opposite answer — which is the check that they are both right.
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 
 fn deg(d: float) -> float { d * 0.017453292519943295 }
 

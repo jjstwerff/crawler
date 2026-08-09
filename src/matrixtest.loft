@@ -11,8 +11,8 @@
 //   5 seal         a closed run still separates inside from outside
 //   6 matcher      the joined form still yields recoverable surfaces
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 use hexmatch;
 
 fn scene_name(i: integer) -> text {

@@ -9,7 +9,7 @@
 // the difference between a mechanism that furnishes any world and a hard-coded list that
 // furnishes one.
 use hex_field;
-use hexedge;
+use hex_edge;
 use hexplace;
 
 // Deterministic per-site variation, so two doors on one wall differ without two door

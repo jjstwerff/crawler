@@ -16,8 +16,8 @@
 // below it — which is why you cannot see the back of a tread from the foot of a steep
 // flight. That falls out of sight_clear unchanged.
 use hex_field;
-use hexedge;
-use hexway;
+use hex_edge;
+use hex_way;
 
 fn deg(v: float) -> float { v * 0.017453292519943295 }
 

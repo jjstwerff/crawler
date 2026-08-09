@@ -11,7 +11,7 @@
 //   3 SOUNDNESS   whatever sweep permits, the fine march must find no blocked crossing
 //                 inside it. "Never crossed a wall" is the absolute claim; 1 and 2 are
 //                 about consistency, this one is about correctness.
-use hexedge;
+use hex_edge;
 use hex_field;
 
 // The ORACLE: march the segment in tiny substeps and report whether any hex transition

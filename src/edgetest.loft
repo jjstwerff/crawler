@@ -4,7 +4,7 @@
 // the 24 headings, where a one-CELL-thick wall manages only 6. Verified here by the only
 // test that matters — flood the hex graph and see whether anything gets across.
 use hex_field;
-use hexedge;
+use hex_edge;
 
 fn heading_nx(k: integer) -> float {
   a = (k as float) * 15.0 * 0.017453292519943295;
