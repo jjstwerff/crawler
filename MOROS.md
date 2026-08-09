@@ -72,3 +72,12 @@ Corollaries, each of which was a live mistake before it was written down:
    this repo, delivered at the user's discretion.
 4. **`../moros` is read-only** — it has its own agent (`CLAUDE.md`). Findings become a
    document here.
+
+**A worked example of corollary 1, 2026-08-09 — standing.** Plan #17 `S7` gives crawler a
+**standing** system (earned locally, per settlement; it lets a player raise a militia). The
+*shape* was read off moros' `doc/claude/RULES.md`, where standing is per-NPC **and per-place**,
+earned by acts, and gates access — *"cards reward engagement, not exposure"*. ⚠ **That is a
+read, not a dependency, and it is not a row in the table above.** crawler took the shape and
+none of the mechanism: no cards, no XP-on-card, no party. moros owes crawler nothing here, and
+if moros changes how standing works tomorrow, crawler is not wrong — which is the test this
+file applies to every candidate row.

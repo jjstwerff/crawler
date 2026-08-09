@@ -72,6 +72,23 @@ something you want. ⚠ **The delay is the point** — an immediate reward would
 quest-giver, and a quest-giver is a schedule (`SCRIPTING.md`: *nothing is scheduled,
 everything is eligible*).
 
+### The hero's lever grows — the militia (user, 2026-08-09)
+
+⚠ **The left edge does not stay one hero with a sword.** Once a player has earned **standing**
+with a settlement — *locally*, and they do not begin with it — they can **kick-start a local
+militia**, which enlarges the safe area without them. It advances where it can hold and
+**stalls at the tough spots**, and the player returns to break those.
+
+That keeps `I-SAFE` exactly as written, because **the lever is still the one they already
+hold**: standing is earned by the acts they were already doing, and the petition is
+`sim_talk_to` — bumping a civilian, already built and already carrying the town's quest lines.
+**Zero new keys still.**
+
+⚠ **AND IT IS THE CAMPAIGN'S ADVANCEMENT AXIS**, not a side system: *"players will migrate to
+be bigger heroes during the campaign this way"* (user). The hero grows in **what they can
+cause**, not in what they can press — the only kind of growth that spends nothing from the
+interface budget. Designed in full as [plan #17 `S7`](plans/17-safe-supply/#s7--standing-and-the-militia-it-raises-designed).
+
 ## The three pieces to build
 
 ### `A` — a worker will not enter an unsafe area

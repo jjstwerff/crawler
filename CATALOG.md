@@ -134,7 +134,10 @@ adds the card + a +1 to one linked stat (RESOLUTION.md §5a). Format: **Name**
   goods-stake economy — **no money**, DESIGN §3a amendment).
 - **Scrounger** (Hand·Perc) — find supplies/loot.
 - **Sleeper** (Will·Endu) — recover anywhere (rest/regen → Tension sink).
-- **Politics** (Char·Perc) — faction/parley (overland-side).
+- **Politics** (Char·Perc) — faction/parley (overland-side). ⚠ **Now has a mechanism**:
+  **standing** with a settlement, and the militia it lets a player raise (plan #17 `S7`).
+  It moves the *rate* or the *threshold* — **never a requirement**, or a utility power
+  becomes a gate on the campaign's advancement axis.
 
 ---
 

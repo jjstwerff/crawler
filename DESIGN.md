@@ -289,7 +289,9 @@ Souls-grade fair challenge, no permadeath.**
 6. **No factions / NPCs.** The entity set stays Angband's — monsters · items · dungeon
    · uniques. Quests / motifs (future, see BUNDLE.md) are *structure over* those
    pools, never a social sim. A "captive" (a rescued princess) is a special passive
-   monster/object.
+   monster/object. ⚠ **Superseded twice — read the departures below before relying on
+   this**: the co-op ally faction, and the living settlement + standing (plan #17 `S7`).
+   What survives is the *"never a social sim"* clause, which both departures are held to.
 7. **Lean inputs.** Attack-on-push (you strike what you face by moving into it),
    bump-to-open doors — capabilities are added without piling on buttons.
 8. **Engaging onboarding — a novelty curve, not just a difficulty curve.** The biggest
@@ -350,6 +352,17 @@ stat-gated harsh zones (#9), and the "Accessible ≠ easy / Dark Souls" framing 
   multiplayer note above**: the co-op axis is now *actively designed for* (specified
   in PARTY.md, built incrementally — allies first, human takeover later via the
   `gameflow` intent seam), not merely "not designed against."
+- **A living settlement, and STANDING with it** — relaxes pillar **#6** a second time, and
+  ⚠ **the first half of it was already relaxed without being written down here**: farmers,
+  gatherers, merchant carts, workshops and a quest-running guard master are all shipped
+  (`OVERLAND.md` §13b/§13c, `CRAFTING.md`), so "no NPCs" has not described this engine for
+  some time. On top of them, plan #17 `S7` adds **standing** — earned *locally*, per
+  settlement — which lets a player raise a **militia** that enlarges the safe area on its
+  own. This is the campaign's advancement axis: the hero grows in **what they can cause**,
+  and it spends **nothing** from pillar 0's interface budget (the petition is
+  `sim_talk_to` — bump-to-petition, beside #7's bump-to-open). ⚠ **Still not a social sim,
+  and the guard rail is exact**: standing is ONE number per settlement, read as a category,
+  with exactly ONE consumer. A second consumer is a re-check, not a free extension.
 - **Combat-resolution model** — extends #10's "keep combat resolution": the Angband
   to-hit math is **kept but repurposed as a two-tailed *crit engine*** (no hit/miss
   whiff; **damage always ≥1**; a crit strips the foe's mitigation / a fumble exposes

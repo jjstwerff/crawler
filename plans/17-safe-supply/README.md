@@ -70,6 +70,7 @@ that only became visible once both were on the page:
 | **`S4`** — the world shows it, with no panel | M | `make play`, a user read | Blocked on `S3` |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` + a `scripts/*.play` session | Blocked on `S2` |
 | **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` + a `scripts/*.play` session | **Designed, not built** |
+| **`S7`** — standing, and the militia it raises | M | `make test` + a `scripts/*.play` session | **Designed, not built** |
 
 ### `S1` — the safety category, designed
 
@@ -172,6 +173,70 @@ cleared by a smith — or in the field, worse and slower, with `Handiness` setti
 alone. Land the state with one honest cause and grow it with the damage model — but **every
 cause must be legible in play**, or this is wear-per-use in an event's clothes.
 
+### `S7` — standing, and the militia it raises, designed
+
+The player's push **out**, where `S5` is the world's push **in** — the two halves of contested
+safety, and they meet in one predicate. `hex_safe`'s second term is *a guard within
+`GUARD_R`*, so **a militia is guards the settlement would not otherwise have posted**: no new
+safety mechanism at all, one new *source* of role-3 actors. `S1` bought this without knowing
+it.
+
+Four rulings (user, 2026-08-09): a player can raise a local militia and it enlarges the safe
+area · **they must kick-start it themselves** · they **return later** for the tough spots the
+militia cannot take · and **they do not begin with the standing to ask — it is earned
+locally.**
+
+⚠ **THE VERB IS ALREADY BUILT, AND SO IS THE FICTION.** `sim_talk_to` — bumping a civilian
+speaks — already carries the town's quest lines, and `guard_master` already runs a bounty
+chain (`q_poster` 0→1→2→3: hear the posting, bring the head, be paid) whose closing line is
+*"The roads breathe easier."* **The settlement already says its safety changed; there is just
+no number behind it.** So petitioning costs **zero keys** — bump-to-petition, beside
+bump-to-open and attack-on-push (`DESIGN.md` §3a pillar **#7**, *lean inputs*) — and
+`I-SAFE`'s zero-new-keys claim survives a system that grows the hero's reach.
+
+**Standing is per settlement, and a CATEGORY, never a bar.** The same argument as `S1`: a
+threshold the player can cross and see crossed, not a float that slides. *Stranger → known →
+trusted.* Earned by acts within that settlement's reach — the kind `q_poster` already counts.
+⚠ **Local, never global karma.** It must be possible to be a hero in one valley and a stranger
+in the next, or the campaign has a single reputation number and every settlement after the
+first is scenery.
+
+**The militia advances by POSTING PICKETS, and it stalls at a cause.** A picket is a guard
+posted outside the walls; it holds `GUARD_R` around itself, so the pickets *are* the frontier.
+It advances into ground it can hold and stops where an `S5` source out-weighs it. ⚠ **That is
+what makes "come back later" a world state rather than a timer** — the militia is not a
+progress bar filling while the player is away (`F7`, the treadmill). It is stalled at a
+legible place *because of a legible thing*, and it moves again when the player kills the
+cause. **Eligibility, never a schedule** (`SCRIPTING.md`) — the rule `S5` already runs on.
+
+**And this is the campaign's advancement axis** (user: *"players will migrate to be bigger
+heroes during the campaign this way"*). The hero grows in **what they can cause**, not in what
+they can press: levels and gear scale the arm, standing scales the reach. ⚠ **It is the one
+advancement axis that costs the interface budget nothing** — which is how a hero gets big in a
+game that means to stay at 15 keys.
+
+#### What `S7` turned up before a line was written
+
+⚠ **`DESIGN.md` §3a pillar #6 is STALE, and this is its second departure.** The pillar reads
+*"No factions / NPCs … never a social sim"*; the recorded relaxation is the co-op ally faction
+alone. But the settlement NPCs this entire plan stands on — farmers, gatherers, carts, a guard
+master with a quest chain — **already relaxed it, and nobody wrote it down.** The guard rail
+that keeps `S7` from being the social sim the pillar means to forbid: standing is **one number
+per settlement, earned by acts, read as a category, with exactly ONE consumer** (the militia).
+No dialogue tree, no disposition matrix, no per-NPC relations. **A second consumer is the
+moment to re-check**, not a free extension.
+
+**`Politics` finally has a mechanism.** `CATALOG.md` §1 authors *Politics* (Char·Perc) —
+*"faction/parley (overland-side)"* — a one-line power with nothing behind it anywhere in the
+tree. Standing is what it is **for**: it should move the *rate* or the *threshold*, and ⚠
+**never be required**, or a utility power becomes a gate on the campaign's advancement axis.
+It also makes **Char** a second consumer, which is [#16](../16-eight-statistics/)'s business.
+
+**The moros anchor** (`MOROS.md`): moros' standing is per-NPC **and per-PLACE**, earned by
+acts, and it gates access — *"reference cards … earned when the party reaches the standing each
+card describes"*, and *"cards reward engagement, not exposure"* (`doc/claude/RULES.md`). crawler
+takes the **shape** — local, earned, gating — not the cards.
+
 ## What this plan does NOT change
 
 - **The player's verbs.** Zero new keys, no crafting screen, no recipe list, no material
@@ -198,6 +263,13 @@ Carried from `CRAFTING.md`, and the fourth is the one that blocks `#16`:
    durability mechanic that does not exist** and charges the interface budget — that call
    is `S6`, and it is now settled: **damage is an EVENT, never running wear** — Angband's
    own model, so it costs one item state rather than a maintenance loop.
+
+5. **Do pickets cost the settlement anything?** If a militia is drawn from the same people
+   `S3` counts, then safety and output trade against each other and the player picks the
+   balance — richer, and a real risk of **starving the loop it was raised to feed**.
+6. **Can standing fall?** `S5` says safety is not a ratchet; the symmetric question is whether
+   *standing* is. ⚠ Falling standing is where this stops being one number and starts wanting a
+   social sim — the pillar-#6 guard rail above is what that decision has to clear.
 
 ## See also
 
