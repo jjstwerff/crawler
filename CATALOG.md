@@ -718,3 +718,44 @@ there.
 ⚠ **If the answer is "execute", this earns a plan** (multi-phase, and 18 bundles of
 content re-authoring). If it is "reverse", it is a doc edit and stays a row here.
 Note `plans/README.md` caps active plans at **2–3** and there are currently **6**.
+
+### `OW2` — the economy is adopted, and it grows a crafting half ⚠ **decided, undesigned**
+
+**Decided 2026-08-09** (user: *"…and the economy, we will expand it though with far more
+crafting"*). Two halves, and only the first is written down anywhere.
+
+**Adopted, already designed — §6.3.** Angband's SP pool / fail-rate / spell-levels /
+learn-by-realm are an *advancement economy*, and under moros rules they are **replaced**: a
+spell is a **card** whose cost is the **action** (+ **Tension** for a coordination play),
+**gated by stat and mastery rather than a fail-roll** — no SP, no fail-chance. The spell
+*content* survives intact (CLAUDE.md: *build the system, don't nerf the content*); only the
+economy moros-izes.
+
+**The expansion — undesigned.** *"Far more crafting"* than moros has. crawler holds **no
+player crafting system today**: `Handiness` is listed as *"crafting / disarm / improvise /
+device"* in §1 and nothing implements it.
+
+⚠ **IT WOULD NOT START FROM ZERO, and the substrate is newer than this row.** `BUNDLE.md`'s
+**`production` section** (added 2026-08-09) already models *making things*: seven producer
+kinds — forge weapon/armour, alchemy, scriptorium scroll/book, town craft, import — each an
+engine-owned **mechanism** rotating a **bundle-owned repertoire** (`I-PROD`). That is the
+town half of a crafting economy, gated and shipped. Player crafting is plausibly the same
+seam pointed at the player: a recipe is content, the making is mechanism.
+
+⚠ **NOT A PLAN YET, deliberately.** `plans/README.md`: a plan *"earns it only when the work
+is genuinely multi-phase **and** benefits from its own document space"*. The economy half is
+designed and small; the crafting half is a **direction, not a design** — a directory today
+would hold a title and an open question. **Promote it the moment the crafting design is
+written**, and it will earn `status:future` at least.
+
+**What has to be answered before it is a plan:**
+
+1. What is crafted, and from what? crawler has items and **no materials**.
+2. Where does it happen — at a `production` workshop (reusing the seam above), anywhere, or
+   at a station the player carries?
+3. What does it cost? The adopted economy prices spells in **actions and Tension**, not
+   resources. Crafting that costs gold-and-time is a *second* economy beside it, and §3a's
+   bounded-simulation pillar asks whether that adds something the player must learn.
+4. Does `Handiness` gate it, and is that enough for an axis to earn its place among eight?
+   ⚠ This one couples back to [plan #16](plans/16-eight-statistics/) `M3`: the roster is
+   re-authored there, and Handiness's value per race is exactly a bet on this system.

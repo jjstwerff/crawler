@@ -52,20 +52,27 @@ refactor's clothes — is the whole cost. That asymmetry is why `M0` came first.
 | Step | Effort | Verify | Status |
 |---|---|---|---|
 | **`M0`** — measure the axis change: storage, saves, blast radius | XS | this file | **Shipped** |
-| **`M1`** — settle the SCOPE: the eight only, or the economy too | XS | a decision recorded here | **Designed, not built** |
+| **`M1`** — settle the SCOPE: the eight only, or the economy too | XS | decided below | ✅ **Shipped — the axes only** |
 | **`M2`** — the engine answers eight | S | `make test` green, per-test log diff | **Designed, not built** |
 | **`M3`** — re-author 18 bundles' stat blocks | **M/H** | `make test` + a user read of the roster | Blocked on `M2` |
 | **`M4`** — re-key the derived stats and the character page | M | `make test`, `make play` | Blocked on `M3` |
 
-### `M1` — the scope question, designed
+### `M1` — the scope, ✅ settled 2026-08-09
 
-⚠ **Settle this before `M2`, because it changes what `M3` re-authors.** `CATALOG.md` §6.3
-says the advancement *economy* also "goes the moros way" — a spell is bought, not slotted.
-"Adopt moros" may mean the stat **axes** only, or the axes **and** the economy. The second
-is a much larger plan and probably its own.
+**This plan is the AXES ONLY** (user: *"the axes only"*). `M3` re-authors stat blocks and
+nothing else.
 
-**Default if unstated: the axes only.** `OW1` was a stats fork and this plan answers that
-one; the economy keeps its own row until someone decides it.
+⚠ **The economy is adopted too, and it is NOT this plan.** *"…and the economy, we will
+expand it though with far more crafting"* — `CATALOG.md` §6.3's replacement of Angband's
+SP / fail-rate / spell-levels with card-plus-action-plus-Tension, gated by stat and
+mastery, plus a crafting expansion beyond it. That is a system this repo does not have, on
+a different axis from a stat count, and it is tracked as `CATALOG.md` `OW2` until it is
+designed enough to earn a directory.
+
+**Why the split is real and not bookkeeping:** `M3`'s cost is re-authoring 18 stat blocks
+as a *set*; the economy's cost is designing a system from nothing. Merging them would put
+a content pass and a green-field design behind one status line, and the first would be
+held hostage by the second.
 
 ### `M2` — the engine answers eight, designed
 
