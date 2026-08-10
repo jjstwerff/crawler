@@ -14,6 +14,23 @@ where crawler sits in the stack.
 > is in **`#17`**, and `#16` queues explicitly behind it — #16's `M3` re-authors 18 race
 > blocks with a Handiness value, and what Handiness is *for* is decided in #17.
 >
+> ✅ **`S4` SHIPPED TOO — and `F6` is measured on the world players actually start in.**
+> *I-SAY: what a worker says about its work is read from the **same term** that decides
+> whether it goes*, so the line cannot drift from the world. Three of the design's four
+> signals were already shipped (short batches, a skipped rotation, an unwalked route); the
+> fourth is the only one readable **without a baseline** — over three days the stall differs
+> by **2 potions against 1**, which says nothing to a player who has never seen the other
+> number. Now a bumped worker says *"A goblin on the picking ground, north-west of here. I'll
+> not go while it stands. The stills will run dry."* — creature and bearing **derived at the
+> moment of asking**, zero new keys. ⚠ **The shipped world is safe at genesis and the trouble
+> ARRIVES** (that is `S5`'s design), so the gate ticks before reading: on `story.loft`'s own
+> `GEN_SEED` the first worker reports at **tick 19**, and is still reporting at tick 599.
+>
+> ⚠ **Every other measurement in this plan is on world 777; the game ships 1337.** Both have
+> the den and the gatherer, so the mechanism is present in the world players get — but 777 has
+> **2 workers idle at genesis** (an ogre at the mine) and 1337 has **none** until the den's
+> first raider arrives. A claim about the *shipped opening* has to be measured on 1337.
+>
 > **`S0`–`S3` and `S5` are shipped, ARMED and CLOSED.** `hex_safe` is the safety **category**
 > and `npc_may_enter` the term that makes a worker refuse unsafe ground (`safetytest`, each
 > claim seen **both ways**). `S3` adds the stock — a number per producer, `raised − drawn`,
@@ -313,6 +330,13 @@ genuinely different routes:
   raider was `!awake`, correctly, while waking meant switching to the chase. The fix that made
   a raid keep formation removed the confound, and the assertion then failed on healthy
   behaviour. *An assertion encodes a mechanism; change the mechanism and re-derive it.*
+- a **signal with no baseline to read it against** (2026-08-10) — three of `S4`'s four
+  visibility signals shipped before `S4` did, and none of them closed `F6`. A stall holding
+  **2 potions instead of 1** is a real difference and an unreadable one: a player who has
+  never seen the other number cannot see it, and an idle worker is indistinguishable from a
+  worker who is simply idle. ⚠ *An observable difference is not an observable signal — ask
+  what the player is comparing it to.* The fourth signal (a person saying so) needs no
+  comparison, which is the whole reason it works.
 - a **blocker with no cause, no exit and no representation** (2026-08-10) — `occupied_hex` did
   not test `alive`, and a slain actor keeps its coordinates forever, so **every kill left a
   permanent roadblock**. A monster moves on and a wall is in the flow field the movers descend;

@@ -85,7 +85,7 @@ that only became visible once both were on the page:
 | **`S1`** — a safety category over the surface | S | `make test` (`safetytest`) | ✅ **Shipped** |
 | **`S2`** — workers refuse to ENTER unsafe ground | S | `make test` (`safetytest`) | ✅ **Shipped** |
 | **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (`stocktest`) | ✅ **Shipped and ARMED** |
-| **`S4`** — the world shows it, with no panel | M | `make play`, a user read | **Unblocked** — the short batch already thins the stall |
+| **`S4`** — the world shows it, with no panel | M | `make test` (`safetytest` row 8) + a user read | ✅ **Shipped** — `I-SAY`, and `F6` measured at **tick 19** |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` (`incursiontest`, `stocktest`) | ✅ **Shipped, ARMED and CLOSED** — `I-SAFE` holds end to end |
 | **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` + a `scripts/*.play` session | **Designed, not built** |
 | **`S7`** — standing, and the militia it raises | M | `make test` + a `scripts/*.play` session | **Designed, not built** |
@@ -168,6 +168,64 @@ stalls thinning. **That composition is `S5`'s**, which is where contested safety
 Thinner stalls, a skipped rotation, an unwalked route, an innkeeper's line. ⚠ **`F6` is the
 real risk and this step is the answer to it**: if the loop cannot be *seen in one session*,
 it is a simulation nobody plays. Measure that before polishing anything else.
+
+### ✅ `S4` is BUILT and GATED — and three of its four signals were already shipped
+
+**I-SAY: what a worker says about its work is read from the same term that decides whether it
+goes.** No flag, no schedule, no second state — so the line cannot drift from the world, and a
+settlement can never claim a trouble it does not have.
+
+| the design's four signals | |
+|---|---|
+| thinner stalls | ✅ already shipped — `S3` draws **once per potion**, so a half-supplied workshop makes a short batch |
+| a skipped rotation | ✅ already shipped — an empty store refuses the whole brewing day |
+| an unwalked route | ✅ already shipped — `S2`'s site veto keeps the worker at home |
+| **an innkeeper's line** | **this step** |
+
+⚠ **And the fourth is the only one a player can read WITHOUT A BASELINE**, which is why the
+other three did not close `F6` on their own. Measured over three days, den alive vs cleared:
+the stall difference is **2 potions against 1**. One item is not something a player who has
+never seen the other number can read, and an idle worker is indistinguishable from a worker
+who is simply idle.
+
+> The rugged traveler shakes their head: 'A goblin on the picking ground,
+> north-west of here. I'll not go while it stands.' The stills will run dry.
+
+**Creature and bearing are derived at the moment of asking**, never authored — so the line is
+*produced, not stored*, and stays true as the world moves. It names the **cause**, which is
+what makes it actionable: *"something is wrong"* is a mood, *"an ogre at the ore face, west of
+here"* is somewhere to go.
+
+⚠ **Zero new keys** — bumping a civilian already talks (DESIGN §3a pillar #7). ⚠ **And a
+person speaking is not a marker**: `SCRIPTING.md`'s *no markers* rule forbids the UI pointing
+at things, while the design's own list of four ends with *"the innkeeper says the roads are
+bad"*.
+
+**The gate is the invariant, not an example** (`safetytest` row 8): across the whole town,
+*"says why it is idle"* and *"its work site is unsafe"* must be the **same set** — both sides
+non-empty, and the named creature actually standing there. A row that watched one talkative
+miner would pass equally against a line that is always spoken, or never. Two negative controls,
+each landing on its own assertion: made unconditional it reports *"6 workers' words disagree
+with what they actually do"*; with the name stubbed, *"names no creature that is actually
+there"*.
+
+#### ✅ The `F6` measurement the plan asked for, on the world players actually start in
+
+⚠ **The row ticks 100 times first, and that is not a convenience.** The shipped world is
+**safe at genesis** — 0 workers with an unsafe site — and the trouble **arrives**, because
+that is `S5`'s whole design. A row reading genesis would be reading the town before its story
+begins, find nothing said, and conclude the mechanism was broken.
+
+**On `story.loft`'s own `GEN_SEED`, the first worker reports a trouble at tick 19, and is
+still reporting it at tick 599.** The signal is there before a player has crossed the square,
+and it does not blink out. That is the `F6` answer.
+
+⚠ **Worth knowing: every other measurement in this plan was taken on world 777, and the game
+ships 1337.** Both have the den and the gatherer, so the mechanism is present in the world
+players get — but they are not the same town to live in: **777 has 2 workers idle at genesis
+(an ogre at the mine); 1337 has none until the den's first raider arrives.** The plan's
+numbers describe 777. Nothing here is invalidated by that, but a claim about *the shipped
+opening* has to be measured on 1337.
 
 ## What `S1`/`S2` turned up — measured 2026-08-09
 
