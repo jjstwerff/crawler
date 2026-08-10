@@ -12,6 +12,8 @@
 use sim;
 use items;
 use catalog;
+use monsters;                 // TAG_RUIN_BOSS — the den whose absence is the peaceful arm
+use hex_grid;                 // hex_distance, for the gatherer's round trip
 
 fn main() {
   println("=== story stock test (plan #17 S3) ===");
@@ -124,58 +126,101 @@ fn main() {
   if !contributed { println("FAIL: no bundle contributed to alchemy — the merge's bundle arm is still dead"); ok = false; }
   if !found { println("FAIL: the bundle's entry is not reachable through the merged repertoire"); ok = false; }
 
-  // ── 7. the supply loop actually RUNS, end to end ───────────────────────────────────
-  // ⚠ THIS IS THE ROW THE WHOLE PLAN NEEDED AND DID NOT HAVE. Every assertion above passed
-  // while the gatherer stood frozen 37 hexes from a picking ground it had no path to, in a
-  // valley containing none of the terrain it would pick. Nothing failed — stock simply
-  // stayed 0, which reads exactly like "the town is at peace". So this row watches the loop
-  // turn: the ground must be REACHABLE, deliveries must arrive, and the store must both
-  // fill and be drawn down.
-  w = sim_new_gen(777, 0);
-  gi = -1;
-  for i in 0..sim_enemy_count(w) {
-    if gi < 0 && sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 9 { gi = i; }
+  // ── 7. I-SAFE END TO END: the SAME settlement, at peace and under pressure ─────────
+  // ⚠ THIS IS THE ROW THE PLAN IS NAMED FOR, and it must be an A/B or it proves nothing.
+  // Rows 1-6 are arithmetic; `safetytest` proves a worker refuses unsafe ground and
+  // `incursiontest` proves a raid reaches the work — but "output is a function of the
+  // danger around it" is a claim about the DIFFERENCE between two worlds, and only a
+  // difference can measure it.
+  //
+  // ⚠ AND THE PEACEFUL ARM IS NOT A FORMALITY — IT IS THE CONTROL THAT CATCHES THE FAILURE
+  // THIS ROW ALREADY HAD ONCE. Until 2026-08-10 this ran one arm, the contested one, and
+  // asserted only "a delivery arrived". When the coupling was finally closed it went on
+  // passing at ONE delivery and ONE potion in a week — a starved town clearing a bar meant
+  // for a healthy one. A collapse in both arms is a broken gatherer; a collapse in one is
+  // the mechanism. So peace must look like a working economy, pressure must not, and the
+  // two must be told apart by a margin no run-to-run jitter can cover.
+  //
+  // Four days, not seven: measured 2026-08-10 the arms separate by day 3 (peace 9 loads /
+  // 8 potions, pressure 1 / 1) and the surface tick is the most expensive thing in the gate.
+  peace_d = -1;
+  war_d = -1;
+  peace_lo = 999;
+  war_hi = -1;
+  war_unsafe = 0;
+  for arm in 0..2 {
+    w = sim_new_gen(777, 0);
+    // ⚠ THE ONLY DIFFERENCE BETWEEN THE ARMS IS THE CAUSE. Not the seed, not the window,
+    // not the placement — one dead leader, so anything that moves is attributable to it.
+    if arm == 0 {
+      for i in 0..sim_enemy_count(w) {
+        if sim_enemy_alive(w, i) && (sim_enemy_tags(w, i) & TAG_RUIN_BOSS) != 0 { sim_slay(w, i); }
+      }
+    }
+    gi = -1;
+    for i in 0..sim_enemy_count(w) {
+      if gi < 0 && sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 9 { gi = i; }
+    }
+    if gi < 0 {
+      println("FAIL: no gatherer on the home surface — the settlement has no supply at all");
+      ok = false;
+    } else {
+      (hq, hr) = sim_enemy_home(w, gi);
+      (wq, wr) = sim_enemy_work(w, gi);
+      pd = sim_npc_path_dist(w, wq, wr, 9, hq, hr);
+      if pd >= 1000000 {
+        println("FAIL: the picking ground has NO PATH from home — the worker cannot ever work");
+        ok = false;
+      }
+      // Deliveries counted as ARRIVALS, not as days the number went up: at the cap a real
+      // delivery moves nothing, and in a starved week one delivery looks like seven.
+      deliveries = 0;
+      lo = 999;
+      hi = -1;
+      unsafe_ticks = 0;
+      prev_carry = sim_enemy_carry(w, gi);
+      for _ in 0..(4 * DAY_LEN) {
+        sim_tick(w);
+        if !hex_safe(w, wq, wr) { unsafe_ticks += 1; }
+        c = sim_enemy_carry(w, gi);
+        if c == 0 && prev_carry > 0 { deliveries += 1; }
+        prev_carry = c;
+        st = sim_prod_stock(w, "alchemy");
+        if st < lo { lo = st; }
+        if st > hi { hi = st; }
+      }
+      label = "under pressure";
+      if arm == 0 { label = "at peace      "; }
+      println("{label}: pick ({wq},{wr}) path={pd} unsafe {unsafe_ticks}/{4 * DAY_LEN} ticks, deliveries={deliveries}, stock ranged {lo}..{hi}");
+      if arm == 0 { peace_d = deliveries; peace_lo = lo; }
+      else { war_d = deliveries; war_hi = hi; war_unsafe = unsafe_ticks; }
+    }
   }
-  if gi < 0 {
-    println("FAIL: no gatherer on the home surface — the settlement has no supply at all");
+  // The peaceful arm: a working economy. Both failure modes named, as before — a store
+  // stuck at 0 supplies nothing, a store stuck at the cap gates nothing.
+  if peace_d < 5 {
+    println("FAIL: {peace_d} deliveries in four peaceful days — the supply loop is dead, and the pressure arm below then proves nothing");
     ok = false;
-  } else {
-    (hq, hr) = sim_enemy_home(w, gi);
-    (wq, wr) = sim_enemy_work(w, gi);
-    pd = sim_npc_path_dist(w, wq, wr, 9, hq, hr);
-    reachable = pd < 1000000;
-    println("gatherer {gi}: home=({hq},{hr}) pick=({wq},{wr}) straight={hex_distance(hq, hr, wq, wr)} path={pd}");
-    if !reachable {
-      println("FAIL: the picking ground has NO PATH from home — the worker cannot ever work");
-      ok = false;
-    }
-    // Watch a week. Track the extremes, because the two ways this fails are opposite: a
-    // store stuck at 0 (nothing supplied) and a store stuck at the cap (nothing gates).
-    lo = 999;
-    hi = -1;
-    deliveries = 0;
-    prev = sim_prod_stock(w, "alchemy");
-    for _ in 0..7 {
-      for _ in 0..DAY_LEN { sim_tick(w); }
-      st = sim_prod_stock(w, "alchemy");
-      if st > prev { deliveries += 1; }
-      if st < lo { lo = st; }
-      if st > hi { hi = st; }
-      prev = st;
-    }
-    println("seven days: stock ranged {lo}..{hi}, days a delivery arrived = {deliveries}");
-    if deliveries == 0 {
-      println("FAIL: a week passed and the gatherer delivered nothing — the supply loop is dead");
-      ok = false;
-    }
-    if hi <= 0 { println("FAIL: the store never held anything"); ok = false; }
-    if hi > PROD_STOCK_MAX { println("FAIL: the store went past its cap"); ok = false; }
-    // The alchemist must actually be consuming it, or the coupling is decorative.
-    if lo >= PROD_STOCK_MAX {
-      println("FAIL: stock sat at the cap all week — nothing draws it, so danger cannot bite");
-      ok = false;
-    }
   }
+  if peace_lo >= PROD_STOCK_MAX {
+    println("FAIL: stock sat at the cap all week at peace — nothing draws it, so danger cannot bite");
+    ok = false;
+  }
+  // The contested arm. ⚠ ATTRIBUTED: the ground has to actually BE unsafe, or a collapse
+  // here is some other defect wearing this row's clothes.
+  if war_unsafe < 2 * DAY_LEN {
+    println("FAIL: the picking ground was unsafe only {war_unsafe} ticks — the den never pressed on it, so the comparison is of two peaceful worlds");
+    ok = false;
+  }
+  if war_d * 2 > peace_d {
+    println("FAIL: {war_d} deliveries under pressure against {peace_d} at peace — danger does not cut supply (I-SAFE)");
+    ok = false;
+  }
+  if war_hi >= PROD_STOCK_MAX {
+    println("FAIL: the store still reached its cap under pressure — supply has a path danger cannot touch");
+    ok = false;
+  }
+  println("I-SAFE: {peace_d} deliveries at peace vs {war_d} under pressure; contested store peaked at {war_hi} of {PROD_STOCK_MAX}");
 
   if ok { println("=== STOCK OK ==="); } else { println("=== FAIL ==="); }
 }

@@ -2061,28 +2061,16 @@ pub fn hex_safe(s: Sim, q: integer, r: integer) -> boolean {
 // mechanism) would be unreachable. That is the trap this repo keeps meeting: a check that
 // cannot go red. `stocktest` asserts the conservation directly.
 //
-// ⚠ NOTHING IS ARMED YET, AND THAT IS A MEASUREMENT, NOT AN OVERSIGHT.
+// ⚠ `alchemy` IS ARMED, and the whole chain behind it now runs (2026-08-10). Getting there
+// took the gatherer's three defects (`S3`), the den that gave danger somewhere to press
+// (`S5`), and finally the two terms that make the ground matter at all: **the bag fills only
+// at the work site** and **only while that ground is safe** (`npc_gather`), and **nobody
+// travels to work that is unsafe** (`npc_target`). Measured over a week on world 777, den
+// alive vs cleared: **1 load and 1 potion against 17 and 11.**
 //
-// The arithmetic below is complete and gated (`stocktest` proves both branches). What is
-// missing is the SUPPLY, and it is missing for a reason outside this plan: the gatherer
-// cannot reach a picking ground. Measured 2026-08-10 on the home settlement of world 777 —
-//
-//   home (53,53) · nearest meadow/scree (33,3) · 50 hexes · none at all within 10
-//   a day carries a worker ~13 hexes · the only neighbour that closes the gap is a WALL
-//
-// — so it walks 13 hexes out and freezes there forever: civilians step greedily toward a
-// target (monsters get the flow field), and greedy stepping dies at the first concave
-// obstacle. In 21 simulated days the gatherer delivered nothing, which is why role 9 has
-// been decorative since the day it was added.
-//
-// Arming `alchemy` on top of that would not couple output to DANGER, which is the claim —
-// it would delete potions from every town because a worker is stuck behind a mountain. So
-// the switch stays off until a gatherer can complete a round trip: civilian flow-field
-// pathing, or settlements sited within reach of their picking grounds. Flipping it is this
-// one function, and the gate behind it is already green.
-// Which producer is armed — `-1` for none, which is today. Arming is this one number:
-// `producer_index("alchemy")` turns the coupling on, and `stocktest` already proves both
-// branches of what happens when it does.
+// The six other producers have no input stream, so they are deliberately NOT armed — an
+// unarmed producer draws nothing and makes as it always did. `prod_draw_when` takes the
+// arming as an argument so both branches stay gated whichever way the switch is set.
 fn prod_armed_index() -> integer {
   producer_index("alchemy")
 }
@@ -2169,8 +2157,9 @@ fn npc_passable(s: Sim, role: integer, q: integer, r: integer) -> boolean {
   !is_wall(s, q, r) && tk != K_LAKE + 1 && tk != K_SEA + 1
 }
 
-// The schedule: where does this civilian want to BE right now?
-fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
+// The schedule: where does this civilian's ROUTE put it right now? `npc_target` below is
+// what the rest of the engine asks — the route with safety's veto over it.
+fn npc_route(s: Sim, e: Enemy) -> (integer, integer) {
   night = sim_phase(s) == 1;
   salt = e.hq * 31 + e.hr * 17;
   if e.role == 3 {                       // guards patrol day AND night
@@ -2208,6 +2197,30 @@ fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
   }
   (e.wq2, e.wr2)                         // villagers: the square; fishers: the
                                          // water's edge; boats: their grounds
+}
+
+// Where this civilian wants to BE right now: the route, and the one veto over it.
+//
+// ⚠ I-SITE — NOBODY TRAVELS TO WORK THAT IS UNSAFE. This is `S2`'s second half, designed
+// ("one term added to `npc_passable`, plus the same term in SITE SELECTION") and never
+// built — and without it `S2` gates far less than it reads as gating. `npc_may_enter`
+// refuses a step INTO danger but must let anyone already inside it move, or a worker caught
+// by a raid would be trapped rather than avoiding anything. That escape hatch is unavoidable
+// and on its own it swallows the rule whole: measured 2026-08-10, a gatherer swallowed by a
+// raid walked its route at full speed and then CAMPED on its picking ground for 935 of 2800
+// ticks, waiting out a ground that was unsafe for 2458 of them, and pocketed 21 loads
+// against 17 in the same week with the den cleared. **Danger raised output.**
+//
+// The two rules answer different questions and the pair is what `I-SAFE` needs: this decides
+// whether there is anywhere to go, `npc_may_enter` decides which step is allowed on the way.
+// Guards are exempt (walking toward trouble is the job) and so are wild things, exactly as
+// there. ⚠ It vetoes to HOME, never to a frozen step — a worker with nowhere to work still
+// walks, so the signal is a settlement idling at home rather than a town of statues.
+fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
+  (tq, tr) = npc_route(s, e);
+  if e.role == 3 || e.role == 12 { return (tq, tr); }
+  if hex_safe(s, tq, tr) { return (tq, tr); }
+  (e.hq, e.hr)                           // no work there today — the day is spent at home
 }
 
 // One scheduled step: greedy toward the target; idle wander when arrived.
@@ -2654,27 +2667,34 @@ fn npc_trade(s: &Sim, e: &Enemy) {
 // shown to anybody.
 fn npc_gather(s: &Sim, e: &Enemy) {
   enemies = s.enemies;
-  // Trapping a wild thing is a pick too — the original flavour, kept, but it now fills the
-  // bag rather than crediting the town from out in the field.
+  // ⚠ ONE FILL SITE, AND UNSAFE GROUND YIELDS NOTHING (I-WORK, plan #17 `S5`). Both halves
+  // are load-bearing and both were measured missing on 2026-08-10:
   //
-  // ⚠ THIS ARM IS WHY DANGER DOES NOT YET CUT OUTPUT (measured 2026-08-10, plan #17 `S5`).
-  // With raiders camped on the picking ground for 2454 of 2800 ticks the week's stock ran
-  // 4→8 and sat at the CAP; the same week with the den cleared ran 2..6 and was drawn down.
-  // Danger *raised* output, because a gatherer stalled at the safety border traps whatever
-  // wanders past and its round trip home is short. Trapping is a full substitute for the
-  // picking ground, and nothing about it can become unsafe. ⚠ Restricting it to beyond
-  // `GUARD_R` was tried and changed NOTHING — the stall already sits 7 hexes out. The fix
-  // belongs to the supply model, not to a threshold here; the plan carries it.
-  for wl9 in 0..len(enemies) {
-    w9 = enemies[wl9];
-    if w9.alive && w9.role == 12
-       && hex_distance(w9.cur_q, w9.cur_r, e.cur_q, e.cur_r) <= 1 {
-      w9.alive = false;                  // trapped: ingredients for the factory
-      e.carry = 1;
+  //   • THE SITE. The bag used to fill wherever a wild thing wandered past, so supply had a
+  //     second path with no place attached — and a thing with no place is a thing danger
+  //     cannot press on. (Measured: that arm fired **0 times** in either run of the week
+  //     below, so it was never the cause `S5` recorded it as — but it was still a hole.)
+  //   • THE SAFETY TERM. Refusing to *enter* danger is not enough, because `npc_may_enter`
+  //     lets anyone already standing in unsafe ground move anywhere — the escape hatch that
+  //     keeps a worker from being trapped. A gatherer swallowed by a raid therefore walked
+  //     its whole route unimpeded and picked with raiders on the ground: 31 loads in the week
+  //     the picking ground was unsafe 2454 of 2800 ticks, against 17 with the den cleared.
+  //     **Danger RAISED output, because being in danger exempts you from avoiding danger.**
+  //
+  // So avoidance governs where a worker GOES and this governs what the ground GIVES. They are
+  // different questions and the second is the one `I-SAFE` is about.
+  if hex_distance(e.cur_q, e.cur_r, e.wq2, e.wr2) <= 1 && hex_safe(s, e.cur_q, e.cur_r) {
+    // Trapping a wild thing on the range is a pick too — the original flavour, kept. It is
+    // the SAME load, not a second one: the bag holds one trip's worth either way.
+    for wl9 in 0..len(enemies) {
+      w9 = enemies[wl9];
+      if w9.alive && w9.role == 12
+         && hex_distance(w9.cur_q, w9.cur_r, e.cur_q, e.cur_r) <= 1 {
+        w9.alive = false;                // trapped: ingredients for the factory
+      }
     }
+    e.carry = GATHER_LOAD;
   }
-  // The picking ground itself — the meadow/scree the settlement was sited to reach.
-  if hex_distance(e.cur_q, e.cur_r, e.wq2, e.wr2) <= 1 { e.carry = GATHER_LOAD; }
   // Home with a full bag: the settlement gains the load, and the bag is empty again.
   if e.carry > 0 && hex_distance(e.cur_q, e.cur_r, e.hq, e.hr) <= 1 {
     for _ in 0..e.carry { prod_raise(s, "alchemy"); }
