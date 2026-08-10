@@ -4,6 +4,48 @@ Work set aside but kept so it can be replayed later. Each entry records the
 **base commit** the diff applies onto and the **source commit** that contains
 the full version.
 
+## `town-gates-reachability.patch`
+
+**The town wall had no gates, and that is why the mine was unreachable.** Built and
+measured 2026-08-10; parked **not because it is wrong but because it works**, and what it
+uncovers is a design call rather than a bug fix. → `STATE.md` → *the town was sealed*.
+
+What it contains, in one diff:
+
+- **Six gates cut through the wall ring**, one per hex direction, ±2 either side so a
+  lookout tower standing on that bearing cannot re-seal the gate it was stamped after.
+  Walking `wrad` steps out from the centre lands exactly on the ring by construction, so
+  there is no rounding to get wrong. Roads still open the ring where they cross it — that
+  intent is kept; it simply never fired.
+- **The mine sited by `walk_reach`** (reachable first, nearest second) with the gatherer's
+  farthest-reachable fallback, plus the same filter on the beyond-the-window branch.
+- **`WORK_MAX_D = 22`** — reachable is not workable; a site nobody can round-trip in a
+  working day is as useless as one with no path.
+- **The furnace and the miners move to the ore face** (a mining camp) instead of the
+  miners commuting from town to whatever face worldgen found.
+- **`incursiontest` row 7 watches the work the raid CHOSE**, not the gatherer's
+  specifically — `raid_objective` aims at the most exposed work and which trade that is
+  belongs to the world.
+
+Measured effect: the town's walkable window goes **498 → 8951 of 9801 hexes**, and
+civilians who cannot walk their own route go **13 of 21 → 4 of 20** (the remainder are
+three penned livestock and one guard's outer leg). The gatherer's throughput **doubles**
+(3 → 6 deliveries in four days).
+
+⚠ **Why it is parked.** Opening the window changes *which work is most exposed*, and that
+is what `I-SAFE`'s end-to-end A/B is measured on. With the map connected, the den's raids
+press the **ore face** rather than the picking ground, so `stocktest` row 7 reads 6
+deliveries at peace against 6 under pressure — danger stops cutting the alchemy chain, and
+the chain it now presses (the forge) is unarmed because the camp out at the rock is unsafe
+1600 of 1600 ticks and delivers nothing. Capping the mine to `WORK_MAX_D` instead removes
+the mine altogether, which takes the surface **cave mouth** with it and turns `cavetest`
+red. So the gate cannot go green without deciding *where a valley town's industry lives and
+what the raids press* — plan #17 `S7`'s territory (pickets over outlying work), and the
+user's call.
+
+- **base (apply onto):** `3b890e0` — the S6 tree, gate green at 101 rows.
+- Replay: `git apply patches/town-gates-reachability.patch`
+
 ## `wallgeo-douglas-peucker.diff`
 
 The Douglas–Peucker wall-straightening rewrite of `src/wallgeo.loft` (collapse

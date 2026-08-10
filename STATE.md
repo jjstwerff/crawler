@@ -86,7 +86,37 @@ where crawler sits in the stack.
 > rides slot-parallel vectors instead, which costs a copy at each of the **nine** sites that
 > move an item, and a missed copy is a *silent repair*.
 >
-> ## ⚠ OPEN, AND FOUND BY `S6`: THE SHIPPED TOWN'S MINE CANNOT BE REACHED
+> ## ⚠⚠ AND THE CAUSE IS BIGGER THAN THE MINE: **THE TOWN WAS SEALED** (2026-08-10)
+>
+> Chasing the mine found the root. The town wall is a hex-distance ring and *"roads make the
+> gates"* — a ring hex stays open only where the terrain is already road. **On the shipped
+> world that produced ZERO gates**, so the wall closed completely and the town's own people
+> were sealed inside it: **498 of 9801 hexes reachable**, everything past ring 17 cut off.
+> Every worker whose job is outside walked at a wall for the life of the world — both
+> farmers, the fisher, two guards' outer legs, both miners. **13 of 21 civilians could not
+> walk their own route.** The three earlier "unreachable site" bugs in this repo
+> (`raid_objective`'s 45-hex field, `walk_reach`'s picking grounds, the mine) were all *this*,
+> seen from the outside — which is why fixing them one at a time never converged.
+>
+> ✅ **A FIX EXISTS, IS MEASURED, AND IS PARKED** — `patches/town-gates-reachability.patch`.
+> Six gates cut per hex direction (exact by construction, ±2 so a lookout tower cannot
+> re-seal them) plus `walk_reach` on the mine and a `WORK_MAX_D` bound, because **reachable is
+> not workable**: with the window open the gatherer re-sited onto real alpine shelves 50 hexes
+> out and its deliveries went 3 → 0. Bounded, the numbers are **498 → 8951 hexes** walkable,
+> **13/21 → 4/20** broken routes (the rest are penned livestock and one guard leg), and the
+> gatherer's throughput **doubles**, 3 → 6 deliveries in four days.
+>
+> ⚠ **IT IS PARKED ON A DESIGN CALL, NOT A DEFECT.** Opening the window changes *which work is
+> most exposed*, and that is exactly what `I-SAFE`'s A/B measures. The den's raids now press
+> the **ore face** instead of the picking ground, so `stocktest` row 7 reads **6 deliveries at
+> peace against 6 under pressure** — and the chain they do press is unarmed, because a mining
+> camp out at the rock is unsafe **1600 of 1600 ticks** and delivers nothing. Capping the mine
+> to `WORK_MAX_D` instead deletes the mine, which takes the surface **cave mouth** with it and
+> reddens `cavetest`. **The open question is where a valley town's industry lives and what the
+> raids press** — `S7`'s territory (pickets over outlying work). Full write-up + replay:
+> `patches/README.md`.
+>
+> ## ⚠ THE NARROWER FINDING IT STARTED FROM: THE MINE CANNOT BE REACHED
 >
 > The smith should draw the store the forge draws, so danger closes the loop on the player's
 > own gear. Measuring that found something else: the ore face sits at **(7,49)**, 42 hexes
