@@ -352,7 +352,18 @@ genuinely different routes:
   **monster placement**, which was the plan's whole subject. Switching it moved the peaceful
   supply from 7 deliveries to 3. ⚠ *A seed in a test is a claim about which world the result
   describes* — and when a gate changes worlds, the check that matters is that it can still
-  **go red** there, not that it still passes.
+  **go red** there, not that it still passes. The whole tree is on 1337 now; the only other
+  seeds left are **deliberate second worlds** (`4242` in `stocktest`/`placetest`, `7777` in
+  `savetest`), where being a *different* world is the point.
+- a **predicate borrowed across the actor it was written for** (2026-08-10) — `surfacetest`
+  picked the hero's vantage with **`hex_safe`**, which is plan #17's *civilian* predicate: no
+  hostile within `THREAT_R`, or a guard within `GUARD_R`. A civilian is invulnerable and
+  nothing hunts it, so 6 hexes is plenty; the hero is neither — **hostiles wake and walk at
+  him** — so 6 hexes is about nine ticks, and he died on tick 9. `S1` recorded the *mirror*
+  of this (every danger signal answered "is it dangerous to the player" when a civilian
+  needed asking). ⚠ *A safety predicate is written for one kind of actor and does not
+  generalise in either direction* — and `hex_safe` is now `pub`, so it reads like a general
+  test and is not one.
 - a **measurement that counted the mechanism PLUS the world** (2026-08-10) — `questtest`
   asserted the brood thickens toward the surface as `inf1 > inf2` over `count_glyph(level,
   "J")`, which counts every snake including the ones ordinary generation places. On 777 that

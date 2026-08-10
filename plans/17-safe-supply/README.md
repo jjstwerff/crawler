@@ -276,9 +276,35 @@ bundle that re-authors its infestation moves the test with it rather than quietl
 engine gate. Verified red: +3 to the depth-2 count reports *"the brood is 11/7 against the
 bundle's declared 11/4"*.
 
-⚠ **Still on 777, and deliberately**: `cavetest`, `effecttest`, and `fieldtest` — the last
-sweeps 777's surface *and* two dungeon depths as a **sample of worlds**, which is a different
-kind of claim from "this is what a player gets".
+#### ✅ And then the rest of the tree — where the count was wrong, and one more defect
+
+⚠ **The remaining list was reported as three and was actually seven** (a truncated `grep`),
+and two of them — `surfacetest` and `traveltest` — make exactly the kind of world claim this
+switch is about. All of `cavetest`, `effecttest`, `fieldtest`, `traveltest`, `gentest` and the
+two diagnostics (`fovbug`, `shot3d`) switched and passed unchanged. **`surfacetest` went red**,
+and its vantage turned out to have been wrong twice over.
+
+| the vantage | why it broke |
+|---|---|
+| the literal `(75,75)` | "afar" only in the world that existed when it was written; the alpine anchor put a level-6 gnoll 8 hexes away and the hero died on **tick 13** |
+| derived: open ground, 20 from town, **`hex_safe`** | on the shipped seed the hero dies on **tick 9** |
+
+⚠ **Because `hex_safe` answers the wrong question.** It is this plan's **civilian** predicate —
+*no hostile within `THREAT_R`, or a guard within `GUARD_R`*. A civilian is invulnerable and
+nothing hunts it, so 6 hexes of clearance is plenty. The hero is neither: **hostiles wake and
+walk at him**, so 6 hexes is about nine ticks. `S1` recorded that every danger signal in the
+engine answers *"is it dangerous to the player"* when a civilian needed asking — **this is the
+same mistake pointing the other way**, and the two predicates are not interchangeable in
+either direction. Worth remembering now that `hex_safe` is `pub` and reads like a general
+safety test: it is not one.
+
+Verified **pre-existing** rather than caused by this plan's work — the row fails identically on
+1337 with `sim.loft` from `32eb4c6`, before any of it. The vantage now maximises **clearance**
+(distance to the nearest living hostile) and prints what it got: `(69,42)` at **28 hexes**,
+against a bar of 15. A world with nowhere quiet enough fails at the *choice* rather than as a
+mystery death sixty ticks later, and `alive_still` is split into `npcs_kept` and `hero_lived`
+because an NPC vanishing is a town defect while a dead hero is the vantage or the opening
+curve — two unrelated causes that shared one flag.
 
 ## What `S1`/`S2` turned up — measured 2026-08-09
 
