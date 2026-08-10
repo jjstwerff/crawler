@@ -4143,10 +4143,32 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         g2q = w / 2 + round(grad * cos(ga2)) as integer;
         g2r = h / 2 + round(grad * sin(ga2) * 0.866) as integer;
         if gd2 == 0 {
-          // the SENIOR guard is the GUARD MASTER — the watch's bounties are
-          // claimed from him in person, not off the board
+          // THE GUARD MASTER HOLDS THE TOWN'S OWN SEAT (user, 2026-08-10, plan #17).
+          //
+          // ⚠ A TOWN THAT DOES NOT HOLD ITS OWN CENTRE HAS NO SAFETY TERM AT ALL. Every
+          // guard used to walk the ring at `grad`, transiting the middle and never resting
+          // in it, so `GUARD_R` almost never covered the square: measured 2026-08-10, the
+          // market was unsafe **143 of 400 ticks a day** in the shipped starting town, from
+          // ambient wildlife alone. Nothing read that until `npc_target` began asking
+          // whether a work site is safe — and then six villagers stopped going to work for
+          // a third of every day because a jackal was loose. `S1`'s guard rail is exactly
+          // this: *guards are a term in the safety expression, not spectators.*
+          //
+          // His beat is the two hexes the town lives on — the centre where the villagers
+          // work and the market seat where the makers set out the day's goods. They are 2
+          // apart, so **both stay inside `GUARD_R` from every point of the walk**: the
+          // square is held continuously rather than whenever a patrol happens by, and he
+          // still moves, so the post reads as a watch and not as a statue.
+          //
+          // ⚠ THE RING LOSES NOTHING. Legs are `gd2 * 120°` and its opposite, and `gd2`
+          // runs `0..ngd`, so with `ngd = 4` guard 3 walks 360° — guard 0's leg exactly.
+          // The senior guard was patrolling a duplicate; only the duplicate is spent here.
+          //
+          // It also puts him where the fiction already said he was: the watch's bounties
+          // are claimed from him IN PERSON, and until now he was never at the seat to ask.
           enemies += [mk_npc(3, "guard_master", "guard master", "g", 210, 190, 150,
-                             w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
+                             w / 2 + 1, h / 2 + 1, w / 2, h / 2,
+                             w / 2, h / 2, w / 2 + 2, h / 2 - 2)];
         } else {
           enemies += [mk_npc(3, "guard", "town guard", "g", 175, 180, 210,
                              w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
