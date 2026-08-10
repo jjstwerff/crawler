@@ -44,8 +44,9 @@ where crawler sits in the stack.
   `loft --version` is not provenance. Two logs with different md5 are not comparable.
 - **The gate is quiet and green — 97 test files, 98 rows** (`playtest` runs 3×), after the five
   unwired tests were wired in on 2026-08-10 and a duplicate `canopytest` row removed. **It runs
-  in ~1.5–2.5 min** (measured 2026-08-10: 1m29s and 2m29s on a shared box; `GATE_JOBS=1` serial
-  is 3m15s), down from 10–13 min via two changes: the 14 tests (16 rows) that held most of the
+  in ~1.5–2.5 min** (measured 2026-08-10, 8-wide: 1m29s / 1m47s / 2m29s warm, 2m43s with a cold
+  native cache, 3m15s at `GATE_JOBS=1`; the pool absorbs the cold penalty — 14 compiles ≈ 140 s
+  of rustc cost +56 s of wall clock), down from 10–13 min via two changes: the 14 tests (16 rows) that held most of the
   wall clock now run `--native-release` while the rest interpret (`tools/run_tests.sh` →
   `NATIVE_TESTS`), and rows run **8 at a time**. ⚠ **Parallel was BLOCKED and is now open**:
   LOFT-HANDOFF's cdylib-wiring defect made a parallel suite fail a different test each run;

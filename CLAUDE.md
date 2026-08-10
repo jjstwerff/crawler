@@ -86,8 +86,10 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 97 (**98 rows** — `playtest` runs 3×) in **~1.5–2.5 min warm** (measured
-2026-08-10: 1m29s and 2m29s on a shared box; `GATE_JOBS=1` serial is 3m15s). It used to be
+test` runs all 97 (**98 rows** — `playtest` runs 3×) in **~1.5–2.5 min** (measured 2026-08-10,
+8-wide: 1m29s / 1m47s / 2m29s warm, **2m43s with a cold native cache**, 3m15s at `GATE_JOBS=1`).
+⚠ Box load moves that as much as cache state does — the pool absorbs the cold penalty (14
+compiles ≈ 140 s of rustc cost only +56 s of wall clock). It used to be
 **10–13 min**, closed by two changes: the 14 tests that held most of the wall clock now compile
 via `--native-release` while the rest interpret (`tools/run_tests.sh` → `NATIVE_TESTS` carries
 the measurement and the ≥10 s rule for joining), and rows now run **8 at a time**. ⚠ **Per-row

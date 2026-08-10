@@ -1126,16 +1126,37 @@ that catches it.
 ## H10 — an auto-native cdylib fails to wire INTERMITTENTLY under concurrent `loft` processes, and the failure is a PANIC rather than a fallback
 
 **Status:** ✅ **FILED as [loft#831](https://github.com/loft-lang/loft/issues/831)** (2026-08-09, measured today on 2026.8.0) · **Repo:** `loft-lang/loft`
-⚠ **DOES NOT REPRODUCE ANY MORE — 2026-08-10, and we have acted on that.** Re-probed on the
-installed 2026.8.0 (md5 `66a6326c7eb7`, ../loft `v2026.8.0-35-ge5d94a61`): **13 full passes of
-crawler's roster green** — 3× `-P8`, 3× `-P4`, 2× `-P16`, 2× `-P24`, plus one with every native
-row compiling concurrently, and two more through the gate itself. On that evidence crawler's
-gate now runs **8-wide by default** (`tools/run_tests.sh`, `GATE_JOBS`).
-⚠ **This is "did not reproduce in 13 passes", NOT "fixed".** Nobody has pointed at a commit that
-fixes it, the original failure was intermittent by nature, and defect **2 below — a panic where
-a fallback exists — is unaddressed either way**: it is what turns a wiring hiccup into a red
-suite instead of a slow one. Do not close the ticket on this note. If a crawler row goes red
-under load and green at `GATE_JOBS=1`, that is this bug returning, and it belongs here.
+✅ **FIXED UPSTREAM — both halves — in loft `c69f7c1a` (2026-08-10 12:22), and the fix names
+this report.** Verified by inspection, not just by absence:
+- **Defect 2, the serious one, is gone as designed.** `probe_and_mark_exports` now `dlopen`s the
+  artifact and `dlsym`s each bridge before marking, marks only what resolves (**partial is a
+  valid outcome**), and KEEPS the handle so a later prune or rebuild cannot invalidate the
+  decision. What does not resolve **interprets** — "the fallback the auto-native model always
+  promised, finally reached by the path that needed it". That is exactly the "panic where a
+  fallback exists" complaint below, answered in the terms it was made in.
+- **Defect 1's real mechanism was found, and it was not a race in the wiring.** `prune_artifacts`
+  bounded `native-auto/` by sweeping every `.so` by AGE, and that directory is not exclusively
+  its own: a `[c] shim` cdylib lives there, content-keyed and built ONCE — hence permanently the
+  oldest file and the sweep's first victim. Deleting it removes the only definition of the
+  package's `#c` symbols, and nothing can interpret in its place, because a `#c` binding IS the
+  implementation. Upstream's words for our symptom: *"parallel runs saturate the directory
+  because each type-layout context mints its own artifact, so this is the other half of why a
+  suite loses a DIFFERENT test on each parallel run and passes serially."* The sweep now takes
+  only the `loft_auto_<pkg>_` family it built. It had also been living in loft's own suite as a
+  long-standing "known flaky" test.
+- Guards landed with it (`an_unwirable_cdylib_interprets_instead_of_panicking`,
+  `a_partially_exporting_cdylib_marks_only_what_resolves`,
+  `a_foreign_library_in_native_auto_survives_pruning`), and `--help` now names
+  **`LOFT_NO_NATIVE_LIBS`** and **`LOFT_REQUIRE_NATIVE`** — the escape hatch the *Workaround*
+  section below says it searched for and could not find. That note is now stale; the flag exists.
+
+⚠ **Our 13 green passes were not evidence of a fix — they were measured on a binary that already
+had it, and we did not know.** The fix landed at 12:22 and the binary was installed at 12:33;
+the first probe ran after that. Worth remembering the next time absence-of-failure looks like
+information: the same 13 passes on the 06:19 binary would have meant something else entirely,
+and nothing in the run said which binary we were on except the md5 in the gate header. On this
+evidence crawler's gate now runs **8-wide by default** (`tools/run_tests.sh`, `GATE_JOBS`); a
+row that is red under load and green at `GATE_JOBS=1` is this bug returning, and belongs here.
 **Labels:** `sev:high`, `wa:partial`, `area:native`, `hit-by:crawler`, `bug`
 **Suggested title:** `auto-native: cdylib wiring fails intermittently when several loft processes run at once — "native function not loaded" panics instead of falling back to the interpreted body`
 
@@ -1189,21 +1210,28 @@ the suite was ~18 minutes serially and ~70 seconds at `-P8`, and the tests are g
 independent. We cannot take that win, because a suite that fails a *different* test each run is
 worse than a slow one.
 
-⚠ **Both halves of that prize have since been taken, which changes what this ticket is FOR.**
-Since 2026-08-10 the roster runs `--native-release` on its 14 heaviest rows and 8-wide, and the
-gate is **~1.5-2.5 min**. So we are no longer blocked, and the wall clock is no longer the
-argument. What remains is the part that was always the serious half: **a cdylib that cannot be
-wired PANICS instead of falling back to the interpreted body that is sitting right there**. That
-turns a transient into a red suite, and it is why this defect could hold a 24-core box hostage
-for months. Prioritise it as a robustness bug, not as a performance one — and note that our
-green passes make it *harder* to reproduce upstream, not less real.
+✅ **That prize has since been collected, because the fix landed.** Since 2026-08-10 the roster
+runs `--native-release` on its 14 heaviest rows and **8-wide**, and the gate is **~1.5-2.5 min**
+against the 18 minutes above. The consumer-impact case is therefore closed, not merely argued:
+this is what the fix bought one project, and the defect held a 24-core box at one core for
+weeks — worth saying plainly in the ticket, because "a suite that fails a different test each
+run is worse than a slow one" is the reason a consumer eats the slow one silently instead of
+reporting it.
 
 ### Workaround (partial)
 
-Run the gate serially. Pre-warming does not help. There appears to be no flag to disable
+~~Run the gate serially. Pre-warming does not help. There appears to be no flag to disable
 auto-native dispatch (`--help` offers none, and the binary's `LOFT_*` env vars are
 `LOFT_COMPAT_SAMPLE`, `LOFT_LIVE_STDLIB`, `LOFT_STORE_GUARD`, `LOFT_TIMING`) — one would be a
-clean escape hatch on its own.
+clean escape hatch on its own.~~
+
+**Obsolete on both counts** (2026-08-10). The defect is fixed (see Status), so serial execution
+is no longer the price; and the flag exists and is now documented — **`LOFT_NO_NATIVE_LIBS=1`**
+makes every `use`d library interpret and skip its auto-native cdylib, with `LOFT_REQUIRE_NATIVE=1`
+as the inverse. ⚠ The original sentence was not wrong when written but was reasoned from the
+wrong instrument: it concluded "no flag" from `--help` plus a scan of `LOFT_*` strings, and the
+fix commit added both names to `--help` precisely because the report had searched there. If a
+capability seems absent, that is a question for the maintainers, not a fact to write down.
 
 ### Note on the environment
 
