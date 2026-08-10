@@ -1127,7 +1127,10 @@ that catches it.
 
 **Status:** ✅ **FILED as [loft#831](https://github.com/loft-lang/loft/issues/831)** (2026-08-09, measured today on 2026.8.0) · **Repo:** `loft-lang/loft`
 ✅ **FIXED UPSTREAM — both halves — in loft `c69f7c1a` (2026-08-10 12:22), and the fix names
-this report.** Verified by inspection, not just by absence:
+this report.** Issue **CLOSED** 2026-08-10 12:22 UTC; consumer confirmation filed back as
+[comment 5240891610](https://github.com/loft-lang/loft/issues/831#issuecomment-5240891610)
+(the 13-pass table, what it unblocked, and the caveat that we never ran a before/after A/B).
+Verified by inspection, not just by absence:
 - **Defect 2, the serious one, is gone as designed.** `probe_and_mark_exports` now `dlopen`s the
   artifact and `dlsym`s each bridge before marking, marks only what resolves (**partial is a
   valid outcome**), and KEEPS the handle so a later prune or rebuild cannot invalidate the
