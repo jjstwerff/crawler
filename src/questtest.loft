@@ -31,12 +31,12 @@ fn main() {
   gi = game_items();
 
   // 1) quest grant on the surface
-  surf = sim_new_gen(777, 0);
+  surf = sim_new_gen(1337, 0);
   scroll = sim_find_item(surf, "sealed_orders");
   granted = scroll >= 0 && item_is_quest(gi, item_index(gi, "sealed_orders"));
 
   // 2) the depth-3 set-piece: the naga + guards, by the stair-down
-  d3 = sim_new_gen(777, 3);
+  d3 = sim_new_gen(1337, 3);
   naga_i = -1;
   ec = sim_enemy_count(d3);
   for i in 0..ec {
@@ -52,7 +52,7 @@ fn main() {
   setpiece = naga_i >= 0 && guards >= 1 && near;
 
   // 3) killing the unique sets boss_slain — fire a bow at her point-blank until she falls
-  d3k = sim_new_gen(777, 3);
+  d3k = sim_new_gen(1337, 3);
   kill_flag = 0;
   if naga_i >= 0 {
     (kx, ky) = sim_enemy_pos(d3k, naga_i);
@@ -68,17 +68,30 @@ fn main() {
     kill_flag = d3k.boss_slain;
   }
 
-  // 4) the infestation is gated on boss_slain
-  clean1 = count_glyph(sim_new_gen(777, 1), "J");       // depth 1, no boss killed -> no brood
-  d3i = sim_new_gen(777, 3);
+  // 4) the infestation is gated on boss_slain, and it THICKENS toward the surface
+  //
+  // ⚠ MEASURED AGAINST EACH DEPTH'S OWN BASELINE, and that is the whole row. `count_glyph`
+  // counts every "J" on the level, and normal generation places snakes too — so the raw
+  // totals mix the brood with the local wildlife. This used to assert `inf1 > inf2` on those
+  // raw totals and it passed on world 777 by luck: depth 2 there happened to hold 4 natural
+  // snakes (4 + 4 brood = 8) against depth 1's 11 + 0. On the SHIPPED world depth 2 holds
+  // more, both totals come out at 11, and the same healthy mechanism reads as broken.
+  // Subtracting each depth's boss-not-slain population cancels the wildlife, so what is left
+  // is the brood alone — which is the thing the claim is about, in any world.
+  clean1 = count_glyph(sim_new_gen(1337, 1), "J");       // depth 1, no boss killed -> no brood
+  d3n = sim_new_gen(1337, 3);                           // the SAME ascent with the throne intact
+  base2 = count_glyph(sim_descend(d3n, -1), "J");
+  d3i = sim_new_gen(1337, 3);
   d3i.boss_slain = 1;                                   // the throne has fallen
   up2 = sim_descend(d3i, -1);                           // ascend to depth 2 -> some snakes
   up1 = sim_descend(up2, -1);                           // ascend to depth 1 -> crawling
   inf2 = count_glyph(up2, "J");
   inf1 = count_glyph(up1, "J");
+  brood2 = inf2 - base2;                                // the brood alone, wildlife cancelled
+  brood1 = inf1 - clean1;
 
   // 5) the WANTED poster: a notice board stands on the square; walking onto it takes the bounty
-  t5 = sim_new_gen(777, 0);
+  t5 = sim_new_gen(1337, 0);
   bq = -1;
   br = -1;
   for r5 in 0..101 {
@@ -96,14 +109,14 @@ fn main() {
   // 6) the hunt: the ruin nest lives windows away; its boss is TRAIT-tagged, never named
   // ⚠ Was the literal window (-1,-4) — see the wizard note below; the same baked-in home
   // position. Walk the world's own ruin list and take the first window that holds a boss.
-  rw = sim_new_gen_s(777, 0, 0, 0, -1, -4);
+  rw = sim_new_gen_s(1337, 0, 0, 0, -1, -4);
   bossi = -1;
   for ri9 in 0..sim_ruin_count() {
     if bossi < 0 {
       (rx9, ry9) = sim_ruin_pos(ri9);
       (rwx9, rwy9) = sim_window_of(rx9, ry9);
       if rwx9 != 0 || rwy9 != 0 {            // the home window carries no ruin nest
-        cand = sim_new_gen_s(777, 0, 0, 0, rwx9, rwy9);
+        cand = sim_new_gen_s(1337, 0, 0, 0, rwx9, rwy9);
         for bi in 0..sim_enemy_count(cand) {
           if bossi < 0 && (sim_enemy_tags(cand, bi) & TAG_RUIN_BOSS) != 0
              && sim_enemy_alive(cand, bi) {
@@ -154,7 +167,7 @@ fn main() {
   // Ask the world where the living wizard's tower is, then which window holds it.
   (wzx, wzy) = sim_wizard_tower();
   (wwx9, wwy9) = sim_window_of(wzx, wzy);
-  ww = sim_new_gen_s(777, 0, 0, 0, wwx9, wwy9);
+  ww = sim_new_gen_s(1337, 0, 0, 0, wwx9, wwy9);
   gi5 = -1;
   for ei2 in 0..sim_enemy_count(ww) {
     if gi5 < 0 && sim_enemy_key(ww, ei2) == "wizard" { gi5 = ei2; }
@@ -168,7 +181,7 @@ fn main() {
           && sim_find_item(ww, "circle_writ") >= 0 && sim_find_item(ww, "circle_phial") >= 0;
 
   // 9) the POOL: the throne ring is shallow magical water; standing in it fills the phial
-  d3p = sim_new_gen(777, 3);
+  d3p = sim_new_gen(1337, 3);
   poolq = -1;
   poolr = -1;
   for pr5 in 0..41 {
@@ -193,16 +206,29 @@ fn main() {
   delivered = sim_gold(ww) == goldc + 60 && sim_find_item(ww, "phial_brimming") < 0;
 
   // 11) the way OUT: the surface is a real stair destination again (rewards get claimed)
-  d1c = sim_new_gen(777, 1);
+  d1c = sim_new_gen(1337, 1);
   upc = sim_descend(d1c, -1);
   wayout = sim_depth(upc) == 0;
 
   println("granted={granted}  setpiece={setpiece} (naga={naga_i} guards={guards} near={near})  boss_flag={kill_flag}");
   println("poster: board={board} took={took} hunted={hunted} paid={paid}");
   println("circle: pointed={pointed} asked={asked} rewarded={rewarded} pool={pool} filled={filled} delivered={delivered} wayout={wayout}");
-  println("infestation: clean-d1={clean1}  d2={inf2}  d1={inf1}");
+  // ⚠ AN IDENTITY, NOT A THRESHOLD. With the wildlife cancelled the brood is exactly what
+  // the bundle declares, so the row can ask for that rather than for "enough" — and it is
+  // read from `world_placement()` rather than copied, so a bundle that re-authors its
+  // infestation moves the expectation with it instead of quietly failing an engine test.
+  want1 = world_placement().infest_d1;
+  want2 = world_placement().infest_d2;
+  println("infestation: clean-d1={clean1} d1={inf1} (brood {brood1}, declared {want1}) · natural-d2={base2} d2={inf2} (brood {brood2}, declared {want2})");
+  if brood1 != want1 || brood2 != want2 {
+    println("FAIL: the brood is {brood1}/{brood2} against the bundle's declared {want1}/{want2}");
+  }
+  if brood1 <= brood2 {
+    println("FAIL: the brood does not thicken toward the surface — {brood1} at depth 1 against {brood2} at depth 2");
+  }
   ok = granted && setpiece && kill_flag == 1
-    && clean1 == 0 && inf1 >= 8 && inf2 >= 2 && inf1 > inf2 && board && took && hunted && paid && pointed && asked && rewarded
+    && clean1 == 0 && brood1 == want1 && brood2 == want2 && brood1 > brood2
+    && board && took && hunted && paid && pointed && asked && rewarded
     && pool && filled && delivered && wayout;
   if ok { println("=== QUEST OK ==="); } else { println("=== FAIL ==="); }
 }
