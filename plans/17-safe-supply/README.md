@@ -13,9 +13,10 @@ and the measurement of what already exists, which turned out to be most of it. `
 
 > ## ✅ `I-SAFE` IS CLOSED END TO END (2026-08-10)
 >
-> A week on world 777, den alive vs den cleared: **1 load and 1 potion against 17 and 11**,
-> and the store drains to empty and stays there. The settlement's output is now a function of
-> the danger around it, gated by `stocktest` row 7 as an A/B and verified able to go red.
+> On the **shipped** world (`story.loft`'s `GEN_SEED`), four days with the den alive against
+> four with it cleared: **0 deliveries against 3**, and the store never holds anything at all
+> under pressure. The settlement's output is now a function of the danger around it, gated by
+> `stocktest` row 7 as an A/B and verified able to go red.
 >
 > ⚠ **And the cause `S5` recorded was wrong on both counts** — the trapping arm fired **zero**
 > times, and what actually raised output was `npc_may_enter`'s escape hatch. → *`S5`'s
@@ -220,12 +221,48 @@ begins, find nothing said, and conclude the mechanism was broken.
 still reporting it at tick 599.** The signal is there before a player has crossed the square,
 and it does not blink out. That is the `F6` answer.
 
-⚠ **Worth knowing: every other measurement in this plan was taken on world 777, and the game
-ships 1337.** Both have the den and the gatherer, so the mechanism is present in the world
-players get — but they are not the same town to live in: **777 has 2 workers idle at genesis
-(an ogre at the mine); 1337 has none until the den's first raider arrives.** The plan's
-numbers describe 777. Nothing here is invalidated by that, but a claim about *the shipped
-opening* has to be measured on 1337.
+#### ✅ And the whole plan now measures the world players start in
+
+⚠ **Every measurement in this plan was taken on world 777 while the game ships 1337**
+(`story.loft`'s `GEN_SEED`) — so every number it published described a world nobody plays.
+Switched 2026-08-10: `stocktest` and `incursiontest` run 1337; `safetytest` already did. The
+overland is a **fixed contract wilderness**, so the *town* is identical either way — what a
+seed varies is **monster placement**, which is this plan's entire subject.
+
+**It was not a find-and-replace, because the thresholds had to be re-derived:**
+
+| four days | at peace | under pressure |
+|---|---|---|
+| **1337** (shipped) | 3 deliveries, stock 0..1 | **0 deliveries, stock 0..0** |
+| 777 (as published) | 7 deliveries, stock 0..4 | 1 delivery, stock 0..1 |
+
+⚠ **The A/B separates MORE sharply on the shipped seed — the store never holds anything at
+all under pressure. What falls is PEACE**, and the cause is measured rather than guessed: the
+gatherer spends **1023 of 1600 daylight ticks frozen mid-route**, stalled at safety borders
+while ambient wildlife drifts across an unescorted 14-hex walk. On 777 it is 887, so this is a
+difference of **degree, not kind** — the shipped world's peacetime supply is simply marginal.
+
+**That is the design working, not a defect to tune here.** An unescorted civilian crossing
+monster country is slow, and **`S7`'s pickets are its designed answer** — a militia posts
+guards, guards hold ground, held ground is ground a worker crosses without stopping. It is
+worth noticing that `S7` now has a *measured* thing to improve, which it did not before.
+
+So the gate's peaceful bar is **2 against a measured 3**, and the margin is thin **on
+purpose**: the reason it is 3 is a property of the shipped world, not slack in the row, so a
+drop to 1 is a real regression and must go red rather than be absorbed. A separate
+`peace_hi > 0` names *"the store never held anything"* apart from *"too few trips"*.
+
+⚠ **Re-verified able to go red on the new seed**, which is the check that matters whenever a
+gate changes worlds: with the veto off it reports **3 under pressure against 3 at peace** and
+fails on the 2× margin. `incursiontest`'s preconditions all hold on 1337 unchanged — source
+present, one raider on the first dawn, 12 → 3 hexes in 15 ticks, the cap binding at 2, and row
+7's safe/unsafe/safe still reading three ways.
+
+⚠ **Still on 777, and NOT part of this plan** — flagged rather than changed, because each
+belongs to another plan and asserts something different: `questtest` (the wizard/gate/
+infestation chain), `cavetest`, `effecttest`, and `fieldtest` (which sweeps 777's surface *and*
+two dungeon depths deliberately, as a sample of worlds rather than a claim about the shipped
+one). The same argument applies to `questtest` most sharply.
 
 ## What `S1`/`S2` turned up — measured 2026-08-09
 
@@ -586,7 +623,10 @@ gatherer stopped commuting and simply **camped on its unsafe picking ground for 
 ticks**, waiting out the gaps and pocketing **21** loads — still more than the 17 it managed
 at peace. A rule about what ground yields cannot fix a worker who lives on it.
 
-**Both terms, measured over the same week:**
+**Both terms, measured over the same week.** ⚠ **These are the DIAGNOSTIC numbers, on world
+777** — the world every measurement above was taken in, kept because they are what the
+diagnosis was read off. The plan's *current* figures are on the shipped seed and are in *the
+whole plan now measures the world players start in*, below:
 
 | | picking ground unsafe | deliveries | potions | stock by day |
 |---|---|---|---|---|

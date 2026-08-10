@@ -21,8 +21,9 @@ somewhere less dangerous — and the settlement's output follows.
 > Nothing the player learns is new. **Zero new keys**, no crafting screen, no recipe list,
 > no material inventory. The depth is entirely in the derivation.
 
-✅ **Measured true end to end on 2026-08-10** — a week on world 777 with the den alive and the
-same week with it cleared: **1 delivery and 1 potion against 17 and 11**. It took three terms,
+✅ **Measured true end to end on 2026-08-10** — on the world a player actually starts in
+(`story.loft`'s `GEN_SEED`), four days with the den alive against four with it cleared: **0
+deliveries against 3**, and the store never holds anything at all under pressure. It took three terms,
 and the middle one is the one to remember: the bag fills only at the **work site**, only while
 that ground is **safe**, and **nobody travels to work that is unsafe**. Refusing to *enter*
 danger was not enough on its own — a worker already inside unsafe ground must be allowed to

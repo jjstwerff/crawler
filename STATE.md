@@ -26,10 +26,24 @@ where crawler sits in the stack.
 > ARRIVES** (that is `S5`'s design), so the gate ticks before reading: on `story.loft`'s own
 > `GEN_SEED` the first worker reports at **tick 19**, and is still reporting at tick 599.
 >
-> ⚠ **Every other measurement in this plan is on world 777; the game ships 1337.** Both have
-> the den and the gatherer, so the mechanism is present in the world players get — but 777 has
-> **2 workers idle at genesis** (an ogre at the mine) and 1337 has **none** until the den's
-> first raider arrives. A claim about the *shipped opening* has to be measured on 1337.
+> ✅ **AND THE PLAN NOW MEASURES THE WORLD PLAYERS START IN** (2026-08-10). It measured world
+> **777** throughout while `story.loft`'s `GEN_SEED` is **1337**, so every number it published
+> described a world nobody plays. `stocktest` and `incursiontest` are switched (`safetytest`
+> was already 1337). The overland is a fixed contract wilderness so the **town is identical**
+> — what a seed varies is monster placement, which is this plan's entire subject.
+>
+> | four days | at peace | under pressure |
+> |---|---|---|
+> | **1337** (shipped) | 3 deliveries, stock 0..1 | **0 deliveries, stock 0..0** |
+> | 777 (as published) | 7 deliveries, stock 0..4 | 1 delivery, stock 0..1 |
+>
+> ⚠ **The A/B separates MORE sharply on the shipped seed; what falls is PEACE.** The cause is
+> measured: the gatherer spends **1023 of 1600 daylight ticks frozen mid-route**, stalled at
+> safety borders while ambient wildlife drifts across an unescorted 14-hex walk (777: 887 — a
+> difference of degree, not kind). That is the design working, and **`S7`'s pickets are its
+> designed answer**, not a number to tune. So the gate's peaceful bar is **2 against a
+> measured 3** and the margin is thin on purpose. Re-verified able to go red on the new seed,
+> which is the check that matters when a gate changes worlds.
 >
 > **`S0`–`S3` and `S5` are shipped, ARMED and CLOSED.** `hex_safe` is the safety **category**
 > and `npc_may_enter` the term that makes a worker refuse unsafe ground (`safetytest`, each
@@ -39,9 +53,11 @@ where crawler sits in the stack.
 > settlement's most exposed *work*, and clearing the den ends it permanently — eligibility,
 > never a schedule (`incursiontest`, 7 rows).
 >
-> ✅ **`I-SAFE` HOLDS END TO END (2026-08-10).** A week on world 777, den alive vs cleared:
-> **1 load and 1 potion against 17 and 11**, the store drained to empty and kept there.
-> `stocktest` row 7 is the A/B and is verified able to go red.
+> ✅ **`I-SAFE` HOLDS END TO END (2026-08-10).** On the **shipped** world, four days with the
+> den alive against four with it cleared: **0 deliveries against 3**, and the store never
+> holds anything at all under pressure. (First measured on world 777 as a week — 1 load and 1
+> potion against 17 and 11 — before the seed was corrected, below.) `stocktest` row 7 is the
+> A/B and is verified able to go red.
 >
 > ⚠ **`S5`'s recorded cause was wrong on both counts, and the correction is the lesson.** It
 > blamed `npc_gather`'s trapping arm; attributing every bag-fill to its place shows that arm
@@ -330,6 +346,13 @@ genuinely different routes:
   raider was `!awake`, correctly, while waking meant switching to the chase. The fix that made
   a raid keep formation removed the confound, and the assertion then failed on healthy
   behaviour. *An assertion encodes a mechanism; change the mechanism and re-derive it.*
+- a **gate measuring a world nobody plays** (2026-08-10) — plan #17 measured world **777**
+  from `S0` to `S5` while `story.loft` ships **1337**. Every number it published was true and
+  about the wrong town: the overland is fixed so the *town* is identical, but a seed varies
+  **monster placement**, which was the plan's whole subject. Switching it moved the peaceful
+  supply from 7 deliveries to 3. ⚠ *A seed in a test is a claim about which world the result
+  describes* — and when a gate changes worlds, the check that matters is that it can still
+  **go red** there, not that it still passes.
 - a **signal with no baseline to read it against** (2026-08-10) — three of `S4`'s four
   visibility signals shipped before `S4` did, and none of them closed `F6`. A stall holding
   **2 potions instead of 1** is a real difference and an unreadable one: a player who has
