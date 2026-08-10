@@ -8,15 +8,22 @@
 **`status:active` from 2026-08-09** (user), taking `#12`'s slot — the roster is
 `#11`/`#13`/`#17`, still at the cap of three. `S0` is shipped: the design (`CRAFTING.md`)
 and the measurement of what already exists, which turned out to be most of it. `S1`–`S3` and
-**`S5`** are **shipped and armed**; `S4`, `S6`, `S7` are designed, and each is written out below.
+**`S5`** are **shipped, armed and closed** — `I-SAFE` holds end to end as of 2026-08-10;
+`S4`, `S6`, `S7` are designed, and each is written out below.
 
-> **→ NEXT: make the settlement's supply depend on ground that can become unsafe.** `S5`
-> ships the danger and gates that it reaches the work, but production does not move: with
-> raiders camped on the picking ground for 2454 of 2800 ticks the week's stock ran 4→8 and sat
-> at the **cap**, against 2..6 drawn down with the den cleared. `npc_gather`'s trapping arm
-> fills the bag anywhere, so supply has a second path nothing can make unsafe. Numbers and the
-> ruled-out fix: *`S5` did NOT close the output coupling*, below. This is `I-SAFE` itself, and
-> it is the last link in the plan's own title.
+> ## ✅ `I-SAFE` IS CLOSED END TO END (2026-08-10)
+>
+> A week on world 777, den alive vs den cleared: **1 load and 1 potion against 17 and 11**,
+> and the store drains to empty and stays there. The settlement's output is now a function of
+> the danger around it, gated by `stocktest` row 7 as an A/B and verified able to go red.
+>
+> ⚠ **And the cause `S5` recorded was wrong on both counts** — the trapping arm fired **zero**
+> times, and what actually raised output was `npc_may_enter`'s escape hatch. → *`S5`'s
+> diagnosis was wrong, and the measurement that found it*, below.
+>
+> **→ NEXT: `S4`** (the world says it, with no panel) or `S6`/`S7`. ⚠ Before either, the two
+> measured consequences under *Open* need the user's call: the mine is unsafe **400/400**
+> ticks and the market square **215/400**, both from ambient wildlife rather than the den.
 
 **Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
 on it by construction (`M3` authors 18 Handiness values against this system), and its own
@@ -76,7 +83,7 @@ that only became visible once both were on the page:
 | **`S2`** — workers refuse to ENTER unsafe ground | S | `make test` (`safetytest`) | ✅ **Shipped** |
 | **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (`stocktest`) | ✅ **Shipped and ARMED** |
 | **`S4`** — the world shows it, with no panel | M | `make play`, a user read | **Unblocked** — the short batch already thins the stall |
-| **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` (`incursiontest`) | ✅ **Shipped and ARMED** — output coupling still open |
+| **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` (`incursiontest`, `stocktest`) | ✅ **Shipped, ARMED and CLOSED** — `I-SAFE` holds end to end |
 | **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` + a `scripts/*.play` session | **Designed, not built** |
 | **`S7`** — standing, and the militia it raises | M | `make test` + a `scripts/*.play` session | **Designed, not built** |
 
@@ -91,6 +98,8 @@ crossed. A float that slides is unreadable in play and untestable in a gate.
 
 One term added to `npc_passable`, plus the same term in site selection (the alchemist's
 gatherer already **shuns** the deep mountains by construction — this is the same shape).
+⚠ **The second half shipped a day late and was the load-bearing one** — see *the real
+mechanism*, below: the step term alone leaves a worker free to live inside danger.
 ⚠ **Guards are a term in the safety expression, not spectators**, or the settlement is
 scenery waiting to be rescued.
 
@@ -466,26 +475,111 @@ again** once the cause and its camp are gone. ⚠ The attribution term is load-b
 unrelated hostiles share that window, so *"is it unsafe now"* passes on a wandering jackal and
 would have passed against all five broken versions above.
 
-### ⚠ `S5` did NOT close the output coupling, and here are the numbers
+### ⚠ `S5` did NOT close the output coupling — and its diagnosis of WHY was wrong
 
-**Danger reaches the work. It does not yet cut production.** Measured over seven days on world
-777, den alive vs den cleared at genesis:
+`S5` measured the gap correctly and then named the wrong cause, on the strength of reading
+the code rather than instrumenting it. What it recorded:
 
-| | picking ground unsafe | deliveries | stock by day |
-|---|---|---|---|
-| den **alive** | **2454 / 2800 ticks** | 3 | 4 4 8 7 8 8 8 — sits at the **cap** |
-| den **cleared** | 0 ticks | 4 | 2 2 6 3 6 3 5 — drawn down |
+> Danger *raised* the stock. The cause is `npc_gather`'s first arm: **trapping a wild thing
+> fills the bag anywhere**, so supply has a second path that nothing can make unsafe.
 
-Danger *raised* the stock. The cause is `npc_gather`'s first arm: **trapping a wild thing
-fills the bag anywhere**, so supply has a second path that nothing can make unsafe — and a
-gatherer stalled at the safety border has a *shorter* round trip home than one walking to the
-picking ground. ⚠ Restricting trapping to beyond `GUARD_R` was tried and changed **nothing**
-(the stall already sits 7 hexes out); the fix belongs to the supply model, not to a threshold.
+**Both halves of that are false, and one measurement settles it.** Attribute every bag-fill
+to the place it happened — the instrument `S5` never built — and the trapping arm reports
+**0 fills in both arms of the week**. It could not have been the second supply path, because
+it was not a supply path at all: no wild thing ever came within a hex of the gatherer.
 
-⚠ **So `I-SAFE` — "a settlement's output is a function of the danger around it" — is still
-unproven end to end**, and it now fails for a *known, located* reason rather than an unknown
-one. It is the next step in this plan, and it is small: make the settlement's supply depend
-on ground that can become unsafe.
+| measured over 7 days, world 777 | den alive | den cleared |
+|---|---|---|
+| picking ground unsafe | 2454 / 2800 ticks | 0 |
+| fills **at the picking ground** | **31** | **17** |
+| fills **anywhere else** (the trapping arm) | **0** | **0** |
+| potions brewed | 14 | 12 |
+
+### The real mechanism: being in danger exempts you from avoiding danger
+
+⚠ **`npc_may_enter` has an escape hatch, it is unavoidable, and on its own it swallows the
+whole rule.** A worker already standing in unsafe ground may enter any neighbour — otherwise
+`npc_step` freezes it and a raid *traps* the people the rule exists to keep out (the plan's
+own "enter, never leave" asymmetry, and it is right). But the consequence was never followed
+through: **a large connected unsafe region is therefore freely traversable by anyone caught
+inside it.**
+
+Traced tick by tick, the gatherer at peace stalls constantly at safety borders — a wandering
+hostile makes the one flow-improving neighbour unsafe and it waits, so a 13-hex leg takes ~75
+ticks. Swallowed by the raid, its own hex is unsafe, every neighbour is therefore enterable,
+and the same leg takes **17**. It ran its route at full speed *because* of the danger, and
+picked with raiders standing on the ground.
+
+**So `S5`'s number had nothing to do with supply paths. Danger was buying the gatherer a
+faster commute.**
+
+### ✅ Closed by two terms, and they answer different questions
+
+| | |
+|---|---|
+| `npc_gather` | the bag fills **at the work site** and only while that ground is **safe**. Avoidance governs where a worker *goes*; this governs what the ground *gives*. Trapping folds into the same branch — the same load, not a second one — so supply has a **place** danger can press on |
+| `npc_target` | **nobody travels to work that is unsafe.** `S2`'s second half — designed in this very file (*"the same term in site selection"*) and never built |
+
+⚠ **The first alone is not enough, and the measurement says why.** With only the work term the
+gatherer stopped commuting and simply **camped on its unsafe picking ground for 935 of 2800
+ticks**, waiting out the gaps and pocketing **21** loads — still more than the 17 it managed
+at peace. A rule about what ground yields cannot fix a worker who lives on it.
+
+**Both terms, measured over the same week:**
+
+| | picking ground unsafe | deliveries | potions | stock by day |
+|---|---|---|---|---|
+| den **alive** | 2477 / 2800 | **1** | **1** | 1 0 0 0 0 0 0 |
+| den **cleared** | 0 | **17** | **11** | 3 1 5 0 3 3 6 |
+
+The store drains to empty and stays there; peace runs a working economy. `stocktest` row 7 is
+now that A/B — see below.
+
+### ⚠ The row that was passing on a starved town
+
+`stocktest` row 7 ran **one arm** (the contested one) and asserted only *"a delivery
+arrived"*. The moment the coupling closed it went on passing at **one delivery and one potion
+in a week** — a starved town clearing a bar written for a healthy one. It is re-derived as an
+A/B: the *same* world with one dead leader as the only difference, peace must look like a
+working economy (≥5 deliveries in four days), pressure must not (a 2× margin), the picking
+ground must be **measurably unsafe** in the contested arm (or a collapse is some other defect
+wearing this row's clothes), and the store must not reach its cap under pressure.
+
+⚠ **Verified able to go red**: with the veto disabled it prints *"12 deliveries under pressure
+against 10 at peace"*. Four days per arm rather than seven — the arms separate by day 3, and a
+surface tick is the most expensive thing in the gate. Cost: `stocktest` **15 s → 48 s**, now
+the gate's tail (99 rows, 1m49s).
+
+### ⚠ Open, and the user's call: the site veto gave two OLD numbers a consumer
+
+`npc_target`'s veto is the first thing in the engine that ever *read* `hex_safe` about a work
+site, and it immediately surfaced two facts that were true before it and inert. **Measured at
+`HEAD` as well as after, with the den cleared, so neither is caused by this change or by the
+raid:**
+
+| work site | unsafe, per day | why |
+|---|---|---|
+| **the mine** `(7,49)` — 2 miners | **400 / 400 ticks** | an ogre camped on it, **40 hexes** from the nearest guard |
+| **the market square** `(50,50)` — 6 villagers | **143 / 400** at `HEAD`, **215 / 400** after | a jackal wanders within `THREAT_R`; the guards' patrol legs sit at **radius 15** and only ever *transit* the centre, so `GUARD_R = 4` almost never covers it |
+
+**The mine is the plan's own designed lever working** (*"the lever is the mine"*) and it reads
+well in play: kill the ogre, the mine reopens. **The market is the one to decide.** A market
+shut half of every day, forever, from ambient wildlife is not a signal — and it lands on
+`S1`'s own guard rail, *"guards are a term in the safety expression, not spectators, or the
+settlement is scenery waiting to be rescued."* Today they are close to spectators: they are
+posted to a ring outside the town they defend.
+
+Three candidate answers, and the choice is **DESIGN §3a pillar #8's**, the same owner as the
+opening curve: give a guard leg the town seat (worldgen), let `S7`'s pickets be what holds a
+centre, or accept the flicker as ambience.
+
+⚠ **One second-order effect this change DID introduce, and it points the wrong way**: vetoed
+civilians idle at home, `occupied_hex` then blocks the guards more often near the centre, guard
+coverage falls, and the square goes **143 → 215**. Crowding degrades the very term that would
+uncrowd it. Small today; worth remembering if the veto ever grows a second consumer.
+
+⚠ **Also found while measuring, and not fixed here:** `occupied_hex` does not test `alive`, so
+a dead actor blocks its hex permanently.
 
 ### ⚠ Open, and the user's call: the starting town is now under pressure from day 1
 

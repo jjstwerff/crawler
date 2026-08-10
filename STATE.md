@@ -1,7 +1,7 @@
 # STATE.md — where things stand (2026-08-10)
 
 Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 99 rows in
-**2m13s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
+**1m49s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
 after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
@@ -14,22 +14,27 @@ where crawler sits in the stack.
 > is in **`#17`**, and `#16` queues explicitly behind it — #16's `M3` re-authors 18 race
 > blocks with a Handiness value, and what Handiness is *for* is decided in #17.
 >
-> **`S0`–`S3` and `S5` are shipped and ARMED.** `hex_safe` is the safety **category** and
-> `npc_may_enter` the one term that makes a worker refuse unsafe ground (`safetytest`, each
+> **`S0`–`S3` and `S5` are shipped, ARMED and CLOSED.** `hex_safe` is the safety **category**
+> and `npc_may_enter` the term that makes a worker refuse unsafe ground (`safetytest`, each
 > claim seen **both ways**). `S3` adds the stock — a number per producer, `raised − drawn`,
 > capped so it can run out — plus the first real bundle `production` section. **`S5` adds the
 > danger**: a den at the far end of the ground the town can walk sends raiders at the
 > settlement's most exposed *work*, and clearing the den ends it permanently — eligibility,
 > never a schedule (`incursiontest`, 7 rows).
 >
-> ⚠ **DANGER NOW REACHES THE WORK; IT STILL DOES NOT CUT OUTPUT.** That last link was `S5`'s
-> headline and `S5` did not close it — but it now fails for a **located** reason. Measured
-> 2026-08-10 over seven days: with raiders camped on the picking ground **2454 of 2800 ticks**
-> the stock ran 4→8 and sat at the **cap**, against 2..6 *drawn down* with the den cleared.
-> Danger *raised* output, because `npc_gather`'s trapping arm fills the bag anywhere — supply
-> has a second path nothing can make unsafe, and a gatherer stalled at the safety border has a
-> shorter round trip than one walking to the picking ground. Restricting trapping to beyond
-> `GUARD_R` was tried and changed **nothing**. → `plans/17-safe-supply/README.md`
+> ✅ **`I-SAFE` HOLDS END TO END (2026-08-10).** A week on world 777, den alive vs cleared:
+> **1 load and 1 potion against 17 and 11**, the store drained to empty and kept there.
+> `stocktest` row 7 is the A/B and is verified able to go red.
+>
+> ⚠ **`S5`'s recorded cause was wrong on both counts, and the correction is the lesson.** It
+> blamed `npc_gather`'s trapping arm; attributing every bag-fill to its place shows that arm
+> fired **0 times**. What actually raised output was **`npc_may_enter`'s escape hatch**: a
+> worker already in danger may enter any neighbour (or a raid *traps* it), so a large unsafe
+> region is freely traversable by anyone caught inside — the gatherer stopped stalling at
+> safety borders and ran a 13-hex leg in **17 ticks instead of ~75**. Danger was buying it a
+> faster commute. Closed by two terms: the bag fills only at the work site and only on safe
+> ground, and **nobody travels to work that is unsafe** (`S2`'s never-built second half).
+> → `plans/17-safe-supply/README.md`
 
 ## What moved on 2026-08-09/10
 
@@ -79,8 +84,10 @@ where crawler sits in the stack.
   of them. One `ok <secs> <name>` line per test (`·native` marks a compiled row), a closing line
   for anything over 5 s, `GATE_VERBOSE=1` for the old stream, `GATE_NO_NATIVE=1` to put every row
   back on the interpreter. ⚠ To prove a change behaviour-preserving, diff the **per-test** logs
-  (`/tmp/story_<name>.log`), not stdout. What is left over 5 s: `safety` ~24s · `stock` ~15s ·
-  `replay` ~8s · `itemuse` ~8s, and they move a lot run to run.
+  (`/tmp/story_<name>.log`), not stdout. The tail that sets the clock (2026-08-10, 8-wide,
+  wall under contention): `stock` **48s** · `replay` 36s · `incursion` 35s · `mesh` 31s ·
+  `play` 29s · `safety` 28s, and they move a lot run to run. `stocktest` became the tail when
+  its row 7 grew a second arm — two 4-day surface weeks, which is what an A/B costs.
 - **`../moros` has its own agent** and is **READ-ONLY** (`CLAUDE.md`) — findings become
   documents here; how one reaches the other project is the user's call.
 - Also new: `CRAFTING.md`, `ADOPTION.md` (library pull side, P0–P4 shipped), `MOROS.md` (what
@@ -169,6 +176,14 @@ the area — but if it continues, the label is wrong and should move.
 
 ## Open, and whose call it is
 
+- **Two work sites the town cannot use, both true before the change that revealed them**
+  (measured 2026-08-10 at `HEAD` too, den cleared): the **mine** is unsafe **400/400** ticks a
+  day (an ogre camped on it, 40 hexes from any guard) and the **market square** **143/400**
+  (a jackal within `THREAT_R`; the guards' patrol legs sit at **radius 15** and only transit
+  the centre, so `GUARD_R = 4` almost never covers the town's own seat). The mine is the plan's
+  designed lever working; the market is the one to decide, and it lands on `S1`'s guard rail —
+  *guards are a term, not spectators*. **DESIGN §3a pillar #8's call**, same owner as the
+  opening curve. → `plans/17-safe-supply/`
 - **The starting neighbourhood is now hostile at level 1** — a gnoll (mlvl 6) 8 hexes from the
   vantage, a level-1 hero dead on tick 13. The alpine anchor bought the gatherer and cost the
   onboarding curve. **DESIGN §3a pillar #8's business, and nobody owns it yet.** The user's call
@@ -277,6 +292,11 @@ genuinely different routes:
   where there are 0 guards and 0 civilians. Its own gate passed by generating the window the
   source was in. *A gate that constructs the situation proves the mechanism, not the game* —
   worldgen now ships a den where the settlement is, and the gate runs in that window.
+- a **bar written for a healthy town, left in front of a starved one** (2026-08-10) —
+  `stocktest` row 7 ran a single arm and asked only "did a delivery arrive". The moment the
+  coupling closed it went on passing at **one delivery and one potion in a week**. It is an
+  A/B now: peace must look like a working economy, pressure must not, and the two are
+  separated by a margin. *A threshold outlives the world it was chosen in.*
 - an **objective at the point of its own cancellation** (2026-08-10) — raiders marched at the
   market square, which is exactly where `hex_safe`'s guard term holds ground safe. Seven days
   of raiding left the picking ground unsafe for **0 ticks** and the week's deliveries at 4,
@@ -290,6 +310,19 @@ genuinely different routes:
   raider was `!awake`, correctly, while waking meant switching to the chase. The fix that made
   a raid keep formation removed the confound, and the assertion then failed on healthy
   behaviour. *An assertion encodes a mechanism; change the mechanism and re-derive it.*
+- an **escape hatch that swallowed its own rule** (2026-08-10) — `npc_may_enter` must let a
+  worker already standing in danger move, or a raid *traps* the people the rule exists to keep
+  out. Correct, and never followed through: a large connected unsafe region is therefore
+  freely traversable by anyone caught inside it. A gatherer swallowed by a raid stopped
+  stalling at safety borders and ran a 13-hex leg in **17 ticks instead of ~75** — *danger
+  bought it a faster commute*, and output went **up**. ⚠ *An exemption is a rule about its
+  own scope; measure how much of the domain it takes.*
+- a **cause named from the code instead of from an instrument** (2026-08-10) — `S5` recorded
+  that trapping "fills the bag anywhere" as the reason danger did not cut output. It reads
+  correctly in the source. Attribute each bag-fill to its **place** and that arm fired **0
+  times** in either arm of the week: it was not a supply path at all. The measurement existed
+  (a stock number moved), the *attribution* did not. ⚠ *A diagnostic that reports the symptom
+  but not its cause invites a plausible cause to be written down instead.*
 - a **test the gate never runs** (2026-08-10, now fixed) — five test files sat in `src/` and
   appeared in no row of `tools/run_tests.sh`, plus one listed twice. They compiled, so nothing
   complained; they simply never executed. *Being written is not being wired* — and note the

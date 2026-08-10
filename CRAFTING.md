@@ -21,6 +21,14 @@ somewhere less dangerous — and the settlement's output follows.
 > Nothing the player learns is new. **Zero new keys**, no crafting screen, no recipe list,
 > no material inventory. The depth is entirely in the derivation.
 
+✅ **Measured true end to end on 2026-08-10** — a week on world 777 with the den alive and the
+same week with it cleared: **1 delivery and 1 potion against 17 and 11**. It took three terms,
+and the middle one is the one to remember: the bag fills only at the **work site**, only while
+that ground is **safe**, and **nobody travels to work that is unsafe**. Refusing to *enter*
+danger was not enough on its own — a worker already inside unsafe ground must be allowed to
+move (or a raid traps it), so it simply lived on its picking ground and waited out the gaps.
+→ [plan #17](plans/17-safe-supply/).
+
 ⚠ **That is the whole justification under `DESIGN.md` §3a pillar 0** (bounded simulation —
 *depth in the derivation, shallow at the interface*). A crafting system that added a verb
 would have to displace one; this one adds **none**, because the player's input is combat
@@ -34,8 +42,8 @@ what keeps this design from re-inventing a town that already lives.
 
 | | shipped today |
 |---|---|
-| **gatherers** | role **9** rugged travellers fetch alchemist ingredients from scree/meadow picking grounds, camping where dusk finds them, shunning the deep mountains (`OVERLAND.md` §13c). ⚠ **Shipped as CODE, absent from the MAP** — measured 2026-08-09: **no gatherer can spawn in any world**. Town life is home-window-only (`intown = wwx == 0 && wwy == 0`), the home window anchors at `ov_towns[0]`, and that town is coastal (−112…88 m) — so it has no scree or meadow, while the two towns that DO have picking grounds get no people at all. The block is `ov_towns[0]`, not terrain. A system can be complete, tested, and never execute. [plan #17](plans/17-safe-supply/) |
-| **gathering is real, not narrative** | a gatherer adjacent to a **wild thing** (role 12) takes it: `w9.alive = false; // trapped: ingredients for the factory` (`sim.loft`) |
+| **gatherers** | role **9** rugged travellers fetch alchemist ingredients from scree/meadow picking grounds, camping where dusk finds them, shunning the deep mountains (`OVERLAND.md` §13c). ⚠ **Shipped as code and, until 2026-08-10, never once executed** — no gatherer could spawn in any world (town life is home-window-only and the home window anchored at a coastal `ov_towns[0]` with no scree or meadow), and after that was fixed three further defects each hid the next. ✅ **It works now**, and the supply loop closes: [plan #17](plans/17-safe-supply/) `S3`/`S5`. *A system can be complete, tested, and never execute.* |
+| **gathering is real, not narrative** | the bag fills **at the picking ground, and only while that ground is safe** — a wild thing (role 12) caught there is taken with it (`w9.alive = false; // trapped: ingredients for the factory`), as the same load rather than a second one. ⚠ Trapping used to fill the bag **anywhere**, which gave supply a path with no *place* attached; a thing with no place is a thing danger cannot press on (`sim.loft`, plan #17 `S5`) |
 | **other producers** | farmers cycle home → field → stalls *carrying the crops*; fishers fish; boats and ships work the water and anchor at the harbour |
 | **distribution** | merchant carts run multi-day road routes with weight caps and two slots; merchant ships land goods from beyond the window; road stops at day intervals |
 | **the workshops** | seven producer kinds on a day/week rotation — forge weapon/armour, alchemy (3 days of 7, one type, a batch of 5), scriptorium scroll/book, town craft, import |
