@@ -69,6 +69,9 @@ make test     # headless deterministic gate — RUN THIS before committing
               #   --interpret — 7-22x on those, ~10 s of rustc each when their cache
               #   is cold. GATE_NO_NATIVE=1 puts every row back on the interpreter:
               #   that is how you tell a native-codegen divergence from your own bug.
+              #   Rows run 8 at a time; GATE_JOBS=1 forces serial (and is how you tell
+              #   a scheduling flake from a real red). Row ORDER is identical either
+              #   way — the log stays diffable, by design.
               #   ⚠ To prove a change behaviour-preserving, diff the PER-TEST logs
               #   (/tmp/story_<name>.log), not the gate's stdout — they cannot
               #   interleave, and stdout no longer carries the outputs.
@@ -83,10 +86,13 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 97 (**98 rows** — `playtest` runs 3×) in **~4 min warm** (measured 2026-08-10:
-4m03s on a busy box). It used to be **10–13 min**: the 14 tests that held most of the wall clock
-now compile via `--native-release` and the rest still interpret (the hybrid — `tools/run_tests.sh`
-→ `NATIVE_TESTS` carries the measurement and the ≥10 s rule for joining the list). ⚠ **Budget
+test` runs all 97 (**98 rows** — `playtest` runs 3×) in **~1.5–2.5 min warm** (measured
+2026-08-10: 1m29s and 2m29s on a shared box; `GATE_JOBS=1` serial is 3m15s). It used to be
+**10–13 min**, closed by two changes: the 14 tests that held most of the wall clock now compile
+via `--native-release` while the rest interpret (`tools/run_tests.sh` → `NATIVE_TESTS` carries
+the measurement and the ≥10 s rule for joining), and rows now run **8 at a time**. ⚠ **Per-row
+seconds are wall time under contention now** — at 8-wide `matrixtest` reads 1.0 s → 16.9 s — so
+they rank the roster but are not measurements; time a test by running it alone. ⚠ **Budget
 +10 s per affected native row when the compile cache is cold** — a kernel edit invalidates the
 40 tests that transitively `use sim`, and a `make install` in `../loft` invalidates *all* of
 them (the cache key hashes the generated Rust **and** `libloft.rlib`'s mtime). A blanket

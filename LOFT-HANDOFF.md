@@ -1126,6 +1126,16 @@ that catches it.
 ## H10 — an auto-native cdylib fails to wire INTERMITTENTLY under concurrent `loft` processes, and the failure is a PANIC rather than a fallback
 
 **Status:** ✅ **FILED as [loft#831](https://github.com/loft-lang/loft/issues/831)** (2026-08-09, measured today on 2026.8.0) · **Repo:** `loft-lang/loft`
+⚠ **DOES NOT REPRODUCE ANY MORE — 2026-08-10, and we have acted on that.** Re-probed on the
+installed 2026.8.0 (md5 `66a6326c7eb7`, ../loft `v2026.8.0-35-ge5d94a61`): **13 full passes of
+crawler's roster green** — 3× `-P8`, 3× `-P4`, 2× `-P16`, 2× `-P24`, plus one with every native
+row compiling concurrently, and two more through the gate itself. On that evidence crawler's
+gate now runs **8-wide by default** (`tools/run_tests.sh`, `GATE_JOBS`).
+⚠ **This is "did not reproduce in 13 passes", NOT "fixed".** Nobody has pointed at a commit that
+fixes it, the original failure was intermittent by nature, and defect **2 below — a panic where
+a fallback exists — is unaddressed either way**: it is what turns a wiring hiccup into a red
+suite instead of a slow one. Do not close the ticket on this note. If a crawler row goes red
+under load and green at `GATE_JOBS=1`, that is this bug returning, and it belongs here.
 **Labels:** `sev:high`, `wa:partial`, `area:native`, `hit-by:crawler`, `bug`
 **Suggested title:** `auto-native: cdylib wiring fails intermittently when several loft processes run at once — "native function not loaded" panics instead of falling back to the interpreted body`
 
@@ -1179,12 +1189,14 @@ the suite was ~18 minutes serially and ~70 seconds at `-P8`, and the tests are g
 independent. We cannot take that win, because a suite that fails a *different* test each run is
 worse than a slow one.
 
-⚠ **The prize is smaller than that 15× now, and the defect is unchanged.** Since 2026-08-10 the
-serial suite is **~4 minutes**: the 14 heaviest rows run `--native-release` (`tools/run_tests.sh`
-→ `NATIVE_TESTS`), which bought most of what serial execution was costing. Parallelism is still
-the bigger remaining lever — 98 rows on 24 cores — but it is now a ~4-minute problem, not an
-18-minute one, so this ticket should be prioritised on the concurrency defect being a *defect*
-(a panic where a fallback exists), not on the wall clock it would save us.
+⚠ **Both halves of that prize have since been taken, which changes what this ticket is FOR.**
+Since 2026-08-10 the roster runs `--native-release` on its 14 heaviest rows and 8-wide, and the
+gate is **~1.5-2.5 min**. So we are no longer blocked, and the wall clock is no longer the
+argument. What remains is the part that was always the serious half: **a cdylib that cannot be
+wired PANICS instead of falling back to the interpreted body that is sitting right there**. That
+turns a transient into a red suite, and it is why this defect could hold a 24-core box hostage
+for months. Prioritise it as a robustness bug, not as a performance one — and note that our
+green passes make it *harder* to reproduce upstream, not less real.
 
 ### Workaround (partial)
 

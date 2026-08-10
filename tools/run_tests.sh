@@ -112,15 +112,75 @@ NATIVE_TESTS="questtest stocktest traveltest surfacetest replaytest safetytest
 # shellcheck disable=SC2086  # the word-splitting IS the normalisation
 NATIVE_TESTS=$(printf '%s ' $NATIVE_TESTS)
 
-# run <src-file> <ok-marker> <log> <fail-text> <label> [program-arg]
+# ── HOW MANY AT ONCE, AND WHY THE ROWS STILL PRINT IN ORDER ─────────────────
+#
+# The tests are genuinely independent — separate processes, separate /tmp logs, no
+# shared output file (figtest's build/figure.glb is the only write, and it is its
+# own) — so the 24 cores were sitting idle for the whole gate. At GATE_JOBS=8 the
+# roster takes ~50 s of wall clock against ~4 min serially.
+#
+# ⚠ THIS WAS BLOCKED, AND THE BLOCK WAS REAL: LOFT-HANDOFF's cdylib-wiring defect
+# made a parallel suite fail a DIFFERENT test each run (`-P8` killed fieldtest, `-P4`
+# killed wheeltest+linktest, and pre-warming did not help). A suite that is red at
+# random is worse than a slow one, so the gate stayed serial. Re-probed 2026-08-10 on
+# toolchain 2026.8.0: 9 full passes at -P4/-P8/-P16/-P24 plus one with every native row
+# compiling concurrently — all green. That is what re-opened this, and it is also why
+# GATE_JOBS=1 stays one word away: if a row ever goes red under load and green alone,
+# suspect the defect FIRST, and say so in the ticket rather than editing the test.
+#
+# ⚠ ORDERED OUTPUT IS NOT COSMETIC. Rows finish out of order, but the log is the
+# artifact you diff to prove a change behaviour-preserving (see the note above), and a
+# log whose line order depends on scheduling cannot be diffed at all. So workers write
+# results to files and ONE printer walks the roster in order, blocking on each row in
+# turn — the output is byte-for-byte what the serial gate produced, arriving as fast as
+# the pool allows. Do not "simplify" this into printing from the workers.
+if [ -n "${GATE_VERBOSE:-}" ]; then
+  # The old streaming mode tees each test's stdout as it runs; interleaved across 8
+  # workers that is unreadable, so verbose implies serial. It is a debugging mode.
+  GATE_JOBS=1
+fi
+# 8, not 24: the box runs several agents, and the gate is not entitled to all of it.
+# Measured over 13 full passes — P4 61-91 s · P8 46-109 s · P16 53-67 s · P24 46-63 s.
+# The spread inside each column is other agents' load, and it is wider than the gap
+# BETWEEN the columns: past 8 the curve is flat, because what is left is one long test
+# (stocktest ~15 s) and not many short ones. Amdahl, not thrift — raising this buys
+# nothing until the slowest row gets faster.
+GATE_JOBS=${GATE_JOBS:-8}
+echo "  [jobs] ${GATE_JOBS}-wide (GATE_JOBS=1 forces serial; GATE_VERBOSE=1 implies it)"
+ROSTER=$(mktemp)
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK" "$ROSTER" "$GATE_SLOW"' EXIT
+
+# collect <<EOF — file|marker|log|fail-text|label   (order = the order rows PRINT in)
+# collect_one <file> <marker> <log> <fail-text> <label> [program-arg]
 #
 # ⚠ THE OPTIONAL 6th ARG IS WHAT LETS ONE PROGRAM BE SEVERAL TESTS. playtest.loft is a
 # driver; each scripts/*.play is a different claim. Without it they would all report as
 # "playtest" and a red one would not say which playthrough broke. It is also why
-# playtest earns the native list below its 10 s bar: ONE compile serves all three rows.
-run() {
-  t0=$(date +%s%N)
-  stem=$(basename "$1" .loft)
+# playtest earns the native list above its 10 s bar: ONE compile serves all three rows.
+#
+# ⚠ THE FREE-TEXT LABEL GOES LAST, AND THAT IS LOad-BEARING. Labels contain prose, and
+# prose contains pipes: stairtest's is `min tread = sqrt(3)*max|cos|; nosing …`. A reader
+# that splits into a fixed number of fields hands the leftovers to whatever variable comes
+# last — so with the label in the middle, `cos` landed in the PROGRAM-ARGUMENT slot and
+# the row ran as `stairtest cos`, printing itself as `stairtest:cos`. It stayed green only
+# because stairtest ignores argv; the same leak into playtest would have silently run a
+# different playthrough than the one the row claims. Keeping the label last restores what
+# the old 5-field read got for free: the remainder belongs to the prose.
+collect_one() { printf '%s|%s|%s|%s|%s|%s\n' "$1" "$2" "$3" "$4" "${6:-}" "$5" >> "$ROSTER"; }
+collect() {
+  while IFS='|' read -r file marker log fail label; do
+    [ -n "$file" ] || continue
+    collect_one "$file" "$marker" "$log" "$fail" "$label"
+  done
+}
+
+# run_one <index> <roster-line> — runs one row and writes its verdict for the printer.
+# The result file is written via mv so the printer can never read a half-written line.
+run_one() {
+  idx=$1
+  IFS='|' read -r file marker log fail arg label <<<"$2"
+  stem=$(basename "$file" .loft)
   mode=--interpret
   tag=
   if [ -z "${GATE_NO_NATIVE:-}" ]; then
@@ -128,45 +188,106 @@ run() {
       *" $stem "*) mode=--native-release; tag=' ·native' ;;
     esac
   fi
+  t0=$(date +%s%N)
   if [ -n "${GATE_VERBOSE:-}" ]; then
-    echo "  $5"
+    echo "  $label"
     # shellcheck disable=SC2086  # FLAGS must word-split into --path/--lib
-    "$LOFT" $mode $FLAGS "$1" ${6:+"$6"} | tee "$3"
+    "$LOFT" $mode $FLAGS "$file" ${arg:+"$arg"} | tee "$log"
   else
     # shellcheck disable=SC2086
-    "$LOFT" $mode $FLAGS "$1" ${6:+"$6"} > "$3" 2>&1
+    "$LOFT" $mode $FLAGS "$file" ${arg:+"$arg"} > "$log" 2>&1
   fi
   ms=$(( ($(date +%s%N) - t0) / 1000000 ))
   name=$stem
-  [ -z "${6:-}" ] || name="$name:$(basename "$6" .play)"
-  printf '%s %s\n' "$ms" "$name" >> "$GATE_SLOW"
-  if grep -q "$2" "$3"; then
-    [ -n "${GATE_VERBOSE:-}" ] || printf '  ok %6d.%ds  %s%s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$tag"
-  else
-    # ⚠ A FAILURE PRINTS ITS EVIDENCE. The old form printed only "FAIL: <text>" and
-    # left the reader to go find the log; the run had already scrolled past.
-    printf '  FAIL %4d.%ds  %s%s — %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$tag" "$4"
-    echo "       ---- $3 (tail, compiler noise stripped) ----"
-    grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' "$3" | tail -12 | sed 's/^/       /'
-    # ⚠ SAY WHOSE BUG IT MIGHT BE. This row ran through rustc, so a red here has two
-    # possible authors; the one-line re-run separates them before anyone starts reading
-    # crawler diffs for a fault that is in the native backend.
-    [ -z "$tag" ] || echo "       (ran --native-release; GATE_NO_NATIVE=1 tools/run_tests.sh … re-runs it interpreted — green there = a loft codegen divergence, not our change)"
-    exit 1
-  fi
+  [ -z "$arg" ] || name="$name:$(basename "$arg" .play)"
+  st=ok
+  grep -q "$marker" "$log" || st=FAIL
+  printf '%s|%s|%s|%s|%s|%s\n' "$ms" "$st" "$name" "$tag" "$log" "$fail" > "$WORK/$idx.tmp"
+  mv "$WORK/$idx.tmp" "$WORK/$idx.res"
 }
 
-# table <<EOF — file|marker|log|fail-text|label  (order = execution order)
-table() {
-  while IFS='|' read -r file marker log fail label; do
-    [ -n "$file" ] || continue
-    run "$file" "$marker" "$log" "$fail" "$label"
-  done
+# drain — run every collected row through a pool of GATE_JOBS workers, printing each in
+# roster order as its verdict lands. Returns non-zero if any row went red.
+#
+# ⚠ IT REPORTS EVERY FAILURE, NOT THE FIRST. The serial gate exited on the first red,
+# which was right when a red cost you the rest of a 13-minute run; at 50 s the whole
+# roster is cheaper than a second trip, and "these four broke" is a different diagnosis
+# from "this one broke" — especially for a change that touches the kernel.
+drain() {
+  (
+    i=0
+    while IFS= read -r line; do
+      i=$((i + 1))
+      while [ "$(jobs -rp | wc -l)" -ge "$GATE_JOBS" ]; do wait -n; done
+      run_one "$i" "$line" &
+    done < "$ROSTER"
+    wait
+  ) &
+  pool=$!
+  reds=0
+  i=0
+  while IFS= read -r line; do
+    i=$((i + 1))
+    # ⚠ NEVER BLOCK FOREVER ON A VERDICT THAT IS NOT COMING. A worker killed outright
+    # (OOM, a loft abort that takes the shell with it) writes no result file, and a
+    # printer that only waits would hang the gate with no output and no exit code —
+    # strictly worse than the failure it is reporting. Once the pool is gone, a missing
+    # verdict IS the verdict.
+    while [ ! -f "$WORK/$i.res" ]; do
+      kill -0 "$pool" 2>/dev/null || break
+      sleep 0.1
+    done
+    if [ ! -f "$WORK/$i.res" ]; then
+      printf '  FAIL    ----  %s — worker produced no verdict (killed?); log: %s\n' \
+        "$(basename "${line%%|*}" .loft)" "$(echo "$line" | cut -d'|' -f3)"
+      reds=$((reds + 1))
+      continue
+    fi
+    IFS='|' read -r ms st name tag log fail < "$WORK/$i.res"
+    printf '%s %s\n' "$ms" "$name" >> "$GATE_SLOW"
+    if [ "$st" = ok ]; then
+      [ -n "${GATE_VERBOSE:-}" ] || printf '  ok %6d.%ds  %s%s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$tag"
+    else
+      # ⚠ A FAILURE PRINTS ITS EVIDENCE. The old form printed only "FAIL: <text>" and
+      # left the reader to go find the log; the run had already scrolled past.
+      printf '  FAIL %4d.%ds  %s%s — %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$tag" "$fail"
+      echo "       ---- $log (tail, compiler noise stripped) ----"
+      grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' "$log" | tail -12 | sed 's/^/       /'
+      # ⚠ SAY WHOSE BUG IT MIGHT BE. This row ran through rustc, so a red here has two
+      # possible authors; the one-line re-run separates them before anyone starts reading
+      # crawler diffs for a fault that is in the native backend.
+      [ -z "$tag" ] || echo "       (ran --native-release; GATE_NO_NATIVE=1 make test re-runs it interpreted — green there = a loft codegen divergence, not our change)"
+      # ⚠ AND WHETHER IT MIGHT BE THE SCHEDULE. Parallel is new; a row that is red here
+      # and green alone is the cdylib defect above, not a change to this test.
+      [ "$GATE_JOBS" -eq 1 ] || echo "       (ran with GATE_JOBS=$GATE_JOBS; GATE_JOBS=1 make test re-runs the gate serially — green there = the cdylib concurrency defect, LOFT-HANDOFF)"
+      reds=$((reds + 1))
+    fi
+  done < "$ROSTER"
+  wait "$pool"
+  [ "$reds" -eq 0 ]
 }
 
+# ── THE SERIAL PRELUDE: everything the parallel rows are allowed to ASSUME ──
+#
+# Four preconditions, in order, before any test starts. Three of them were previously
+# scattered BETWEEN the tables, which only worked because execution was serial.
+#
+# ⚠ THE BUNDLE REGENERATION IS THE ONE THAT HAD TO MOVE. It rewrites the generated
+# src/*_gen.loft registries that ~45 tests read, so with a worker pool it cannot sit in
+# the middle of the roster — a test would read a registry being rewritten under it, and
+# the failure would look like a content bug and move between runs. Hoisting it also
+# fixes something the serial order got away with: the rows that used to run BEFORE it
+# were reading whatever registries happened to be on disk. Now every row sees freshly
+# generated ones, which is what `make play` sees.
+#
+# The self-test is first because it is the kernel's own claim: if that is broken, the
+# other 97 rows are 97 restatements of the same fault. The compile gate and the two
+# seam checks are pure reads — they are here so a broken build fails in seconds rather
+# than after the pool has run.
+
+echo "  [prelude 1/4] kernel self-test (headless, deterministic) ..."
 # shellcheck disable=SC2086
 if [ -n "${GATE_VERBOSE:-}" ]; then
-  echo "  [1/14] kernel self-test (headless, deterministic) ..."
   "$LOFT" --interpret $FLAGS "$KTEST" | tee /tmp/story_selftest.log
 else
   "$LOFT" --interpret $FLAGS "$KTEST" > /tmp/story_selftest.log 2>&1
@@ -176,7 +297,23 @@ grep -q "ALL CHECKS PASS" /tmp/story_selftest.log || {
   grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' /tmp/story_selftest.log | tail -12 | sed 's/^/       /'
   exit 1; }
 
-table <<'EOF'
+echo "  [prelude 2/4] compile gate (parse + bytecode) ..."
+# shellcheck disable=SC2086
+"$LOFT" --interpret --check $FLAGS "$SRC" >/dev/null 2>&1 || {
+  echo "    FAIL: compile"; exit 1; }
+
+echo "  [prelude 3/4] regenerate bundle registries (before any row reads them) ..."
+"$LOFT" --interpret src/genbundles.loft >/dev/null 2>&1
+
+echo "  [prelude 4/4] seams: no engine spawn by monster key (plan #4 A) · library seam (ADOPTION.md P4) ..."
+if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then
+  echo "    FAIL: engine references a monster key:"
+  grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal
+  exit 1
+fi
+python3 tools/libcheck.py || exit 1
+
+collect <<'EOF'
 src/combattest.loft|COMBAT OK|/tmp/story_combat.log|combat loop|[2/14] combat loop (player melee + enemy attacks) ...
 src/wiretest.loft|WIRING OK|/tmp/story_wire.log|dungeon wiring|[3/14] dungeon wiring (procedural gen + DB monsters) ...
 src/aitest.loft|AI OK|/tmp/story_ai.log|monster AI|[4/14] monster AI (awareness + never-move) ...
@@ -191,17 +328,10 @@ src/fovtest.loft|FOV OK|/tmp/story_fov.log|FOV|[12/14] FOV (facing-cone fog-of-w
 src/sprite_drawtest.loft|SPRITE OK|/tmp/story_sprite.log|sprite rasterizer|[13/14] sprite rasterizer (fill_polygon scanline) ...
 EOF
 
-echo "  [14/14] compile gate (parse + bytecode) ..."
-# shellcheck disable=SC2086
-"$LOFT" --interpret --check $FLAGS "$SRC" >/dev/null 2>&1 || {
-  echo "    FAIL: compile"; exit 1; }
-
-echo "  [bundles] regenerate index + character-bundle test ..."
-"$LOFT" --interpret src/genbundles.loft >/dev/null 2>&1
-run src/bundletest.loft "BUNDLE OK" /tmp/story_bundle.log "bundles" \
+collect_one src/bundletest.loft "BUNDLE OK" /tmp/story_bundle.log "bundles" \
   "[bundles] character-bundle test ..."
 
-table <<'EOF'
+collect <<'EOF'
 src/bundledeftest.loft|BUNDLEDEF OK|/tmp/story_bundledef.log|bundle-defs|[bundle-defs] world bundle enemies/items -> catalog merge ...
 src/deftest.loft|DEFS OK|/tmp/story_defs.log|defs|[defs] class/race/item tables — races now per-bundle via race_catalog ...
 src/montest.loft|ENEMY DB OK|/tmp/story_mondb.log|enemy-database|[mondb] the engine monster table: the depth filter actually filters; uniques + final boss ...
@@ -230,19 +360,7 @@ src/overlandtest.loft|OVERLAND OK|/tmp/story_overland.log|overland|[overland] th
 src/cavetest.loft|CAVE OK|/tmp/story_cave.log|cave|[cave] natural caves: mouths on the surface, narrow winding levels ...
 EOF
 
-echo "  [seam] trait seam: no engine spawn by monster key (plan #4 A) ..."
-if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then
-  echo "    FAIL: engine references a monster key:"
-  grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal
-  exit 1
-fi
-
-# The library seam, next to the bundle one: no forked module, no shadowed name, no second
-# resolution path (ADOPTION.md P4). Reads committed files only — no toolchain, ~1 s.
-echo "  [libs] library seam: lock complete, no --lib shadowing, no forked module (ADOPTION.md P4) ..."
-python3 tools/libcheck.py || exit 1
-
-table <<'EOF'
+collect <<'EOF'
 src/traveltest.loft|TRAVEL OK|/tmp/story_travel.log|travel|[travel] window crossing + the desert gate ...
 src/idletest.loft|IDLESKIP OK|/tmp/story_idle.log|idle-skip|[idle-skip] scene key: hold when idle, bump on events (plan #7 P1) ...
 src/pointstest.loft|POINTS OK|/tmp/story_points.log|railway-points|[points] turnout + reverse curve: 15-deg sweeps, G1, order-free (plan #5) ...
@@ -299,14 +417,14 @@ EOF
 # ⚠ ONE ROW PER SCRIPT, NOT A LOOP OVER scripts/*.play. A glob would let a script be
 # added and silently never run if it failed to match, and would hide WHICH playthrough
 # broke behind one label. Each is named here, and each names what it claims.
-run src/playtest.loft "PLAY OK" /tmp/story_play_descend.log "playthrough: descend" \
+collect_one src/playtest.loft "PLAY OK" /tmp/story_play_descend.log "playthrough: descend" \
   "[play] scripts/descend.play: walking onto a stair rebuilds the level, the character crosses ..." \
   scripts/descend.play
-run src/playtest.loft "PLAY OK" /tmp/story_play_respawn.log "playthrough: respawn" \
+collect_one src/playtest.loft "PLAY OK" /tmp/story_play_respawn.log "playthrough: respawn" \
   "[play] scripts/respawn.play: death is a setback — checkpoint respawn keeps the kit (DESIGN 3a) ..." \
   scripts/respawn.play
 
-table <<'EOF'
+collect <<'EOF'
 src/chunktest.loft|CHUNK OK|/tmp/story_chunk.log|chunk|[chunk] @PLN2 detail chunk: base+0.1m round-trip / watertight seam / 32x32 addressing ...
 src/chunkgeotest.loft|CHUNKGEO OK|/tmp/story_chunkgeo.log|chunk-geo|[chunk-geo] @PLN2 S1 two-tier map: overworld hex + detail raster round-trips / tier sizes ...
 src/chunkgentest.loft|CHUNKGEN OK|/tmp/story_chunkgen.log|chunk-gen|[chunk-gen] @PLN2 S2 overworld chunk from the engine: faithful sample + deterministic ...
@@ -314,6 +432,15 @@ src/detailtest.loft|DETAIL OK|/tmp/story_detail.log|detail|[detail] @PLN2 S3 det
 src/meshchunktest.loft|MESHCHUNK OK|/tmp/story_meshchunk.log|mesh-chunk|[mesh-chunk] @PLN2 S4 chunk heightfield mesh: count / follows-data / watertight / deterministic ...
 src/talustest.loft|TALUS OK|/tmp/story_talus.log|talus|[talus] @PLN2 S6.2 angle-of-repose talus on the detail tier: rubble conserved / repose / deterministic / faces+scree ...
 EOF
+
+# ── RUN THE ROSTER ──────────────────────────────────────────────────────────
+# Everything above only COLLECTED rows; this is the one place they execute. The tables
+# stay written out one row per line because that is still the roster (a glob would let a
+# test be added and silently never run) — parallelism changed how they are dispatched,
+# not what the gate claims to cover.
+GATE_RED=0
+echo "  [tests] $(wc -l < "$ROSTER") rows, $GATE_JOBS at a time (GATE_JOBS=1 for serial) ..."
+drain || GATE_RED=1
 
 # The games kernel (@PLN18 engine_host) lives in the sibling loft checkout — its
 # natives ride the installed binary, the lib surface rides ../loft/lib. Skip (not
@@ -340,18 +467,45 @@ fi
 # absolute (5 s) rather than a top-N: a top-N always prints something and so says
 # nothing, while a fixed bar goes SILENT once the suite is uniformly fast, which is
 # the state we want it to be able to report.
+#
+# ⚠ THE PER-ROW SECONDS ARE NOW WALL TIME UNDER CONTENTION, not the cost of the test.
+# With GATE_JOBS workers sharing 24 cores a row reports longer than it would alone, and
+# the sum of the rows exceeds the gate's own wall clock. They still rank the roster —
+# which is all this list is for — but do NOT quote one as a measurement. Measure a test
+# by running it by itself, the way you iterate on it anyway.
+#
+# ⚠ AND THE 5 s BAR ONLY MEANS SOMETHING SERIALLY. Under the pool every row's wall time
+# inflates — measured at 8-wide, matrixtest went 1.0 s -> 16.9 s — so the absolute bar
+# named FIFTY-ONE rows on the first parallel run: a list that long is the "always prints
+# something, therefore says nothing" failure the paragraph above rejects, arrived at from
+# the other direction. What sets a PARALLEL gate's clock is its longest rows, so that is
+# what it reports; the absolute bar survives unchanged where it is still valid, at
+# GATE_JOBS=1. Either way the line goes silent when nothing is slow, which is the point.
 if [ -s "$GATE_SLOW" ]; then
-  slow=$(sort -rn "$GATE_SLOW" | awk '$1 >= 5000 {printf "%s %d.%ds", sep, $1/1000, ($1%1000)/100; sep=" ·"} {}' \
-         | sed 's/^ *//')
   total=$(( $(date +%s) - GATE_T0 ))
   n=$(wc -l < "$GATE_SLOW")
-  if [ -n "$slow" ]; then
-    printf '  %d tests in %dm%02ds · over 5s: %s\n' "$n" "$((total / 60))" "$((total % 60))" \
-      "$(sort -rn "$GATE_SLOW" | awk '$1 >= 5000 {printf "%s%s %d.%ds", sep, $2, $1/1000, ($1%1000)/100; sep=" · "}')"
+  if [ "$GATE_JOBS" -eq 1 ]; then
+    slow=$(sort -rn "$GATE_SLOW" | awk '$1 >= 5000 {printf "%s%s %d.%ds", sep, $2, $1/1000, ($1%1000)/100; sep=" · "}')
+    if [ -n "$slow" ]; then
+      printf '  %d tests in %dm%02ds · over 5s: %s\n' "$n" "$((total / 60))" "$((total % 60))" "$slow"
+    else
+      printf '  %d tests in %dm%02ds · none over 5s\n' "$n" "$((total / 60))" "$((total % 60))"
+    fi
   else
-    printf '  %d tests in %dm%02ds · none over 5s\n' "$n" "$((total / 60))" "$((total % 60))"
+    slow=$(sort -rn "$GATE_SLOW" | head -6 | awk '$1 >= 5000 {printf "%s%s %d.%ds", sep, $2, $1/1000, ($1%1000)/100; sep=" · "}')
+    if [ -n "$slow" ]; then
+      printf '  %d rows in %dm%02ds at %d-wide · the tail that sets the clock (wall, contended): %s\n' \
+        "$n" "$((total / 60))" "$((total % 60))" "$GATE_JOBS" "$slow"
+    else
+      printf '  %d rows in %dm%02ds at %d-wide · none over 5s\n' "$n" "$((total / 60))" "$((total % 60))" "$GATE_JOBS"
+    fi
   fi
 fi
 rm -f "$GATE_SLOW"
+
+# ⚠ THE EXIT STATUS IS THE POINT. drain() reports every red row rather than dying on the
+# first, so the run reaches here either way — without this check a broken gate would
+# print its failures and still exit 0, which is the one failure mode a gate may not have.
+[ "$GATE_RED" -eq 0 ] || { echo "  FAILED"; exit 1; }
 
 echo "  PASS"

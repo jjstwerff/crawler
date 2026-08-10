@@ -44,9 +44,16 @@ where crawler sits in the stack.
   `loft --version` is not provenance. Two logs with different md5 are not comparable.
 - **The gate is quiet and green — 97 test files, 98 rows** (`playtest` runs 3×), after the five
   unwired tests were wired in on 2026-08-10 and a duplicate `canopytest` row removed. **It runs
-  in ~4 min** (measured 2026-08-10: 4m03s on a busy box), down from 10–13 min, because the 14
-  tests (16 rows) that held most of the wall clock now run `--native-release`, the rest interpret
-  — `tools/run_tests.sh` → `NATIVE_TESTS`. ⚠ **Budget by CACHE STATE now, not only by load**:
+  in ~1.5–2.5 min** (measured 2026-08-10: 1m29s and 2m29s on a shared box; `GATE_JOBS=1` serial
+  is 3m15s), down from 10–13 min via two changes: the 14 tests (16 rows) that held most of the
+  wall clock now run `--native-release` while the rest interpret (`tools/run_tests.sh` →
+  `NATIVE_TESTS`), and rows run **8 at a time**. ⚠ **Parallel was BLOCKED and is now open**:
+  LOFT-HANDOFF's cdylib-wiring defect made a parallel suite fail a different test each run;
+  re-probed 2026-08-10 on 2026.8.0 over **13 full passes** at -P4/-P8/-P16/-P24 (plus one with
+  every native row compiling at once) — all green. A row that is red under load and green at
+  `GATE_JOBS=1` is that defect, not the test. ⚠ **Per-row seconds are now wall time under
+  contention** (`matrixtest` 1.0 s → 16.9 s at 8-wide): they rank the roster, they are not
+  measurements. ⚠ **Budget by CACHE STATE too, not only by load**:
   those rows cost ~10 s of rustc each whenever their compile cache is cold, which a kernel edit
   does to the 40 tests that transitively `use sim` and a `make install` in `../loft` does to all
   of them. One `ok <secs> <name>` line per test (`·native` marks a compiled row), a closing line
@@ -268,8 +275,9 @@ because of a negative control the *other* agent found. → `EXTRACTION.md`, `LOF
 ## How to run things
 
 ```sh
-make test                     # the headless suite (97 files / 98 rows, ~4 min) — ONCE before committing
+make test                     # the headless suite (97 files / 98 rows, ~1.5-2.5 min) — ONCE before committing
 GATE_NO_NATIVE=1 make test    # …with every row interpreted (is a red row OURS or the backend's?)
+GATE_JOBS=1 make test         # …serially (is a red row REAL, or the cdylib concurrency defect?)
 loft --interpret --path ../loft/ --lib ../loft/lib/ src/<x>test.loft   # + the bundles/ --libs
 loft --native-release …       # same, for a test that costs >10s interpreted (~10s to compile once)
 python3 tools/glbview.py build/x.glb out.png --eye 30,-46,12 --target=-4,0,6 \
