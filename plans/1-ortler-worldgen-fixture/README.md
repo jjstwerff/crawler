@@ -269,6 +269,47 @@ such checkpoint.
 - **Moraine / glacial debris** apron below glacier tongues — distinct from `K_SCREE`?
 - **Glacier `K_ICE` vs permanent snowfield `K_SNOW`** — likely adequate; confirm.
 
+## A CONFIRMED defect, handed over from plan #17 — meadow is 0.3 ‰
+
+⚠ **Not a hypothesis and not a taxonomy question — an ordering bug in `ov_kind_at`, measured
+2026-08-09.** Found while [#17](../17-safe-supply/) was measuring why no alchemist gatherer
+ever spawns (it needs scree-or-meadow ≥14 hexes from a town, and meadow is 15 samples in
+48 600 world-wide — rarer than swamp, river *and* glacier ice).
+
+Two rules were written independently and **the earlier one silently voids the later one**:
+
+```
+:1280   if h >= SNOWL || (steep > 20.0 && h >= SNOWL - 870.0 && slope < 0.46) {
+          … return (h, K_SNOW);              // "snow crouches far down on gentle ground"
+:1285   if steep > 20.0 {
+          // the alpine zone: meadows claim the gentle ground
+:1287     if h >= TREEL { … return (h, K_MEADOW); }
+```
+
+`TREEL = 2150`, `SNOWL = 3100` → the snow branch reaches down to **2230 m** and runs **first**,
+so meadow gets `2150..2230` — **80 m of the 950 m** its own comments describe (*"treeline:
+forest below, alpine meadow above"*).
+
+Bucketed by height over 194 400 samples:
+
+| band | samples | meadow | what is there instead |
+|---|---|---|---|
+| **A** `2150–2230` — all meadow may occupy | 769 | **72** | scree 165, face 531 |
+| **B** `2230–3100` — treeline→snowline | **7 723** | **0** | **snow 1 749**, scree 1 656, face 3 944, ice 369 |
+| **C** `3100+` — above the snow line | 2 313 | 0 | snow 2 140 — correct |
+
+Band B is **10× band A with no meadow at all**. Its 3 944 `face` are genuinely steep
+(`slope > 0.55`) and its scree is the `band < 0.10` arm — both right. **The stolen ground is
+the 1 749 `snow`**: gentle land *below* the snow line that the alpine branch two lines later
+exists to make meadow. Freeing it multiplies meadow ~**25×**.
+
+**Recommended fix:** shrink the snow reach-down so it stops at or above `TREEL` — keeping
+*"snow crouches far down on gentle ground"* true without erasing the zone the next branch is
+written to produce. ⚠ **Left for this plan on purpose**: it changes how the whole world looks
+(the user judges aesthetics) and default tuning is this plan's subject, not #17's. It also
+partly answers the *"alpine tundra / krummholz band … lumped into `K_FOREST`/`K_MEADOW`"*
+hypothesis above — the band is not lumped, it is **overwritten by snow**.
+
 ## Roadmap / conditional follow-on
 
 - Verdict **"14 kinds suffice"** → land the S7 defaults into `ov_sample`

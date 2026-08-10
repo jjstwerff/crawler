@@ -223,12 +223,52 @@ written, gated by nothing, and unreachable in play. **That is the `F6` failure a
 and in the one place nobody was watching** — a system can be complete, tested, and never
 execute.
 
-⚠ **Open, and it is the user's call** (recorded, not chosen): the home window is coastal *by
-design*, so does the gatherer (a) accept the terrain that is actually there — forest is 208 ‰
-and unused for picking, (b) get alpine terrain brought into a town window, or (c) belong to
-mountain windows only, leaving the home town's single lever as the mine? ⚠ **(c) is the cheap
-answer and the weakest one** — it leaves the starting settlement with one threatened work site
-and two workers to show the whole loop with.
+### Why meadow is 0.3 ‰ — an exact defect in `ov_kind_at`, not a tuning choice
+
+⚠ **Widening what counts as a picking ground was never an option**: `CLAUDE.md` forbids
+nerfing content to fit a half-built system — *"build SYSTEMS to realize it"*. Meadow being
+rarer than **swamp, river and glacier ice**, in a world whose premise is Ortler alpine terrain,
+is a generator defect. It is, and the mechanism is exact.
+
+Two rules were written independently, and **the earlier one silently voids the later one**:
+
+```
+overland.loft:1280   if h >= SNOWL || (steep > 20.0 && h >= SNOWL - 870.0 && slope < 0.46) {
+                       … return (h, K_SNOW);              // "snow crouches far down"
+overland.loft:1285   if steep > 20.0 {
+                       // the alpine zone: meadows claim the gentle ground
+overland.loft:1287     if h >= TREEL { … return (h, K_MEADOW); }
+```
+
+`TREEL = 2150`, `SNOWL = 3100`, so the snow branch reaches down to **2230 m** and runs
+**first**. Meadow's comments describe treeline→snowline — **950 m** — and the code leaves it
+`2150..2230`: **80 m, 8 % of the intended zone.**
+
+Measured over 194 400 samples, bucketed by height:
+
+| band | samples | meadow | what is there instead |
+|---|---|---|---|
+| **A** `2150–2230` — all meadow may occupy | 769 | **72** | scree 165, face 531 |
+| **B** `2230–3100` — treeline→snowline | **7 723** | **0** | **snow 1 749**, scree 1 656, face 3 944, ice 369 |
+| **C** `3100+` — above the snow line | 2 313 | 0 | snow 2 140 — correct here |
+
+⚠ **Band B is ten times band A and holds no meadow at all.** The 3 944 `face` in it are
+genuinely steep (`slope > 0.55`) and the scree is the `band < 0.10` arm — both correct. **The
+stolen ground is the 1 749 `snow`**: gentle land *below the snow line*, between the treeline
+and the snow line, which the alpine branch two lines later exists to make meadow. Freeing it
+multiplies meadow by roughly **25×**, and puts scree-or-meadow within reach of a town window —
+which is all the gatherer ever needed.
+
+⚠ **NOT FIXED HERE, deliberately.** The one-line change is to a world-generation constant: it
+alters how the whole world looks (the user judges aesthetics), and it is
+[plan #1](../1-ortler-worldgen-fixture/)'s subject — *terrain-taxonomy adequacy + default tuning, real
+Ortler terrain* — not #17's. Recorded with the measurement so #1 can act on evidence rather
+than taste. **The recommendation is to shrink the snow reach-down so it stops at or above
+`TREEL`**, leaving "snow crouches far down on gentle ground" true without erasing the zone the
+next branch is written to produce.
+
+Until it moves, the home town's only lever is **the mine**, and `S3` must be honest that the
+loop's visible surface is one site and two workers.
 
 ### `S5` — contested safety, designed
 
