@@ -7,8 +7,16 @@
 
 **`status:active` from 2026-08-09** (user), taking `#12`'s slot — the roster is
 `#11`/`#13`/`#17`, still at the cap of three. `S0` is shipped: the design (`CRAFTING.md`)
-and the measurement of what already exists, which turned out to be most of it. `S1`–`S3` are
-**shipped and armed**; `S4`–`S7` are designed, and each is written out below.
+and the measurement of what already exists, which turned out to be most of it. `S1`–`S3` and
+**`S5`** are **shipped and armed**; `S4`, `S6`, `S7` are designed, and each is written out below.
+
+> **→ NEXT: make the settlement's supply depend on ground that can become unsafe.** `S5`
+> ships the danger and gates that it reaches the work, but production does not move: with
+> raiders camped on the picking ground for 2454 of 2800 ticks the week's stock ran 4→8 and sat
+> at the **cap**, against 2..6 drawn down with the den cleared. `npc_gather`'s trapping arm
+> fills the bag anywhere, so supply has a second path nothing can make unsafe. Numbers and the
+> ruled-out fix: *`S5` did NOT close the output coupling*, below. This is `I-SAFE` itself, and
+> it is the last link in the plan's own title.
 
 **Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
 on it by construction (`M3` authors 18 Handiness values against this system), and its own
@@ -68,7 +76,7 @@ that only became visible once both were on the page:
 | **`S2`** — workers refuse to ENTER unsafe ground | S | `make test` (`safetytest`) | ✅ **Shipped** |
 | **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (`stocktest`) | ✅ **Shipped and ARMED** |
 | **`S4`** — the world shows it, with no panel | M | `make play`, a user read | **Unblocked** — the short batch already thins the stall |
-| **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` + a `scripts/*.play` session | Blocked on `S2` |
+| **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` (`incursiontest`) | ✅ **Shipped and ARMED** — output coupling still open |
 | **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` + a `scripts/*.play` session | **Designed, not built** |
 | **`S7`** — standing, and the militia it raises | M | `make test` + a `scripts/*.play` session | **Designed, not built** |
 
@@ -428,6 +436,66 @@ a difficulty dial keyed to the player, or it reads as punishment for progress (`
 **A cleared source stays cleared** — what returns is a new thing from a new place. Durable
 enough that clearing is worth doing, contested enough that the world stays alive. The
 counters already exist: guards patrol, walls ring the towns, roads carry carts.
+
+### ✅ `S5` is BUILT, ARMED and GATED — and it took five defects, each hidden by the last
+
+Shipped 2026-08-10. `raid` on `Enemy`, `send_incursions` at each dawn, `raider_step` down the
+same path field the civilians use, `raid_objective`, worldgen's **den over the ridge**, and
+`incursiontest` (7 rows, in `NATIVE_TESTS` — 30 s interpreted, **2.1 s** compiled).
+
+**I-SOURCE holds as designed:** a source sends when it is alive and has fewer than `RAID_CAP`
+out, and that is the *entire* condition. No timer anywhere. The gate leans on that directly —
+`sim_dawn` runs ten dawns back to back with no time between them and the cap still binds,
+which is only a faithful stand-in *because* the rule does not read the calendar. One row still
+ticks the world for its send, or nothing would prove the dawn is wired at all.
+
+⚠ **Every one of the five defects looked exactly like a raid that was never sent.** That is
+the repo's standing failure mode (STATE.md lesson 3) arriving five more times in one step.
+
+| # | the defect | how it looked | the fix |
+|---|---|---|---|
+| 1 | `raider_step` refused an **occupied** neighbour — but a raider spawns inside its own den, where the one improving neighbour is a sleeping kinsman, and sleepers never move | held position 26 hexes out, forever | drop the occupancy test. `occupied_hex` is the **civilian** rule; `flow_step` (the chase) has none, so one actor had two contradictory occupancy rules across its two states |
+| 2 | **no source anywhere could reach a settlement.** All three ruins sit in windows with 0 guards and 0 civilians; the home window (4 guards, 24 civilians, the gatherer, the economy) held no tagged monster at all | a green gate over a mechanism the shipped world could never fire | worldgen sites a **den** at the far end of the ground the town can walk |
+| 3 | the objective was the **square** — which is where the guards are, and `hex_safe`'s second term is a guard within `GUARD_R` | 7 days with the den alive: picking ground unsafe **0 ticks**, deliveries **4** — identical to the den cleared | aim at the settlement's most exposed **work**, over ground the source can cross (the first version handed a den a field 45 hexes out with no path; the raider held for a week, 32 hexes short) |
+| 4 | the den landed in a **cul-de-sac** — farthest-reachable is the deepest hex of a pocket, so it has the fewest ways out | one free neighbour, three sleepers took it, the source fielded **one** raider for seven days | require four walkable neighbours. ⚠ `RAID_CAP` was never the binding constraint; the geometry was |
+| 5 | a raider **broke formation** for any hero it saw | both raiders parked beside a hero standing near the town; the mechanism had become "monsters walk at the player" | a raid fights what blocks it (`d <= 1`) and otherwise keeps marching. ⚠ Pressure that only lands while nobody watches is pressure nobody can act on — `F8` from the other side |
+
+**Row 7 is the joint** `safetytest` and `stocktest` could not make between them: the gatherer's
+ground is **safe at genesis**, **unsafe under the raid *with a raider on it***, and **safe
+again** once the cause and its camp are gone. ⚠ The attribution term is load-bearing — 15
+unrelated hostiles share that window, so *"is it unsafe now"* passes on a wandering jackal and
+would have passed against all five broken versions above.
+
+### ⚠ `S5` did NOT close the output coupling, and here are the numbers
+
+**Danger reaches the work. It does not yet cut production.** Measured over seven days on world
+777, den alive vs den cleared at genesis:
+
+| | picking ground unsafe | deliveries | stock by day |
+|---|---|---|---|
+| den **alive** | **2454 / 2800 ticks** | 3 | 4 4 8 7 8 8 8 — sits at the **cap** |
+| den **cleared** | 0 ticks | 4 | 2 2 6 3 6 3 5 — drawn down |
+
+Danger *raised* the stock. The cause is `npc_gather`'s first arm: **trapping a wild thing
+fills the bag anywhere**, so supply has a second path that nothing can make unsafe — and a
+gatherer stalled at the safety border has a *shorter* round trip home than one walking to the
+picking ground. ⚠ Restricting trapping to beyond `GUARD_R` was tried and changed **nothing**
+(the stall already sits 7 hexes out); the fix belongs to the supply model, not to a threshold.
+
+⚠ **So `I-SAFE` — "a settlement's output is a function of the danger around it" — is still
+unproven end to end**, and it now fails for a *known, located* reason rather than an unknown
+one. It is the next step in this plan, and it is small: make the settlement's supply depend
+on ground that can become unsafe.
+
+### ⚠ Open, and the user's call: the starting town is now under pressure from day 1
+
+The den is real, its raiders camp on the only picking ground, and the answer is to go and
+clear it — a **goblin leader, mlvl 5, 17 hexes from town**. That is a strong, legible opening
+(*the alchemist has nothing; goblins are on the slope*) and it is the first danger in the game
+with a **cause the player can end**. It also lands on top of a curve STATE.md already records
+as unowned — a gnoll (mlvl 6) 8 hexes from the vantage, a level-1 hero dead on tick 13
+— and is **DESIGN §3a pillar #8's business**. Shipped as designed, flagged here rather than
+decided: the levers are the den's distance, its `mon_pick_tag` tier, and `RAID_CAP`.
 
 ### `S6` — damage is an event, designed
 

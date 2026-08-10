@@ -876,6 +876,65 @@ fails silently with no diagnostic.
 
 ---
 
+## N3 — returning a struct read out of a `vector<T>` leaks one store record per call
+
+**Found 2026-08-10** on toolchain 2026.8.0 (installed binary md5 `0dabaa1e169e`, `../loft`'s
+working-tree build). Reproduces on `--interpret`; not yet checked on `--native`.
+
+Labels: `sev:low` · `wa:partial` (call it only when the result is used) · `area:stores`
+`hit-by:crawler`
+
+### Summary
+
+A function that selects a record out of a `vector<Struct>` and **returns it by value** leaves
+one store record alive per call. The program prints loft's own exit warning:
+
+```
+Warning: 1 stores not freed at program exit: kt=78 MonsterDef×21
+```
+
+The count tracks the number of CALLS, not the size of the table — 22 calls, 21 records — so it
+is the returned copy that is retained, not the table.
+
+### Minimal reproducer
+
+Against crawler's `monsters.loft`, whose `mon_pick_tag(table, tag, salt) -> MonsterDef` scans
+the vector and `return`s an element:
+
+```loft
+use catalog;
+use monsters;
+fn main() {
+  n = 0;
+  for _ in 0..22 {
+    t = game_monsters();
+    md = mon_pick_tag(t, TAG_RUIN_NEST, 7);   // <- returns an element of `t`
+    n += len(t) + md.m_hp;
+  }
+  println("calls=22 sum={n}");
+}
+```
+→ `Warning: 1 stores not freed at program exit: kt=78 MonsterDef×21`
+
+**The negative control isolates it to the return, not the table build.** Identical loop with
+the `mon_pick_tag` line removed (`for _ in 0..22 { t = game_monsters(); n += len(t); }`) exits
+with **no warning at all** — so building and dropping the vector 22 times is clean.
+
+### Why it matters to a consumer
+
+It is unbounded in a long-running program rather than a fixed cost. crawler hit it in a
+per-dawn code path (`send_incursions`): one leaked record per game day, forever. The warning
+also only appears at exit, so a server or a game loop never sees it.
+
+### Workaround (verified, and what crawler shipped)
+
+Decide everything else FIRST and call the selector only on the branch that actually consumes
+the result — in crawler's case, find the spawn hex before picking the monster, so a den with
+no room to send leaks nothing. That bounds the leak to real uses; it does not remove it.
+Returning an index instead of the record would remove it, at the cost of every call site.
+
+---
+
 ## H7 — `file().content()` returns EMPTY for non-UTF-8 bytes, silently, on both backends
 
 **Status:** ✅ **FILED as [loft#829](https://github.com/loft-lang/loft/issues/829)** (2026-08-09, still reproducing on 2026.8.0) · **Repo:** `loft-lang/loft`

@@ -86,7 +86,7 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 97 (**98 rows** — `playtest` runs 3×) in **~1.5–2.5 min** (measured 2026-08-10,
+test` runs all 98 (**99 rows** — `playtest` runs 3×) in **~1.5–2.5 min** (measured 2026-08-10,
 8-wide: 1m29s / 1m47s / 2m29s warm, **2m43s with a cold native cache**, 3m15s at `GATE_JOBS=1`).
 ⚠ Box load moves that as much as cache state does — the pool absorbs the cold penalty (14
 compiles ≈ 140 s of rustc cost only +56 s of wall clock). It used to be
@@ -168,7 +168,7 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **97 files / 98 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
+  (currently **98 files / 99 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
   defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
   safety/production/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it
   **warning-clean**. ⚠ **WIRING IT IN IS THE STEP THAT GETS SKIPPED, and nothing complains** —

@@ -1,34 +1,48 @@
 # STATE.md — where things stand (2026-08-10)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 98 rows in
-**1m13s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 99 rows in
+**2m13s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
 after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
 
-> ## → NEXT: **plan #17 `S5`** — contested safety, which is what closes danger → output end to end.
+> ## → NEXT: **plan #17** — make the settlement's SUPPLY depend on ground that can become unsafe.
 >
 > **The roster is `#11` 3D world · `#13` scoped identity · `#17` safe supply** (decided
 > 2026-08-09 from evidence, `plans/README.md` → *The active roster*, cap of three). The work
 > is in **`#17`**, and `#16` queues explicitly behind it — #16's `M3` re-authors 18 race
 > blocks with a Handiness value, and what Handiness is *for* is decided in #17.
 >
-> **`S0`–`S3` are shipped and ARMED.** `hex_safe` is the safety **category** and
+> **`S0`–`S3` and `S5` are shipped and ARMED.** `hex_safe` is the safety **category** and
 > `npc_may_enter` the one term that makes a worker refuse unsafe ground (`safetytest`, each
 > claim seen **both ways**). `S3` adds the stock — a number per producer, `raised − drawn`,
-> capped so it can run out — plus the first real bundle `production` section. Measured: stock
-> oscillates 2..8 with deliveries on 4 days in 7, and a safe town makes 27 potions in 16 days
-> against 30 uncoupled.
+> capped so it can run out — plus the first real bundle `production` section. **`S5` adds the
+> danger**: a den at the far end of the ground the town can walk sends raiders at the
+> settlement's most exposed *work*, and clearing the den ends it permanently — eligibility,
+> never a schedule (`incursiontest`, 7 rows).
 >
-> ⚠ **The one link still not gated end to end is hostiles → thinner stalls.** Each half is
-> gated separately (`safetytest`: a worker will not enter unsafe ground; `stocktest`: no supply
-> means no output), but nothing yet puts hostiles on a picking ground and measures the output
-> fall. **That composition is `S5`** — and it is now the cheapest valuable thing in the plan,
-> because both halves exist. → `plans/17-safe-supply/README.md`
+> ⚠ **DANGER NOW REACHES THE WORK; IT STILL DOES NOT CUT OUTPUT.** That last link was `S5`'s
+> headline and `S5` did not close it — but it now fails for a **located** reason. Measured
+> 2026-08-10 over seven days: with raiders camped on the picking ground **2454 of 2800 ticks**
+> the stock ran 4→8 and sat at the **cap**, against 2..6 *drawn down* with the den cleared.
+> Danger *raised* output, because `npc_gather`'s trapping arm fills the bag anywhere — supply
+> has a second path nothing can make unsafe, and a gatherer stalled at the safety border has a
+> shorter round trip than one walking to the picking ground. Restricting trapping to beyond
+> `GUARD_R` was tried and changed **nothing**. → `plans/17-safe-supply/README.md`
 
 ## What moved on 2026-08-09/10
 
+- **The starting town is now CONTESTED** (plan #17 `S5`, 2026-08-10). Worldgen sites a **den**
+  at the far end of the ground the town can walk — a goblin leader (mlvl 5) **17 hexes out**
+  with three sleepers — and each dawn a living den with fewer than `RAID_CAP` of its own out
+  sends one raider at the settlement's most exposed work. Kill the leader and it never sends
+  again. ⚠ **That makes the opening harder on top of a curve nobody owns** (below): the answer
+  is to go and clear it, which is the first danger in the game with a *cause*. Levers are the
+  den's distance, its monster tier and `RAID_CAP` — **DESIGN §3a pillar #8's call, flagged not
+  decided**. ⚠ **And the den exists because the mechanism had NO CONSUMER**: all three of world
+  777's ruins sit in windows with 0 guards and 0 civilians, so `send_incursions` was correct
+  code that could never fire on a settlement anywhere in the shipped world.
 - **The home window is anchored at the alpine town** — `ov_home_town(o)` picks the town with
   the greatest height reach rather than the literal `ov_towns[0]`, so the starting economy has
   both valley fields and high ground. Producers 5 → 6. ⚠ **Its headline — "the gatherer finally
@@ -43,7 +57,7 @@ where crawler sits in the stack.
 - **The toolchain is 2026.8.0** — and it is `../loft`'s *working-tree build*, 15+ commits past
   the tag, rebuilt while gates run. `make test` stamps version + **md5** in its header, because
   `loft --version` is not provenance. Two logs with different md5 are not comparable.
-- **The gate is quiet and green — 97 test files, 98 rows** (`playtest` runs 3×), after the five
+- **The gate is quiet and green — 98 test files, 99 rows** (`playtest` runs 3×), after the five
   unwired tests were wired in on 2026-08-10 and a duplicate `canopytest` row removed. **It runs
   in ~1.5–2.5 min** (measured 2026-08-10, 8-wide: 1m29s / 1m47s / 2m29s warm, 2m43s with a cold
   native cache, 3m15s at `GATE_JOBS=1`; the pool absorbs the cold penalty — 14 compiles ≈ 140 s
@@ -198,9 +212,13 @@ the area — but if it continues, the label is wrong and should move.
   trigger in the game is one hardcoded `infest_trigger == "boss_slain"` check. **Its gate is
   unlike the others:** it already has a known second consumer with *harder* requirements
   (crew_punk has no director), so design it against that and crawler gets the good version free.
-- **`LOFT-HANDOFF.md` H1/H2, G5, and now N1/N2 are unfiled upstream.** N1 (`%` as an if-branch
-  tail breaks `--native` codegen) and N2 (`save_png` returns false under `--native`) are new
-  2026-07-23; both have standalone repros and N1 has a verified workaround already applied.
+- **`LOFT-HANDOFF.md` H1/H2, G5, N1/N2 and now N3 are unfiled upstream.** N1 (`%` as an
+  if-branch tail breaks `--native` codegen) and N2 (`save_png` returns false under `--native`)
+  are from 2026-07-23; both have standalone repros and N1 has a verified workaround already
+  applied. **N3** (2026-08-10) — returning a struct read out of a `vector<T>` leaks one store
+  record **per call**, measured 22 calls → 21 records, with a negative control that isolates it
+  to the return rather than the table build. Unbounded in a long-running program; crawler hit
+  it on a per-dawn path.
 - **Plan #10 P9 leftovers** — the cart is a placement fix; the doors may dissolve under an
   eye-height camera. **`mesh_trunk` not migrated** to `prim_drum`. **Plan #5 `vm_surf`** —
   render-side attribution, the one genuine gap in DESIGN §7.2b.
@@ -217,7 +235,7 @@ extended it: **a first-person camera found a world too small for its own player*
 a 1.45 m door, a 1.75 m figure) which every raised camera had missed.
 
 **3. The failure mode is never a check that fails — it is one that PASSES FOR THE WRONG
-REASON.** The single most productive rule in this repo. Eleven instances, and they arrive by
+REASON.** The single most productive rule in this repo. Fifteen instances, and they arrive by
 genuinely different routes:
 
 - geometry too *thick* to show the bug (a solid wall hides tunnelling; only a thin one shows it)
@@ -254,12 +272,30 @@ genuinely different routes:
   stock simply stayed 0 forever, which reads exactly like "the town is at peace". ⚠ *An input
   that is always zero and an input that is correctly zero are indistinguishable at the
   output* — which is why `S3` measures the supply rather than trusting the coupling.
+- a **mechanism with no consumer** (2026-08-10) — `send_incursions` was correct, gated, and
+  could not fire on a settlement in any window of the shipped world: all three ruins sit
+  where there are 0 guards and 0 civilians. Its own gate passed by generating the window the
+  source was in. *A gate that constructs the situation proves the mechanism, not the game* —
+  worldgen now ships a den where the settlement is, and the gate runs in that window.
+- an **objective at the point of its own cancellation** (2026-08-10) — raiders marched at the
+  market square, which is exactly where `hex_safe`'s guard term holds ground safe. Seven days
+  of raiding left the picking ground unsafe for **0 ticks** and the week's deliveries at 4,
+  identical to no raiding at all. *Arriving is not pressing*; aim at what a settlement depends
+  on, not at its centre.
+- a **cap that was never the binding constraint** (2026-08-10) — `RAID_CAP` is 2 and exactly
+  one raider ever appeared, because "farthest reachable hex" is the deepest point of a pocket
+  and so has the fewest ways out. The geometry capped it at 1 and said nothing. *When a
+  measured number sits below its limit, check what else could be setting it.*
+- a **guard that outlived its reason** (2026-08-10) — `incursiontest` asserted a marching
+  raider was `!awake`, correctly, while waking meant switching to the chase. The fix that made
+  a raid keep formation removed the confound, and the assertion then failed on healthy
+  behaviour. *An assertion encodes a mechanism; change the mechanism and re-derive it.*
 - a **test the gate never runs** (2026-08-10, now fixed) — five test files sat in `src/` and
   appeared in no row of `tools/run_tests.sh`, plus one listed twice. They compiled, so nothing
   complained; they simply never executed. *Being written is not being wired* — and note the
   roster is the only place that knows, so the check has to compare `src/` against it.
 
-**All of them printed a healthy-looking number** — or, in the last two, no number at all. The rule that would have caught every one:
+**All of them printed a healthy-looking number** — or, in several, no number at all. The rule that would have caught every one:
 *state what would have to break for this control to go red, and check that is reachable.* Hence
 a **negative control in every phase** — and note that a negative control which stays green is a
 result, not a formality (P1's did exactly that, revealing two ungated arms of a rule).
@@ -281,7 +317,7 @@ because of a negative control the *other* agent found. → `EXTRACTION.md`, `LOF
 ## How to run things
 
 ```sh
-make test                     # the headless suite (97 files / 98 rows, ~1.5-2.5 min) — ONCE before committing
+make test                     # the headless suite (98 files / 99 rows, ~1.5-2.5 min) — ONCE before committing
 GATE_NO_NATIVE=1 make test    # …with every row interpreted (is a red row OURS or the backend's?)
 GATE_JOBS=1 make test         # …serially (is a red row REAL, or the cdylib concurrency defect?)
 loft --interpret --path ../loft/ --lib ../loft/lib/ src/<x>test.loft   # + the bundles/ --libs
