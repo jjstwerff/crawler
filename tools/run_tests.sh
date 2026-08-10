@@ -142,13 +142,29 @@ if [ -n "${GATE_VERBOSE:-}" ]; then
   # workers that is unreadable, so verbose implies serial. It is a debugging mode.
   GATE_JOBS=1
 fi
-# 8, not 24: the box runs several agents, and the gate is not entitled to all of it.
-# Measured over 13 full passes — P4 61-91 s · P8 46-109 s · P16 53-67 s · P24 46-63 s.
-# The spread inside each column is other agents' load, and it is wider than the gap
-# BETWEEN the columns: past 8 the curve is flat, because what is left is one long test
-# (stocktest ~15 s) and not many short ones. Amdahl, not thrift — raising this buys
-# nothing until the slowest row gets faster.
-GATE_JOBS=${GATE_JOBS:-8}
+# TWO BOUNDS, AND THEY MEAN DIFFERENT THINGS — cores - 2, capped at 8.
+#
+# `cores - 2` is COURTESY: this box runs several agents, and the gate is not entitled to all
+# of it. It also keeps a 2-core machine from running 8 loft processes at once, which the old
+# hardcoded 8 would have done on any box but this one.
+#
+# The cap of 8 is MEASURED, and it is not a core count — do not "fix" it to track nproc.
+# Over 13 full passes: P4 61-91 s · P8 46-109 s · P16 53-67 s · P24 46-63 s. The spread
+# inside each column is other agents' load, and it is WIDER than the gap between the
+# columns: past 8 the curve is flat, because what is left is one long test (stocktest ~15 s)
+# and not many short ones. Amdahl, not thrift — raising the cap buys nothing until the
+# slowest row gets faster, and a 64-core box would just run 64 processes to the same finish.
+cores=$( { nproc || getconf _NPROCESSORS_ONLN; } 2>/dev/null | head -1 )
+case "$cores" in ''|*[!0-9]*) cores=4 ;; esac      # unknown machine: assume small, not huge
+auto=$(( cores > 10 ? 8 : (cores > 2 ? cores - 2 : 1) ))
+GATE_JOBS=${GATE_JOBS:-$auto}
+# ⚠ A BAD OVERRIDE MUST NOT LIMP. GATE_JOBS lands in `[ … -ge "$GATE_JOBS" ]` inside the
+# dispatch loop, so a typo ("GATE_JOBS=eight", "GATE_JOBS=0") would either error once per
+# row for the whole run or spin the launcher forever. Refuse it here, where the message can
+# still say what happened.
+case "$GATE_JOBS" in
+  ''|*[!0-9]*|0) echo "  [jobs] GATE_JOBS='$GATE_JOBS' is not a positive integer — using $auto"; GATE_JOBS=$auto ;;
+esac
 echo "  [jobs] ${GATE_JOBS}-wide (GATE_JOBS=1 forces serial; GATE_VERBOSE=1 implies it)"
 ROSTER=$(mktemp)
 WORK=$(mktemp -d)
