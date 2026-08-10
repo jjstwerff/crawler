@@ -69,9 +69,9 @@ make test     # headless deterministic gate — RUN THIS before committing
               #   --interpret — 7-22x on those, ~10 s of rustc each when their cache
               #   is cold. GATE_NO_NATIVE=1 puts every row back on the interpreter:
               #   that is how you tell a native-codegen divergence from your own bug.
-              #   Rows run 8 at a time; GATE_JOBS=1 forces serial (and is how you tell
-              #   a scheduling flake from a real red). Row ORDER is identical either
-              #   way — the log stays diffable, by design.
+              #   Rows run min(8, nproc-2) at a time — 8 on this box. GATE_JOBS=1
+              #   forces serial (and is how you tell a scheduling flake from a real
+              #   red). Row ORDER is identical either way — the log stays diffable.
               #   ⚠ To prove a change behaviour-preserving, diff the PER-TEST logs
               #   (/tmp/story_<name>.log), not the gate's stdout — they cannot
               #   interleave, and stdout no longer carries the outputs.
@@ -92,7 +92,9 @@ test` runs all 97 (**98 rows** — `playtest` runs 3×) in **~1.5–2.5 min** (m
 compiles ≈ 140 s of rustc cost only +56 s of wall clock). It used to be
 **10–13 min**, closed by two changes: the 14 tests that held most of the wall clock now compile
 via `--native-release` while the rest interpret (`tools/run_tests.sh` → `NATIVE_TESTS` carries
-the measurement and the ≥10 s rule for joining), and rows now run **8 at a time**. ⚠ **Per-row
+the measurement and the ≥10 s rule for joining), and rows now run **`min(8, nproc-2)` at a
+time** (8 here — the cap is measured flat past 8, the `nproc-2` is headroom for the rest of the
+box; `GATE_JOBS` overrides). ⚠ **Per-row
 seconds are wall time under contention now** — at 8-wide `matrixtest` reads 1.0 s → 16.9 s — so
 they rank the roster but are not measurements; time a test by running it alone. ⚠ **Budget
 +10 s per affected native row when the compile cache is cold** — a kernel edit invalidates the

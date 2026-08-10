@@ -122,8 +122,9 @@ stat raised. The `act 4` arm of `flow_action` has no session-level gate today.
   wired in). This adds session coverage beside them, and replaces none.
 - ~~**Parallelism.** The gate stays serial — that is blocked upstream on
   [loft#831](https://github.com/loft-lang/loft/issues/831), not here.~~ **Unblocked
-  2026-08-10**: loft#831 is fixed (`c69f7c1a`) and the gate now runs **8-wide**, so a row this
-  plan adds costs wall clock only if it lands in the slowest 8. ⚠ **That makes a `.play` row
+  2026-08-10**: loft#831 is fixed (`c69f7c1a`) and the gate now runs **`min(8, nproc-2)`-wide**
+  (8 here), so a row this plan adds costs wall clock only if it lands in the slowest few.
+  ⚠ **That makes a `.play` row
   cheaper than it looks, which is a reason to design it well, not a licence to add rows** — the
   plan's claim-per-row discipline is unchanged, and each still names what it asserts.
 

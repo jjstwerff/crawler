@@ -1158,7 +1158,8 @@ had it, and we did not know.** The fix landed at 12:22 and the binary was instal
 the first probe ran after that. Worth remembering the next time absence-of-failure looks like
 information: the same 13 passes on the 06:19 binary would have meant something else entirely,
 and nothing in the run said which binary we were on except the md5 in the gate header. On this
-evidence crawler's gate now runs **8-wide by default** (`tools/run_tests.sh`, `GATE_JOBS`); a
+evidence crawler's gate now runs **`min(8, nproc-2)`-wide by default** — 8 on this box
+(`tools/run_tests.sh`, `GATE_JOBS`); a
 row that is red under load and green at `GATE_JOBS=1` is this bug returning, and belongs here.
 **Labels:** `sev:high`, `wa:partial`, `area:native`, `hit-by:crawler`, `bug`
 **Suggested title:** `auto-native: cdylib wiring fails intermittently when several loft processes run at once — "native function not loaded" panics instead of falling back to the interpreted body`

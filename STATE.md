@@ -49,7 +49,11 @@ where crawler sits in the stack.
   native cache, 3m15s at `GATE_JOBS=1`; the pool absorbs the cold penalty — 14 compiles ≈ 140 s
   of rustc cost +56 s of wall clock), down from 10–13 min via two changes: the 14 tests (16 rows) that held most of the
   wall clock now run `--native-release` while the rest interpret (`tools/run_tests.sh` →
-  `NATIVE_TESTS`), and rows run **8 at a time**. ⚠ **Parallel was BLOCKED and is now open**:
+  `NATIVE_TESTS`), and rows run **`min(8, nproc-2)` at a time** — 8 on this box, and the two
+  bounds mean different things: the **cap is measured** (flat past 8 — what is left is one long
+  test, not many short ones, so a 64-core box finishes no sooner), the **`nproc-2` is courtesy**
+  to everything else running here. `GATE_JOBS` overrides; a non-integer is refused, not limped
+  through. ⚠ **Parallel was BLOCKED and is now open**:
   LOFT-HANDOFF's cdylib-wiring defect made a parallel suite fail a different test each run;
   re-probed 2026-08-10 on 2026.8.0 over **13 full passes** at -P4/-P8/-P16/-P24 (plus one with
   every native row compiling at once) — all green. A row that is red under load and green at
