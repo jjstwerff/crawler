@@ -440,6 +440,26 @@ pub fn engine_production_len(producer: text) -> integer {
   0
 }
 
+// ── The producers as an ORDER, so a per-producer number can be an array index ──────────
+//
+// plan #17 `S3` gives each producer a stock (a number, never an inventory), which needs a
+// stable integer per producer. The order is the SAME one `tools/gen_bundles.loft`'s
+// `producer_at` walks — the generated repertoire and the stock array have to agree on what
+// index 2 means, and there is no compiler check that they do. If a producer is ever added,
+// it is added in both places or the stock silently belongs to the wrong workshop.
+pub const NUM_PRODUCERS = 7;
+
+pub fn producer_index(producer: text) -> integer {
+  if producer == "forge_weapon" { return 0; }
+  if producer == "forge_armor" { return 1; }
+  if producer == "alchemy" { return 2; }
+  if producer == "scriptorium_scroll" { return 3; }
+  if producer == "scriptorium_book" { return 4; }
+  if producer == "town_craft" { return 5; }
+  if producer == "import" { return 6; }
+  -1
+}
+
 pub fn engine_production_key(producer: text, i: integer) -> text {
   if producer == "forge_weapon" { return forge_weapon_key(i); }
   if producer == "forge_armor" { return forge_armor_key(i); }

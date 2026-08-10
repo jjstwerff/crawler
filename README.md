@@ -128,8 +128,9 @@ die. Built so far:
 - **Levels** — `>` / `<` stairs, real depth, deterministic descent, persistence, save points.
 - **Content in bundles** — monsters, items, stencils, placement and quests live in
   self-contained `bundles/<name>/` folders the engine merges generically; `N` re-scans
-  them and restarts into a fresh world without touching `src/`. (A `production` section
-  — what a town's workshops make — is wired on the engine side but has no bundle yet.)
+  them and restarts into a fresh world without touching `src/`. A bundle can also declare a
+  `production` section — what the town's workshops make — which merges into the engine's own
+  repertoire, so dropping in a bundle puts new goods in circulation.
 - **Under it** — loft's games kernel (`engine_host`) drives a drift-free 60 Hz tick, and
   the intent wire replays bit-identically into a live spectator (`src/observe.loft`).
 
@@ -152,7 +153,7 @@ src/gameflow.loft  the deterministic intent seam; framekey.loft = the scene dige
 src/hexscene|view3d|scenemesh|figure   the first-person 3D pass (plan #11)
 src/view.loft      the 2D egocentric renderer — retires at 3D parity (plan #11 P9)
 src/story.loft     entry: the engine_host game host; observe.loft = live spectator
-src/*test.loft     headless tests — 96 files, 97 rows in `make test`
+src/*test.loft     headless tests — 97 files, 98 rows in `make test`
 bundles/<name>/    game content, merged generically (see BUNDLE.md)
 ```
 

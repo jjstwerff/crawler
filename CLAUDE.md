@@ -79,7 +79,7 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` interprets all 96 (**97 rows** — `playtest` runs 3×) and takes **10–13 min, set by how
+test` interprets all 97 (**98 rows** — `playtest` runs 3×) and takes **10–13 min, set by how
 loaded the box is** (measured 2026-08-10: 12m55s at 93 rows against a busy box, 10m13s at 97
 rows against a quiet one — the load dominates, not the roster). Run the gate **once**, before committing —
 and read the existing `/tmp/story_<name>.log` rather than re-running it to check a result.
@@ -148,7 +148,7 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **96 files / 97 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
+  (currently **97 files / 98 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
   defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
   safety/production/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it
   **warning-clean**. ⚠ **WIRING IT IN IS THE STEP THAT GETS SKIPPED, and nothing complains** —

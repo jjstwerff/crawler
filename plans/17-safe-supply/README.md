@@ -7,8 +7,8 @@
 
 **`status:active` from 2026-08-09** (user), taking `#12`'s slot — the roster is
 `#11`/`#13`/`#17`, still at the cap of three. `S0` is shipped: the design (`CRAFTING.md`)
-and the measurement of what already exists, which turned out to be most of it. `S1`–`S6`
-are **designed, not built**, and each is written out below.
+and the measurement of what already exists, which turned out to be most of it. `S1`–`S3` are
+**shipped and armed**; `S4`–`S7` are designed, and each is written out below.
 
 **Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
 on it by construction (`M3` authors 18 Handiness values against this system), and its own
@@ -66,8 +66,8 @@ that only became visible once both were on the page:
 | **`S0`** — the design + measure what exists | S | `CRAFTING.md` | **Shipped** |
 | **`S1`** — a safety category over the surface | S | `make test` (`safetytest`) | ✅ **Shipped** |
 | **`S2`** — workers refuse to ENTER unsafe ground | S | `make test` (`safetytest`) | ✅ **Shipped** |
-| **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (extend `producttest`) | Blocked on `S2` |
-| **`S4`** — the world shows it, with no panel | M | `make play`, a user read | Blocked on `S3` |
+| **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (`stocktest`) | ✅ **Shipped and ARMED** |
+| **`S4`** — the world shows it, with no panel | M | `make play`, a user read | **Unblocked** — the short batch already thins the stall |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` + a `scripts/*.play` session | Blocked on `S2` |
 | **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` + a `scripts/*.play` session | **Designed, not built** |
 | **`S7`** — standing, and the militia it raises | M | `make test` + a `scripts/*.play` session | **Designed, not built** |
@@ -93,6 +93,55 @@ output that day. ⚠ **Never an item inventory** — the moment it is items some
 screen for it, and the interface budget is spent (`F2`). Which material a producer draws
 and which item it yields is **bundle content**, declared beside the `production` repertoire
 that bundle already owns — `I-PROD`'s seam, unchanged.
+
+### ✅ `S3` is BUILT, ARMED and GATED — and it took three defects, all measured 2026-08-10
+
+The arithmetic: `prod_stock` (a number per producer, indexed by `items.loft`'s
+`producer_index`), `prod_raise` / `prod_draw`, `sim_prod_stock`. **I-STOCK: stock == raised −
+drawn at every tick**, both discrete events; `stocktest` asserts the conservation directly,
+including that asking for more draws than there is stock is refused rather than going negative.
+
+**`desert_surprise` declares the first real `production` section** — `"alchemy":
+["naga_antivenin"]`. That closes a finding worth its own line: **the merge's bundle arm had
+never executed.** `producttest` walked a `0..bundle_production_len` loop that ran zero
+iterations, so `I-PROD`'s bundle half was gated only in the sense that it compiled.
+
+⚠ **Arming it required fixing three separate defects, and each was hidden by the one before
+it.** All three were invisible to every existing gate, because the symptom of all three is
+*stock stays 0* — which reads exactly like "the town is at peace".
+
+| # | the defect | how it looked | the fix |
+|---|---|---|---|
+| 1 | the gatherer's schedule alternated between the picking ground and a **second far point**, so it never came home | a worker wandering the wilds forever | the **bag steers**: empty → picking ground, full → home (`carry`) |
+| 2 | civilians stepped **greedily** — a neighbour had to be *strictly* closer — so they froze at the first concave obstacle | frozen 13 hexes out, permanently | civilians get the **flow field** monsters have had since the AI landed, one per (destination, movement class), built once and kept |
+| 3 | the picking ground was sited **nearest-first with no reachability check**, and only meadow/scree counted | `path home→pick = ∞`; of 9801 hexes the town can walk to **498**, and they are 467 grass + 31 road — no meadow, scree or forest at all | site from a **flood fill** (`walk_reach`), and rank the terrain (`pick_rank`: alpine shelves → woodland → grass) |
+
+⚠ **So role 9 had been decorative since the day it was added** — the gatherer that df7a359
+celebrated as "finally existing" was placed, walked, and had never once gathered. Its "picking
+grounds ≥14 hexes out: 0 → 124" counted hexes **without checking any of them could be walked
+to**; none could.
+
+**Then the tuning, which is also measured.** With a reachable ground the gatherer runs ~2.5
+round trips a day against an alchemist brewing three days in seven. Uncapped, **stock reached
+120 in 16 days and simply grew** — and a store that is never empty gates nothing, so the plan's
+claim would have been true in the code and false in the game. So:
+
+- **`GATHER_LOAD = 1`** — a trip brings one load.
+- **`PROD_STOCK_MAX = 8`** — a store has walls, so it fills in peace and *drains* when the
+  gatherer stops. The cap is the load-bearing number, not the load.
+- **one draw per POTION, not per day** — a half-supplied alchemist makes a **short batch**
+  rather than nothing, so the stall thins before it empties. That is `S4`'s readable signal
+  arriving for free, with no interface spent.
+
+**Measured after arming:** stock oscillates 2..8 rather than pinning; 27 potions over 16 days
+against 30 unarmed, so a safe town runs near-normally and the mechanism only bites when supply
+stops. `stocktest`'s live row watches a week and requires deliveries to arrive **and** the
+store to be drawn down — both failure modes (stuck at 0, stuck at the cap) are named.
+
+⚠ **What is still NOT gated end-to-end: hostiles → no output.** The two links are each gated
+separately — `safetytest` proves a worker will not enter unsafe ground, `stocktest` proves no
+supply means no output — but nothing yet places hostiles on a picking ground and measures the
+stalls thinning. **That composition is `S5`'s**, which is where contested safety is built.
 
 ### `S4` — the world says it, designed
 
@@ -478,7 +527,14 @@ Carried from `CRAFTING.md`, and the fourth is the one that blocks `#16`:
 
 1. Does the hero ever hold a material? (A boss dropping the one heroic ingredient is the
    classic beat; allowing it costs an item and no verb.)
-2. Stock per producer, or per settlement?
+2. ✅ **RESOLVED 2026-08-10 by building it — BOTH, and they were never alternatives.** The
+   stock belongs to the *settlement* (it lives on the `Sim`, not on a worker or an item), and
+   within it there is one number *per producer* — `CRAFTING.md` §B says exactly this once read
+   closely ("a per-settlement stock … ⚠ stock is a NUMBER PER PRODUCER"), so the question was
+   phrased as a fork that the design had already closed. Per producer is what lets a forge
+   starve while the bakery runs, which is the readable behaviour; per settlement is the scope
+   that owns it. ⚠ **A third reading is the one to refuse**: stock is *not* per material — the
+   moment it is, it is an inventory, and `F2` is spent.
 3. What exactly is in the safety expression, and can it be evaluated cheaply per worker?
 4. ✅ **RESOLVED 2026-08-09.** `Handiness` gates **repairs and improvised gear, not
    crafting**, and it is a **degree, never a key** — learned skills permit, the stat

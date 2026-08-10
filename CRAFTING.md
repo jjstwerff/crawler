@@ -273,8 +273,11 @@ forge turns out better work than another. Not a permission anywhere.
 1. **Does the hero ever hold a material?** The premise says materials are not heroic — but a
    boss dropping the one heroic ingredient, carried to a smith, is the classic beat. Allowing
    it costs an inventory item and no new verb; forbidding it keeps the inversion pure.
-2. **Is stock per settlement or per producer?** Per producer is simpler and lets a forge
-   starve while the bakery runs; per settlement is one number and reads more like a place.
+2. ✅ **RESOLVED 2026-08-10 by building it (plan #17 `S3`) — BOTH, and they were never
+   alternatives.** The stock belongs to the **settlement** (it lives on the `Sim`), and inside
+   it there is one number **per producer** — which is what §B above already said. Per producer
+   is what lets a forge starve while the bakery runs; per settlement is the scope that owns it.
+   ⚠ **The reading to refuse is per MATERIAL** — that is an inventory, and `F2` is spent.
 3. **What is the safety expression?** Guards, distance from the walls, hostiles alive nearby,
    time since the player cleared something — and it must be **derivable and cheap**, since it
    runs per NPC per day.

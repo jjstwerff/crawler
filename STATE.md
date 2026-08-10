@@ -1,36 +1,38 @@
 # STATE.md — where things stand (2026-08-10)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 97 rows,
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 98 rows,
 2026-08-10). Written as a handoff: read after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
 
-> ## → NEXT: **plan #17 `S3` — stock**. Its blocker cleared; nothing else is mid-step.
+> ## → NEXT: **plan #17 `S5`** — contested safety, which is what closes danger → output end to end.
 >
 > **The roster is `#11` 3D world · `#13` scoped identity · `#17` safe supply** (decided
 > 2026-08-09 from evidence, `plans/README.md` → *The active roster*, cap of three). The work
 > is in **`#17`**, and `#16` queues explicitly behind it — #16's `M3` re-authors 18 race
 > blocks with a Handiness value, and what Handiness is *for* is decided in #17.
 >
-> **`S0`/`S1`/`S2` are shipped.** `hex_safe(s, q, r)` is the safety **category** (not a
-> gradient — a threshold the player can cross and see crossed); `npc_may_enter` is the one
-> term that makes a worker refuse unsafe ground; `safetytest` gates four claims with each
-> seen **both ways**. That unblocks **`S3` (stock — a number per producer, raised on arrival
-> and drawn on making; ⚠ never an item inventory)** and `S5` (contested safety). `S4`, `S6`,
-> `S7` are designed and written out in the plan. → `plans/17-safe-supply/README.md`
+> **`S0`–`S3` are shipped and ARMED.** `hex_safe` is the safety **category** and
+> `npc_may_enter` the one term that makes a worker refuse unsafe ground (`safetytest`, each
+> claim seen **both ways**). `S3` adds the stock — a number per producer, `raised − drawn`,
+> capped so it can run out — plus the first real bundle `production` section. Measured: stock
+> oscillates 2..8 with deliveries on 4 days in 7, and a safe town makes 27 potions in 16 days
+> against 30 uncoupled.
 >
-> ⚠ **The wall fit is NOT crawler's next job** — that was this file's previous NEXT and it is
-> stale twice over. It lives in the **`hexbody`** project (`../hexbody`), whose geometry has
-> since shipped as the **`hex_body`** library, and which has not been touched since 07-25.
-> Plan #11's own next piece is still `BUILDING.md` §4 step **F** *there*, not here.
+> ⚠ **The one link still not gated end to end is hostiles → thinner stalls.** Each half is
+> gated separately (`safetytest`: a worker will not enter unsafe ground; `stocktest`: no supply
+> means no output), but nothing yet puts hostiles on a picking ground and measures the output
+> fall. **That composition is `S5`** — and it is now the cheapest valuable thing in the plan,
+> because both halves exist. → `plans/17-safe-supply/README.md`
 
 ## What moved on 2026-08-09/10
 
 - **The home window is anchored at the alpine town** — `ov_home_town(o)` picks the town with
   the greatest height reach rather than the literal `ov_towns[0]`, so the starting economy has
-  both valley fields and high ground. **The gatherer (role 9) finally exists**: picking grounds
-  ≥14 hexes out went **0 → 124**, producers 5 → 6. ⚠ **Two real costs:** the **sea economy is
+  both valley fields and high ground. Producers 5 → 6. ⚠ **Its headline — "the gatherer finally
+  exists", picking grounds 0 → 124 — was measured WITHOUT a reachability check, and none of the
+  124 could be walked to**; the gatherer only actually worked on 2026-08-10 (below). ⚠ **Two real costs:** the **sea economy is
   gone** (roles 5/6/8 and the harbour no longer spawn), and the **starting neighbourhood is
   harder** — the nearest hostile at `surfacetest`'s vantage went from a jackal (mlvl 1) 43
   hexes out to a **gnoll (mlvl 6) 8 hexes out**, and a level-1 hero standing there died on
@@ -40,7 +42,7 @@ where crawler sits in the stack.
 - **The toolchain is 2026.8.0** — and it is `../loft`'s *working-tree build*, 15+ commits past
   the tag, rebuilt while gates run. `make test` stamps version + **md5** in its header, because
   `loft --version` is not provenance. Two logs with different md5 are not comparable.
-- **The gate is quiet and green — 96 test files, 97 rows** (`playtest` runs 3×), after the five
+- **The gate is quiet and green — 97 test files, 98 rows** (`playtest` runs 3×), after the five
   unwired tests were wired in on 2026-08-10 and a duplicate `canopytest` row removed. ⚠ **Budget
   it by LOAD, not by the roster**: measured the same day, 93 rows took **12m55s** while a sibling
   tree ran ~50 loft processes, and 97 rows took **10m13s** on a quiet box. One `ok <secs> <name>`
@@ -52,8 +54,9 @@ where crawler sits in the stack.
   documents here; how one reaches the other project is the user's call.
 - Also new: `CRAFTING.md`, `ADOPTION.md` (library pull side, P0–P4 shipped), `MOROS.md` (what
   moros must write for crawler: nothing), `tools/libcheck.py` (9 gated rules), the playthrough
-  harness (`src/playtest.loft` + `scripts/*.play`), and the `production` bundle seam — engine
-  side only so far; **no bundle declares one yet** (below).
+  harness (`src/playtest.loft` + `scripts/*.play`), and the `production` bundle seam — which
+  got its **first real content** on 2026-08-10 (`desert_surprise` → `"alchemy":
+  ["naga_antivenin"]`), so the merge's bundle arm finally executes.
 
 ## The design position — eight statements, and they compose
 
@@ -87,8 +90,8 @@ the behaviour layer); and that the behaviour layer **splits** — movement over 
 
 Briefly: **#9 canopy trees** and **#10 props** finished · **#11 3D world** active (P0–P4 built
 and SEEN; P5's routines built, but the fit and the two-storey fixture are `hexbody`'s, above) ·
-**#13 scoped identity** active · **#17 safe supply** active and where the work is (`S0`–`S2`
-shipped). **#5 geometry is `status:future`**, not active — this file said otherwise until
+**#13 scoped identity** active · **#17 safe supply** active and where the work is (`S0`–`S3`
+shipped and armed). **#5 geometry is `status:future`**, not active — this file said otherwise until
 2026-08-10. Plus the render path (`scenemesh`/`figure`/`tools/glbview.py`), the scale contract
 (`SCALE.md`, gated), and **`hex_field` 0.1.0 extracted** to `loft-libs-world` with its `EdgeSet`
 merged — which took crawler's own edge storage out entirely (−192 lines, `edgetest`/`sweeptest`
@@ -142,12 +145,15 @@ the area — but if it continues, the label is wrong and should move.
 - **The sea economy no longer spawns** in the starting town (roles 5 boat / 6 ship / 8 merchant
   ship, and the harbour with them), so *"goods from BEYOND the map"* (`OVERLAND.md` §584) is not
   reachable from the start. A fisher remains on the river. Accepted as a cost, not yet answered.
-- **The `production` seam is built but has NO bundle content** — `bundle_production_len()`
-  returns 0 for all seven producers, so today's workshops rotate the **engine's** repertoire
-  only. Consequence worth knowing before #17 `S3` builds on it: `producttest` proves the merge
-  algebra, but its bundle-arm assertion sits in a `0..bn` loop with `bn = 0`, so **the bundle
-  half is structurally unexercised** — the same family as lesson 3 below. `S3` declares stock
-  *beside* that repertoire, so it should ship the first real `production` section with it.
+- ✅ **The gatherer works — after three defects, each hidden by the last** (2026-08-10). It had
+  never gathered anything in any world: its schedule sent it between two *far* points so it
+  never came home; civilians stepped **greedily** so it froze at the first concave obstacle;
+  and its picking ground was sited nearest-first **with no reachability check** — on world 777
+  there was no path at all, and of 9801 hexes the town can walk to just **498**, all grass and
+  road. All three showed the same symptom, *stock stays 0*, which reads exactly like a town at
+  peace. Fixed: the bag steers the trip, **civilians got the flow field** monsters have always
+  had (one field per destination + movement class, built once and kept), and siting now flood
+  fills first and ranks terrain (alpine shelves → woodland → grass). → `plans/17-safe-supply/`
 - ✅ **The five unwired tests are wired** (2026-08-10) — `figtest`, `gentest`, `gridtest`,
   `montest`, `walltest` were on disk and in no row of `tools/run_tests.sh`. All five pass and
   each gates its `OK` marker on a real assertion, so they can go red. `canopytest` was also
@@ -194,7 +200,7 @@ extended it: **a first-person camera found a world too small for its own player*
 a 1.45 m door, a 1.75 m figure) which every raised camera had missed.
 
 **3. The failure mode is never a check that fails — it is one that PASSES FOR THE WRONG
-REASON.** The single most productive rule in this repo. Nine instances, and they arrive by
+REASON.** The single most productive rule in this repo. Eleven instances, and they arrive by
 genuinely different routes:
 
 - geometry too *thick* to show the bug (a solid wall hides tunnelling; only a thin one shows it)
@@ -221,6 +227,16 @@ genuinely different routes:
   `(-3,-2)`, a nest at `(-1,-4)`, a gate at `(0,-2)`). Each now *asks the world* —
   `sim_window_of`, `sim_wizard_tower`, `sim_ruin_count`/`sim_ruin_pos`, `sim_desert_gate_world`.
   *A literal coordinate in a test is an assertion about a world that is free to move.*
+- a **loop that never iterates** (2026-08-10) — `producttest` asserted the `production`
+  merge's bundle arm inside `for i in 0..bundle_production_len(p)`, and no bundle declared a
+  `production` section, so the bound was 0 for all seven producers and the assertion never ran.
+  The seam compiled, the gate was green, and the bundle half had never executed. *A seam with
+  no consumer is a seam with no test* — ship the content that exercises it in the same change.
+- a **worker who never arrives** (2026-08-10) — the gatherer's supply chain was gated on an
+  arrival that the schedule made impossible and the terrain made unreachable. Nothing failed:
+  stock simply stayed 0 forever, which reads exactly like "the town is at peace". ⚠ *An input
+  that is always zero and an input that is correctly zero are indistinguishable at the
+  output* — which is why `S3` measures the supply rather than trusting the coupling.
 - a **test the gate never runs** (2026-08-10, now fixed) — five test files sat in `src/` and
   appeared in no row of `tools/run_tests.sh`, plus one listed twice. They compiled, so nothing
   complained; they simply never executed. *Being written is not being wired* — and note the
@@ -248,7 +264,7 @@ because of a negative control the *other* agent found. → `EXTRACTION.md`, `LOF
 ## How to run things
 
 ```sh
-make test                     # the headless suite (96 files / 97 rows) — run ONCE before committing
+make test                     # the headless suite (97 files / 98 rows) — run ONCE before committing
 loft --interpret --path ../loft/ --lib ../loft/lib/ src/<x>test.loft   # + the bundles/ --libs
 python3 tools/glbview.py build/x.glb out.png --eye 30,-46,12 --target=-4,0,6 \
      --shadow 640 --stats          # --stats = coverage per MATERIAL, never by pixel colour

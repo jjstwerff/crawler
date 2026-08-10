@@ -107,7 +107,12 @@ pub struct Enemy {
   name:  text,                // display name (for the message log: "You have slain the giant rat.")
   alive: boolean not null,
   // CIVILIANS (the town's daily loop): 0 = a monster; roles live by schedule
-  role:  integer not null,    // 0 none, 1 villager, 2 farmer, 3 guard, 4 fisher, 5 boat, 6 ship
+  // 0 = a hostile monster; the rest are civilian trades, each with its own schedule in
+  // `npc_target`. ⚠ This list stopped at 6 while 7-12 were in use, which costs a reader real
+  // time — the roles are only ever written as bare integers at the call sites.
+  //   0 monster · 1 villager · 2 farmer · 3 guard · 4 fisher · 5 boat · 6 fishing ship
+  //   7 cart merchant · 8 merchant ship · 9 gatherer · 10 miner · 11 livestock · 12 wild thing
+  role:  integer not null,
   hq:    integer not null,    // home / night anchor
   hr:    integer not null,
   wq2:   integer not null,    // work: the field / fishing spot / patrol leg A
@@ -116,6 +121,10 @@ pub struct Enemy {
   ar2:   integer not null,
   c1g:   integer not null,    // cart cargo (item def idx, -1 empty): LIGHT goods only
   c2g:   integer not null,
+  // plan #17 `S3` — the gatherer's BAG: 1 = carrying a pick, 0 = empty. Not an item and
+  // not a count; it is what makes "arriving home" a discrete event instead of a state that
+  // would re-fire every tick the worker stood in town.
+  carry: integer not null,
 }
 
 // The player's own state — the character record (DESIGN.md §2: moving player-owned
@@ -240,6 +249,20 @@ pub struct Sim {
   fi_cat:  vector<integer> not null,   // item category (IT_*); -1 for gold
   fi_def:  vector<integer> not null,   // item def index; -1 for gold
   fi_live: vector<integer> not null,   // 1 = on the floor, 0 = collected
+  // plan #17 `S3` — the settlement's STOCK: one number per producer (NUM_PRODUCERS, indexed
+  // by items.loft's `producer_index`), raised when a worker brings something home and drawn
+  // when a workshop makes. ⚠ A NUMBER, NEVER AN ITEM INVENTORY — the moment it holds items
+  // somebody wants a screen for it and the interface budget is spent (CRAFTING.md `F2`).
+  prod_stock: vector<integer> not null,
+  // Civilian path fields, one per (destination, movement class), computed on first use and
+  // KEPT — a civilian's destinations are fixed when it spawns and the terrain under them
+  // does not move, so a field is built once per level and read by every NPC heading there.
+  // ⚠ FLAT, not a vector of vectors: nested-vector stores are the loft#250 family (`walltest`
+  // exists because of it). Slot k occupies `flowd_data[k*lw*lh ..]`.
+  flowd_q:    vector<integer> not null,
+  flowd_r:    vector<integer> not null,
+  flowd_cls:  vector<integer> not null,
+  flowd_data: vector<integer> not null,
   // Per-level persistence (deterministic base + delta): dead-spawn indices captured when you leave
   // a level, replayed on re-entry. Compact fixed blocks indexed by depth (dd_idx[depth*MAX_SPAWNS+k]).
   dd_idx:  vector<integer> not null,
@@ -259,6 +282,65 @@ pub fn tile_at(s: Sim, q: integer, r: integer) -> integer {
   tiles = s.tiles;
   ti = (r - s.rmin) * s.lw + (q - s.qmin);
   if ti < len(tiles) { tiles[ti] } else { 1 }
+}
+
+// How good a hex is as a gatherer's picking ground — lower is better, -1 = not one at all.
+// Takes the STORED kind (terrain + 1), the form the level arrays hold.
+//
+// Alpine shelves and the rubble under the stone faces are where the good herbs are, so they
+// rank first; woodland next; open grass last, because a settlement can always send someone
+// into the meadowy clearings even when the mountain is shut. ⚠ The ranking is what keeps the
+// flavour while making the role WORK — restricted to rank 0 the gatherer simply does not
+// exist in most worlds, which is what it had been doing.
+fn pick_rank(stored_kind: integer) -> integer {
+  if stored_kind == K_MEADOW + 1 || stored_kind == K_SCREE + 1 { return 0; }
+  if stored_kind == K_FOREST + 1 { return 1; }
+  if stored_kind == K_GRASS + 1 { return 2; }
+  -1
+}
+
+// Which hexes a WALKING civilian can actually reach from (sq,sr) — a flood fill over the
+// bare arrays, because siting happens before a `Sim` exists.
+//
+// ⚠ THIS EXISTS BECAUSE A WORKER WAS GIVEN A JOB IT COULD NOT REACH. The gatherer's picking
+// ground was chosen as the nearest meadow/scree at least 14 hexes out, with no check that a
+// path to it existed — and on world 777 there was none at all (`sim_npc_path_dist` answers
+// `FLOW_BIG` in both directions). It walked 13 hexes, stopped, and stood there for the life
+// of the world. *Nearest is not reachable*, and on a map with lakes and cliffs the two come
+// apart constantly.
+fn walk_reach(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integer,
+              sq: integer, sr: integer) -> vector<integer> {
+  n = w * h;
+  seen: vector<integer> = [];
+  for _ in 0..n { seen += [0]; }
+  if sq < 1 || sr < 1 || sq >= w - 1 || sr >= h - 1 { return seen; }
+  start = sr * w + sq;
+  if start < 0 || start >= n { return seen; }
+  seen[start] = 1;
+  frontier: vector<integer> = [];
+  frontier += [start];
+  head = 0;
+  while head < len(frontier) {
+    cur = frontier[head] ?? 0;
+    head += 1;
+    cq = cur % w ?? 0;
+    cr = cur / w ?? 0;
+    for wd in 0..6 {
+      (nq, nr) = hex_neighbor(cq, cr, wd);
+      if nq >= 1 && nr >= 1 && nq < w - 1 && nr < h - 1 {
+        ni = nr * w + nq;
+        if ni >= 0 && ni < n && (seen[ni] ?? 1) == 0 {
+          // the same three tests `npc_passable` makes for a walker: solid, lake, sea
+          if !solid_kind(tiles[ni] ?? 1)
+             && (tk[ni] ?? 0) != K_LAKE + 1 && (tk[ni] ?? 0) != K_SEA + 1 {
+            seen[ni] = 1;
+            frontier += [ni];
+          }
+        }
+      }
+    }
+  }
+  seen
 }
 
 // The solidity RULE, stated once: which hex kinds fill their hex completely.
@@ -1935,6 +2017,17 @@ pub fn sim_phase(s: Sim) -> integer {
 pub const THREAT_R = 6;      // hexes: how far a living hostile spoils the ground around it
 pub const GUARD_R  = 4;      // hexes: how far a guard's presence holds ground safe
 
+// What one gathering trip brings back, and how much the settlement can hold (plan #17 `S3`).
+//
+// ⚠ BOTH ARE SET AGAINST MEASURED FLOW, NOT TASTE, and the cap is the load-bearing one. With
+// a reachable picking ground the gatherer runs ~2.5 round trips a day; the alchemist brews on
+// three days in seven. Uncapped, stock reached **120 in 16 days** and simply grew — and a
+// stock that is never empty gates nothing, so "danger cuts output" would have been true in
+// the code and false in the game. The cap makes the store sit full in peace and *drain* when
+// the gatherer stops, which is the behaviour the plan is about.
+pub const GATHER_LOAD = 1;
+pub const PROD_STOCK_MAX = 8;
+
 pub fn hex_safe(s: Sim, q: integer, r: integer) -> boolean {
   es = s.enemies;
   for i in 0..len(es) {
@@ -1953,6 +2046,95 @@ pub fn hex_safe(s: Sim, q: integer, r: integer) -> boolean {
     }
   }
   true
+}
+
+// ── plan #17 `S3` — STOCK: a workshop needs its inputs ────────────────────────────────
+//
+// I-STOCK: a producer's stock is raised only by a worker bringing something home and drawn
+// only by that workshop making, so **stock == raised − drawn** at every tick. Both are
+// discrete EVENTS, never per-tick states — a raise that fired while a worker merely stood
+// somewhere would climb without bound, and the empty state (the whole point of the
+// mechanism) would be unreachable. That is the trap this repo keeps meeting: a check that
+// cannot go red. `stocktest` asserts the conservation directly.
+//
+// ⚠ NOTHING IS ARMED YET, AND THAT IS A MEASUREMENT, NOT AN OVERSIGHT.
+//
+// The arithmetic below is complete and gated (`stocktest` proves both branches). What is
+// missing is the SUPPLY, and it is missing for a reason outside this plan: the gatherer
+// cannot reach a picking ground. Measured 2026-08-10 on the home settlement of world 777 —
+//
+//   home (53,53) · nearest meadow/scree (33,3) · 50 hexes · none at all within 10
+//   a day carries a worker ~13 hexes · the only neighbour that closes the gap is a WALL
+//
+// — so it walks 13 hexes out and freezes there forever: civilians step greedily toward a
+// target (monsters get the flow field), and greedy stepping dies at the first concave
+// obstacle. In 21 simulated days the gatherer delivered nothing, which is why role 9 has
+// been decorative since the day it was added.
+//
+// Arming `alchemy` on top of that would not couple output to DANGER, which is the claim —
+// it would delete potions from every town because a worker is stuck behind a mountain. So
+// the switch stays off until a gatherer can complete a round trip: civilian flow-field
+// pathing, or settlements sited within reach of their picking grounds. Flipping it is this
+// one function, and the gate behind it is already green.
+// Which producer is armed — `-1` for none, which is today. Arming is this one number:
+// `producer_index("alchemy")` turns the coupling on, and `stocktest` already proves both
+// branches of what happens when it does.
+fn prod_armed_index() -> integer {
+  producer_index("alchemy")
+}
+
+fn prod_gated(pi: integer) -> boolean {
+  pi >= 0 && pi == prod_armed_index()
+}
+
+// A worker came home with something. Raising an ungated producer is harmless and still
+// counted, so the conservation law holds for all seven rather than for a special case.
+pub fn prod_raise(s: &Sim, producer: text) {
+  pi = producer_index(producer);
+  if pi < 0 { return; }
+  st = s.prod_stock;
+  if pi < len(st) {
+    have = st[pi] ?? 0;
+    // A store has walls. Without the cap the number only ever climbs (measured: 120 in 16
+    // days), and an input that cannot run out is not an input.
+    if have < PROD_STOCK_MAX { st[pi] = have + 1; }
+  }
+}
+
+// The workshop makes. Answers whether it MAY, and draws when it does — so the caller
+// cannot draw without making or make without drawing (one call site, one decision).
+//
+// Pub for the same reason `npc_may_enter` is: a predicate that can only be reached through
+// a day of simulation is one whose FALSE branch nobody can gate. `stocktest` calls it
+// directly to see both answers, then checks the daily loop honours the same rule.
+pub fn prod_draw(s: &Sim, producer: text) -> boolean {
+  prod_draw_when(s, producer, prod_gated(producer_index(producer)))
+}
+
+// The same decision with the arming supplied by the caller. ⚠ THE SWITCH IS A POLICY, AND A
+// POLICY THAT CANNOT BE SET IN A TEST IS ONE WHOSE OTHER BRANCH NOBODY PROVES — with
+// `prod_gated` off today (see above), the drawing half would otherwise be dead code that
+// compiles, and it would go live untested on the day someone flips it.
+pub fn prod_draw_when(s: &Sim, producer: text, gated: boolean) -> boolean {
+  pi = producer_index(producer);
+  if pi < 0 { return true; }
+  if !gated { return true; }
+  st = s.prod_stock;
+  have = 0;
+  if pi < len(st) { have = st[pi] ?? 0; }
+  if have <= 0 { return false; }
+  st[pi] = have - 1;
+  true
+}
+
+// Read-only, for the gate and for `S4`'s "the world says it" (which shows the CONSEQUENCE,
+// never the number — CRAFTING.md `F2`).
+pub fn sim_prod_stock(s: Sim, producer: text) -> integer {
+  pi = producer_index(producer);
+  if pi < 0 { return 0; }
+  st = s.prod_stock;
+  if pi >= len(st) { return 0; }
+  st[pi] ?? 0
 }
 
 // ⚠ ENTER, NEVER LEAVE. `npc_step` freezes an NPC when no neighbour is passable, so a
@@ -2000,9 +2182,17 @@ fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
   }
   if e.role == 9 {                       // rugged travelers camp where dusk finds them
     if night { return (e.cur_q, e.cur_r); }
-    leg = (((s.ticks / DAY_LEN) ?? 0) + salt) % 2 ?? 0;
-    if leg == 0 { return (e.wq2, e.wr2); }
-    return (e.aq2, e.ar2);
+    // ⚠ THE BAG STEERS, NOT THE CALENDAR (plan #17 `S3`). This used to alternate by day
+    // parity between the picking ground and a second FAR point — which meant two bugs at
+    // once: the gatherer never came home, and it never arrived anywhere at all. Measured:
+    // the picking ground is 50 hexes out, a day carries it 13, and the leg flipped every
+    // day — so it oscillated between home and 13 hexes out, forever. In 21 days it gathered
+    // nothing, which is why role 9 has been decorative since it was added.
+    //
+    // Keyed on the bag the trip is self-correcting at any distance: empty, head for the
+    // picking ground; full, head home. The round trip then takes however long it takes.
+    if e.carry > 0 { return (e.hq, e.hr); }
+    return (e.wq2, e.wr2);
   }
   if e.role == 12 { return (e.wq2, e.wr2); }   // wild things keep their own hours
   if night { return (e.hq, e.hr); }      // everyone else sleeps at home/anchor
@@ -2017,7 +2207,115 @@ fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
 }
 
 // One scheduled step: greedy toward the target; idle wander when arrived.
-fn npc_step(s: Sim, e: &Enemy) {
+// ── Civilian path fields (plan #17 `S3`) ──────────────────────────────────────────────
+//
+// ⚠ CIVILIANS USED TO STEP GREEDILY, AND GREEDY IS NOT PATHING. The old step took a
+// neighbour only if it was STRICTLY closer, so it walked into the first concave obstacle and
+// stopped there — permanently, since nothing about the situation ever changed. Measured on
+// world 777: the gatherer froze 13 hexes from home, 37 short of its picking ground, and in
+// 21 simulated days delivered nothing. Monsters have had `compute_flow` since the AI landed;
+// this gives the same thing to the people.
+//
+// A flow field has no local minimum except its destination, so descending it cannot get
+// stuck — that is the whole reason to pay for it.
+//
+// THE COST IS PAID ONCE. A field depends only on (destination, movement class) and the
+// terrain, all of which are fixed for the level: an NPC's `hq`/`wq2`/`aq2` are set when it
+// spawns. So fields are built lazily and then kept, and every NPC walking to the same place
+// reads the same one. Recomputing per NPC per tick — the obvious implementation — would be a
+// 10,201-hex BFS per civilian per tick, which is why it is worth saying that it is not that.
+FLOWD_MAX = 24;      // distinct (destination, class) fields to keep; beyond it, greedy again
+
+// Which terrain a role can cross. Boats and ships live on water, everyone else off it — the
+// same three-way split `npc_passable` makes, named once so a field is shared by every role
+// that walks rather than built per role.
+fn npc_move_class(role: integer) -> integer {
+  if role == 5 { return 5; }
+  if role == 6 { return 6; }
+  0
+}
+
+// BFS path-distance to (dq,dr) for one movement class. Mirrors `compute_flow` but asks
+// `npc_passable` as well as `is_blocked_move`, so a walker's field never routes through a
+// lake — a field that ignored terrain would just relocate the freeze rather than remove it.
+fn compute_npc_flow(s: Sim, dq: integer, dr: integer, cls: integer) -> vector<integer> {
+  n = s.lw * s.lh;
+  fl: vector<integer> = [];
+  for _ in 0..n { fl += [FLOW_BIG]; }
+  if dq >= s.qmin && dr >= s.rmin && dq < s.qmin + s.lw && dr < s.rmin + s.lh {
+    start = (dr - s.rmin) * s.lw + (dq - s.qmin);
+    if start >= 0 && start < len(fl) {
+      fl[start] = 0;
+      frontier: vector<integer> = [];
+      frontier += [start];
+      head = 0;
+      while head < len(frontier) {
+        cur = frontier[head] ?? 0;
+        head += 1;
+        cq = s.qmin + (cur % s.lw ?? 0);
+        cr = s.rmin + (cur / s.lw ?? 0);
+        cd = fl[cur] ?? FLOW_BIG;
+        for fdir in 0..6 {
+          (nq, nr) = hex_neighbor(cq, cr, fdir);
+          if nq >= s.qmin && nr >= s.rmin && nq < s.qmin + s.lw && nr < s.rmin + s.lh
+             && !is_blocked_move(s, cq, cr, nq, nr) && npc_passable(s, cls, nq, nr) {
+            nidx = (nr - s.rmin) * s.lw + (nq - s.qmin);
+            if nidx >= 0 && nidx < len(fl) {
+              cn = fl[nidx] ?? FLOW_BIG;
+              if cn > cd + 1 {
+                fl[nidx] = cd + 1;
+                frontier += [nidx];
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  fl
+}
+
+// The slot base for this destination's field, building it on first ask. -1 when the cache is
+// full — the caller then falls back to the greedy step, which is what it always did.
+fn npc_flow_base(s: &Sim, dq: integer, dr: integer, role: integer) -> integer {
+  cls = npc_move_class(role);
+  n = s.lw * s.lh;
+  kq = s.flowd_q;
+  kr = s.flowd_r;
+  kc = s.flowd_cls;
+  for i in 0..len(kq) {
+    if (kq[i] ?? -1) == dq && (kr[i] ?? -1) == dr && (kc[i] ?? -1) == cls { return i * n; }
+  }
+  if len(kq) >= FLOWD_MAX { return -1; }
+  fl = compute_npc_flow(s, dq, dr, cls);
+  base = len(kq) * n;
+  s.flowd_q += [dq];
+  s.flowd_r += [dr];
+  s.flowd_cls += [cls];
+  d = s.flowd_data;
+  for i in 0..n { d += [fl[i] ?? FLOW_BIG]; }
+  base
+}
+
+// Path distance from (fq,fr) to (dq,dr) for a role, or `FLOW_BIG` when no path exists.
+// Exposed because "can this worker actually get to its job" is a question about the WORLD,
+// and a gate that cannot ask it can only observe that nothing happened.
+pub fn sim_npc_path_dist(s: &Sim, dq: integer, dr: integer, role: integer,
+                         fq: integer, fr: integer) -> integer {
+  base = npc_flow_base(s, dq, dr, role);
+  if base < 0 { return FLOW_BIG; }
+  if fq < s.qmin || fr < s.rmin || fq >= s.qmin + s.lw || fr >= s.rmin + s.lh { return FLOW_BIG; }
+  d = s.flowd_data;
+  idx = base + (fr - s.rmin) * s.lw + (fq - s.qmin);
+  if idx < base || idx >= len(d) { return FLOW_BIG; }
+  d[idx] ?? FLOW_BIG
+}
+
+// How many path fields are cached — `FLOWD_MAX` means the cache is full and later askers
+// silently fall back to the straight-line step.
+pub fn sim_flow_fields(s: Sim) -> integer { len(s.flowd_q) }
+
+fn npc_step(s: &Sim, e: &Enemy) {
   (tq, tr) = npc_target(s, e);
   d0 = hex_distance(e.cur_q, e.cur_r, tq, tr);
   if d0 == 0 {
@@ -2036,20 +2334,43 @@ fn npc_step(s: Sim, e: &Enemy) {
     e.tgt_r = e.cur_r;
     return;
   }
+  // Descend the PATH field, not the straight line. `fbase < 0` means the cache is full and
+  // the old straight-line measure stands in; `fhere == FLOW_BIG` means this NPC is somewhere
+  // the field never reached (off it, or walled off), where a path metric says nothing.
+  fbase = npc_flow_base(s, tq, tr, e.role);
+  fdata = s.flowd_data;
+  fhere = FLOW_BIG;
+  if fbase >= 0 {
+    hidx = fbase + (e.cur_r - s.rmin) * s.lw + (e.cur_q - s.qmin);
+    if hidx >= fbase && hidx < len(fdata) { fhere = fdata[hidx] ?? FLOW_BIG; }
+  }
+  usef = fbase >= 0 && fhere < FLOW_BIG;
+
   best = -1;
   bd = d0;
+  bf = fhere;
   broad = false;
   for dd in 0..6 {
     (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, dd);
     if npc_passable(s, e.role, nq, nr) && npc_may_enter(s, e.role, e.cur_q, e.cur_r, nq, nr) && !occupied_hex(s.enemies, nq, nr) {
-      nd = hex_distance(nq, nr, tq, tr);
       onroad = false;
       if e.role == 7 {
         tin = nr * s.lw + nq;
         if tin < len(s.tkind) { onroad = (s.tkind[tin] ?? 0) == K_ROAD + 1; }
       }
-      better = nd < bd || (nd == bd && onroad && !broad);
-      if better && (nd < bd || e.role == 7) { bd = nd; best = dd; broad = onroad; }
+      if usef {
+        nf = FLOW_BIG;
+        if nq >= s.qmin && nr >= s.rmin && nq < s.qmin + s.lw && nr < s.rmin + s.lh {
+          nidx = fbase + (nr - s.rmin) * s.lw + (nq - s.qmin);
+          if nidx >= fbase && nidx < len(fdata) { nf = fdata[nidx] ?? FLOW_BIG; }
+        }
+        better = nf < bf || (nf == bf && onroad && !broad);
+        if better && (nf < bf || e.role == 7) { bf = nf; best = dd; broad = onroad; }
+      } else {
+        nd = hex_distance(nq, nr, tq, tr);
+        better = nd < bd || (nd == bd && onroad && !broad);
+        if better && (nd < bd || e.role == 7) { bd = nd; best = dd; broad = onroad; }
+      }
     }
   }
   if best >= 0 {
@@ -2121,6 +2442,38 @@ fn npc_trade(s: &Sim, e: &Enemy) {
   }
 }
 
+// THE GATHERER'S ROUND TRIP (plan #17 `S3`) — pick out there, deliver in town.
+//
+// ⚠ ONE RAISE SITE, and it is the arrival. The bag (`carry`) is what makes the delivery an
+// EVENT: reaching the picking ground fills it, reaching home empties it into the stock. A
+// raise keyed on "is standing in town" instead would fire every tick of every visit and the
+// empty-stock state — the entire point of `S3` — would be unreachable.
+//
+// This is also where the plan closes. `S2` will not let a gatherer step into unsafe ground,
+// so hostiles near the picking grounds mean no pick, no delivery, no stock, and the
+// alchemist brews nothing. Output as a function of danger, with no new key and no number
+// shown to anybody.
+fn npc_gather(s: &Sim, e: &Enemy) {
+  enemies = s.enemies;
+  // Trapping a wild thing is a pick too — the original flavour, kept, but it now fills the
+  // bag rather than crediting the town from out in the field.
+  for wl9 in 0..len(enemies) {
+    w9 = enemies[wl9];
+    if w9.alive && w9.role == 12
+       && hex_distance(w9.cur_q, w9.cur_r, e.cur_q, e.cur_r) <= 1 {
+      w9.alive = false;                  // trapped: ingredients for the factory
+      e.carry = 1;
+    }
+  }
+  // The picking ground itself — the meadow/scree the settlement was sited to reach.
+  if hex_distance(e.cur_q, e.cur_r, e.wq2, e.wr2) <= 1 { e.carry = GATHER_LOAD; }
+  // Home with a full bag: the settlement gains the load, and the bag is empty again.
+  if e.carry > 0 && hex_distance(e.cur_q, e.cur_r, e.hq, e.hr) <= 1 {
+    for _ in 0..e.carry { prod_raise(s, "alchemy"); }
+    e.carry = 0;
+  }
+}
+
 // The SHIP'S MANIFEST: when the merchant ship lies at anchor by night, it
 // lands the goods no local craft can make — the magic imports from beyond
 // the map — onto the pier planks beside it.
@@ -2175,9 +2528,16 @@ pub fn sim_tick(s: &Sim) {
       // rare weeks see the premium brews
       dow = day3 % 7 ?? 0;
       week3 = (day3 / 7) ?? 0;
+      // ⚠ A BREWING DAY IS NO LONGER ENOUGH — it also needs stock (plan #17 S3). ONE DRAW
+      // PER POTION, not per day, so a half-supplied alchemist makes a SHORT batch instead of
+      // nothing: the stall thins before it empties, which is the readable signal `S4` is
+      // supposed to show and costs no interface to say. With the coupling unarmed every draw
+      // succeeds and the batch is the full five, exactly as before.
       if dow == 1 || dow == 3 || dow == 5 {
         pk = game_production_key("alchemy", (week3 * 3 + (dow / 2 ?? 0)) % game_production_len("alchemy") ?? 0);
-        for _ in 0..5 { sim_drop_item(s, stq3 + 1, str3 + 1, pk); }
+        for _ in 0..5 {
+          if prod_draw(s, "alchemy") { sim_drop_item(s, stq3 + 1, str3 + 1, pk); }
+        }
       }
       // THE SCRIPTORIUM: scrolls on the quiet days, a realm book each week's end
       if dow == 0 || dow == 2 || dow == 4 {
@@ -2249,15 +2609,7 @@ pub fn sim_tick(s: &Sim) {
           npc_step(s, e);
           if e.role == 7 { npc_trade(s, e); }
           if e.role == 8 { npc_land_cargo(s, e); }
-          if e.role == 9 {
-            for wl9 in 0..len(enemies) {
-              w9 = enemies[wl9];
-              if w9.alive && w9.role == 12
-                 && hex_distance(w9.cur_q, w9.cur_r, e.cur_q, e.cur_r) <= 1 {
-                w9.alive = false;          // trapped: ingredients for the factory
-              }
-            }
-          }
+          if e.role == 9 { npc_gather(s, e); }
         } else if e.awake {
           if d <= 1 {
             hit = false;
@@ -2634,6 +2986,27 @@ pub fn sim_enemy_home(s: Sim, i: integer) -> (integer, integer) {
   (0, 0)
 }
 
+// The gatherer's bag (plan #17 `S3`): 1 = carrying a pick home, 0 = empty. Read-only, and
+// exposed so a gate can watch the round trip rather than infer it from the stock.
+pub fn sim_enemy_carry(s: Sim, i: integer) -> integer {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return e.carry; }
+  }
+  0
+}
+
+// Set the bag, so a gate can put a gatherer on its return leg without simulating the days
+// it takes to walk there. Test-facing, like `sim_set_awake` beside it.
+pub fn sim_set_carry(s: &Sim, i: integer, v: integer) {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { e.carry = v; }
+  }
+}
+
 // Smoothly-interpolated enemy world position (cur -> tgt by clock fraction).
 pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
   enemies = s.enemies;
@@ -2941,6 +3314,8 @@ pub fn sim_new() -> Sim {
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
+    prod_stock: zeros(NUM_PRODUCERS),
+    flowd_q: [], flowd_r: [], flowd_cls: [], flowd_data: [],
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
     known: zeros(len(game_items())), flavour_idx: zeros(len(game_items())),
     room_q0: [], room_r0: [], room_w: [], room_h: [],   // hand-built level: no rooms → pure smooth
@@ -2978,7 +3353,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true,
-    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r, c1g: -1, c2g: -1 }
+    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r, c1g: -1, c2g: -1, carry: 0 }
 }
 
 // A CIVILIAN: harmless, scheduled, never aggressive (and never punched: the
@@ -2991,7 +3366,7 @@ fn mk_npc(role: integer, key: text, name: text, glyph: text,
     hp: 6, maxhp: 6, dam: 0, xp: 0, mlvl: 0, vision: 0, flags: 0, tags: 0, awake: true,
     speed: ENERGY_STEP - 2, energy: 0, slow_until: 0, stun_until: 0,
     cr: cr, cg: cg, cb: cb, glyph: glyph, key: key, name: name, alive: true,
-    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1 }
+    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1, carry: 0 }
 }
 
 // Is any already-placed enemy on this hex?
@@ -3983,23 +4358,53 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       // ingredients — met on the roads or the hillsides, shunning the deeper
       // mountains. There are not many of them: ONE walks the home window.
       if intown && tsize >= 3 {
+        // ⚠ REACHABLE FIRST, NEAREST SECOND. The picking ground has to be somewhere the
+        // gatherer can actually walk to; on world 777 the nearest one at the old ≥14 bound
+        // had NO path from town, so the worker stood still for the life of the world.
+        ghq = w / 2 + 3;
+        ghr = h / 2 + 3;
+        reach8 = walk_reach(tiles, tk, w, h, ghq, ghr);
+        // ⚠ PICKING GROUND IS A RANKED PREFERENCE, NOT ONE TERRAIN. It used to be meadow or
+        // scree only — the alpine shelves, which is the right *first* choice and was the only
+        // one. Measured on world 777: of 9801 hexes the town can walk to just 498, and they
+        // are 467 grass + 31 road — no meadow, no scree, no forest anywhere inside the
+        // pocket. A gatherer that only picks alpine herbs cannot work in a grass valley, so
+        // it took the best ground it could see and stood 37 hexes short of it forever.
+        bestrank = 99;
         hsq = -1;
         hsr = -1;
         bhs = 999;
+        farq2 = -1;      // within the best rank present: the farthest, when none is >= 14
+        farr2 = -1;
+        bfar2 = -1;
         for gr8 in 1..h - 1 {
           for gq8 in 1..w - 1 {
             tih = gr8 * w + gq8;
             tkh = 0;
             if tih < len(tk) { tkh = tk[tih] ?? 0; }
-            if tkh == K_SCREE + 1 || tkh == K_MEADOW + 1 {
-              dh8 = hex_distance(gq8, gr8, w / 2, h / 2);
-              if dh8 >= 14 && dh8 < bhs { bhs = dh8; hsq = gq8; hsr = gr8; }
+            rank = pick_rank(tkh);
+            if rank >= 0 && rank <= bestrank && (reach8[tih] ?? 0) == 1 {
+              dh8 = hex_distance(gq8, gr8, ghq, ghr);
+              if dh8 > 0 {
+                if rank < bestrank {      // a better ground exists: forget the poorer ones
+                  bestrank = rank;
+                  hsq = -1; hsr = -1; bhs = 999;
+                  farq2 = -1; farr2 = -1; bfar2 = -1;
+                }
+                if dh8 >= 14 && dh8 < bhs { bhs = dh8; hsq = gq8; hsr = gr8; }
+                if dh8 > bfar2 { bfar2 = dh8; farq2 = gq8; farr2 = gr8; }
+              }
             }
           }
         }
+        // Working far out is the intent, not a requirement — the farthest reachable ground
+        // beats a distant unreachable one, and beats no gatherer at all.
+        if hsq < 0 { hsq = farq2; hsr = farr2; }
+        // ⚠ NO REACHABLE PICKING GROUND MEANS NO GATHERER. Spawning one anyway is how role 9
+        // came to exist as decoration: placed, walking, and structurally unable to work.
         if hsq >= 0 && bfar > 12 {
           enemies += [mk_npc(9, "gatherer", "rugged traveler", "t", 160, 150, 120,
-                             w / 2 + 3, h / 2 + 3, w / 2 + 3, h / 2 + 3,
+                             ghq, ghr, ghq, ghr,
                              hsq, hsr, farq, farr)];
         }
       }
@@ -4203,6 +4608,8 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
+    prod_stock: zeros(NUM_PRODUCERS),
+    flowd_q: [], flowd_r: [], flowd_cls: [], flowd_data: [],
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
     known: zeros(len(game_items())), flavour_idx: zeros(len(game_items())),
     room_q0: rq0s, room_r0: rr0s, room_w: rws, room_h: rhs,

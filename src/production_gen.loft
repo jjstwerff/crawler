@@ -5,10 +5,14 @@
 
 // Entries a bundle adds for this producer (0 = none).
 pub fn bundle_production_len(producer: text) -> integer {
+  if producer == "alchemy" { return 1; }
   0
 }
 
 // The i-th bundle-contributed entry for this producer ("" = out of range).
 pub fn bundle_production_key(producer: text, i: integer) -> text {
+  if producer == "alchemy" {
+    if i == 0 { return "naga_antivenin"; }
+  }
   ""
 }

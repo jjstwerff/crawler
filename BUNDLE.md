@@ -219,6 +219,15 @@ That single rule gives the property that makes it safe to land: **with no bundle
 the total length equals the engine's own and the sequence is exactly what it was.** The change
 is inert until content uses it.
 
+⚠ **AND IT WAS INERT FOR LONGER THAN ANYONE NOTICED.** For its first day no bundle declared a
+`production` section at all, so `bundle_production_len()` returned 0 for all seven producers
+and `producttest`'s bundle-arm assertion sat in a `0..bundle_len` loop that **ran zero
+iterations** — the merge's bundle half was "gated" only in the sense that it compiled. The
+first real contribution landed 2026-08-10: `desert_surprise` declares
+`"alchemy": ["naga_antivenin"]` (the bundle that brings the nagas teaches the town the cure),
+taking the merged repertoire from 6 to 7. *A seam with no consumer is a seam with no test* —
+when you add one, add the content that exercises it in the same change.
+
 #### What this deliberately does NOT hide
 
 ⚠ **Contributing to a repertoire SHIFTS THE WHOLE ROTATION**, and that is correct rather than a
