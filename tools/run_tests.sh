@@ -74,8 +74,11 @@ GATE_SLOW=$(mktemp)
 # not a gate-wide flag: compiling a 1 s test to save 0.8 s loses nine seconds, while
 # compiling questtest saves seventy-three.
 #
-# Measured 2026-08-10, all 97 tests both ways, back-to-back per test (the full table
-# is in the plan-#17 evaluation; totals below are wall time for the whole roster):
+# Measured 2026-08-10, all 97 tests both ways, back-to-back per test so box load hit both
+# arms alike (commit 3bf82be carries the finding; totals below are wall time for the whole
+# roster). ⚠ The per-test table is NOT kept anywhere, on purpose — it would rot, and it is
+# reproducible on demand: `GATE_NO_NATIVE=1 make test` regenerates the interpreted baseline
+# for every row, which is the number you need to decide whether one belongs on this list.
 #
 #     --interpret                      593 s      what this gate used to be
 #     --native-release, cache warm      88 s      6.7x — but only when nothing changed
