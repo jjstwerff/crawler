@@ -258,11 +258,27 @@ fails on the 2× margin. `incursiontest`'s preconditions all hold on 1337 unchan
 present, one raider on the first dawn, 12 → 3 hexes in 15 ticks, the cap binding at 2, and row
 7's safe/unsafe/safe still reading three ways.
 
-⚠ **Still on 777, and NOT part of this plan** — flagged rather than changed, because each
-belongs to another plan and asserts something different: `questtest` (the wizard/gate/
-infestation chain), `cavetest`, `effecttest`, and `fieldtest` (which sweeps 777's surface *and*
-two dungeon depths deliberately, as a sample of worlds rather than a claim about the shipped
-one). The same argument applies to `questtest` most sharply.
+#### ✅ `questtest` switched too — and switching it found a defect
+
+⚠ **It went red, which was the useful part.** The infestation row asserted `inf1 > inf2` on
+`count_glyph(level, "J")` — but that counts **every** snake on the level, and normal
+generation places snakes too. On 777 depth 2 happened to hold 4 natural snakes, so `4 + 4`
+brood `= 8` against depth 1's `11 + 0 = 11`, and it passed. On the shipped world depth 2 holds
+**7**, both totals come out at **11**, and a perfectly healthy mechanism reads as broken.
+*The assertion was never about the brood; it was about the brood plus whatever else the seed
+put there.*
+
+Subtracting each depth's **boss-not-slain population** cancels the wildlife, and what is left
+is exact: **brood 11 at depth 1 and 4 at depth 2** — precisely `desert_surprise`'s declared
+`infest_d1: 11, infest_d2: 4`. So the row now asks for an **identity** rather than for
+"enough", and reads the expectation from `world_placement()` instead of copying it, so a
+bundle that re-authors its infestation moves the test with it rather than quietly failing an
+engine gate. Verified red: +3 to the depth-2 count reports *"the brood is 11/7 against the
+bundle's declared 11/4"*.
+
+⚠ **Still on 777, and deliberately**: `cavetest`, `effecttest`, and `fieldtest` — the last
+sweeps 777's surface *and* two dungeon depths as a **sample of worlds**, which is a different
+kind of claim from "this is what a player gets".
 
 ## What `S1`/`S2` turned up — measured 2026-08-09
 

@@ -353,6 +353,15 @@ genuinely different routes:
   supply from 7 deliveries to 3. ⚠ *A seed in a test is a claim about which world the result
   describes* — and when a gate changes worlds, the check that matters is that it can still
   **go red** there, not that it still passes.
+- a **measurement that counted the mechanism PLUS the world** (2026-08-10) — `questtest`
+  asserted the brood thickens toward the surface as `inf1 > inf2` over `count_glyph(level,
+  "J")`, which counts every snake including the ones ordinary generation places. On 777 that
+  read `4 + 4 = 8` against `11 + 0 = 11` and passed; on the shipped seed depth 2 holds 7
+  natural snakes, both totals are 11, and a healthy mechanism reads as broken. Subtracting
+  each depth's boss-not-slain population cancels the wildlife and leaves **exactly** the
+  bundle's declared 11 and 4 — so the row became an identity read from `world_placement()`.
+  ⚠ *If a count includes anything you are not asking about, the world is a term in your
+  result — subtract a same-world control and the threshold usually becomes an identity.*
 - a **signal with no baseline to read it against** (2026-08-10) — three of `S4`'s four
   visibility signals shipped before `S4` did, and none of them closed `F6`. A stall holding
   **2 potions instead of 1** is a real difference and an unreadable one: a player who has
