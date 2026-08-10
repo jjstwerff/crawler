@@ -79,8 +79,9 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` interprets all 91 (**93 rows** — `playtest` runs 3×) and takes ~7 min idle, **but 13 min
-measured under a loaded box**. Run the full gate **once**, before committing —
+test` interprets all 96 (**97 rows** — `playtest` runs 3×) and takes **10–13 min, set by how
+loaded the box is** (measured 2026-08-10: 12m55s at 93 rows against a busy box, 10m13s at 97
+rows against a quiet one — the load dominates, not the roster). Run the gate **once**, before committing —
 and read the existing `/tmp/story_<name>.log` rather than re-running it to check a result.
 
 ## Design / debug protocol (exact-invariant work)
@@ -147,12 +148,16 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **91** — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
-  msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/safety/
-  production/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it **warning-clean**.
-  ⚠ **Wiring it in is the step that gets skipped** — `tools/run_tests.sh` is the roster, and
-  5 test files on disk are not in it (`fig`/`gen`/`grid`/`mon`/`wall`); a test the gate never
-  runs is not a gate. Pixel-level render checks
+  (currently **96 files / 97 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
+  defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
+  safety/production/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it
+  **warning-clean**. ⚠ **WIRING IT IN IS THE STEP THAT GETS SKIPPED, and nothing complains** —
+  `tools/run_tests.sh` is the roster, not `src/`. Five tests sat on disk unwired until
+  2026-08-10 (`fig`/`gen`/`grid`/`mon`/`wall`) and `canopytest` was listed twice; a test the
+  gate never runs is not a gate. The check is one line:
+  `comm -23 <(ls src/*test*.loft|sort) <(grep -oE 'src/[a-z_0-9]+test\.loft' tools/run_tests.sh|sort -u)`
+  — it should print only `src/selftest.loft` (the kernel self-test, run before the tables).
+  Pixel-level render checks
   live in **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7)
   P0). The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
 - **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under

@@ -152,7 +152,7 @@ src/gameflow.loft  the deterministic intent seam; framekey.loft = the scene dige
 src/hexscene|view3d|scenemesh|figure   the first-person 3D pass (plan #11)
 src/view.loft      the 2D egocentric renderer — retires at 3D parity (plan #11 P9)
 src/story.loft     entry: the engine_host game host; observe.loft = live spectator
-src/*test.loft     headless tests — 91 files, 93 rows in `make test`
+src/*test.loft     headless tests — 96 files, 97 rows in `make test`
 bundles/<name>/    game content, merged generically (see BUNDLE.md)
 ```
 

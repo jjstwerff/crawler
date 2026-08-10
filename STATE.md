@@ -1,6 +1,6 @@
 # STATE.md — where things stand (2026-08-10)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 93 rows,
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 97 rows,
 2026-08-10). Written as a handoff: read after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
@@ -40,13 +40,14 @@ where crawler sits in the stack.
 - **The toolchain is 2026.8.0** — and it is `../loft`'s *working-tree build*, 15+ commits past
   the tag, rebuilt while gates run. `make test` stamps version + **md5** in its header, because
   `loft --version` is not provenance. Two logs with different md5 are not comparable.
-- **The gate is quiet and green — 91 test files, 93 rows** (`playtest` runs 3×), up from ~5 min
-  to ~7 because three tests now generate extra windows instead of assuming geography. ⚠ **That
-  ~7 min is the idle figure: measured 12m55s on 2026-08-10 while a sibling tree ran ~50 loft
-  processes**, so budget by load, not by the number. One `ok <secs> <name>` line per test, a
-  closing line for anything over 5 s, `GATE_VERBOSE=1` for the old stream. ⚠ To prove a change
-  behaviour-preserving, diff the **per-test** logs (`/tmp/story_<name>.log`), not stdout.
-  The four slowest are `travel` 147s · `quest` 72s · `surface` 50s · `cave` 45s.
+- **The gate is quiet and green — 96 test files, 97 rows** (`playtest` runs 3×), after the five
+  unwired tests were wired in on 2026-08-10 and a duplicate `canopytest` row removed. ⚠ **Budget
+  it by LOAD, not by the roster**: measured the same day, 93 rows took **12m55s** while a sibling
+  tree ran ~50 loft processes, and 97 rows took **10m13s** on a quiet box. One `ok <secs> <name>`
+  line per test, a closing line for anything over 5 s, `GATE_VERBOSE=1` for the old stream. ⚠ To
+  prove a change behaviour-preserving, diff the **per-test** logs (`/tmp/story_<name>.log`), not
+  stdout. The slowest are `quest` ~118s · `travel` ~78s · `surface` ~47s · `replay` ~34s, and
+  they move a lot run to run.
 - **`../moros` has its own agent** and is **READ-ONLY** (`CLAUDE.md`) — findings become
   documents here; how one reaches the other project is the user's call.
 - Also new: `CRAFTING.md`, `ADOPTION.md` (library pull side, P0–P4 shipped), `MOROS.md` (what
@@ -147,10 +148,12 @@ the area — but if it continues, the label is wrong and should move.
   algebra, but its bundle-arm assertion sits in a `0..bn` loop with `bn = 0`, so **the bundle
   half is structurally unexercised** — the same family as lesson 3 below. `S3` declares stock
   *beside* that repertoire, so it should ship the first real `production` section with it.
-- **5 test files are on disk but the gate never runs them** — `figtest`, `gentest`, `gridtest`,
-  `montest`, `walltest`. All five still compile under the gate's flags (checked 2026-08-10), so
-  they are unwired rather than rotted, but *a test the gate never runs is not a gate*. Either
-  wire them into `tools/run_tests.sh` or delete them; leaving them is the worst of the three.
+- ✅ **The five unwired tests are wired** (2026-08-10) — `figtest`, `gentest`, `gridtest`,
+  `montest`, `walltest` were on disk and in no row of `tools/run_tests.sh`. All five pass and
+  each gates its `OK` marker on a real assertion, so they can go red. `canopytest` was also
+  listed **twice** with the same file, marker *and log path* — it ran twice and overwrote its
+  own log — so the duplicate went and the labels merged. **93 rows → 97.** The standing check is
+  in `CLAUDE.md`; run it when adding a test, because nothing else complains.
 - **The wall fit** — in `hexbody`, not here (see NEXT). Everything downstream renders the zigzag.
 - **Does a flip preserve the LAYOUT or the READING?** `HOUSE.md` §7 claims the massing mirrors
   *and* the facade *and* interior readings are unchanged. Those cannot all hold once the massing
@@ -218,9 +221,10 @@ genuinely different routes:
   `(-3,-2)`, a nest at `(-1,-4)`, a gate at `(0,-2)`). Each now *asks the world* —
   `sim_window_of`, `sim_wizard_tower`, `sim_ruin_count`/`sim_ruin_pos`, `sim_desert_gate_world`.
   *A literal coordinate in a test is an assertion about a world that is free to move.*
-- a **test the gate never runs** (2026-08-10) — five test files sit in `src/` and appear in no
-  row of `tools/run_tests.sh`. They compile, so nothing complains; they simply never execute.
-  *Being written is not being wired.*
+- a **test the gate never runs** (2026-08-10, now fixed) — five test files sat in `src/` and
+  appeared in no row of `tools/run_tests.sh`, plus one listed twice. They compiled, so nothing
+  complained; they simply never executed. *Being written is not being wired* — and note the
+  roster is the only place that knows, so the check has to compare `src/` against it.
 
 **All of them printed a healthy-looking number** — or, in the last two, no number at all. The rule that would have caught every one:
 *state what would have to break for this control to go red, and check that is reachable.* Hence
@@ -244,7 +248,7 @@ because of a negative control the *other* agent found. → `EXTRACTION.md`, `LOF
 ## How to run things
 
 ```sh
-make test                     # the headless suite (91 files / 93 rows) — run ONCE before committing
+make test                     # the headless suite (96 files / 97 rows) — run ONCE before committing
 loft --interpret --path ../loft/ --lib ../loft/lib/ src/<x>test.loft   # + the bundles/ --libs
 python3 tools/glbview.py build/x.glb out.png --eye 30,-46,12 --target=-4,0,6 \
      --shadow 640 --stats          # --stats = coverage per MATERIAL, never by pixel colour
