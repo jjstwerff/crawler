@@ -65,6 +65,10 @@ make test     # headless deterministic gate — RUN THIS before committing
               #   and a closing line for anything over 5 s. A FAILURE prints its own
               #   evidence, so you never go hunting for the log.
               #   GATE_VERBOSE=1 make test  -> the old full stream.
+              #   14 heavy tests (16 rows) run --native-release (`·native`), the rest
+              #   --interpret — 7-22x on those, ~10 s of rustc each when their cache
+              #   is cold. GATE_NO_NATIVE=1 puts every row back on the interpreter:
+              #   that is how you tell a native-codegen divergence from your own bug.
               #   ⚠ To prove a change behaviour-preserving, diff the PER-TEST logs
               #   (/tmp/story_<name>.log), not the gate's stdout — they cannot
               #   interleave, and stdout no longer carries the outputs.
@@ -79,10 +83,16 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` interprets all 97 (**98 rows** — `playtest` runs 3×) and takes **10–13 min, set by how
-loaded the box is** (measured 2026-08-10: 12m55s at 93 rows against a busy box, 10m13s at 97
-rows against a quiet one — the load dominates, not the roster). Run the gate **once**, before committing —
-and read the existing `/tmp/story_<name>.log` rather than re-running it to check a result.
+test` runs all 97 (**98 rows** — `playtest` runs 3×) in **~4 min warm** (measured 2026-08-10:
+4m03s on a busy box). It used to be **10–13 min**: the 14 tests that held most of the wall clock
+now compile via `--native-release` and the rest still interpret (the hybrid — `tools/run_tests.sh`
+→ `NATIVE_TESTS` carries the measurement and the ≥10 s rule for joining the list). ⚠ **Budget
++10 s per affected native row when the compile cache is cold** — a kernel edit invalidates the
+40 tests that transitively `use sim`, and a `make install` in `../loft` invalidates *all* of
+them (the cache key hashes the generated Rust **and** `libloft.rlib`'s mtime). A blanket
+`--native-release` was measured and rejected: 6.7× warm but **1.8× slower** cold, and cold is
+the normal state here. Run the gate **once**, before committing — and read the existing
+`/tmp/story_<name>.log` rather than re-running it to check a result.
 
 ## Design / debug protocol (exact-invariant work)
 

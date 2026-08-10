@@ -36,6 +36,12 @@ if [ -d ../loft/.git ]; then
     echo "              ../loft describe: ${gd:-?} (the installed binary is NOT that tree's build)"
   fi
 fi
+if [ -n "${GATE_NO_NATIVE:-}" ]; then
+  echo "  [mode] every test --interpret (GATE_NO_NATIVE=1)"
+else
+  echo "  [mode] 13 heavy tests + playtest run --native-release (·native rows); the rest --interpret."
+  echo "         First run after a kernel edit or a loft reinstall pays ~10 s rustc per affected row."
+fi
 
 # ── QUIET ON PASS, LOUD ON FAIL, AND ALWAYS SAY WHERE THE TIME WENT ─────────
 #
@@ -54,39 +60,98 @@ fi
 # ⚠ THE SECONDS ARE NOT DECORATION. A suite that takes minutes has to say where they
 # went or nobody can shorten it: measured, six of 88 tests hold most of the wall time
 # (quest 51s, travel 30s, replay 26s, surface 26s, sweep 22s, mesh 20s) and most of
-# the rest are under two. That is only actionable if the gate prints it.
+# the rest are under two. That is only actionable if the gate prints it — and it was
+# acted on: that printout is where NATIVE_TESTS below came from.
 #
 # GATE_VERBOSE=1 restores the old streaming behaviour for a single run.
 GATE_T0=$(date +%s)
 GATE_SLOW=$(mktemp)
 
+# ── WHICH TESTS COMPILE, AND WHY ONLY THESE ─────────────────────────────────
+#
+# `--native-release` runs 7-22x faster than `--interpret` but costs ~10 s of rustc
+# the first time a test's generated Rust changes. So the mode is a per-test choice,
+# not a gate-wide flag: compiling a 1 s test to save 0.8 s loses nine seconds, while
+# compiling questtest saves seventy-three.
+#
+# Measured 2026-08-10, all 97 tests both ways, back-to-back per test (the full table
+# is in the plan-#17 evaluation; totals below are wall time for the whole roster):
+#
+#     --interpret                      593 s      what this gate used to be
+#     --native-release, cache warm      88 s      6.7x — but only when nothing changed
+#     --native-release, kernel edit    518 s      1.1x — 40 tests recompile, a wash
+#     --native-release, all cold      1058 s      0.6x — SLOWER than interpreting
+#     hybrid (this list)          239-380 s      1.6-2.5x, and it cannot lose
+#
+# The blanket flip is the trap: the cache key hashes the generated Rust AND the
+# installed libloft.rlib mtime, so a `make install` in ../loft resets all 97 to cold,
+# and any sim.loft edit resets the 40 that transitively use it. The hybrid can't lose,
+# because the long tail of 1-3 s tests never pays for rustc at all.
+#
+# THE RULE: a test earns a place here by costing MORE THAN ~10 s interpreted — that is
+# the compile, so below it the trade is negative. The gate prints every row's seconds
+# and lists everything over 5 s on the way out, which is how you re-check the list
+# without a profiling session: a native row that still reports double digits, or an
+# interpreted row that climbs past ten, is the signal to move it.
+#
+# ⚠ THESE ROWS NOW EXERCISE A SECOND COMPILER. All 97 passed identically both ways on
+# 2026-08-10, so today the modes agree — but a native-codegen bug (LOFT-HANDOFF N1 is
+# one) would now surface HERE rather than in `make game`, and it is not our code. That
+# is what GATE_NO_NATIVE=1 is for: re-run the red test interpreted, and if it goes
+# green the divergence is the backend's, which is a loft ticket, not a crawler fix.
+NATIVE_TESTS="questtest stocktest traveltest surfacetest replaytest safetytest
+              meshtest fieldtest crystaltest effecttest cavetest roofmatchtest
+              sweeptest playtest"
+# ⚠ NORMALISE THE SEPARATORS, OR THE LIST SILENTLY LIES. The names are written on three
+# lines to stay readable, so what separates the LAST name on a line from the first on the
+# next is a NEWLINE — and the `case " $NATIVE_TESTS "` membership test below matches on
+# SPACES. Unnormalised, exactly the line-final entries fall through to --interpret: the
+# first run of this gate ran safetytest (23.8 s) and roofmatchtest interpreted while
+# reporting a green PASS, and the only visible trace was a missing ·native tag on two
+# rows. Word-splitting collapses every run of whitespace, newlines included, to one space.
+# shellcheck disable=SC2086  # the word-splitting IS the normalisation
+NATIVE_TESTS=$(printf '%s ' $NATIVE_TESTS)
+
 # run <src-file> <ok-marker> <log> <fail-text> <label> [program-arg]
 #
 # ⚠ THE OPTIONAL 6th ARG IS WHAT LETS ONE PROGRAM BE SEVERAL TESTS. playtest.loft is a
 # driver; each scripts/*.play is a different claim. Without it they would all report as
-# "playtest" and a red one would not say which playthrough broke.
+# "playtest" and a red one would not say which playthrough broke. It is also why
+# playtest earns the native list below its 10 s bar: ONE compile serves all three rows.
 run() {
   t0=$(date +%s%N)
+  stem=$(basename "$1" .loft)
+  mode=--interpret
+  tag=
+  if [ -z "${GATE_NO_NATIVE:-}" ]; then
+    case " $NATIVE_TESTS " in
+      *" $stem "*) mode=--native-release; tag=' ·native' ;;
+    esac
+  fi
   if [ -n "${GATE_VERBOSE:-}" ]; then
     echo "  $5"
     # shellcheck disable=SC2086  # FLAGS must word-split into --path/--lib
-    "$LOFT" --interpret $FLAGS "$1" ${6:+"$6"} | tee "$3"
+    "$LOFT" $mode $FLAGS "$1" ${6:+"$6"} | tee "$3"
   else
     # shellcheck disable=SC2086
-    "$LOFT" --interpret $FLAGS "$1" ${6:+"$6"} > "$3" 2>&1
+    "$LOFT" $mode $FLAGS "$1" ${6:+"$6"} > "$3" 2>&1
   fi
   ms=$(( ($(date +%s%N) - t0) / 1000000 ))
-  name=$(basename "$1" .loft)
+  name=$stem
   [ -z "${6:-}" ] || name="$name:$(basename "$6" .play)"
   printf '%s %s\n' "$ms" "$name" >> "$GATE_SLOW"
   if grep -q "$2" "$3"; then
-    [ -n "${GATE_VERBOSE:-}" ] || printf '  ok %6d.%ds  %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name"
+    [ -n "${GATE_VERBOSE:-}" ] || printf '  ok %6d.%ds  %s%s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$tag"
   else
     # ⚠ A FAILURE PRINTS ITS EVIDENCE. The old form printed only "FAIL: <text>" and
     # left the reader to go find the log; the run had already scrolled past.
-    printf '  FAIL %4d.%ds  %s — %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$4"
+    printf '  FAIL %4d.%ds  %s%s — %s\n' "$((ms / 1000))" "$(( (ms % 1000) / 100 ))" "$name" "$tag" "$4"
     echo "       ---- $3 (tail, compiler noise stripped) ----"
     grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' "$3" | tail -12 | sed 's/^/       /'
+    # ⚠ SAY WHOSE BUG IT MIGHT BE. This row ran through rustc, so a red here has two
+    # possible authors; the one-line re-run separates them before anyone starts reading
+    # crawler diffs for a fault that is in the native backend.
+    [ -z "$tag" ] || echo "       (ran --native-release; GATE_NO_NATIVE=1 tools/run_tests.sh … re-runs it interpreted — green there = a loft codegen divergence, not our change)"
     exit 1
   fi
 }

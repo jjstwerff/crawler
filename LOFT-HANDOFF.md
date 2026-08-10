@@ -1174,9 +1174,17 @@ fine — it takes a *mix* of programs to trigger, which points at concurrent acc
 
 ### Why it matters to a consumer
 
-It is the only thing between crawler's gate and a **15× speedup**: the suite is ~18 minutes
-serially and ~70 seconds at `-P8`, and the tests are genuinely independent. We cannot take that
-win, because a suite that fails a *different* test each run is worse than a slow one.
+It is the only thing between crawler's gate and a large speedup: measured when this was filed,
+the suite was ~18 minutes serially and ~70 seconds at `-P8`, and the tests are genuinely
+independent. We cannot take that win, because a suite that fails a *different* test each run is
+worse than a slow one.
+
+⚠ **The prize is smaller than that 15× now, and the defect is unchanged.** Since 2026-08-10 the
+serial suite is **~4 minutes**: the 14 heaviest rows run `--native-release` (`tools/run_tests.sh`
+→ `NATIVE_TESTS`), which bought most of what serial execution was costing. Parallelism is still
+the bigger remaining lever — 98 rows on 24 cores — but it is now a ~4-minute problem, not an
+18-minute one, so this ticket should be prioritised on the concurrency defect being a *defect*
+(a panic where a fallback exists), not on the wall clock it would save us.
 
 ### Workaround (partial)
 

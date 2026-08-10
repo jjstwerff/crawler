@@ -43,13 +43,17 @@ where crawler sits in the stack.
   the tag, rebuilt while gates run. `make test` stamps version + **md5** in its header, because
   `loft --version` is not provenance. Two logs with different md5 are not comparable.
 - **The gate is quiet and green — 97 test files, 98 rows** (`playtest` runs 3×), after the five
-  unwired tests were wired in on 2026-08-10 and a duplicate `canopytest` row removed. ⚠ **Budget
-  it by LOAD, not by the roster**: measured the same day, 93 rows took **12m55s** while a sibling
-  tree ran ~50 loft processes, and 97 rows took **10m13s** on a quiet box. One `ok <secs> <name>`
-  line per test, a closing line for anything over 5 s, `GATE_VERBOSE=1` for the old stream. ⚠ To
-  prove a change behaviour-preserving, diff the **per-test** logs (`/tmp/story_<name>.log`), not
-  stdout. The slowest are `quest` ~118s · `travel` ~78s · `surface` ~47s · `replay` ~34s, and
-  they move a lot run to run.
+  unwired tests were wired in on 2026-08-10 and a duplicate `canopytest` row removed. **It runs
+  in ~4 min** (measured 2026-08-10: 4m03s on a busy box), down from 10–13 min, because the 14
+  tests (16 rows) that held most of the wall clock now run `--native-release`, the rest interpret
+  — `tools/run_tests.sh` → `NATIVE_TESTS`. ⚠ **Budget by CACHE STATE now, not only by load**:
+  those rows cost ~10 s of rustc each whenever their compile cache is cold, which a kernel edit
+  does to the 40 tests that transitively `use sim` and a `make install` in `../loft` does to all
+  of them. One `ok <secs> <name>` line per test (`·native` marks a compiled row), a closing line
+  for anything over 5 s, `GATE_VERBOSE=1` for the old stream, `GATE_NO_NATIVE=1` to put every row
+  back on the interpreter. ⚠ To prove a change behaviour-preserving, diff the **per-test** logs
+  (`/tmp/story_<name>.log`), not stdout. What is left over 5 s: `safety` ~24s · `stock` ~15s ·
+  `replay` ~8s · `itemuse` ~8s, and they move a lot run to run.
 - **`../moros` has its own agent** and is **READ-ONLY** (`CLAUDE.md`) — findings become
   documents here; how one reaches the other project is the user's call.
 - Also new: `CRAFTING.md`, `ADOPTION.md` (library pull side, P0–P4 shipped), `MOROS.md` (what
@@ -264,21 +268,30 @@ because of a negative control the *other* agent found. → `EXTRACTION.md`, `LOF
 ## How to run things
 
 ```sh
-make test                     # the headless suite (97 files / 98 rows) — run ONCE before committing
+make test                     # the headless suite (97 files / 98 rows, ~4 min) — ONCE before committing
+GATE_NO_NATIVE=1 make test    # …with every row interpreted (is a red row OURS or the backend's?)
 loft --interpret --path ../loft/ --lib ../loft/lib/ src/<x>test.loft   # + the bundles/ --libs
+loft --native-release …       # same, for a test that costs >10s interpreted (~10s to compile once)
 python3 tools/glbview.py build/x.glb out.png --eye 30,-46,12 --target=-4,0,6 \
      --shadow 640 --stats          # --stats = coverage per MATERIAL, never by pixel colour
 ```
 
-**Iterate on ONE test** (~0.5 s), not the whole gate (minutes). Read `/tmp/story_<name>.log`
+**Iterate on ONE test** (~0.5 s), not the whole gate (~4 min). Read `/tmp/story_<name>.log`
 rather than re-running `make test` to check a result.
 
-**`--native` is NOT the speed win it looks like here.** Measured 2026-07-23 on the `hexbody`
-gate: warm, native is **0.34 s vs 0.47 s interpreted — ~1.4×**. These tests are too small for
-codegen to matter; startup dominates. It also currently costs correctness: `save_png` returns
-**false** under `--native` (LOFT-HANDOFF **N2**), so a `Canvas` render writes no PNG, and `%` as
-an if-branch tail expression breaks native codegen outright (**N1**). Use `--interpret` unless
-profiling says otherwise.
+**`--native` pays only where a test is BIG — and that is a per-test call, not a flag.** Measured
+2026-07-23 on the `hexbody` gate: warm, native was **0.34 s vs 0.47 s interpreted — ~1.4×**,
+because those tests are too small for codegen to matter and startup dominates. That reading
+still holds *for tests that size*, and it does not carry to crawler's heavy ones: measured
+2026-08-10 across all 97 both ways, `questtest` goes **76.2 s → 3.5 s (21.7×)**, `travel`
+**50.5 → 3.7**, `surface` **47.1 → 3.5**, with **zero output divergence on any of the 97**.
+The whole-roster totals are what decide it: **593 s interpreted · 88 s native-warm (6.7×) ·
+1058 s native-cold (1.8× SLOWER)** — cold costs ~10 s of rustc per test, so a blanket flip
+loses on the ~85 tests that run in 1-3 s. Hence the hybrid now in `tools/run_tests.sh`
+(`NATIVE_TESTS`, the ≥10 s rule). ⚠ Still true of the *rendering* path: `save_png` returns
+**false** under `--native` (LOFT-HANDOFF **N2**), so a `Canvas` render writes no PNG — no gate
+test calls it, but a diagnostic script that does must stay `--interpret`; and `%` as an
+if-branch tail expression breaks native codegen outright (**N1**).
 
 ⚠ **`loft-libs-world` is NOT consumed from a sibling checkout any more** (changed 2026-08-09,
 ADOPTION.md **P3**). `hex_grid`, `hex_field`, `hex_edge`, `hex_way`, `hex_roof` and
