@@ -9,7 +9,7 @@ use overland;
 
 fn main() {
   println("=== story travel test (window crossing / the desert gate) ===");
-  s0 = sim_new_gen(777, 0);
+  s0 = sim_new_gen(1337, 0);
   (w0x, w0y) = sim_window(s0);
   home = w0x == 0 && w0y == 0;
   noent = true;
@@ -50,7 +50,7 @@ fn main() {
   // above is unchanged; this half now follows the gate.
   (gx9, gy9) = sim_desert_gate_world();
   (gwx, gwy) = sim_window_of(gx9, gy9);
-  s0 = sim_new_gen_s(777, 0, 0, 0, gwx, gwy);
+  s0 = sim_new_gen_s(1337, 0, 0, 0, gwx, gwy);
   entq = -1;
   entr = -1;
   for r in 0..101 {

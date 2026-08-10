@@ -51,8 +51,8 @@ fn main() {
   println("reachable from room0 = {reach} / {floor}");
 
   // Determinism: same seed -> identical layout; different seed -> different.
-  a = gen_dungeon(777, 41, 41, 14);
-  b = gen_dungeon(777, 41, 41, 14);
+  a = gen_dungeon(1337, 41, 41, 14);
+  b = gen_dungeon(1337, 41, 41, 14);
   c = gen_dungeon(778, 41, 41, 14);
   ta = a.g_tiles;
   tb = b.g_tiles;

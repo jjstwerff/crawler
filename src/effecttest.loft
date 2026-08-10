@@ -50,7 +50,7 @@ fn main() {
   // you inside a boulder or a fence post. Gated on the SURFACE, standing next to
   // the farmers' fences — the dungeon has neither kind, which is why the depth-1
   // check above never caught it.
-  b = sim_new_gen(777, 0);
+  b = sim_new_gen(1337, 0);
   fq = -1;
   fr = -1;
   for br0 in 0..101 {

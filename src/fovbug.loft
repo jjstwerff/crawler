@@ -1,6 +1,6 @@
 use sim;
 fn main() {
-  s = sim_new_gen(777, 1);            // a 41x41 generated dungeon level
+  s = sim_new_gen(1337, 1);            // a 41x41 generated dungeon level
   println("lw by-value = {s.lw}");    // 41 (correct)
   sim_compute_fov(s);                 // reads s.lw inside a large nested loop -> garbage under interpret
   println("survived");

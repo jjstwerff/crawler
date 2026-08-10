@@ -7,7 +7,7 @@ use hex_grid;
 
 fn main() {
   println("=== story cave test (mouths / narrow winding levels) ===");
-  surf = sim_new_gen(777, 0);
+  surf = sim_new_gen(1337, 0);
   cq = -1;
   cr = -1;
   for r in 0..101 {

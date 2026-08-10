@@ -43,7 +43,7 @@ fn main() {
   println("shot3d: shader={prog} actor_vbo={avbo}");
 
   // A DUNGEON level: enclosed, so walls should fill much of the frame.
-  d = sim_new_gen(777, 1);
+  d = sim_new_gen(1337, 1);
   sim_compute_fov(d);
   graphics::gl_poll_events();
   shot_at(d, "p3_dungeon", prog, avbo, vw, vh);
@@ -56,7 +56,7 @@ fn main() {
 
   // The SURFACE: open country, so the frame should be mostly ground and sky with the
   // horizon across it. If the dungeon looks right and this does not, the fault is scale.
-  u = sim_new_gen(777, 0);
+  u = sim_new_gen(1337, 0);
   sim_compute_fov(u);
   graphics::gl_poll_events();
   shot_at(u, "p3_surface", prog, avbo, vw, vh);

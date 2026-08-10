@@ -8,7 +8,7 @@ use hex_grid;
 
 fn main() {
   println("=== story surface test (depth-0 desert + entrance) ===");
-  surf = sim_new_gen(777, 0);
+  surf = sim_new_gen(1337, 0);
   d0 = sim_depth(surf);
   openc = !is_wall(surf, 50, 50) && !is_wall(surf, 47, 52) && !is_wall(surf, 52, 47);  // cleared start ring
   kinds_live = sim_tile_kind(surf, 50, 50) >= 0;   // the surface carries terrain kinds
@@ -23,27 +23,60 @@ fn main() {
   npcs0 = sim_npc_count(surf);
   populated_town = npcs0 >= 7;
   at_day = sim_phase(surf) == 0;
-  // Watch from afar — the knot bites, so the hero must stand somewhere a CIVILIAN would.
-  // ⚠ This used to be the literal hex (75,75), which was "afar" only in the world that
-  // existed when it was written. Moving the home window to the alpine town put a level-6
-  // gnoll 8 hexes from it and the hero died on tick 13 — a world-specific constant failing
-  // for a reason that had nothing to do with what the row tests. Derived instead, against
-  // the plan #17 safety category: far from the town, open ground, and no hostile in reach.
+  // Watch from afar — the knot bites, so the hero has to stand somewhere nothing reaches.
+  //
+  // ⚠ TWO WRONG VANTAGES, AND THE SECOND IS THE INSTRUCTIVE ONE. It was first the literal
+  // hex (75,75), which was "afar" only in the world that existed when it was written; moving
+  // the home window put a level-6 gnoll 8 hexes away and the hero died on tick 13. The fix
+  // derived it instead — open ground, 20 from town, and `hex_safe` — and that failed too, on
+  // the shipped seed, with the hero dead on tick 9.
+  //
+  // ⚠ BECAUSE `hex_safe` ANSWERS THE WRONG QUESTION. It is plan #17's CIVILIAN predicate:
+  // *no hostile within `THREAT_R`, or a guard within `GUARD_R`*. A civilian is invulnerable
+  // and nothing hunts it, so 6 hexes of clearance is plenty. The hero is neither — hostiles
+  // WAKE AND WALK AT HIM — so 6 hexes is about nine ticks. `S1` recorded that every danger
+  // signal in the engine answers *"is it dangerous to the player"* when a civilian needed
+  // asking; this is the same mistake pointing the other way, and the two predicates are not
+  // interchangeable in either direction.
+  //
+  // So the vantage maximises CLEARANCE — distance to the nearest living hostile — and the
+  // row states the clearance it got. A world with nowhere quiet enough fails loudly here
+  // rather than as a mystery death sixty ticks later.
   vq = -1;
   vr = -1;
+  vclear = -1;
   for cr in 20..85 {
     for cq in 20..85 {
-      if vq < 0 && tile_at(surf, cq, cr) == 0 && hex_distance(cq, cr, 50, 50) >= 20
-         && hex_safe(surf, cq, cr) {
-        vq = cq;
-        vr = cr;
+      if tile_at(surf, cq, cr) == 0 && hex_distance(cq, cr, 50, 50) >= 20 {
+        nearest = 9999;
+        for hi0 in 0..sim_enemy_count(surf) {
+          if sim_enemy_alive(surf, hi0) && sim_enemy_role(surf, hi0) == 0 {
+            (ehq, ehr) = sim_enemy_hex(surf, hi0);
+            dh0 = hex_distance(ehq, ehr, cq, cr);
+            if dh0 < nearest { nearest = dh0; }
+          }
+        }
+        if nearest > vclear { vclear = nearest; vq = cq; vr = cr; }
       }
     }
   }
-  if vq < 0 { println("FAIL: nowhere safe to watch the town from"); }
+  vantage_ok = vq >= 0 && vclear >= 15;
+  if !vantage_ok {
+    println("FAIL: the quietest ground 20+ hexes from town still has a hostile {vclear} away — nowhere to watch from");
+  }
   sim_teleport(surf, vq, vr);
   for _ in 0..60 { sim_wait(surf); }
-  alive_still = sim_npc_count(surf) == npcs0 && !sim_over(surf);
+  // ⚠ SPLIT, because they fail for unrelated reasons: an NPC vanishing is a town defect,
+  // the hero dying is the vantage (or the opening curve, DESIGN §3a pillar #8).
+  npcs_kept = sim_npc_count(surf) == npcs0;
+  hero_lived = !sim_over(surf);
+  alive_still = npcs_kept && hero_lived && vantage_ok;
+  if !npcs_kept {
+    println("FAIL: the town lost an NPC in 60 quiet ticks ({npcs0} -> {sim_npc_count(surf)})");
+  }
+  if !hero_lived {
+    println("FAIL: the hero died watching the town from {vclear} hexes of clearance");
+  }
 
   // the dungeon entrance is NOT in town any more — it opens from the rain-shadow
   // desert, windows away (traveltest walks there); the home window carries none
@@ -77,7 +110,7 @@ fn main() {
   // seam runs one way only. The testable form is that the same seed yields the same
   // village every time — a hand-placed scene cannot pass this — and that a different seed
   // yields a different one, so "identical" can never be the trivial answer.
-  again = sim_new_gen(777, 0);
+  again = sim_new_gen(1337, 0);
   same = 0;
   diff = 0;
   for pr0 in 0..101 {
@@ -86,12 +119,12 @@ fn main() {
     }
   }
   // The discriminator is the WINDOW, not the seed. Measured: the depth-0 surface is
-  // identical for seed 777 and seed 4242 — the overland is the fixed contract wilderness
+  // identical for seed 1337 and seed 4242 — the overland is the fixed contract wilderness
   // (OVERLAND.md 12-13), an example world rather than a seeded one, so the seed cannot be
   // what makes two surfaces differ. A neighbouring window is a different PLACE, which is
   // what the scorer's authority actually means: a village appears where the terrain earns
   // one, and one window over it does not.
-  other = sim_new_gen_s(777, 0, 0, 0, 1, 0);
+  other = sim_new_gen_s(1337, 0, 0, 0, 1, 0);
   odiff = 0;
   for pr1 in 0..101 {
     for pq1 in 0..101 {
@@ -109,7 +142,7 @@ fn main() {
   println("derived-world purity: same-seed identical={diff == 0} solid-identical={solid_same}/10201 other-window-differs={odiff} hexes");
 
   println("surface: depth={d0} open={openc} crystal+knot={nc} no-stair-underfoot={nostair} no-town-entrance={noent} wilds-fit={wilds_fit}");
-  println("town: npcs={npcs0} day={at_day} alive-after-60-ticks={alive_still}");
+  println("town: npcs={npcs0} day={at_day} vantage=({vq},{vr}) clearance={vclear} alive-after-60-ticks={alive_still}");
   println("solidity: boulders+posts={nsolid} is-wall={solid_ok} blocks-entry={step_ok}");
   ok = d0 == 0 && openc && kinds_live && knot && nostair && noent && wilds_fit
     && populated_town && at_day && alive_still && solids_live;

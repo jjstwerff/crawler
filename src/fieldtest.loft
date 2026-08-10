@@ -77,12 +77,12 @@ fn main() {
     if edge_wall_raw(d, 12, 7, e) != 0 { edge_arm += 1; }
   }
 
-  s0 = sim_new_gen(777, 0);
-  total += sweep(s0, "surface(777,0)  ");
-  s1 = sim_new_gen(777, 1);
-  total += sweep(s1, "dungeon(777,1)  ");
-  s2 = sim_new_gen(777, 2);
-  total += sweep(s2, "dungeon(777,2)  ");
+  s0 = sim_new_gen(1337, 0);
+  total += sweep(s0, "surface(1337,0)  ");
+  s1 = sim_new_gen(1337, 1);
+  total += sweep(s1, "dungeon(1337,1)  ");
+  s2 = sim_new_gen(1337, 2);
+  total += sweep(s2, "dungeon(1337,2)  ");
 
   println("edge walls present in the demo world: {edge_arm}/3");
   ok = total == 0 && edge_arm == 3;
