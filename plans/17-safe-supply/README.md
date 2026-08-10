@@ -21,9 +21,12 @@ and the measurement of what already exists, which turned out to be most of it. `
 > times, and what actually raised output was `npc_may_enter`'s escape hatch. → *`S5`'s
 > diagnosis was wrong, and the measurement that found it*, below.
 >
-> **→ NEXT: `S4`** (the world says it, with no panel) or `S6`/`S7`. ⚠ Before either, the two
-> measured consequences under *Open* need the user's call: the mine is unsafe **400/400**
-> ticks and the market square **215/400**, both from ambient wildlife rather than the den.
+> ✅ **And the town holds its own centre now** (user, 2026-08-10): the guard master's beat is
+> the centre and the market seat rather than a **duplicated** ring leg, so both sit inside
+> `GUARD_R` continuously — 215/400 ticks unsafe → **0**. The mine stays 400/400, which is the
+> plan's designed lever, not a defect. → *the site veto gave two OLD numbers a consumer*.
+>
+> **→ NEXT: `S4`** (the world says it, with no panel), then `S6`/`S7`.
 
 **Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
 on it by construction (`M3` authors 18 Handiness values against this system), and its own
@@ -563,20 +566,45 @@ raid:**
 | **the market square** `(50,50)` — 6 villagers | **143 / 400** at `HEAD`, **215 / 400** after | a jackal wanders within `THREAT_R`; the guards' patrol legs sit at **radius 15** and only ever *transit* the centre, so `GUARD_R = 4` almost never covers it |
 
 **The mine is the plan's own designed lever working** (*"the lever is the mine"*) and it reads
-well in play: kill the ogre, the mine reopens. **The market is the one to decide.** A market
-shut half of every day, forever, from ambient wildlife is not a signal — and it lands on
-`S1`'s own guard rail, *"guards are a term in the safety expression, not spectators, or the
-settlement is scenery waiting to be rescued."* Today they are close to spectators: they are
-posted to a ring outside the town they defend.
+well in play: kill the ogre, the mine reopens. **The market was the one to decide**, because a
+market shut half of every day, forever, from ambient wildlife is not a signal — and it landed
+squarely on `S1`'s own guard rail, *"guards are a term in the safety expression, not
+spectators, or the settlement is scenery waiting to be rescued."* They were close to
+spectators: posted to a ring **outside** the town they defend.
 
-Three candidate answers, and the choice is **DESIGN §3a pillar #8's**, the same owner as the
-opening curve: give a guard leg the town seat (worldgen), let `S7`'s pickets be what holds a
-centre, or accept the flicker as ambience.
+#### ✅ Resolved (user, 2026-08-10): give a guard leg the town seat
 
-⚠ **One second-order effect this change DID introduce, and it points the wrong way**: vetoed
-civilians idle at home, `occupied_hex` then blocks the guards more often near the centre, guard
-coverage falls, and the square goes **143 → 215**. Crowding degrades the very term that would
-uncrowd it. Small today; worth remembering if the veto ever grows a second consumer.
+The **guard master's beat is now the two hexes the town lives on** — the centre where the
+villagers work and the market seat where the makers set out the day's goods. They are 2 hexes
+apart, so **both stay inside `GUARD_R` from every point of the walk**: the square is held
+*continuously* rather than whenever a patrol happens by, and he still moves, so the post reads
+as a watch and not as a statue.
+
+⚠ **The ring loses nothing, and that is arithmetic rather than a judgement call.** Legs are
+`gd2 * 120°` and its opposite, and `gd2` runs `0..ngd` — so at `ngd = 4` guard 3 walks 360°,
+which is guard 0's leg exactly. The senior guard was patrolling a **duplicate**, and the
+duplicate is what this spends.
+
+| measured over a day, den cleared | before | after |
+|---|---|---|
+| villagers' work site `(50,50)` | 215 / 400 unsafe | **0 / 400** |
+| market seat `(52,48)` | 215 / 400 unsafe | **0 / 400** |
+| civilian-ticks with a workable site | 4710 / 6800 | **6000 / 6800** |
+| the mine | 400 / 400 unsafe | 400 / 400 — the lever, unchanged |
+
+The 800 unworkable civilian-ticks that remain are exactly the two miners. And it puts the
+guard master where the fiction already said he was: the watch's bounties are claimed from him
+**in person**, and until now he was never at the seat to ask — `questtest`'s poster chain still
+resolves, and now against someone you can find. ⚠ **`stocktest`'s A/B is untouched, as it had
+to be**: the picking ground is 14 hexes out, far beyond `GUARD_R`, so 7 deliveries at peace
+against 1 under pressure — a guard at the seat must not be able to quietly un-arm `I-SAFE`.
+
+⚠ **The second-order effect this dissolved, kept on the record because the shape will recur**:
+vetoed civilians idled at home, `occupied_hex` then blocked the guards more often near the
+centre, coverage fell, and the square went **143 → 215**. *Crowding degraded the very term
+that would have uncrowded it.* A guard posted at the seat stands inside that crowd instead of
+trying to walk into it, so the loop no longer closes — but watch for it if the veto ever grows
+a second consumer.
 
 ⚠ **Also found while measuring, and not fixed here:** `occupied_hex` does not test `alive`, so
 a dead actor blocks its hex permanently.

@@ -176,14 +176,17 @@ the area — but if it continues, the label is wrong and should move.
 
 ## Open, and whose call it is
 
-- **Two work sites the town cannot use, both true before the change that revealed them**
-  (measured 2026-08-10 at `HEAD` too, den cleared): the **mine** is unsafe **400/400** ticks a
-  day (an ogre camped on it, 40 hexes from any guard) and the **market square** **143/400**
-  (a jackal within `THREAT_R`; the guards' patrol legs sit at **radius 15** and only transit
-  the centre, so `GUARD_R = 4` almost never covers the town's own seat). The mine is the plan's
-  designed lever working; the market is the one to decide, and it lands on `S1`'s guard rail —
-  *guards are a term, not spectators*. **DESIGN §3a pillar #8's call**, same owner as the
-  opening curve. → `plans/17-safe-supply/`
+- ✅ **The town holds its own centre** (user's call, 2026-08-10). The site veto was the first
+  thing that ever *read* `hex_safe` about a workplace, and it surfaced two numbers that were
+  true before it and inert: the **mine** unsafe **400/400** ticks a day (an ogre camped on it,
+  40 hexes from any guard) and the **market square** **143/400** (a jackal within `THREAT_R`,
+  while every guard walked a ring at radius 15 and only *transited* the seat it was posted to
+  hold). The mine is the plan's designed lever working. The market was answered by giving the
+  **guard master** the centre and the market seat as his beat — 2 hexes apart, so both stay
+  inside `GUARD_R` from every point of the walk: **215/400 → 0/400**, and civilian-ticks with a
+  workable site 4710 → **6000 of 6800** (the rest is the mine). ⚠ **The ring lost nothing** —
+  legs are `gd2 * 120°` and its opposite over `gd2 in 0..ngd`, so guard 3 already walked guard
+  0's leg; a **duplicate** is what it spent. → `plans/17-safe-supply/`
 - **The starting neighbourhood is now hostile at level 1** — a gnoll (mlvl 6) 8 hexes from the
   vantage, a level-1 hero dead on tick 13. The alpine anchor bought the gatherer and cost the
   onboarding curve. **DESIGN §3a pillar #8's business, and nobody owns it yet.** The user's call
