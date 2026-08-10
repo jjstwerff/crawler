@@ -50,7 +50,13 @@ fn main() {
   println("dungeon-floor-untinted={floor_ok} wall-tone={wall_ok}");
 
   // ── The surface (depth 0): a sand hex carries the exact pre-composed mix ──
-  s = sim_new_gen(1337, 0);
+  // ⚠ Generated at the DESERT GATE's window, not the home window. The home window is the
+  // alpine settlement and carries no sand at all, so this row silently checked nothing and
+  // reported `sand-exact=false` — the loop simply never found a hex to test. Ask the world
+  // where sand is rather than assuming the home window has a beach.
+  (gx, gy) = sim_desert_gate_world();
+  (gwx, gwy) = sim_window_of(gx, gy);
+  s = sim_new_gen_s(1337, 0, 0, 0, gwx, gwy);
   sbuf = build_world_mesh(s);
   sand_ok = false;
   face_dark = true;

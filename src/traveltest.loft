@@ -42,7 +42,15 @@ fn main() {
   north2 = crossed == 2 && w1x == 0 && w1y == -2;
   carried = sim_player_hp(s0) == hp0;     // the hero crossed intact
 
-  // THE DESERT GATE stands in this window, on dry desert sand
+  // THE DESERT GATE stands in whichever window the WORLD puts it in — ask, do not assume.
+  // ⚠ This row used to read the window the walk above happened to land in, which was the
+  // gate's window only while the home town sat where it sat. Re-anchoring home at the
+  // alpine settlement moved the nearest desert cell and the gate vanished from (0,-2) —
+  // three rows failing for a reason that had nothing to do with travel. The crossing test
+  // above is unchanged; this half now follows the gate.
+  (gx9, gy9) = sim_desert_gate_world();
+  (gwx, gwy) = sim_window_of(gx9, gy9);
+  s0 = sim_new_gen_s(777, 0, 0, 0, gwx, gwy);
   entq = -1;
   entr = -1;
   for r in 0..101 {
@@ -77,7 +85,7 @@ fn main() {
     rs = sim_respawn(s0);
     (rwx, rwy) = sim_window(rs);
     (rq, rr) = sim_player_hex(rs);
-    anchored = sim_anchor_kind(rs) == 2 && rwx == 0 && rwy == -2
+    anchored = sim_anchor_kind(rs) == 2 && rwx == gwx && rwy == gwy
             && rq == entq && rr == entr && sim_depth(rs) == 0;
   }
 

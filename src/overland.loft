@@ -1372,6 +1372,44 @@ pub fn ov_hex_world(q: integer, r: integer) -> (float, float) {
   (hx * s, hy * s)
 }
 
+// WHICH TOWN THE PLAYER STARTS AT — the home window's anchor.
+//
+// ⚠ NOT simply `towns[0]`, and the reason is structural rather than cosmetic. The home
+// window is the ONLY window that gets town life: `sim.loft` sets `intown = wwx == 0 &&
+// wwy == 0`, so houses, people, harbour and industry exist there and nowhere else. Whatever
+// that town's surroundings cannot support, the game does not have — in any world.
+//
+// Measured 2026-08-09, the four towns of the example world reach **88, 90, 689 and 2108 m**
+// within a window. Anchored at `towns[0]` (a coastal town at 88 m) the alchemist's gatherer
+// was **unspawnable in every world**: its picking ground needs scree or meadow, and neither
+// occurs at sea level — while the two towns that DO have picking grounds got no people at
+// all. So the home town must be the one whose surroundings can carry a WHOLE economy:
+// fields in the valley AND high ground for a mine and a picking ground.
+//
+// Height reach is the cheap proxy for that, and it is a property of the world rather than a
+// hard-coded index — change the example world and the home town follows. 49 samples per
+// town against a level's own 101x101, so the cost is noise.
+pub fn ov_home_town(o: Overland) -> integer {
+  best = 0;
+  bh = 0.0 - 1.0e18;
+  for hti in 0..len(o.ov_towns) {
+    tw4 = o.ov_towns[hti];
+    if tw4 != null {
+      hi4 = 0.0 - 1.0e18;
+      for dy4 in -3..4 {
+        for dx4 in -3..4 {
+          hx4 = tw4.ot_x + (dx4 as float) * 250.0;
+          hy4 = tw4.ot_y + (dy4 as float) * 250.0;
+          h4 = ov_height(o, hx4, hy4);
+          if h4 > hi4 { hi4 = h4; }
+        }
+      }
+      if hi4 > bh { bh = hi4; best = hti; }
+    }
+  }
+  best
+}
+
 // FORTRESSES: above and away from the towns they protect — but not too far,
 // and with CLEAR SIGHT on the waterways and roads they watch. (Defined after
 // the sampling functions: tuple destructuring needs the callee known.)

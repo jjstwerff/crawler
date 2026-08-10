@@ -3124,7 +3124,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     ovw = overland_new();
     ax = 7500.0;
     ay = 5800.0;
-    t0 = ovw.ov_towns[0];
+    t0 = ovw.ov_towns[ov_home_town(ovw)];
     if t0 != null { ax = t0.ot_x; ay = t0.ot_y; }
     // MULTI-WINDOW: (wwx, wwy) picks WHICH 1.5 km window of the wilderness this
     // Sim is. (0,0) anchors at the home town; neighbours overlap by a few hexes
@@ -4027,7 +4027,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     dnr = -1;
     t0x9 = 7500.0;
     t0y9 = 5800.0;
-    t9 = ovw.ov_towns[0];
+    t9 = ovw.ov_towns[ov_home_town(ovw)];
     if t9 != null { t0x9 = t9.ot_x; t0y9 = t9.ot_y; }
     bdd9 = 1.0e18;
     bdx9 = 0.0;
@@ -4388,6 +4388,80 @@ pub fn sim_respawn(s: Sim) -> Sim {
 }
 
 pub fn sim_depth(s: Sim) -> integer { s.depth }
+// WHICH WINDOW holds a world point — the inverse of the anchoring in gen_level's depth-0
+// arm, which offsets the home town by (wwx, wwy) whole window spans.
+//
+// ⚠ Exists because hard-coding a window offset bakes the home town's position into the
+// caller. `questtest` used to jump to the wizard's tower with a literal `(-3, -2)`, correct
+// only while the home window sat where it sat; re-anchoring the home town at the alpine
+// settlement found no wizard and failed three quest rows for a reason that had nothing to
+// do with quests. Ask the world where a thing is instead.
+pub fn sim_window_of(x: float, y: float) -> (integer, integer) {
+  ovw = overland_new();
+  t0 = ovw.ov_towns[ov_home_town(ovw)];
+  ax = 7500.0;
+  ay = 5800.0;
+  if t0 != null { ax = t0.ot_x; ay = t0.ot_y; }
+  (spanx, _) = ov_hex_world(101 - 4, 0);
+  (_, spany) = ov_hex_world(0, 101 - 4);
+  wx = 0;
+  wy = 0;
+  if spanx != 0.0 { wx = round((x - ax) / spanx ?? 0.0) as integer; }
+  if spany != 0.0 { wy = round((y - ay) / spany ?? 0.0) as integer; }
+  (wx, wy)
+}
+
+// WHERE THE DESERT GATE STANDS, in world coordinates — the desert cell nearest the home
+// town, which is what gen_level's depth-0 arm sinks the dungeon entrance into. Mirrors that
+// selection exactly; if the two ever drift apart the gate rows in `traveltest` say so.
+pub fn sim_desert_gate_world() -> (float, float) {
+  ovw = overland_new();
+  t0x = 7500.0;
+  t0y = 5800.0;
+  t9 = ovw.ov_towns[ov_home_town(ovw)];
+  if t9 != null { t0x = t9.ot_x; t0y = t9.ot_y; }
+  bdd = 1.0e18;
+  bdx = 0.0;
+  bdy = 0.0;
+  for dgr in 0..7 {
+    for dgc in 0..9 {
+      if ov_cell_mat(ovw, dgc, dgr) == 6 {
+        (ccx, ccy) = ov_cell_center(dgc, dgr);
+        dd = (ccx - t0x) * (ccx - t0x) + (ccy - t0y) * (ccy - t0y);
+        if dd < bdd { bdd = dd; bdx = ccx; bdy = ccy; }
+      }
+    }
+  }
+  (bdx, bdy)
+}
+
+// The RUINS in world coordinates — the ruin nests (and their trait-tagged bosses) stand at
+// these. Same reason as the tower above: a caller should ask where the ruins are, not encode
+// which window one happened to fall in.
+pub fn sim_ruin_count() -> integer {
+  ovw = overland_new();
+  len(ovw.ov_ruins)
+}
+
+pub fn sim_ruin_pos(i: integer) -> (float, float) {
+  ovw = overland_new();
+  if i >= 0 && i < len(ovw.ov_ruins) {
+    ru = ovw.ov_ruins[i];
+    if ru != null { return (ru.ru_x, ru.ru_y); }
+  }
+  (0.0, 0.0)
+}
+
+// The LIVING wizard's tower in world coordinates (wz_dead == 0), (0,0) if there is none.
+pub fn sim_wizard_tower() -> (float, float) {
+  ovw = overland_new();
+  for wi in 0..len(ovw.ov_wiz) {
+    wz = ovw.ov_wiz[wi];
+    if wz != null && wz.wz_dead == 0 { return (wz.wz_x, wz.wz_y); }
+  }
+  (0.0, 0.0)
+}
+
 pub fn sim_npc_count(s: Sim) -> integer {
   n = 0;
   for ni in 0..len(s.enemies) {

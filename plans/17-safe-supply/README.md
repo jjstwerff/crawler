@@ -218,10 +218,56 @@ the gatherer searches). The home town is not one of them.
 
 ⚠ **So this was never a terrain-rarity problem — it is `ov_towns[0]`.** Fixing the alpine
 bands (below) was right on its own evidence and changed this **not at all**: the town-by-town
-count is identical before and after. Three ways out, none of them #17's to pick: anchor the
-home window at a town that has a picking ground (town **3**, at `3166,2474`, reaches 2 108 m
-and has 25), give town life to more than one window, or accept that the gatherer waits for
-whichever plan lets a second settlement live.
+count is identical before and after.
+
+### ✅ The home window is anchored at the alpine town (user, 2026-08-09)
+
+`ov_home_town(o)` replaces the literal `ov_towns[0]` at both sites that meant *the home town*
+(the window anchor and the desert-gate reference). It picks **the town with the greatest height
+reach in its window** — a property of the world rather than a magic index, so changing the
+example world moves the home town with it. The reason is the one measured above: the home
+window is the only window with people, so it must be the town whose surroundings can carry a
+**whole** economy — valley fields *and* high ground for a mine and a picking ground. It selects
+town **3**.
+
+**What it bought — the gatherer exists:**
+
+| | before (coastal) | after (alpine) |
+|---|---|---|
+| picking ground ≥14 hexes out | **0** | **124** (meadow 99, scree 25) |
+| **role 9 gatherer** | **absent in every world** | **1**, working 50 hexes out |
+| producers | 5 | **6** |
+| producer sites unsafe | 2 of 5, in 5 of 8 placements | 2 of 6, in 3 of 8 |
+
+⚠ **What it cost, and both are real.** **(1) The sea economy is gone**: roles **5 boat, 6 ship,
+8 merchant ship** no longer spawn and the harbour with them, so *"goods from BEYOND the map"*
+(`OVERLAND.md` §584) is not in the starting town any more. A fisher remains, on the river.
+**(2) The starting neighbourhood is harder** — at the hex `surfacetest` used as its safe
+vantage, the nearest hostile went from a **jackal (mlvl 1) 43 hexes away** to a **gnoll (mlvl
+6) 8 hexes away**, and a level-1 hero standing there died on tick 13. That is `DESIGN.md` §3a
+pillar **#8**'s (engaging onboarding, gentle curve) business and is **not addressed here**.
+
+### ⚠ Four tests had the old world's geography written into them as literals
+
+Moving the anchor did not break behaviour — it broke **constants**, and every one failed for a
+reason unrelated to what its row tested:
+
+| test | the literal | what it now does |
+|---|---|---|
+| `surfacetest` | `sim_teleport(surf, 75, 75)` — "watch from afar" | searches for open ground ≥20 hexes out that **`hex_safe`** calls safe (plan #17's own predicate) |
+| `questtest` | wizard's window `(-3, -2)` | `sim_wizard_tower()` → `sim_window_of()` |
+| `questtest` | ruin nest's window `(-1, -4)` | walks the world's ruin list until a window holds a `TAG_RUIN_BOSS` |
+| `traveltest` | the gate is in the window the walk lands in, `(0, -2)` | `sim_desert_gate_world()` → `sim_window_of()`; the crossing half is untouched |
+| `meshtest` | a sand hex on the home surface | generates the **gate's** window — the alpine home has no sand, so the row was silently checking nothing |
+
+⚠ **`meshtest` is the one worth remembering: it did not fail loudly, it found no sand hex and
+reported `sand-exact=false`** — a row that had been asserting a colour was, the moment the
+world moved, asserting nothing. New kernel accessors: `sim_window_of`, `sim_wizard_tower`,
+`sim_ruin_count`/`sim_ruin_pos`, `sim_desert_gate_world`.
+
+⚠ **Cost: the gate went ~5 min → ~7 min**, because three tests now generate extra windows to
+find what they used to assume. Worth it — but if it grows again, the answer is to cache a
+generated window, not to put the literals back.
 
 ### The alpine bands were also wrong — fixed against the real data
 

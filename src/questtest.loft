@@ -94,10 +94,25 @@ fn main() {
   took = sim_quest_poster(t5) == 1;
 
   // 6) the hunt: the ruin nest lives windows away; its boss is TRAIT-tagged, never named
+  // ⚠ Was the literal window (-1,-4) — see the wizard note below; the same baked-in home
+  // position. Walk the world's own ruin list and take the first window that holds a boss.
   rw = sim_new_gen_s(777, 0, 0, 0, -1, -4);
   bossi = -1;
-  for bi in 0..sim_enemy_count(rw) {
-    if bossi < 0 && (sim_enemy_tags(rw, bi) & TAG_RUIN_BOSS) != 0 && sim_enemy_alive(rw, bi) { bossi = bi; }
+  for ri9 in 0..sim_ruin_count() {
+    if bossi < 0 {
+      (rx9, ry9) = sim_ruin_pos(ri9);
+      (rwx9, rwy9) = sim_window_of(rx9, ry9);
+      if rwx9 != 0 || rwy9 != 0 {            // the home window carries no ruin nest
+        cand = sim_new_gen_s(777, 0, 0, 0, rwx9, rwy9);
+        for bi in 0..sim_enemy_count(cand) {
+          if bossi < 0 && (sim_enemy_tags(cand, bi) & TAG_RUIN_BOSS) != 0
+             && sim_enemy_alive(cand, bi) {
+            bossi = bi;
+            rw = cand;
+          }
+        }
+      }
+    }
   }
   rw.q_poster = 1;                                     // the poster was read back in town
   hunted = false;
@@ -135,7 +150,11 @@ fn main() {
   }
   sim_talk_to(t5, mi);
   pointed = sim_quest_mage(t5) == 1;
-  ww = sim_new_gen_s(777, 0, 0, 0, -3, -2);
+  // ⚠ Was the literal window (-3,-2) — right only while the home town sat where it sat.
+  // Ask the world where the living wizard's tower is, then which window holds it.
+  (wzx, wzy) = sim_wizard_tower();
+  (wwx9, wwy9) = sim_window_of(wzx, wzy);
+  ww = sim_new_gen_s(777, 0, 0, 0, wwx9, wwy9);
   gi5 = -1;
   for ei2 in 0..sim_enemy_count(ww) {
     if gi5 < 0 && sim_enemy_key(ww, ei2) == "wizard" { gi5 = ei2; }

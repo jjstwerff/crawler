@@ -23,7 +23,25 @@ fn main() {
   npcs0 = sim_npc_count(surf);
   populated_town = npcs0 >= 7;
   at_day = sim_phase(surf) == 0;
-  sim_teleport(surf, 75, 75);                    // watch from afar (the knot bites)
+  // Watch from afar — the knot bites, so the hero must stand somewhere a CIVILIAN would.
+  // ⚠ This used to be the literal hex (75,75), which was "afar" only in the world that
+  // existed when it was written. Moving the home window to the alpine town put a level-6
+  // gnoll 8 hexes from it and the hero died on tick 13 — a world-specific constant failing
+  // for a reason that had nothing to do with what the row tests. Derived instead, against
+  // the plan #17 safety category: far from the town, open ground, and no hostile in reach.
+  vq = -1;
+  vr = -1;
+  for cr in 20..85 {
+    for cq in 20..85 {
+      if vq < 0 && tile_at(surf, cq, cr) == 0 && hex_distance(cq, cr, 50, 50) >= 20
+         && hex_safe(surf, cq, cr) {
+        vq = cq;
+        vr = cr;
+      }
+    }
+  }
+  if vq < 0 { println("FAIL: nowhere safe to watch the town from"); }
+  sim_teleport(surf, vq, vr);
   for _ in 0..60 { sim_wait(surf); }
   alive_still = sim_npc_count(surf) == npcs0 && !sim_over(surf);
 
