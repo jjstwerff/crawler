@@ -125,6 +125,10 @@ pub struct Enemy {
   // not a count; it is what makes "arriving home" a discrete event instead of a state that
   // would re-fire every tick the worker stood in town.
   carry: integer not null,
+  // plan #17 `S5` — an INCURSION marches. 1 = this hostile was sent by a source and is
+  // walking to `wq2/wr2`; its `hq/hr` is the source's spawn hex, which is the source's
+  // identity (stable even when the leader itself moves). 0 = an ordinary monster.
+  raid:  integer not null,
 }
 
 // The player's own state — the character record (DESIGN.md §2: moving player-owned
@@ -2207,6 +2211,201 @@ fn npc_target(s: Sim, e: Enemy) -> (integer, integer) {
 }
 
 // One scheduled step: greedy toward the target; idle wander when arrived.
+// ── Incursions (plan #17 `S5`) ────────────────────────────────────────────────────────
+//
+// I-SOURCE: **every hostile pressing on a settlement came FROM a source that still exists.**
+// Pressure ARRIVES; it does not accumulate. There is no timer anywhere in this — a source
+// that is alive and has fewer than `RAID_CAP` of its people out may send another, and that
+// is the whole condition. Kill the leader and it never sends again, permanently.
+//
+// ⚠ THE OBVIOUS IMPLEMENTATION IS THE ONE THAT RUINS IT (CRAFTING.md `D`, `F7`). Uniform
+// *decay* — cleared ground reverting on a timer — reads as "my work rots", offers no cause
+// to address, and makes the same valley a chore forever. Arriving from a source instead
+// keeps a structure the player can read and act on: the valley is unsafe *because* of the
+// thing over the ridge, and going at the thing over the ridge ends it.
+//
+// ⚠ NOT KEYED TO THE PLAYER (`F8`). Nothing here reads the hero's level, gear or progress.
+// The world pushes where it is weak, not where the player is strong — a difficulty dial
+// dressed as a world would read as punishment for getting better.
+pub const RAID_CAP = 2;   // how many of its own a single source will have out at once
+
+// One marching step for an incursion, down the same path field the civilians use. Hostiles
+// are otherwise either asleep or chasing the hero; a raider walks with a purpose instead.
+// ⚠ It does NOT consult `npc_may_enter`: safety is a rule for people who avoid danger, and
+// this is the danger.
+fn raider_step(s: &Sim, e: &Enemy) {
+  if hex_distance(e.cur_q, e.cur_r, e.wq2, e.wr2) == 0 {
+    e.tgt_q = e.cur_q;
+    e.tgt_r = e.cur_r;
+    return;
+  }
+  fbase = npc_flow_base(s, e.wq2, e.wr2, 0);
+  fdata = s.flowd_data;
+  bq = e.cur_q;
+  br = e.cur_r;
+  bf = FLOW_BIG;
+  if fbase >= 0 {
+    hidx = fbase + (e.cur_r - s.rmin) * s.lw + (e.cur_q - s.qmin);
+    if hidx >= fbase && hidx < len(fdata) { bf = fdata[hidx] ?? FLOW_BIG; }
+  }
+  if fbase < 0 || bf >= FLOW_BIG {
+    e.tgt_q = e.cur_q;
+    e.tgt_r = e.cur_r;
+    return;
+  }
+  // ⚠ GUARDED EXACTLY AS THE FIELD WAS BUILT, AND NO FURTHER. `compute_npc_flow` expands
+  // through `is_blocked_move` (the EDGE — a thin wall between two open hexes) and
+  // `npc_passable` (the hex), so a descent that tested less would walk through a fence.
+  //
+  // ⚠ AND IT DOES NOT TEST OCCUPANCY, WHICH IS THE DEFECT THIS COMMENT EXISTS FOR.
+  // A first cut refused an occupied neighbour, and the raider never took a step in any
+  // world: it spawns inside its own den, where the ONE improving neighbour is a sleeping
+  // kinsman, and sleepers never move. Held position forever, 26 hexes out, looking exactly
+  // like a raid that was never sent. `occupied_hex` is the CIVILIAN rule; hostiles have
+  // never used it — `flow_step` (the chase) has no occupancy test at all, so monsters
+  // already pass through each other on the way to the hero. One actor cannot have two
+  // contradictory occupancy rules across its two states: it would refuse to stack while
+  // marching and stack freely the tick it wakes. A sleeping monster is not terrain.
+  for rd in 0..6 {
+    (nq, nr) = hex_neighbor(e.cur_q, e.cur_r, rd);
+    if npc_passable(s, 0, nq, nr) && !is_blocked_move(s, e.cur_q, e.cur_r, nq, nr) {
+      nidx = fbase + (nr - s.rmin) * s.lw + (nq - s.qmin);
+      if nidx >= fbase && nidx < len(fdata) {
+        nf = fdata[nidx] ?? FLOW_BIG;
+        if nf < bf { bf = nf; bq = nq; br = nr; }
+      }
+    }
+  }
+  e.tgt_q = bq;
+  e.tgt_r = br;
+}
+
+// The settlement's SEAT — the market square the makers set their goods on, and the thing an
+// incursion presses toward.
+//
+// ⚠ ONE ORIGIN FOR THE COORDINATE. `s.lw / 2 + 2` was written out twice — once by the
+// morning economy and once by `send_incursions` — which is the literal-coordinate trap
+// STATE.md records from the other side: two copies of a position are two claims about a
+// world that is free to move, and only one of them gets updated.
+fn town_seat(s: Sim) -> (integer, integer) { (s.lw / 2 + 2, s.lh / 2 - 2) }
+
+// What an incursion actually PRESSES ON: the settlement's most exposed WORK — the outlying
+// hex some worker has to reach and nobody can guard. The square when there is no such work.
+//
+// ⚠ THE SQUARE WAS THE FIRST ANSWER AND IT WAS THE WRONG ONE, measured 2026-08-10. Raiders
+// marched at `town_seat`, arrived, and changed NOTHING: over seven days with the den alive
+// the gatherer's picking ground was unsafe for **0 ticks** and the week's deliveries were 4,
+// exactly as with the den cleared. The square is the one place danger cannot register —
+// `hex_safe`'s second term is a guard within `GUARD_R`, and the square is where the guards
+// are. An incursion aimed there is aimed at its own cancellation.
+//
+// So the objective is the settlement's DEPENDENCE, not its centre: the field, the ore face,
+// the herb slope. That is what "a settlement's output is a function of the danger around it"
+// says when read literally — and it is the legible version in play too. *Goblins are on the
+// slope, so the alchemist has nothing* is a sentence a player can act on; *goblins are in the
+// market, guarded, and the potions stopped* is not.
+// ⚠ AND IT IS CHOSEN FROM WHERE THE SOURCE STANDS, over ground the source can actually
+// cross. The first version ranked work sites by exposure alone and handed a den a field 45
+// hexes away with no path to it: the raider descended a flow field that read `FLOW_BIG`
+// under its own feet and held position for seven days, 32 hexes short, indistinguishable
+// from a raid that was never sent. *Nearest is not reachable* cost this repo a decorative
+// gatherer for months (`walk_reach`); farthest is not reachable either. Returns `(-1, -1)`
+// when this source can reach no work and no square — then it sends nobody, which is the
+// truthful answer rather than a walker that will never arrive.
+fn raid_objective(s: &Sim, fq: integer, fr: integer) -> (integer, integer) {
+  bq = -1;
+  br = -1;
+  bd = -1;
+  (sq, sr) = town_seat(s);
+  for i in 0..len(s.enemies) {
+    e = s.enemies[i];
+    // roles 2/9/10 — farmer, gatherer, miner: the ones whose job is OUTSIDE the walls
+    if e != null && e.alive && (e.role == 2 || e.role == 9 || e.role == 10) {
+      d = hex_distance(e.wq2, e.wr2, sq, sr);
+      if d > bd && sim_npc_path_dist(s, e.wq2, e.wr2, 0, fq, fr) < FLOW_BIG {
+        bd = d;
+        bq = e.wq2;
+        br = e.wr2;
+      }
+    }
+  }
+  if bq < 0 && sim_npc_path_dist(s, sq, sr, 0, fq, fr) < FLOW_BIG { return (sq, sr); }
+  (bq, br)
+}
+
+// How big is the settlement in this window — the count the morning economy has always
+// branched on (guards, less the one at the gate). ⚠ SEPARATE FROM THE SEAT, deliberately:
+// the seat is where the square IS, the size is who lives there. Folding them into one
+// answer sent a VILLAGE's goods to `(-1, -1)`, because the village fails the town test and
+// still has a square. `>= 3` is a town; smaller is a village; `< 0` is empty wilderness.
+fn town_size(s: Sim) -> integer {
+  guards = 0;
+  for gi in 0..len(s.enemies) {
+    e = s.enemies[gi];
+    if e != null && e.alive && e.role == 3 { guards += 1; }
+  }
+  guards - 1
+}
+
+// Each day, every LIVING source with room to send, sends. The condition is entirely about
+// the world's state — leader alive, fewer than `RAID_CAP` of its own already out — so
+// clearing the source ends it and nothing is owed if the conditions never hold.
+fn send_incursions(s: &Sim) {
+  // ⚠ NO SETTLEMENT, NO INCURSION. Measured 2026-08-10 and it is why this guard exists: all
+  // three of world 777's ruins sit in windows with 0 guards and 0 civilians, so a den that
+  // sent anyway marched its people at the geometric centre of an empty wilderness — forever,
+  // costing a safety recompute a tick, pressing on nothing. Pressure is pressure ON something.
+  if town_size(s) < 3 { return; }
+  enemies = s.enemies;
+  ctbl = game_monsters();
+  for bi in 0..len(enemies) {
+    b = enemies[bi];
+    if b != null && b.alive && b.role == 0 && (b.tags & TAG_RUIN_BOSS) != 0 {
+      // A source's identity is its SPAWN hex, not where its leader happens to stand — the
+      // leader moves when it wakes, and a moving identity would orphan its own raiders.
+      out = 0;
+      for ri in 0..len(enemies) {
+        r2 = enemies[ri];
+        if r2 != null && r2.alive && r2.raid == 1 && r2.hq == b.hq && r2.hr == b.hr { out += 1; }
+      }
+      if out < RAID_CAP {
+        // WHERE first, WHO second. ⚠ Not a tidiness preference: `mon_pick_tag` leaks one
+        // MonsterDef store record per call (measured 2026-08-10 — 22 calls, 21 records;
+        // LOFT-HANDOFF `N3`), so picking before knowing there is room to stand would leak
+        // once per source per DAY forever, in a den that is full and sends nothing.
+        sq = -1;
+        sr = -1;
+        for nd in 0..6 {
+          (cq, cr) = hex_neighbor(b.cur_q, b.cur_r, nd);
+          if sq < 0 && npc_passable(s, 0, cq, cr) && !occupied_hex(s.enemies, cq, cr) {
+            sq = cq;
+            sr = cr;
+          }
+        }
+        // Per SOURCE, not per world: which work this den can actually get at is a fact
+        // about where this den stands.
+        (tq, tr) = raid_objective(s, b.cur_q, b.cur_r);
+        if sq >= 0 && tq >= 0 {
+          // ONE per source per day. ⚠ Not one per WORLD per day: a global send would make
+          // the enemy list's ORDER the schedule — the third den never sends until the first
+          // two are capped — and a schedule is the one thing this mechanism does not have.
+          salt = (b.hq * 2654435761 ^ b.hr * 40503) & 2147483647;
+          md = mon_pick_tag(ctbl, TAG_RUIN_NEST, salt + s.ticks);
+          if md.m_hp > 0 {
+            ne = mk_enemy(md, sq, sr);
+            ne.hq = b.hq;             // whose people these are
+            ne.hr = b.hr;
+            ne.wq2 = tq;              // and where they are going
+            ne.wr2 = tr;
+            ne.raid = 1;
+            s.enemies += [ne];
+          }
+        }
+      }
+    }
+  }
+}
+
 // ── Civilian path fields (plan #17 `S3`) ──────────────────────────────────────────────
 //
 // ⚠ CIVILIANS USED TO STEP GREEDILY, AND GREEDY IS NOT PATHING. The old step took a
@@ -2457,6 +2656,15 @@ fn npc_gather(s: &Sim, e: &Enemy) {
   enemies = s.enemies;
   // Trapping a wild thing is a pick too — the original flavour, kept, but it now fills the
   // bag rather than crediting the town from out in the field.
+  //
+  // ⚠ THIS ARM IS WHY DANGER DOES NOT YET CUT OUTPUT (measured 2026-08-10, plan #17 `S5`).
+  // With raiders camped on the picking ground for 2454 of 2800 ticks the week's stock ran
+  // 4→8 and sat at the CAP; the same week with the den cleared ran 2..6 and was drawn down.
+  // Danger *raised* output, because a gatherer stalled at the safety border traps whatever
+  // wanders past and its round trip home is short. Trapping is a full substitute for the
+  // picking ground, and nothing about it can become unsafe. ⚠ Restricting it to beyond
+  // `GUARD_R` was tried and changed NOTHING — the stall already sits 7 hexes out. The fix
+  // belongs to the supply model, not to a threshold here; the plan carries it.
   for wl9 in 0..len(enemies) {
     w9 = enemies[wl9];
     if w9.alive && w9.role == 12
@@ -2498,18 +2706,15 @@ fn npc_land_cargo(s: &Sim, e: Enemy) {
 
 pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
+  // THE WORLD PUSHES BACK (plan #17 `S5`): each dawn a living source may send. Eligibility,
+  // never a schedule — the condition is the source's own state, so a cleared one is done.
+  if s.depth == 0 && ((s.ticks % DAY_LEN) ?? 0) == 1 { send_incursions(s); }
   // THE ECONOMY: each morning the makers bring the night's work to the stalls
   // — towns craft the simple goods, CITIES the complex armour and weapons.
   // (The merchant ship lands the raw goods; the carts move them on.)
   if s.depth == 0 && ((s.ticks % DAY_LEN) ?? 0) == 5 && s.fi_n < FLOOR_MAX - 4 {
-    guards2 = 0;
-    for ge in 0..len(s.enemies) {
-      e2 = s.enemies[ge];
-      if e2.alive && e2.role == 3 { guards2 = guards2 + 1; }
-    }
-    tsize2 = guards2 - 1;
-    stq3 = s.lw / 2 + 2;
-    str3 = s.lh / 2 - 2;
+    tsize2 = town_size(s);
+    (stq3, str3) = town_seat(s);   // the same square an incursion marches at
     day3 = (s.ticks / DAY_LEN) ?? 0;
     if tsize2 >= 3 {
       // THE FORGE rotates its whole repertoire: weapons on even days, armour
@@ -2639,11 +2844,24 @@ pub fn sim_tick(s: &Sim) {
           } else if (e.flags & MF_NEVER_MOVE) != 0 {
             e.tgt_q = e.cur_q;         // stationary (molds, eyes): never steps
             e.tgt_r = e.cur_r;
+          } else if e.raid == 1 {
+            // ⚠ AN INCURSION DOES NOT BREAK FORMATION FOR A HERO IT HAS MERELY SEEN. It
+            // fights what stands in its way (the `d <= 1` arm above still runs), and
+            // otherwise keeps marching. Measured 2026-08-10 without this: both raiders woke
+            // on the way, converged on a hero standing near the town and parked there for
+            // seven days — the picking ground was unsafe for 0 ticks, the raid never
+            // arrived, and the whole mechanism silently became "monsters walk at the
+            // player", which the game already had. It also made the raid PLAYER-KEYED
+            // backwards (`F8`): pressure that only lands while nobody is watching is
+            // pressure nobody can observe, learn, or act on.
+            raider_step(s, e);
           } else {
             (bq, br) = flow_step(s, flow, e.cur_q, e.cur_r, pq, pr);
             e.tgt_q = bq;
             e.tgt_r = br;
           }
+        } else if e.raid == 1 {
+          raider_step(s, e);           // asleep, and still marching: the march is its state
         } else {
           e.tgt_q = e.cur_q;           // asleep: holds position
           e.tgt_r = e.cur_r;
@@ -2996,6 +3214,35 @@ pub fn sim_enemy_carry(s: Sim, i: integer) -> integer {
   }
   0
 }
+
+// Is this hostile an incursion (plan #17 `S5`)? Read-only.
+pub fn sim_enemy_raid(s: Sim, i: integer) -> integer {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return e.raid; }
+  }
+  0
+}
+
+// Kill an enemy outright — the gate's stand-in for the hero clearing a source, so
+// "a cleared source stays cleared" can be asserted without staging a fight.
+pub fn sim_slay(s: &Sim, i: integer) {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { e.alive = false; }
+  }
+}
+
+// Run one dawn's sends now, without waiting a day for it. Test-facing, like `sim_slay`
+// above — and it is honest here for a reason worth stating: the eligibility rule has NO
+// time term at all (leader alive, fewer than `RAID_CAP` out), so ten calls in a row are a
+// faithful stand-in for ten dawns. If calling it repeatedly ever stopped matching the
+// clock, that would mean a timer had crept into the mechanism, which is the thing `S5`
+// exists to avoid. ⚠ It does not replace gating the CLOCK: `incursiontest` still ticks the
+// world once and requires a raider to appear, or nothing would prove the dawn is wired.
+pub fn sim_dawn(s: &Sim) { send_incursions(s); }
 
 // Set the bag, so a gate can put a gatherer on its return leg without simulating the days
 // it takes to walk there. Test-facing, like `sim_set_awake` beside it.
@@ -3353,7 +3600,7 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true,
-    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r, c1g: -1, c2g: -1, carry: 0 }
+    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r, c1g: -1, c2g: -1, carry: 0, raid: 0 }
 }
 
 // A CIVILIAN: harmless, scheduled, never aggressive (and never punched: the
@@ -3366,7 +3613,7 @@ fn mk_npc(role: integer, key: text, name: text, glyph: text,
     hp: 6, maxhp: 6, dam: 0, xp: 0, mlvl: 0, vision: 0, flags: 0, tags: 0, awake: true,
     speed: ENERGY_STEP - 2, energy: 0, slow_until: 0, stun_until: 0,
     cr: cr, cg: cg, cb: cb, glyph: glyph, key: key, name: name, alive: true,
-    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1, carry: 0 }
+    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1, carry: 0, raid: 0 }
 }
 
 // Is any already-placed enemy on this hex?
@@ -4406,6 +4653,78 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           enemies += [mk_npc(9, "gatherer", "rugged traveler", "t", 160, 150, 120,
                              ghq, ghr, ghq, ghr,
                              hsq, hsr, farq, farr)];
+        }
+
+        // THE DEN OVER THE RIDGE (plan #17 `S5`) — the settlement's own source of pressure,
+        // sited at the FARTHEST hex the town can walk to.
+        //
+        // ⚠ IT IS HERE BECAUSE THE MECHANISM HAD NO CONSUMER, and a seam with no consumer is
+        // a seam with no test (STATE.md, from `producttest`). Measured 2026-08-10 on world
+        // 777: all three ruin bosses stand in windows holding 0 guards and 0 civilians, and
+        // the home window — 4 guards, 24 civilians, the one gatherer, the whole economy —
+        // holds no tagged monster at all. So `send_incursions` was correct code that could
+        // never fire on a settlement in any window of the shipped world.
+        //
+        // ⚠ FARTHEST-REACHABLE IS THE SITING RULE, and it does two jobs. It is *over the
+        // ridge* rather than next door, so it does not make the first minute of a level-1
+        // game lethal; and it is inside the walkable pocket, so the player can go at the
+        // cause on foot and the raiders have a path back in. ⚠ It does NOT try to place the
+        // den near the work it will press on — an earlier version of this comment claimed
+        // the march would cross the picking ground and the measurement said otherwise (0
+        // unsafe ticks in seven days). Where the raid BITES is decided by `raid_objective`,
+        // which aims it at the work; the siting only decides how far away the cause lives.
+        //
+        // ⚠ AND IT MAKES THE STARTING NEIGHBOURHOOD HARDER, on top of a curve STATE.md
+        // already records as unowned (a gnoll 8 hexes from the vantage, a level-1 hero dead
+        // on tick 13). `RAID_CAP` is 2, so this is +1 leader +3 nest and at most 2 walking:
+        // small against the 15 hostiles already here, and it is the first danger in the game
+        // with a CAUSE the player can end. Flagged in the plan, not decided here.
+        //
+        // ⚠ AND IT NEEDS ROOM. Plain farthest-reachable is a CUL-DE-SAC by construction —
+        // the deepest hex of a pocket has the fewest ways out. Measured 2026-08-10: the den
+        // landed with one free neighbour, its three sleepers took it, and the source could
+        // field exactly ONE raider for seven days running. `RAID_CAP` was never the binding
+        // constraint; the geometry was, silently. So a den hex needs four walkable
+        // neighbours — enough for its band and a way out for its people.
+        dnq2 = -1;
+        dnr2 = -1;
+        bdn = 20;                       // never nearer than 20 hexes (300 m) to the square
+        for dr8 in 1..h - 1 {
+          for dq8 in 1..w - 1 {
+            tid = dr8 * w + dq8;
+            if (reach8[tid] ?? 0) == 1 {
+              dd8 = hex_distance(dq8, dr8, ghq, ghr);
+              if dd8 > bdn {
+                room = 0;
+                for dnb in 0..6 {
+                  (rq8, rr8) = hex_neighbor(dq8, dr8, dnb);
+                  if rq8 >= 1 && rr8 >= 1 && rq8 < w - 1 && rr8 < h - 1 {
+                    if (reach8[rr8 * w + rq8] ?? 0) == 1 { room += 1; }
+                  }
+                }
+                if room >= 4 { bdn = dd8; dnq2 = dq8; dnr2 = dr8; }
+              }
+            }
+          }
+        }
+        if dnq2 >= 0 {
+          dtbl = game_monsters();
+          dsalt = (dnq2 * 2654435761 ^ dnr2 * 40503) & 2147483647;
+          dld = mon_pick_tag(dtbl, TAG_RUIN_BOSS, dsalt);
+          if dld.m_hp > 0 && !occupied_hex(enemies, dnq2, dnr2) {
+            ne = mk_enemy(dld, dnq2, dnr2); enemies += [ne];
+            // its people, asleep around it — the same construction as a ruin nest, because
+            // it is the same thing: whoever nests in the broken places, nesting here.
+            dgb = mon_pick_tag(dtbl, TAG_RUIN_NEST, dsalt);
+            if dgb.m_hp > 0 {
+              for db2 in 0..3 {
+                (dgq, dgr) = hex_neighbor(dnq2, dnr2, db2 * 2 % 6 ?? 0);
+                if !tile_solid(tiles, w, h, dgq, dgr) && !occupied_hex(enemies, dgq, dgr) {
+                  ne = mk_enemy(dgb, dgq, dgr); enemies += [ne];
+                }
+              }
+            }
+          }
         }
       }
   }

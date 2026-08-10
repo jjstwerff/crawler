@@ -1,0 +1,218 @@
+// incursiontest — plan #17 `S5`: safety is CONTESTED, and pressure arrives from a SOURCE.
+//
+// I-SOURCE: every hostile pressing on a settlement came from a source that still exists.
+// Pressure ARRIVES; it does not accumulate. There is no timer in the mechanism — the whole
+// condition is the source's own state — so clearing the source ends it permanently.
+//
+// ⚠ THE FAILURE THIS GATES IS `F7`, THE TREADMILL. Uniform decay would also produce "the
+// valley is unsafe again", and would pass any test that only asked whether danger returns.
+// So the rows below ask the question decay CANNOT pass: **kill the cause and it stops.**
+//
+// ⚠ IT RUNS IN THE HOME WINDOW, WHICH IS THE ONLY WINDOW WHERE THE MECHANISM CAN FIRE.
+// Measured 2026-08-10: all three of world 777's ruins sit in windows with 0 guards and 0
+// civilians, and a source with no settlement to press on sends nobody. The home window is
+// where the settlement, the gatherer and the economy are — so worldgen puts a den at the far
+// end of the ground the town can walk (`sim.loft`, "THE DEN OVER THE RIDGE"). Before that
+// den existed, `send_incursions` was correct code with no consumer anywhere in the world.
+//
+// ⚠ ON THE COST. A surface tick runs a full-level BFS for the monster flow (~10 ms), and
+// `DAY_LEN` is 400 — so watching three dawns arrive by ticking is 1200 ticks of wall clock
+// to observe a rule that contains no time term. The clock coupling is gated ONCE, by
+// ticking (row 2); the eligibility rule is then gated directly through `sim_dawn`, which is
+// a faithful stand-in precisely because the rule does not read the calendar. If those two
+// ever disagreed, a timer would have crept in — which is the thing `S5` exists to avoid.
+use sim;
+use monsters;
+use hex_grid;
+
+fn live_raiders(s: Sim) -> integer {
+  n = 0;
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_raid(s, i) == 1 { n += 1; }
+  }
+  n
+}
+
+fn first_raider(s: Sim) -> integer {
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_raid(s, i) == 1 { return i; }
+  }
+  -1
+}
+
+fn find_source(s: Sim) -> integer {
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && (sim_enemy_tags(s, i) & TAG_RUIN_BOSS) != 0 { return i; }
+  }
+  -1
+}
+
+fn main() {
+  println("=== story incursion test (plan #17 S5) ===");
+  ok = true;
+
+  // ── 1. a source exists in the settlement's own window, and starts with nothing out ─
+  w = sim_new_gen(777, 0);
+  si = find_source(w);
+  println("home window: source index {si}, raiders at genesis {live_raiders(w)}");
+  if si < 0 {
+    println("FAIL: no source in the settlement's window — every row below is vacuous");
+    ok = false;
+  }
+  if live_raiders(w) != 0 { println("FAIL: incursions existed before any day passed"); ok = false; }
+
+  // ── 2. THE CLOCK IS WIRED: one tick is one dawn, and a dawn sends ──────────────────
+  // ⚠ This is the only row that ticks for its send, and it is the row that makes every
+  // `sim_dawn` below legitimate. Without it the whole file could pass against a mechanism
+  // the world never calls.
+  sim_tick(w);
+  first_day = live_raiders(w);
+  println("after the first dawn (1 tick): {first_day} incursions out");
+  if first_day != 1 {
+    println("FAIL: the first dawn sent {first_day}, want exactly 1 — the daily hook is not wired");
+    ok = false;
+  }
+
+  // ── 3. they MARCH ─────────────────────────────────────────────────────────────────
+  // A raider that spawns and stands still is scenery; the claim is that the source presses
+  // on the settlement, so the distance to its objective has to fall.
+  //
+  // ⚠ WAKING IS NOT A CONFOUND HERE, AND IT USED TO BE. While a raider that woke switched to
+  // chasing the hero, a falling distance could have been the chase rather than the march —
+  // this row asserted `!awake` for exactly that reason. It no longer branches on wakefulness
+  // (`sim.loft`: an incursion does not break formation for a hero it has merely seen), so the
+  // only state that stops the march is a hero standing ON it, and that HOLDS position — which
+  // fails this row loudly instead of passing it for the wrong reason.
+  ri = first_raider(w);
+  if ri < 0 { println("FAIL: no live incursion to watch"); ok = false; }
+  else {
+    (oq, orr) = sim_enemy_work(w, ri);
+    (q1, r1) = sim_enemy_hex(w, ri);
+    d1 = hex_distance(q1, r1, oq, orr);
+    for _ in 0..15 { sim_tick(w); }
+    (q2, r2) = sim_enemy_hex(w, ri);
+    d2 = hex_distance(q2, r2, oq, orr);
+    println("incursion {ri}: {d1} -> {d2} hexes from its objective ({oq},{orr}) in 15 ticks, awake {sim_enemy_awake(w, ri)}");
+    if d1 < 6 {
+      println("FAIL: it spawned {d1} hexes from its objective — the march row has nothing to measure");
+      ok = false;
+    }
+    if d2 >= d1 {
+      println("FAIL: an incursion did not close on its objective — it is scenery, not pressure");
+      ok = false;
+    }
+  }
+
+  // ── 4. pressure ARRIVES, and STOPS AT THE CAP ─────────────────────────────────────
+  // ⚠ The cap is half the claim: "arrives, does not accumulate". Without it a living source
+  // would pile up an unbounded army, which is decay wearing a different hat.
+  // ⚠ TEN DAWNS BACK TO BACK, WITH NO TIME BETWEEN THEM. That is not a shortcut around the
+  // rule, it IS the rule: the condition is the source's own state, so ten dawns in a row
+  // must land exactly where ten days apart would.
+  for _ in 0..10 { sim_dawn(w); }
+  after = live_raiders(w);
+  println("ten dawns: {after} incursions out (cap per source {RAID_CAP})");
+  if after == 0 { println("FAIL: a living source sent nothing in ten dawns — pressure never arrives"); ok = false; }
+  if after > RAID_CAP { println("FAIL: {after} out, past the cap — pressure is accumulating"); ok = false; }
+
+  // ── 5. A CLEARED SOURCE STAYS CLEARED — the row decay cannot pass ──────────────────
+  // ⚠ THIS IS THE WHOLE DESIGN. Uniform decay would keep producing danger forever and would
+  // look identical in rows 1-4. Killing the cause must end it, permanently, while whatever
+  // is already out stays out — the player's work is durable, not a reset.
+  s2 = find_source(w);
+  if s2 < 0 { println("FAIL: the source vanished before row 5"); ok = false; }
+  else {
+    before_kill = live_raiders(w);
+    sim_slay(w, s2);                        // the hero clears the den
+    for _ in 0..10 { sim_dawn(w); }
+    after_kill = live_raiders(w);
+    println("cleared source: {before_kill} out at the kill, {after_kill} after ten more dawns");
+    if after_kill > before_kill {
+      println("FAIL: a dead source kept sending — pressure is on a timer, not a cause (F7)");
+      ok = false;
+    }
+    if before_kill == 0 {
+      println("FAIL: nothing was out at the kill, so row 5 compared two zeroes");
+      ok = false;
+    }
+  }
+
+  // ── 6. negative control: no source, no pressure, ever ─────────────────────────────
+  // ⚠ Rows 1-5 would all pass if something OTHER than the source were spawning raiders.
+  // Kill it before the first dawn and the count must stay at zero for good. ⚠ A FRESH
+  // WORLD, not `w`: row 5 only shows the count did not GROW, which a one-shot spawner
+  // somewhere else would survive.
+  w3 = sim_new_gen(777, 0);
+  s3 = find_source(w3);
+  if s3 >= 0 { sim_slay(w3, s3); }
+  for _ in 0..10 { sim_dawn(w3); }
+  sim_tick(w3);                             // and a real dawn too, in case the hook lies
+  none_out = live_raiders(w3);
+  println("source dead before dawn: {none_out} incursions in ten dawns + one tick (want 0)");
+  if none_out != 0 {
+    println("FAIL: incursions appeared with no living source — something else is spawning them");
+    ok = false;
+  }
+
+  // ── 7. THE JOINT: a raid reaches the settlement's WORK, and clearing it gives it back ─
+  // ⚠ THIS IS THE ROW THE PLAN IS NAMED FOR, and it is the one link `safetytest` and
+  // `stocktest` could not gate between them: they prove *unsafe ⇒ a worker refuses* and
+  // *no supply ⇒ no output*, but nothing proved danger ever REACHES ground the settlement
+  // works. Seen three ways in one world — safe before, unsafe under the raid, safe again
+  // once the cause and its camp are gone — because any two of those alone are satisfied by
+  // a world that was simply always one thing.
+  //
+  // ⚠ AND IT ATTRIBUTES THE EFFECT TO ITS CAUSE. `hex_safe` goes false for ANY hostile
+  // within `THREAT_R`, and this window has 15 of them that have nothing to do with `S5`. A
+  // row that only asked "is it unsafe now" would pass on a wandering jackal and would have
+  // passed against every broken version of this mechanism measured today. So it also
+  // requires a RAIDER to be the thing standing there.
+  w4 = sim_new_gen(777, 0);
+  g4 = -1;
+  for i in 0..sim_enemy_count(w4) {
+    if g4 < 0 && sim_enemy_alive(w4, i) && sim_enemy_role(w4, i) == 9 { g4 = i; }
+  }
+  if g4 < 0 { println("FAIL: no gatherer — the settlement has no outlying work to press on"); ok = false; }
+  else {
+    (gwq, gwr) = sim_enemy_work(w4, g4);
+    before = hex_safe(w4, gwq, gwr);
+    for _ in 0..100 { sim_tick(w4); }
+    under = hex_safe(w4, gwq, gwr);
+    raider_on_it = false;
+    for i in 0..sim_enemy_count(w4) {
+      if sim_enemy_alive(w4, i) && sim_enemy_raid(w4, i) == 1 {
+        (rq, rr) = sim_enemy_hex(w4, i);
+        if hex_distance(rq, rr, gwq, gwr) <= THREAT_R { raider_on_it = true; }
+      }
+    }
+    // the hero clears the camp AND the den behind it — half the job leaves a source that
+    // simply sends the ground back into danger, which is the point of doing both.
+    for i in 0..sim_enemy_count(w4) {
+      if sim_enemy_alive(w4, i)
+         && (sim_enemy_raid(w4, i) == 1 || (sim_enemy_tags(w4, i) & TAG_RUIN_BOSS) != 0) {
+        sim_slay(w4, i);
+      }
+    }
+    for _ in 0..100 { sim_tick(w4); }
+    after4 = hex_safe(w4, gwq, gwr);
+    println("gatherer's ground ({gwq},{gwr}): safe at genesis={before}, under the raid safe={under} (a raider is on it={raider_on_it}), after clearing safe={after4}");
+    if !before {
+      println("FAIL: the working ground was already unsafe at genesis — this row measures nothing");
+      ok = false;
+    }
+    if under {
+      println("FAIL: the raid never reached the work — pressure that touches no output is not pressure");
+      ok = false;
+    }
+    if !raider_on_it {
+      println("FAIL: the ground is unsafe but no incursion is on it — something else did that");
+      ok = false;
+    }
+    if !after4 {
+      println("FAIL: the ground stayed unsafe after the cause was cleared — the player's work bought nothing");
+      ok = false;
+    }
+  }
+
+  if ok { println("=== INCURSION OK ==="); } else { println("=== FAIL ==="); }
+}
