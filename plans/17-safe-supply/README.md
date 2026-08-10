@@ -606,8 +606,26 @@ that would have uncrowded it.* A guard posted at the seat stands inside that cro
 trying to walk into it, so the loop no longer closes — but watch for it if the veto ever grows
 a second consumer.
 
-⚠ **Also found while measuring, and not fixed here:** `occupied_hex` does not test `alive`, so
-a dead actor blocks its hex permanently.
+#### ✅ Also found while measuring, and fixed: the dead were holding ground
+
+`occupied_hex` did not test `alive`, and a slain actor keeps its `cur_q`/`cur_r` forever —
+nothing clears them, because the corpse is what the level's dead list is drawn from. **So
+every kill left a permanent roadblock.**
+
+⚠ **It is the worst shape a blocker can have.** A monster moves on; a wall is in the flow
+field the movers descend. A corpse does neither — invisible to the field, causeless to the
+player, unclearable by anything. `npc_step` only ever takes a strictly-improving neighbour, so
+**one corpse in a one-hex gap freezes a worker for the rest of the game**, and the symptom is
+*a civilian standing still* — the same symptom as five other defects this plan has already
+chased. It is also a slow leak rather than an event: the map holds a little less ground after
+every fight.
+
+Inert for one of the two callers, which is worth stating: worldgen's placement dedup runs
+while everything it has placed is alive, so only the **runtime** callers change (civilian
+stepping and the incursion's spawn pick). Gated as `safetytest` row 7, and it needs **both
+directions on the same hex** or it gates nothing — a living actor must still block (or the fix
+has merely turned occupancy off and everyone walks through everyone) and a corpse must not.
+Verified red with the `alive` test removed.
 
 ### ⚠ Open, and the user's call: the starting town is now under pressure from day 1
 

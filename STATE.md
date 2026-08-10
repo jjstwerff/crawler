@@ -313,6 +313,13 @@ genuinely different routes:
   raider was `!awake`, correctly, while waking meant switching to the chase. The fix that made
   a raid keep formation removed the confound, and the assertion then failed on healthy
   behaviour. *An assertion encodes a mechanism; change the mechanism and re-derive it.*
+- a **blocker with no cause, no exit and no representation** (2026-08-10) — `occupied_hex` did
+  not test `alive`, and a slain actor keeps its coordinates forever, so **every kill left a
+  permanent roadblock**. A monster moves on and a wall is in the flow field the movers descend;
+  a corpse does neither, and `npc_step` only takes a strictly-improving neighbour — so one
+  corpse in a one-hex gap freezes a worker for good, and the symptom is *a civilian standing
+  still*, the same symptom as five other defects in this plan. ⚠ *A slow leak has no incident
+  to investigate; the map simply holds less ground after every fight.*
 - an **escape hatch that swallowed its own rule** (2026-08-10) — `npc_may_enter` must let a
   worker already standing in danger move, or a raid *traps* the people the rule exists to keep
   out. Correct, and never followed through: a large connected unsafe region is therefore
