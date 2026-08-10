@@ -189,5 +189,79 @@ fn main() {
     }
   }
 
+  // ── 8. I-SAY: the line and the veto agree, for EVERYONE ───────────────────────────
+  // ⚠ THE ASSERTION IS THE INVARIANT, NOT AN EXAMPLE (plan #17 `S4`). What a worker says
+  // about its work is read from the same term that decides whether it goes, so across the
+  // whole town "says why it is idle" and "its work site is unsafe" must be the SAME set. A
+  // row that checked one talkative miner would pass just as well against a line that is
+  // always spoken, or never — and a settlement that claims a trouble it does not have is
+  // worse than one that says nothing.
+  //
+  // ⚠ BOTH SIDES MUST BE NON-EMPTY, or the invariant is satisfied by a town where nothing
+  // is ever unsafe (every step of this plan then goes inert while still passing) or where
+  // everything is.
+  //
+  // ⚠ AND IT TICKS FIRST, WHICH IS NOT A CONVENIENCE. This world is **safe at genesis** —
+  // measured, 0 workers with an unsafe site — and the trouble ARRIVES, because that is
+  // `S5`'s entire design: pressure comes from a source rather than being there at the
+  // start. A row that read genesis would be reading the town before its story begins, find
+  // nothing to say, and conclude the mechanism was broken. Measured on this seed (which is
+  // `story.loft`'s own `GEN_SEED`, so it is the world a player actually starts in): the
+  // first worker reports a trouble at **tick 19**, and is still reporting it at tick 599.
+  // That number IS the `F6` answer — the signal is there before a player has crossed the
+  // square, and it does not blink out.
+  for _ in 0..100 { sim_tick(t); }
+  //
+  // Excluded: guards and wild things (exempt in `npc_target` for the same reason), and the
+  // merchant cart and the wizard, whose own quest arms return before the ambient one is
+  // reached. That pre-emption is deliberate — a quest line is one-shot and this repeats.
+  said_it = 0;
+  stayed_quiet = 0;
+  mismatch = 0;
+  named_ok = false;
+  named_checked = false;
+  for i in 0..sim_enemy_count(t) {
+    rl3 = sim_enemy_role(t, i);
+    if sim_enemy_alive(t, i) && rl3 != 0 && rl3 != 3 && rl3 != 12 && rl3 != 7
+       && sim_enemy_key(t, i) != "wizard" {
+      (wq3, wr3) = sim_enemy_work(t, i);
+      danger = !hex_safe(t, wq3, wr3);
+      sim_talk_to(t, i);
+      spoke = sim_msg_at(t, 0).find("I'll not go while it stands") != null;
+      if spoke != danger { mismatch += 1; }
+      if spoke { said_it += 1; } else { stayed_quiet += 1; }
+      // ⚠ ATTRIBUTED, ONCE: the line has to name the creature that is actually standing
+      // there, or it is mood rather than somewhere to go. Checked on the first speaker —
+      // the naming is one expression, so one witness settles whether it is wired.
+      if spoke && !named_checked {
+        named_checked = true;
+        for j in 0..sim_enemy_count(t) {
+          if sim_enemy_alive(t, j) && sim_enemy_role(t, j) == 0 {
+            (hq3, hr3) = sim_enemy_hex(t, j);
+            if hex_distance(hq3, hr3, wq3, wr3) <= THREAT_R
+               && sim_msg_at(t, 1).find(sim_enemy_name(t, j)) != null { named_ok = true; }
+          }
+        }
+      }
+    }
+  }
+  println("I-SAY: {said_it} say why they are idle, {stayed_quiet} do not, {mismatch} disagree with the veto; names the creature = {named_ok}");
+  if mismatch > 0 {
+    println("FAIL: {mismatch} workers' words disagree with what they actually do — the line is a second state, not the same term");
+    ok = false;
+  }
+  if said_it == 0 {
+    println("FAIL: nobody reports a trouble — the signal cannot be seen, which is F6 itself");
+    ok = false;
+  }
+  if stayed_quiet == 0 {
+    println("FAIL: every worker reports a trouble — the line is unconditional, so it says nothing");
+    ok = false;
+  }
+  if !named_ok {
+    println("FAIL: the refusal names no creature that is actually there — a mood, not somewhere to go");
+    ok = false;
+  }
+
   if ok { println("=== SAFETY OK ==="); } else { println("=== FAIL ==="); }
 }

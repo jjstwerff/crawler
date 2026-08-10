@@ -2984,6 +2984,98 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
   sim_reclaim_grave(s);      // standing on your grave reclaims its staked gold
 }
 
+// ── plan #17 `S4` — THE SETTLEMENT SAYS SO, IN THE WORLD ──────────────────────────────
+//
+// I-SAY: **what a worker says about its work is read from the same term that decides
+// whether it goes.** No flag, no schedule, no second state — so the line cannot drift from
+// the world, and a settlement can never claim a trouble it does not have.
+//
+// ⚠ THIS ANSWERS `F6`, WHICH `CRAFTING.md` CALLS THE REAL RISK: a loop that cannot be seen
+// in one session is a simulation nobody plays. Three of the four signals the design named
+// already ship — thinner stalls and a skipped rotation (`S3` draws once per potion, so a
+// half-supplied workshop makes a short batch), and an unwalked route (`S2`'s site veto keeps
+// the worker at home). **This is the fourth, and it is the only one a player can read
+// WITHOUT A BASELINE**: a stall holding four potions instead of five says nothing at all to
+// someone who has never seen five, and an idle worker is indistinguishable from a worker who
+// is simply idle.
+//
+// ⚠ A PERSON SPEAKING IS NOT A MARKER. `SCRIPTING.md`'s *no markers* rule forbids the UI
+// pointing at things; the design's own list of four signals ends with "the innkeeper says
+// the roads are bad". It also costs **zero new keys** — bumping a civilian already talks
+// (DESIGN §3a pillar #7, lean inputs).
+//
+// ⚠ AND IT NAMES THE CAUSE, WHICH IS WHAT MAKES IT ACTIONABLE. "Something is wrong" is a
+// mood; "an ogre at the mine, west of here" is somewhere to go. Both the creature and the
+// bearing are DERIVED from the world at the moment of asking, never authored — so the line
+// is produced, not stored, and it stays true as the world moves.
+
+// The compass word from (fq,fr) toward (tq,tr). `+q` is east and `+r` is south, and a row
+// step is 0.866 of a column step (moros pointy-top), so the vertical delta is scaled before
+// the two are compared — otherwise everything north of you reads as north-east.
+fn bearing_word(fq: integer, fr: integer, tq: integer, tr: integer) -> text {
+  dq = tq - fq;
+  dr = tr - fr;
+  adq = dq;
+  if adq < 0 { adq = -adq; }
+  adr = ((dr * 866) / 1000) ?? 0;          // to column units, integer
+  if adr < 0 { adr = -adr; }
+  if adq == 0 && adr == 0 { return "here"; }
+  ns = "";
+  if dr < 0 { ns = "north"; }
+  if dr > 0 { ns = "south"; }
+  ew = "";
+  if dq > 0 { ew = "east"; }
+  if dq < 0 { ew = "west"; }
+  if adq > adr * 2 { return ew; }          // flat enough to be plain east/west
+  if adr > adq * 2 { return ns; }          // steep enough to be plain north/south
+  if ns == "" { return ew; }
+  if ew == "" { return ns; }
+  "{ns}-{ew}"
+}
+
+// The living hostile nearest (q,r) within `THREAT_R` — the one `hex_safe` is objecting to.
+// Empty only in principle: the sole way `hex_safe` answers false is that one of these is
+// standing there, so a worker who refuses always has something to point at.
+fn threat_name_near(s: Sim, q: integer, r: integer) -> text {
+  es = s.enemies;
+  bn = "";
+  bd = 9999;
+  for i in 0..len(es) {
+    e = es[i];
+    if e != null && e.alive && e.role == 0 {
+      d = hex_distance(e.cur_q, e.cur_r, q, r);
+      if d <= THREAT_R && d < bd { bd = d; bn = e.name; }
+    }
+  }
+  bn
+}
+
+// "A" or "An" for a creature name. Monster keys are lowercase, so the first letter decides.
+fn article_for(t: text) -> text {
+  if starts_with(t, "a") || starts_with(t, "e") || starts_with(t, "i")
+     || starts_with(t, "o") || starts_with(t, "u") { return "An"; }
+  "A"
+}
+
+// What this trade calls its workplace, and what the town loses while nobody is at it.
+// ⚠ THE WORDS ARE THE ONLY AUTHORED PART OF THIS, and they are the part that belongs
+// bundle-side the day a dialogue seam exists (BUNDLE.md's standing check — mechanism
+// engine-side, content content-side). The mechanism above reads the world; this reads a
+// role. Kept in one function so the move is one function.
+fn work_words(role: integer) -> (text, text) {
+  if role == 9 { return ("the picking ground", "The stills will run dry."); }
+  if role == 10 { return ("the ore face", "No ore comes down today."); }
+  if role == 2 { return ("the field", "The stalls will be thin."); }
+  if role == 4 { return ("the water", "No catch today."); }
+  if role == 1 { return ("the square", "Nobody's trading today."); }
+  if role == 8 { return ("the sea lane", "No cargo lands today."); }
+  // ⚠ No arm for role 7 (the merchant cart) ON PURPOSE: its own quest arm in `sim_talk_to`
+  // returns before this one is reached, so an entry here would be a line nobody can hear.
+  // Quest speech pre-empting ambient speech is the right order — a quest line is one-shot
+  // and this one repeats — but it does mean the cart never reports a bad road.
+  ("my work", "It'll keep.")
+}
+
 // TALK: bumping a civilian speaks. The town carries its quest lines here —
 // merchants point at the Circle, the Circle's mages ask their favour (and pay
 // for it), the rest of the town nods. Bump-triggered, so it never spams.
@@ -3052,6 +3144,20 @@ pub fn sim_talk_to(s: &Sim, idx: integer) {
       sim_log(s, "'The sands, sword-arm. The Circle waits.'");
     }
     return;
+  }
+  // ⚠ A WORKER WHO IS NOT AT WORK SAYS WHY, AND IT IS THE SAME TERM THAT KEPT THEM HOME
+  // (I-SAY, plan #17 `S4`). Read at the moment of asking, so it is true when said and gone
+  // when the ground is. Guards and wild things are exempt here exactly as in `npc_target` —
+  // walking toward trouble is the job, and the wild keeps its own counsel.
+  if e.role != 0 && e.role != 3 && e.role != 12 && !hex_safe(s, e.wq2, e.wr2) {
+    (place, cost) = work_words(e.role);
+    what = threat_name_near(s, e.wq2, e.wr2);
+    where = bearing_word(e.cur_q, e.cur_r, e.wq2, e.wr2);
+    if what != "" {
+      sim_log(s, "The {e.name} shakes their head: '{article_for(what)} {what} on {place},");
+      sim_log(s, "{where} of here. I'll not go while it stands.' {cost}");
+      return;
+    }
   }
   if e.role != 0 { sim_log(s, "The {e.name} nods at you."); }
 }
