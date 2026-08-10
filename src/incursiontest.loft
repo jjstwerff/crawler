@@ -9,11 +9,18 @@
 // So the rows below ask the question decay CANNOT pass: **kill the cause and it stops.**
 //
 // ⚠ IT RUNS IN THE HOME WINDOW, WHICH IS THE ONLY WINDOW WHERE THE MECHANISM CAN FIRE.
-// Measured 2026-08-10: all three of world 777's ruins sit in windows with 0 guards and 0
-// civilians, and a source with no settlement to press on sends nobody. The home window is
-// where the settlement, the gatherer and the economy are — so worldgen puts a den at the far
-// end of the ground the town can walk (`sim.loft`, "THE DEN OVER THE RIDGE"). Before that
-// den existed, `send_incursions` was correct code with no consumer anywhere in the world.
+// Measured 2026-08-10: all three ruins sit in windows with 0 guards and 0 civilians, and a
+// source with no settlement to press on sends nobody. (That holds for every seed — ruins are
+// features of the overland, and `ov_seed` is hard-coded, so a seed varies monster placement
+// and nothing else.) The home window is where the settlement, the gatherer and the economy
+// are — so worldgen puts a den at the far end of the ground the town can walk (`sim.loft`,
+// "THE DEN OVER THE RIDGE"). Before that den existed, `send_incursions` was correct code
+// with no consumer anywhere in the world.
+//
+// ⚠ SEED 1337 IS `story.loft`'s OWN `GEN_SEED` — the world a player actually starts in. This
+// plan measured 777 throughout and switched on 2026-08-10, because a claim about the shipped
+// game has to be measured on the shipped game. Both worlds carry the den and the gatherer;
+// what differs is everything else's placement, which is what the plan is about.
 //
 // ⚠ ON THE COST. A surface tick runs a full-level BFS for the monster flow (~10 ms), and
 // `DAY_LEN` is 400 — so watching three dawns arrive by ticking is 1200 ticks of wall clock
@@ -52,7 +59,7 @@ fn main() {
   ok = true;
 
   // ── 1. a source exists in the settlement's own window, and starts with nothing out ─
-  w = sim_new_gen(777, 0);
+  w = sim_new_gen(1337, 0);
   si = find_source(w);
   println("home window: source index {si}, raiders at genesis {live_raiders(w)}");
   if si < 0 {
@@ -142,7 +149,7 @@ fn main() {
   // Kill it before the first dawn and the count must stay at zero for good. ⚠ A FRESH
   // WORLD, not `w`: row 5 only shows the count did not GROW, which a one-shot spawner
   // somewhere else would survive.
-  w3 = sim_new_gen(777, 0);
+  w3 = sim_new_gen(1337, 0);
   s3 = find_source(w3);
   if s3 >= 0 { sim_slay(w3, s3); }
   for _ in 0..10 { sim_dawn(w3); }
@@ -167,7 +174,7 @@ fn main() {
   // row that only asked "is it unsafe now" would pass on a wandering jackal and would have
   // passed against every broken version of this mechanism measured today. So it also
   // requires a RAIDER to be the thing standing there.
-  w4 = sim_new_gen(777, 0);
+  w4 = sim_new_gen(1337, 0);
   g4 = -1;
   for i in 0..sim_enemy_count(w4) {
     if g4 < 0 && sim_enemy_alive(w4, i) && sim_enemy_role(w4, i) == 9 { g4 = i; }
