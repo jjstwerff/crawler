@@ -152,5 +152,42 @@ fn main() {
     ok = false;
   }
 
+  // ── 7. THE DEAD DO NOT HOLD GROUND ────────────────────────────────────────────────
+  // ⚠ A slain actor keeps its coordinates forever — nothing clears them — so `occupied_hex`
+  // used to leave a permanent roadblock behind every kill. It is the worst shape a blocker
+  // can have: invisible, causeless, and unclearable, on a mover that only ever takes a
+  // strictly-improving neighbour. One corpse in a one-hex gap freezes a worker for good.
+  //
+  // ⚠ SEEN BOTH WAYS ON THE SAME HEX, which is the only way this row means anything: the
+  // live actor MUST block (or the fix has simply turned the predicate off and civilians walk
+  // through each other) and the corpse MUST NOT.
+  vi = -1;
+  for i in 0..sim_enemy_count(t) {
+    if vi < 0 && sim_enemy_alive(t, i) && sim_enemy_role(t, i) == 12 { vi = i; }
+  }
+  if vi < 0 {
+    for i in 0..sim_enemy_count(t) {
+      if vi < 0 && sim_enemy_alive(t, i) && sim_enemy_role(t, i) == 0 { vi = i; }
+    }
+  }
+  if vi < 0 {
+    println("FAIL: nothing on the surface to kill — row 7 measures nothing");
+    ok = false;
+  } else {
+    (vq, vr) = sim_enemy_hex(t, vi);
+    blocked_alive = sim_hex_occupied(t, vq, vr);
+    sim_slay(t, vi);
+    blocked_dead = sim_hex_occupied(t, vq, vr);
+    println("hex ({vq},{vr}) held by e{vi}: while alive={blocked_alive}, once dead={blocked_dead}");
+    if !blocked_alive {
+      println("FAIL: a LIVING actor did not hold its hex — occupancy is off entirely, and everyone now walks through everyone");
+      ok = false;
+    }
+    if blocked_dead {
+      println("FAIL: a corpse still holds its hex — every kill leaves a permanent roadblock nobody can clear");
+      ok = false;
+    }
+  }
+
   if ok { println("=== SAFETY OK ==="); } else { println("=== FAIL ==="); }
 }

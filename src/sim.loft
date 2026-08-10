@@ -3636,14 +3636,33 @@ fn mk_npc(role: integer, key: text, name: text, glyph: text,
     role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1, carry: 0, raid: 0 }
 }
 
-// Is any already-placed enemy on this hex?
+// Is a LIVING actor standing on this hex?
+//
+// ⚠ THE DEAD DO NOT HOLD GROUND. A slain actor keeps its `cur_q`/`cur_r` forever — nothing
+// clears them, because the corpse is what the level's dead list is drawn from — so without
+// the `alive` test every kill left a permanent roadblock on the map. It is a roadblock with
+// no cause a player can see and no way to clear it: unlike a monster, a corpse never moves
+// on, and unlike a wall it is invisible to every path the field was built from. `npc_step`
+// only ever takes a strictly-improving neighbour, so one corpse in a one-hex gap freezes a
+// worker for the rest of the game.
+//
+// Two callers, and the test is inert for one of them: worldgen's placement dedup runs while
+// everything it has placed is alive, so this only changes the RUNTIME callers — civilian
+// stepping and the incursion's spawn pick.
 fn occupied_hex(enemies: vector<Enemy>, q: integer, r: integer) -> boolean {
   found = false;
   for oi in 0..len(enemies) {
     e = enemies[oi];
-    if e.cur_q == q && e.cur_r == r { found = true; }
+    if e.alive && e.cur_q == q && e.cur_r == r { found = true; }
   }
   found
+}
+
+// Read-only, for the gate. ⚠ Pub for the reason `npc_may_enter` and `prod_draw_when` are: a
+// predicate reachable only through a day of simulation is one whose branches nobody can gate
+// directly, and this one's whole defect was a branch that never went false.
+pub fn sim_hex_occupied(s: Sim, q: integer, r: integer) -> boolean {
+  occupied_hex(s.enemies, q, r)
 }
 
 // Is (q,r) solid rock or off-map in this tile array?  The generation-time
