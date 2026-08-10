@@ -104,7 +104,7 @@ GATE_SLOW=$(mktemp)
 # green the divergence is the backend's, which is a loft ticket, not a crawler fix.
 NATIVE_TESTS="questtest stocktest traveltest surfacetest replaytest safetytest
               meshtest fieldtest crystaltest effecttest cavetest roofmatchtest
-              sweeptest playtest incursiontest"
+              sweeptest playtest incursiontest militiatest"
 # ⚠ NORMALISE THE SEPARATORS, OR THE LIST SILENTLY LIES. The names are written on three
 # lines to stay readable, so what separates the LAST name on a line from the first on the
 # next is a NEWLINE — and the `case " $NATIVE_TESTS "` membership test below matches on
@@ -423,6 +423,7 @@ src/safetytest.loft|SAFETY OK|/tmp/story_safety.log|safety|[safety] plan #17 S1/
 src/stocktest.loft|STOCK OK|/tmp/story_stock.log|stock|[stock] plan #17 S3: stock == raised - drawn; empty means no output (armed both ways) ...
 src/incursiontest.loft|INCURSION OK|/tmp/story_incursion.log|incursion|[incursion] plan #17 S5: pressure ARRIVES from a source, and clearing the source ends it ...
 src/mendtest.loft|MEND OK|/tmp/story_mend.log|mend|[mend] plan #17 S6: damage is an EVENT, repair is its exact inverse, and no seam launders it ...
+src/militiatest.loft|MILITIA OK|/tmp/story_militia.log|militia|[militia] plan #17 S7: standing is earned locally, and the militia it raises holds ground ...
 src/fieldtest.loft|FIELD OK|/tmp/story_field.log|field-differential|[field] plan #11 P2: old passability model == new, every hex and direction ...
 src/sweeptest.loft|SWEEP OK|/tmp/story_sweep.log|swept-movement|[sweep] plan #11 P2b: a PATH crosses walls, not a probe point — same walls at any dt ...
 src/scenetest.loft|SCENE OK|/tmp/story_scene.log|camera|[scene] plan #11 P3: hex -> pixel -> the same hex; metric parity (I-STAND) ...
@@ -447,6 +448,9 @@ collect_one src/playtest.loft "PLAY OK" /tmp/story_play_respawn.log "playthrough
 collect_one src/playtest.loft "PLAY OK" /tmp/story_play_mend.log "playthrough: mend" \
   "[play] scripts/mend.play: plan #17 S6 — the shipped town has a smith, and a bump is the whole interface ..." \
   scripts/mend.play
+collect_one src/playtest.loft "PLAY OK" /tmp/story_play_militia.log "playthrough: militia" \
+  "[play] scripts/militia.play: plan #17 S7 — a stranger is turned down, a trusted player raises the watch, at zero keys ..." \
+  scripts/militia.play
 
 collect <<'EOF'
 src/chunktest.loft|CHUNK OK|/tmp/story_chunk.log|chunk|[chunk] @PLN2 detail chunk: base+0.1m round-trip / watertight seam / 32x32 addressing ...

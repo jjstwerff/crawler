@@ -129,6 +129,12 @@ pub struct Enemy {
   // walking to `wq2/wr2`; its `hq/hr` is the source's spawn hex, which is the source's
   // identity (stable even when the leader itself moves). 0 = an ordinary monster.
   raid:  integer not null,
+  // plan #17 `S7` — a MILITIA PICKET. 1 = this role-3 guard is one the settlement would not
+  // otherwise have posted; the player's standing raised it. ⚠ It is not a new safety
+  // mechanism: a picket is an ordinary guard to `hex_safe`, and this flag exists only so the
+  // militia can be counted and so `town_size` keeps meaning *who lives here* — without it,
+  // raising a militia would tip a village over the town threshold and start the raids.
+  picket: integer not null,
 }
 
 // The player's own state — the character record (DESIGN.md §2: moving player-owned
@@ -266,6 +272,21 @@ pub struct Sim {
   // when a workshop makes. ⚠ A NUMBER, NEVER AN ITEM INVENTORY — the moment it holds items
   // somebody wants a screen for it and the interface budget is spent (CRAFTING.md `F2`).
   prod_stock: vector<integer> not null,
+  // plan #17 `S7` — STANDING, per settlement. Stride `STAND_W`: `[win_x, win_y, deeds,
+  // pickets]`, one entry per settlement the player has done anything for, appended on first
+  // deed. `pickets` is `-1` until they petition and `0..n` after (a militia that has been
+  // raised and is stalled at its first site is a real state, so "raised" cannot be inferred
+  // from the count).
+  //
+  // ⚠ LOCAL, NEVER GLOBAL KARMA, and the key is what enforces it: the window IS the
+  // settlement's identity, so being a hero in one valley says nothing in the next. A single
+  // integer here would be a campaign-wide reputation number, and every settlement after the
+  // first would be scenery.
+  //
+  // ⚠ ONE NUMBER, ONE CONSUMER (the militia) — the guard rail that keeps `S7` from being the
+  // social sim `DESIGN.md` §3a #6 forbids. No dialogue tree, no disposition matrix, no
+  // per-NPC relations. A SECOND consumer is the moment to re-check that, not a free extension.
+  stand: vector<integer> not null,
   // Civilian path fields, one per (destination, movement class), computed on first use and
   // KEPT — a civilian's destinations are fixed when it spawns and the terrain under them
   // does not move, so a field is built once per level and read by every NPC heading there.
@@ -1673,10 +1694,7 @@ fn player_attack(s: &Sim, idx: integer) {
         drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
         sim_log(s, "You have slain the {e.name}.");
         if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
-        if (e.tags & TAG_RUIN_BOSS) != 0 && s.q_poster == 1 {
-          s.q_poster = 2;
-          sim_log(s, "That was the brute from the poster - the watch owes you gold.");
-        }
+        on_hostile_slain(s, e.role, e.tags, e.raid);
       }
       enemies[idx] = e;
       if gain > 0 { sim_award_xp(s, gain); }
@@ -1739,10 +1757,7 @@ pub fn sim_bolt(s: &Sim, dam: integer) -> integer {
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
     sim_log(s, "Your bolt slays the {e.name}.");
     if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
-        if (e.tags & TAG_RUIN_BOSS) != 0 && s.q_poster == 1 {
-          s.q_poster = 2;
-          sim_log(s, "That was the brute from the poster - the watch owes you gold.");
-        }
+    on_hostile_slain(s, e.role ?? 0, e.tags ?? 0, e.raid ?? 0);
     ret = 4;
   } else {
     sim_log(s, "Your bolt strikes the {e.name}.");
@@ -1783,10 +1798,7 @@ pub fn sim_fire(s: &Sim) -> integer {
     drop_loot(s, e.cur_q, e.cur_r, e.mlvl);
     sim_log(s, "Your shot slays the {e.name}.");
     if (e.flags & MF_UNIQUE) != 0 { sim_on_unique_death(s, e.cur_q, e.cur_r, e.name); }
-        if (e.tags & TAG_RUIN_BOSS) != 0 && s.q_poster == 1 {
-          s.q_poster = 2;
-          sim_log(s, "That was the brute from the poster - the watch owes you gold.");
-        }
+    on_hostile_slain(s, e.role ?? 0, e.tags ?? 0, e.raid ?? 0);
     ret = 4;
   } else {
     sim_log(s, "Your shot strikes the {e.name}.");
@@ -2547,11 +2559,16 @@ fn raid_objective(s: &Sim, fq: integer, fr: integer) -> (integer, integer) {
 // the seat is where the square IS, the size is who lives there. Folding them into one
 // answer sent a VILLAGE's goods to `(-1, -1)`, because the village fails the town test and
 // still has a square. `>= 3` is a town; smaller is a village; `< 0` is empty wilderness.
-fn town_size(s: Sim) -> integer {
+pub fn town_size(s: Sim) -> integer {
   guards = 0;
   for gi in 0..len(s.enemies) {
     e = s.enemies[gi];
-    if e != null && e.alive && e.role == 3 { guards += 1; }
+    // ⚠ PICKETS DO NOT COUNT (plan #17 `S7`). This is *who lives here*, and a militia is not
+    // residents — it is the player's reach. Counted, a raised militia would tip a VILLAGE over
+    // the `>= 3` town threshold, and the settlement would start receiving incursions because
+    // the player defended it. A mechanism that answers "you did well" with "so the world now
+    // attacks you" is `F8` wearing a different hat.
+    if e != null && e.alive && e.role == 3 && e.picket == 0 { guards += 1; }
   }
   guards - 1
 }
@@ -2613,6 +2630,376 @@ fn send_incursions(s: &Sim) {
       }
     }
   }
+}
+
+// ── Standing, and the militia it raises (plan #17 `S7`) ───────────────────────────────
+//
+// I-STAND: **standing is one number per settlement, raised only by acts done for that
+// settlement, read only as a category, and it has exactly ONE consumer** — whether the
+// militia may be raised. That last clause is the guard rail, not a description: a second
+// consumer is the point where this stops being a number and starts wanting a social sim
+// (`DESIGN.md` §3a #6).
+//
+// I-PICKET: **a picket is a guard the settlement would not otherwise have posted.** It is an
+// ordinary role-3 actor, so `hex_safe` gains no term and the safety expression is untouched —
+// `S1` bought this whole step without knowing it. The militia is one new *source* of guards,
+// never a new kind of safety.
+//
+// ⚠ THE PLAYER'S PUSH OUT, WHERE `S5` IS THE WORLD'S PUSH IN, and they argue about the SAME
+// ground: `militia_site` reads the set `raid_objective` presses on, from the other side. If
+// they ranked different hexes neither side's move would be legible against the other's.
+//
+// ⚠ AND IT IS NOT A PROGRESS BAR (`F7`). Nothing here has a timer. The militia advances when
+// there is work it can hold and stops when a living source is sitting on the rest — a legible
+// place, stalled for a legible reason, that moves again when the player kills the cause.
+pub const STAND_KNOWN = 3;    // deeds: the town knows your face
+pub const STAND_TRUST = 6;    //        the town would put men under you
+const DEED_RAID   = 1;        // turning back what a source sent at this settlement
+const DEED_SOURCE = 3;        // ending the source itself — worth three of the above
+const STAND_W = 4;            // stride of `s.stand`: win_x, win_y, deeds, pickets
+
+// How close a living source keeps the militia off. ⚠ DERIVED, NOT CHOSEN: a picket covers
+// `GUARD_R` around itself and a source spoils `THREAT_R` around itself, so inside the sum the
+// two rings overlap and the picket would be holding the den's own doorstep by main force.
+// Refusing that is what makes *"come back later"* a world state instead of a timer — the
+// tough spots stay the player's job, which is the whole shape the design asked for.
+pub const SRC_R = THREAT_R + GUARD_R;
+
+// This settlement's row in `s.stand`, appended on first use. The WINDOW is the settlement's
+// identity — see the field's comment for why a single global number is the thing to refuse.
+fn stand_slot(s: &Sim) -> integer {
+  st = s.stand;
+  n = (len(st) / STAND_W) ?? 0;
+  for i in 0..n {
+    b = i * STAND_W;
+    if (st[b] ?? 0) == s.win_x && (st[b + 1] ?? 0) == s.win_y { return b; }
+  }
+  b2 = len(st);
+  s.stand += [s.win_x];
+  s.stand += [s.win_y];
+  s.stand += [0];
+  s.stand += [-1];              // -1 = never petitioned (0 pickets is a RAISED militia)
+  b2
+}
+
+// The same lookup without creating one — every read-only path uses this, so merely asking
+// about standing never writes a row.
+fn stand_find(s: Sim) -> integer {
+  st = s.stand;
+  n = (len(st) / STAND_W) ?? 0;
+  for i in 0..n {
+    b = i * STAND_W;
+    if (st[b] ?? 0) == s.win_x && (st[b + 1] ?? 0) == s.win_y { return b; }
+  }
+  -1
+}
+
+// Deeds this settlement counts to the player. Pub for the gate: a category with no readable
+// number underneath it is one nobody can assert either side of.
+pub fn sim_standing(s: Sim) -> integer {
+  b = stand_find(s);
+  if b < 0 { return 0; }
+  s.stand[b + 2] ?? 0
+}
+
+// The CATEGORY, which is the only form the player ever meets it in — a threshold you can
+// cross and see crossed, never a float that slides (the same argument as `S1`'s safety).
+pub fn sim_standing_word(s: Sim) -> text {
+  d = sim_standing(s);
+  if d >= STAND_TRUST { return "trusted"; }
+  if d >= STAND_KNOWN { return "known"; }
+  "stranger"
+}
+
+// Pickets this settlement's militia has posted; -1 = it has never been petitioned.
+pub fn sim_militia(s: Sim) -> integer {
+  b = stand_find(s);
+  if b < 0 { return -1; }
+  s.stand[b + 3] ?? -1
+}
+
+// A deed done for the settlement the player is standing in. ⚠ NO SETTLEMENT, NO STANDING:
+// standing is a town's reckoning of you, so there has to be a town doing the reckoning —
+// the same test `send_incursions` makes before it presses on anything.
+fn stand_earn(s: &Sim, n: integer) {
+  if s.depth != 0 { return; }
+  if town_size(s) < 3 { return; }
+  b = stand_slot(s);
+  st = s.stand;
+  was = st[b + 2] ?? 0;
+  deeds = was + n;
+  st[b + 2] = deeds;
+  // THE WORLD SAYS IT, AND ONLY WHEN IT CHANGES (I-SAY, `S4`). No panel, no meter: the two
+  // lines a player ever sees are the two threshold crossings, and the second one points at
+  // the guard master without a quest marker.
+  if was < STAND_KNOWN && deeds >= STAND_KNOWN {
+    sim_log(s, "Word gets round: you were on the road when it mattered.");
+  }
+  if was < STAND_TRUST && deeds >= STAND_TRUST {
+    sim_log(s, "The watch nods as you pass. Someone should tell the guard master.");
+  }
+}
+
+// ONE PLACE A HOSTILE'S DEATH IS ACCOUNTED FOR. ⚠ The poster bounty was written out THREE
+// times — melee, bolt, shot — and standing would have made it six. Three copies of a rule is
+// three chances to add a fourth kill path and forget one, and forgetting is silent: the
+// player kills the thing and the town simply never notices.
+//
+// Takes the three FACTS rather than the Enemy, the same way `npc_may_enter` takes role and
+// origin: they are the only three it uses, the kill paths hold a nullable record, and a rule
+// that can be asked in isolation is one a gate can control.
+fn on_hostile_slain(s: &Sim, role: integer, tags: integer, raid: integer) {
+  if role != 0 { return; }
+  if (tags & TAG_RUIN_BOSS) != 0 && s.q_poster == 1 {
+    s.q_poster = 2;
+    sim_log(s, "That was the brute from the poster - the watch owes you gold.");
+  }
+  // STANDING IS EARNED BY ACTS, and these are the acts: turning back what a source sent at
+  // this settlement's work, and ending the source. Nothing else counts — which is what keeps
+  // one number to one meaning, rather than a score that rises for existing nearby.
+  if raid == 1 {
+    stand_earn(s, DEED_RAID);
+  } else if (tags & TAG_RUIN_BOSS) != 0 {
+    stand_earn(s, DEED_SOURCE);
+  }
+}
+
+// Is this ground held CONTINUOUSLY — some guard whose whole walk stays inside `GUARD_R` of it?
+//
+// ⚠ NOT "a guard is near it right now". A guard walks two legs, so a momentary reading answers
+// differently depending on which tick asks, and a militia that chose its post from one would
+// post somewhere else every time the window was rebuilt. The guard master's beat was designed
+// against exactly this rule — both legs inside `GUARD_R` of the seat, so the square is held
+// from every point of the walk — and this is that rule asked of any hex.
+pub fn hex_held(s: Sim, q: integer, r: integer) -> boolean {
+  es = s.enemies;
+  for i in 0..len(es) {
+    g = es[i];
+    if g != null && g.alive && g.role == 3
+       && hex_distance(g.wq2, g.wr2, q, r) <= GUARD_R
+       && hex_distance(g.aq2, g.ar2, q, r) <= GUARD_R { return true; }
+  }
+  false
+}
+
+// A living source whose GROUND this is. ⚠ Its SPAWN hex, not where its leader stands — the
+// same identity `send_incursions` uses, and for the same reason: a den's ground does not move
+// when the thing in it wakes up and wanders. It also keeps the militia's decision independent
+// of the tick that asks, which is what makes the whole mechanism gate-able.
+pub fn src_near(s: Sim, q: integer, r: integer) -> boolean {
+  es = s.enemies;
+  for i in 0..len(es) {
+    e = es[i];
+    if e != null && e.alive && e.role == 0 && (e.tags & TAG_RUIN_BOSS) != 0
+       && hex_distance(e.hq, e.hr, q, r) <= SRC_R { return true; }
+  }
+  false
+}
+
+// What is standing on it — for the guard master's stall line, so the halt has a NAME.
+fn src_name_near(s: Sim, q: integer, r: integer) -> text {
+  es = s.enemies;
+  for i in 0..len(es) {
+    e = es[i];
+    if e != null && e.alive && e.role == 0 && (e.tags & TAG_RUIN_BOSS) != 0
+       && hex_distance(e.hq, e.hr, q, r) <= SRC_R { return e.name; }
+  }
+  ""
+}
+
+// Whose work a hex is — so the militia's marching order can be said in the words the workers
+// already use (`work_words`, `S4`) rather than in coordinates.
+fn site_role(s: Sim, q: integer, r: integer) -> integer {
+  es = s.enemies;
+  for i in 0..len(es) {
+    e = es[i];
+    if e != null && e.alive && (e.role == 2 || e.role == 9 || e.role == 10)
+       && e.wq2 == q && e.wr2 == r { return e.role; }
+  }
+  1
+}
+
+// The next hex the militia would hold: the settlement's most exposed WORK that nobody holds
+// and the watch can walk to.
+//
+// `slack = false` is the question an ADVANCE asks — and it includes the source rule, which is
+// the stall. `slack = true` is the question a RE-POST asks, and it deliberately does not.
+//
+// Pub for the reason `npc_may_enter` and `prod_draw_when` are: the branch that matters most
+// here is the one where it answers NOTHING, and a decision reachable only through a day of
+// simulation is one whose refusal nobody can gate.
+pub fn militia_site(s: &Sim, slack: boolean) -> (integer, integer) {
+  (sq, sr) = town_seat(s);
+  bq = -1;
+  br = -1;
+  bd = -1;
+  tq2 = 0;                       // pre-declared: a tuple assign inside the block cannot declare
+  tr2 = 0;
+  for i in 0..len(s.enemies) {
+    e = s.enemies[i];
+    // roles 2/9/10 — farmer, gatherer, miner: the work that is OUTSIDE the walls, which is
+    // the same set `raid_objective` chooses a target from.
+    if e != null && e.alive && (e.role == 2 || e.role == 9 || e.role == 10) {
+      d = hex_distance(e.wq2, e.wr2, sq, sr);
+      if d > bd && !hex_held(s, e.wq2, e.wr2)
+         && sim_npc_path_dist(s, e.wq2, e.wr2, 3, sq, sr) < FLOW_BIG
+         && (slack || !src_near(s, e.wq2, e.wr2)) {
+        // ⚠ AND THE GROUND MUST GIVE IT SOMEWHERE TO STAND. Without this the advance keeps
+        // choosing a site it can never post at, and the militia stalls forever on a hex with
+        // no cause a player can see or act on — the failure mode this whole step is shaped to
+        // avoid, arriving through the back door.
+        (tq2, tr2) = militia_stand(s, e.wq2, e.wr2);
+        if tq2 >= 0 {
+          bd = d;
+          bq = e.wq2;
+          br = e.wr2;
+        }
+      }
+    }
+  }
+  (bq, br)
+}
+
+// WHERE A PICKET ACTUALLY STANDS to hold a work site: two hexes out, on the FAR side — the
+// side away from the settlement — or `(-1, -1)` when the ground gives it nowhere.
+//
+// ⚠ NOT ON THE WORK ITSELF, AND THIS COST THE FIRST BUILD ITS WHOLE MEASUREMENT. A picket
+// posted on the ore face made it safe **1600 of 1600 ticks** and the town's ore went from 3
+// deliveries to **0**: `npc_step` refuses any occupied hex and only ever takes a strictly
+// improving neighbour, so a permanent body in a one-hex mountain pass freezes everyone behind
+// it forever — both miners stuck three hexes short, one carrying a load it could never bring
+// home. It is the corpse defect (*the dead do not hold ground*) with a living body, and it is
+// worse, because this one the militia put there itself.
+//
+// So the rule is directional, and the fiction and the mechanism agree for once: **a picket
+// faces outward.** Standing two hexes beyond the work, on the side away from town, it cannot
+// be on the road the workers come up — that road approaches from the settlement — and the
+// working ring (`npc_mine`/`npc_gather` fire within one hex) stays clear. Two out is still
+// well inside `GUARD_R`, so the ground is held from either end of its beat.
+fn militia_stand(s: &Sim, q: integer, r: integer) -> (integer, integer) {
+  (sq, sr) = town_seat(s);
+  bq = -1;
+  br = -1;
+  bd = -1;
+  for ry in 0..5 {
+    for rx in 0..5 {
+      cq = q + rx - 2;
+      cr = r + ry - 2;
+      if hex_distance(cq, cr, q, r) == 2 && npc_passable(s, 3, cq, cr)
+         && !occupied_hex(s.enemies, cq, cr) {
+        // connected to the ground it holds — asked against the SITE's own field, which the
+        // workers heading there have already paid for, so this adds no flow cache pressure
+        if sim_npc_path_dist(s, q, r, 3, cq, cr) < FLOW_BIG {
+          d = hex_distance(cq, cr, sq, sr);
+          if d > bd { bd = d; bq = cq; br = cr; }
+        }
+      }
+    }
+  }
+  (bq, br)
+}
+
+// Post one, ON its stand rather than walking it there from the square.
+//
+// ⚠ IT DOES NOT MARCH, and the reason is a deadlock rather than a preference. A picket walking
+// out through a one-hex pass meets a miner walking in; neither may enter the other's hex and
+// neither is going anywhere else, so both freeze permanently — the same occupancy rule that
+// the stand above is placed around. Posting directly also makes an advance and a re-derivation
+// the same operation, which removes an axis the two could otherwise silently disagree on.
+//
+// ⚠ AND IT HAS NO BEAT AT ALL — BOTH LEGS ARE THE STAND, which is a cost decision, not a
+// flavour one. Civilian pathing runs on cached flow fields keyed by (destination, movement
+// class), `FLOWD_MAX` of them, and **the shipped world already sits at the cap**: measured
+// 2026-08-10, the home window holds 24 of 24 before a militia exists. A field is handed out
+// first-come, so every extra destination a picket wanted took one a worker needed, and the
+// loser silently fell back to greedy stepping — which is the freeze this repo has already paid
+// for once (*greedy is not pathing*). A picket given a two-hex beat cost the miners their
+// route home: the ore went from 3 deliveries to 0 with the ground perfectly safe, and the
+// miner stood on ground whose path field read `FLOW_BIG` in every direction.
+//
+// Standing its post, a picket asks for NOTHING: `npc_step` returns at `d0 == 0` before it ever
+// touches the cache. A sentry that does not move is also what a picket IS — the patrol beat
+// was borrowed from the town guard, whose job is different.
+fn militia_place(s: &Sim, q: integer, r: integer) -> boolean {
+  (pq, pr) = militia_stand(s, q, r);
+  if pq < 0 { return false; }
+  ne = mk_npc(3, "militia", "militia", "g", 190, 170, 120, pq, pr, pq, pr, pq, pr, pq, pr);
+  ne.picket = 1;
+  s.enemies += [ne];
+  true
+}
+
+// The militia's own move, once a day at dawn — the same eligibility hook the sources use, and
+// deliberately the same *kind* of rule: no schedule, no accumulation, just "is there ground it
+// can hold today". One picket a day, so the frontier is something a player watches move.
+fn militia_advance(s: &Sim) {
+  if s.depth != 0 { return; }
+  b = stand_find(s);
+  if b < 0 { return; }
+  n = s.stand[b + 3] ?? -1;
+  if n < 0 { return; }                     // never petitioned: the settlement posts nobody
+  (q, r) = militia_site(s, false);
+  if q < 0 { return; }                     // everything it can hold is held, or a source has the rest
+  if !militia_place(s, q, r) { return; }
+  st = s.stand;
+  st[b + 3] = n + 1;
+  (sq, sr) = town_seat(s);
+  srole = site_role(s, q, r);
+  place = "";                    // pre-declared: a tuple assign here cannot also declare
+  cost = "";
+  (place, cost) = work_words(srole);
+  sim_log(s, "The watch marches a picket out to {place}, {bearing_word(sq, sr, q, r)} of here.");
+  sim_log(s, "That road is the town's again.");
+}
+
+// Re-derive the pickets this settlement has already bought, after its window is rebuilt.
+//
+// ⚠ THE ADVANCE IS A DECISION; A PICKET IS A FACT. So this asks only what is a property of the
+// world as generated — is this still the settlement's exposed work, and can the watch get
+// there — and NOT the source rule that gates an advance. Asking the full question here would
+// quietly UNPOST a picket the player earned, every time they walked out of the valley and back.
+fn militia_repost(s: &Sim) {
+  if s.depth != 0 { return; }
+  b = stand_find(s);
+  if b < 0 { return; }
+  n = s.stand[b + 3] ?? -1;
+  for _ in 0..n {
+    (q, r) = militia_site(s, true);
+    if q >= 0 { militia_place(s, q, r); }
+  }
+}
+
+// What the watch would say about a militia it has already raised: 3 = still advancing,
+// 4 = STALLED at a living source, 5 = the line is out as far as this settlement's work goes.
+fn militia_report(s: &Sim) -> integer {
+  (fq, fr) = militia_site(s, false);
+  if fq >= 0 { return 3; }
+  (sq, sr) = militia_site(s, true);
+  if sq >= 0 { return 4; }
+  5
+}
+
+// BUMP-TO-PETITION — the player asks the watch to raise a militia, at ZERO new keys: the seam
+// is `sim_talk_to`, which already carries the town's quest lines (`DESIGN.md` §3a #7).
+//
+// ⚠ IT RAISES, IT DOES NOT ADVANCE. The kick-start is the player's (a user ruling) and it puts
+// one picket on the road at once, so the act has a result you can see; every picket after that
+// is the militia's own daily move. Bumping again only ever reports — a verb that posted a
+// picket per press would be a button, and the frontier would stop being a world state.
+//
+// Returns: 0 no settlement here · 1 not enough standing · 2 raised, a picket marches now ·
+// 3/4/5 as `militia_report`. Pub because a predicate reachable only through a conversation is
+// one whose branches nobody can gate.
+pub fn sim_militia_petition(s: &Sim) -> integer {
+  if s.depth != 0 { return 0; }
+  if town_size(s) < 3 { return 0; }
+  b = stand_slot(s);
+  st = s.stand;
+  if (st[b + 3] ?? -1) >= 0 { return militia_report(s); }
+  if (st[b + 2] ?? 0) < STAND_TRUST { return 1; }
+  st[b + 3] = 0;
+  militia_advance(s);
+  2
 }
 
 // ── Civilian path fields (plan #17 `S3`) ──────────────────────────────────────────────
@@ -2955,7 +3342,12 @@ pub fn sim_tick(s: &Sim) {
   s.ticks += 1;
   // THE WORLD PUSHES BACK (plan #17 `S5`): each dawn a living source may send. Eligibility,
   // never a schedule — the condition is the source's own state, so a cleared one is done.
-  if s.depth == 0 && ((s.ticks % DAY_LEN) ?? 0) == 1 { send_incursions(s); }
+  // …and the settlement pushes out (plan #17 `S7`), on the same dawn and the same kind of
+  // rule: a raised militia takes one more piece of ground if there is one it can hold.
+  if s.depth == 0 && ((s.ticks % DAY_LEN) ?? 0) == 1 {
+    send_incursions(s);
+    militia_advance(s);
+  }
   // THE ECONOMY: each morning the makers bring the night's work to the stalls
   // — towns craft the simple goods, CITIES the complex armour and weapons.
   // (The merchant ship lands the raw goods; the carts move them on.)
@@ -3350,6 +3742,55 @@ fn smith_talk(s: &Sim) {
   }
 }
 
+// THE GUARD MASTER ON THE MILITIA (plan #17 `S7`) — the petition, and the report afterwards.
+// Answers whether it had anything to say; a stranger with no militia has not, and the older
+// poster lines carry the bump instead.
+//
+// ⚠ THE STANDING CATEGORY IS SAID, NEVER SHOWN (I-SAY, `S4`). There is no reputation bar
+// anywhere: what the player learns about where they stand, they learn from a man saying it,
+// read off the same number that gates the militia — so the line cannot drift from the world.
+//
+// Split out of `sim_talk_to` for the reason `smith_talk` was: it is DIALOGUE over one decision
+// (`sim_militia_petition`), and inline it pushes that function past the complexity nudge.
+fn guard_master_militia(s: &Sim) -> boolean {
+  if sim_militia(s) < 0 && sim_standing(s) < STAND_KNOWN { return false; }
+  // ⚠ THE MAN SPEAKS BEFORE THE TOWN MOVES. The petition logs the picket marching out, so
+  // asking first and answering afterwards printed the consequence above its cause — the
+  // player read that the watch had marched before anyone had agreed to send it.
+  if sim_militia(s) < 0 && sim_standing(s) >= STAND_TRUST {
+    sim_log(s, "The guard master spits. 'Right. I can spare a few - yours as long");
+    sim_log(s, "as they hold ground.'");
+    sim_militia_petition(s);
+    return true;
+  }
+  r = sim_militia_petition(s);
+  if r == 1 {
+    sim_log(s, "The guard master looks you over. 'You've done this town a service");
+    sim_log(s, "or two. Do a little more and I'd put men under you.'");
+    return true;
+  }
+  if r == 3 {
+    sim_log(s, "'The line's still pushing out,' says the guard master. 'Give it days.'");
+    return true;
+  }
+  if r == 4 {
+    (bq, br) = militia_site(s, true);
+    (sq, sr) = town_seat(s);
+    what = src_name_near(s, bq, br);
+    if what != "" {
+      sim_log(s, "'The line's stopped,' says the guard master. '{article_for(what)} {what},");
+      sim_log(s, "{bearing_word(sq, sr, bq, br)} of here. Break that and we'll push on.'");
+      return true;
+    }
+  }
+  if r == 5 {
+    sim_log(s, "'The watch stands on every road we work,' says the guard master.");
+    sim_log(s, "'Find us more roads.'");
+    return true;
+  }
+  false
+}
+
 // TALK: bumping a civilian speaks. The town carries its quest lines here —
 // merchants point at the Circle, the Circle's mages ask their favour (and pay
 // for it), the rest of the town nods. Bump-triggered, so it never spams.
@@ -3374,7 +3815,13 @@ pub fn sim_talk_to(s: &Sim, idx: integer) {
       sim_grant_gold(s, 150);
       sim_log(s, "The guard master grips your wrist and counts the bounty into");
       sim_log(s, "your palm: 150 gold. 'The roads breathe easier.'");
-    } else if s.q_poster == 1 {
+      return;
+    }
+    // THE PETITION (plan #17 `S7`). ⚠ AFTER the bounty, which is owed, and BEFORE the poster
+    // lines, which repeat — a one-shot payment must never be pre-empted by ambient speech, and
+    // ambient speech should say the newest true thing about the town.
+    if guard_master_militia(s) { return; }
+    if s.q_poster == 1 {
       sim_log(s, "'Bring me that brute's head and the gold is yours,' says the");
       sim_log(s, "guard master.");
     } else if s.q_poster == 3 {
@@ -3599,6 +4046,19 @@ pub fn sim_enemy_work(s: Sim, i: integer) -> (integer, integer) {
   (0, 0)
 }
 
+// The OTHER patrol leg / the food stall — the second end of a two-leg route. Read-only, and
+// it exists because a guard's cover is a property of its WHOLE walk (plan #17 `S7`,
+// `hex_held`): a gate given only `sim_enemy_work` can see where a picket goes and not whether
+// it ever leaves the ground it was posted to hold.
+pub fn sim_enemy_alt(s: Sim, i: integer) -> (integer, integer) {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return (e.aq2, e.ar2); }
+  }
+  (0, 0)
+}
+
 // Home / night anchor — the other end of every daily route.
 pub fn sim_enemy_home(s: Sim, i: integer) -> (integer, integer) {
   es = s.enemies;
@@ -3657,12 +4117,29 @@ pub fn sim_enemy_raid(s: Sim, i: integer) -> integer {
 
 // Kill an enemy outright — the gate's stand-in for the hero clearing a source, so
 // "a cleared source stays cleared" can be asserted without staging a fight.
+//
+// ⚠ IT GOES THROUGH THE SAME CHOKEPOINT the three real kill paths do, so a gate that clears a
+// den earns the standing a player would have earned for it (plan #17 `S7`). A stand-in that
+// took a shortcut past the accounting would let the gate assert a world the game cannot reach.
 pub fn sim_slay(s: &Sim, i: integer) {
   es = s.enemies;
   if i < len(es) {
     e = es[i];
-    if e != null { e.alive = false; }
+    if e != null {
+      e.alive = false;
+      on_hostile_slain(s, e.role, e.tags, e.raid);
+    }
   }
+}
+
+// Is this actor a militia picket (plan #17 `S7`)? Read-only.
+pub fn sim_enemy_picket(s: Sim, i: integer) -> integer {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return e.picket; }
+  }
+  0
 }
 
 // Run one dawn's sends now, without waiting a day for it. Test-facing, like `sim_slay`
@@ -3672,7 +4149,13 @@ pub fn sim_slay(s: &Sim, i: integer) {
 // clock, that would mean a timer had crept into the mechanism, which is the thing `S5`
 // exists to avoid. ⚠ It does not replace gating the CLOCK: `incursiontest` still ticks the
 // world once and requires a raider to appear, or nothing would prove the dawn is wired.
-pub fn sim_dawn(s: &Sim) { send_incursions(s); }
+// ⚠ THE WHOLE DAWN, both directions — the sources send and the militia advances. A hook that
+// ran only the world's half would let a gate prove pressure arrives while never once seeing
+// the settlement answer it.
+pub fn sim_dawn(s: &Sim) {
+  send_incursions(s);
+  militia_advance(s);
+}
 
 // Set the bag, so a gate can put a gatherer on its return leg without simulating the days
 // it takes to walk there. Test-facing, like `sim_set_awake` beside it.
@@ -4022,6 +4505,7 @@ pub fn sim_new() -> Sim {
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     prod_stock: zeros(NUM_PRODUCERS),
+    stand: [],
     flowd_q: [], flowd_r: [], flowd_cls: [], flowd_data: [],
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
     known: zeros(len(game_items())), flavour_idx: zeros(len(game_items())),
@@ -4060,7 +4544,8 @@ fn mk_enemy(md: MonsterDef, q: integer, r: integer) -> Enemy {
     speed: ENERGY_STEP + md.m_speed, energy: 0,
     slow_until: 0, stun_until: 0,
     cr: md.m_cr, cg: md.m_cg, cb: md.m_cb, glyph: g, key: md.m_key, name: md.m_name, alive: true,
-    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r, c1g: -1, c2g: -1, carry: 0, raid: 0 }
+    role: 0, hq: q, hr: r, wq2: q, wr2: r, aq2: q, ar2: r, c1g: -1, c2g: -1, carry: 0, raid: 0,
+    picket: 0 }
 }
 
 // A CIVILIAN: harmless, scheduled, never aggressive (and never punched: the
@@ -4073,7 +4558,8 @@ fn mk_npc(role: integer, key: text, name: text, glyph: text,
     hp: 6, maxhp: 6, dam: 0, xp: 0, mlvl: 0, vision: 0, flags: 0, tags: 0, awake: true,
     speed: ENERGY_STEP - 2, energy: 0, slow_until: 0, stun_until: 0,
     cr: cr, cg: cg, cb: cb, glyph: glyph, key: key, name: name, alive: true,
-    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1, carry: 0, raid: 0 }
+    role: role, hq: hq, hr: hr, wq2: wq, wr2: wr, aq2: aq, ar2: ar, c1g: -1, c2g: -1, carry: 0, raid: 0,
+    picket: 0 }
 }
 
 // Is a LIVING actor standing on this hex?
@@ -5199,6 +5685,11 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           // total cover — the mine still stops when something is standing on it and the guard
           // is at the other end, which is what leaves `S7`'s pickets something to buy and
           // keeps the den's raids able to bite.
+          //
+          // ✅ AND `S7` BOUGHT IT (2026-08-10): a picket posted for the ore face takes it from
+          // **775 of 1600 unsafe ticks to 0** and the deliveries from 3 to 6, with the den
+          // alive throughout. ⚠ The picket stands two hexes BEYOND the face rather than on it
+          // — this guard's own ore-face leg is why that rule exists (`militia_stand`).
           enemies += [mk_npc(3, "guard", "works guard", "g", 175, 180, 210,
                              daq, dar, daq, dar,
                              mnq, mnr, daq, dar)];
@@ -5568,6 +6059,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     prod_stock: zeros(NUM_PRODUCERS),
+    stand: [],
     flowd_q: [], flowd_r: [], flowd_cls: [], flowd_data: [],
     dd_idx: zeros(DEPTH_MAX * MAX_SPAWNS), dd_n: zeros(DEPTH_MAX),
     known: zeros(len(game_items())), flavour_idx: zeros(len(game_items())),
@@ -5658,6 +6150,8 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.anc_r = s.anc_r;
   ns.q_poster = s.q_poster;      // quest progress rides along
   ns.q_mage = s.q_mage;
+  ns.stand = s.stand;            // …and so does what the settlements make of you (plan #17 `S7`)
+  militia_repost(ns);            //    a picket already bought is re-derived, never re-earned
   if is_save_depth(nd) != 0 && nd > ns.save_depth {
     ns.save_depth = nd;                  // advance at save points: the stair claims the spawn
     ns.anc_kind = 1;
@@ -5748,6 +6242,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.anc_r = s.anc_r;
   rs.q_poster = s.q_poster;       // quests survive death
   rs.q_mage = s.q_mage;
+  rs.stand = s.stand;             // ⚠ and so does standing: dying is not a betrayal, and a town
+  militia_repost(rs);             //   that forgot you every time would make death a reset
   if s.anc_kind != 0 {
     (apx, apy) = hex_to_px(s.anc_q, s.anc_r);
     rs.px = apx;                  // wake ON the anchor, not at the level default
@@ -5965,6 +6461,8 @@ pub fn sim_travel(s: Sim) -> Sim {
   ns.anc_r = s.anc_r;
   ns.q_poster = s.q_poster;      // quest progress rides along
   ns.q_mage = s.q_mage;
+  ns.stand = s.stand;            // standing is per SETTLEMENT and the map carries every one of
+  militia_repost(ns);            //   them, so crossing a window changes which one is read
   ns.grave_depth = s.grave_depth;   // carry the death-stake grave across levels
   ns.grave_q = s.grave_q;
   ns.grave_r = s.grave_r;

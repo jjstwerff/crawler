@@ -1,0 +1,294 @@
+// militiatest — plan #17 `S7`: standing, and the militia it raises.
+//
+// I-STAND (sim.loft): standing is ONE number per settlement, raised only by acts done for
+// that settlement, read only as a category, with exactly ONE consumer — whether the militia
+// may be raised.
+//
+// I-PICKET: a picket is a guard the settlement would not otherwise have posted. It is an
+// ordinary role-3 actor, so `hex_safe` gains no term — the militia is a new SOURCE of guards,
+// never a new kind of safety.
+//
+// ⚠ EVERY CLAIM IS SEEN BOTH WAYS, because the interesting half of this step is always the
+// refusal: a stranger who cannot petition, a militia that will not advance onto a den's
+// ground, a bump that reports instead of posting. A mechanism whose "no" nobody can reach is
+// one that will quietly become a "yes".
+//
+// ⚠ AND THE A/B RUNS BOTH ARMS WITH THE DEN ALIVE. The two arms share their whole history —
+// same world, same six raiders killed — and differ by exactly one act: the petition. An arm
+// that had cleared the source instead would be measuring `S5` over again.
+use sim;
+use items;
+use catalog;
+use monsters;                 // TAG_RUIN_BOSS — the source the militia stalls at
+use hex_grid;                 // hex_distance — a picket's cover is a distance
+use overland;                 // K_LAKE/K_SEA/K_FACE — walking to a window edge
+
+// Earn standing the way a player does: stand between the town and what the source sends.
+// Returns how many raiders were put down. ⚠ `sim_dawn` has no time term (`S5`), so calling it
+// in a row is a faithful stand-in for that many dawns.
+fn defend(s: &Sim, want: integer) -> integer {
+  got = 0;
+  for _ in 0..(want * 3) {
+    if got < want {
+      sim_dawn(s);
+      for i in 0..sim_enemy_count(s) {
+        if got < want && sim_enemy_alive(s, i) && sim_enemy_raid(s, i) == 1 {
+          sim_slay(s, i);
+          got += 1;
+        }
+      }
+    }
+  }
+  got
+}
+
+fn pickets(s: Sim) -> integer {
+  n = 0;
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_picket(s, i) == 1 { n += 1; }
+  }
+  n
+}
+
+// Walk to the window edge in direction `ed` and cross. Returns whether the crossing happened.
+fn step_over(s: &Sim, north: boolean) -> boolean {
+  eq = -1;
+  er = 1;
+  if !north { er = 99; }
+  for q in 2..99 {
+    if eq < 0 && tile_at(s, q, er) == 0 && sim_tile_kind(s, q, er) != K_LAKE
+       && sim_tile_kind(s, q, er) != K_SEA && sim_tile_kind(s, q, er) != K_FACE {
+      eq = q;
+    }
+  }
+  if eq < 0 { return false; }
+  sim_teleport(s, eq, er);
+  want = 4;
+  if !north { want = 3; }
+  sim_edge_exit(s) == want
+}
+
+fn main() {
+  println("=== story militia test (plan #17 S7) ===");
+  ok = true;
+
+  // ── 1. a STRANGER has nothing, and the watch says no ───────────────────────────────
+  // ⚠ The refusal is asserted to be INERT, not merely negative: a petition that was turned
+  // down must leave the world exactly as it found it, or "you cannot ask yet" would be a way
+  // of asking.
+  s = sim_new_gen(1337, 0);
+  tsize0 = town_size(s);
+  fresh = sim_standing(s) == 0 && sim_standing_word(s) == "stranger" && sim_militia(s) == -1;
+  refused = sim_militia_petition(s) == 1;
+  inert = sim_militia(s) == -1 && pickets(s) == 0;
+  println("stranger: standing {sim_standing(s)} ({sim_standing_word(s)}) militia {sim_militia(s)} town {tsize0} | refused={refused} inert={inert}");
+  if !fresh { println("FAIL: a fresh settlement already knows the player — standing is not earned"); ok = false; }
+  if !refused { println("FAIL: a stranger raised a militia — standing gates nothing"); ok = false; }
+  if !inert { println("FAIL: a REFUSED petition still changed the world"); ok = false; }
+
+  // ── 2. STANDING IS EARNED BY ACTS, and it is the acts that are worth something ──────
+  // One deed per raider turned back, and the two thresholds crossed in order. ⚠ The negative
+  // control is the load-bearing half: an ordinary wolf is not a deed. Without it "standing"
+  // would be a kill counter, and the number would stop meaning *you stood between this town
+  // and what was coming for it*.
+  killed = defend(s, STAND_KNOWN);
+  at_known = sim_standing(s) == STAND_KNOWN && sim_standing_word(s) == "known";
+  wolf = -1;
+  for i in 0..sim_enemy_count(s) {
+    if wolf < 0 && sim_enemy_alive(s, i) && sim_enemy_role(s, i) == 0
+       && sim_enemy_raid(s, i) == 0 && (sim_enemy_tags(s, i) & TAG_RUIN_BOSS) == 0 { wolf = i; }
+  }
+  before_wolf = sim_standing(s);
+  if wolf >= 0 { sim_slay(s, wolf); }
+  wolf_free = sim_standing(s) == before_wolf;
+  killed += defend(s, STAND_TRUST - STAND_KNOWN);
+  at_trust = sim_standing(s) == STAND_TRUST && sim_standing_word(s) == "trusted";
+  println("earned: {killed} raiders turned back -> standing {sim_standing(s)} ({sim_standing_word(s)}); an ordinary kill moved it: {!wolf_free}");
+  if killed != STAND_TRUST { println("FAIL: only {killed} of {STAND_TRUST} raiders were ever sent — the acts standing is earned by do not happen"); ok = false; }
+  if !at_known { println("FAIL: {STAND_KNOWN} deeds did not read as 'known' — the category is not the number"); ok = false; }
+  if !at_trust { println("FAIL: {STAND_TRUST} deeds did not read as 'trusted'"); ok = false; }
+  if !wolf_free { println("FAIL: an ordinary kill earned standing — this is a kill counter, not a town's reckoning"); ok = false; }
+
+  // ── 3. THE PETITION RAISES, ONCE — and a second bump only reports ──────────────────
+  // ⚠ THE BUTTON TEST. The kick-start is the player's, but every picket after it is the
+  // militia's own daily move: if bumping the guard master posted one each time, the frontier
+  // would be a button rather than a world state, and `F7` would be back.
+  raised = sim_militia_petition(s) == 2;
+  n1 = sim_militia(s);
+  p1 = pickets(s);
+  again = sim_militia_petition(s);
+  no_button = sim_militia(s) == n1 && pickets(s) == p1 && again != 2;
+  println("petition: raised={raised} militia={n1} pickets={p1} | second bump -> {again}, posted nothing: {no_button}");
+  if !raised { println("FAIL: a TRUSTED player could not raise the militia — the advancement axis is closed"); ok = false; }
+  if n1 != 1 || p1 != 1 { println("FAIL: raising the militia did not put exactly one picket on the road ({n1}/{p1})"); ok = false; }
+  if !no_button { println("FAIL: bumping the guard master posted another picket — the petition is a button"); ok = false; }
+
+  // ── 4. A PICKET HOLDS ITS WORK — CONTINUOUSLY, AND WITHOUT STANDING IN THE DOORWAY ──
+  // Two claims, and the second one is the expensive lesson. `hex_held` is the continuous form
+  // (both legs inside `GUARD_R` of the ground), because cover that depends on which leg the
+  // watch is standing on is cover for half a day — the works guard's own gap, 8 apart on this
+  // world. And the picket must not stand ON the work: `npc_step` refuses an occupied hex and
+  // takes only a strictly improving neighbour, so a body parked in a one-hex pass freezes
+  // everyone behind it for good (measured: ore 3 deliveries -> 0, both miners stuck three
+  // hexes short). A picket faces OUTWARD, two hexes beyond the work.
+  held = false;
+  clear = true;
+  post_q = -1;
+  post_r = -1;
+  ore_q = -1;
+  ore_r = -1;
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_role(s, i) == 10 {
+      (q10, r10) = sim_enemy_work(s, i);
+      ore_q = q10;
+      ore_r = r10;
+    }
+  }
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_picket(s, i) == 1 {
+      (wq, wr) = sim_enemy_work(s, i);
+      (aq, ar) = sim_enemy_alt(s, i);
+      post_q = wq;
+      post_r = wr;
+      // neither leg of the beat may be the work itself or the ring a worker works from
+      if hex_distance(wq, wr, ore_q, ore_r) < 2 { clear = false; }
+      if hex_distance(aq, ar, ore_q, ore_r) < 2 { clear = false; }
+    }
+  }
+  held = ore_q >= 0 && hex_held(s, ore_q, ore_r);
+  gapped = -1;
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_role(s, i) == 3 && sim_enemy_picket(s, i) == 0 {
+      (gq, gr) = sim_enemy_work(s, i);
+      (bq, br) = sim_enemy_alt(s, i);
+      d = hex_distance(gq, gr, bq, br);
+      if d > gapped { gapped = d; }
+    }
+  }
+  println("picket stands at ({post_q},{post_r}) for the work at ({ore_q},{ore_r}): held continuously={held} doorway clear={clear} (the town's widest ordinary beat is {gapped} apart)");
+  if post_q < 0 { println("FAIL: no picket exists to inspect"); ok = false; }
+  if !held { println("FAIL: the work the picket was posted to is not held from both ends of its beat — it is cover for half a day"); ok = false; }
+  if !clear { println("FAIL: a picket is standing on the work (or the ring it is worked from) — it holds the ground by strangling the road to it"); ok = false; }
+
+  // ── 5. PICKETS ARE NOT RESIDENTS ──────────────────────────────────────────────────
+  // Counted as townsfolk, a raised militia would tip a VILLAGE over the `>= 3` town threshold
+  // and the world would start raiding it *because* the player defended it.
+  same_town = town_size(s) == tsize0;
+  println("town size {tsize0} -> {town_size(s)}: a militia is not residents = {same_town}");
+  if !same_town { println("FAIL: raising a militia made the settlement bigger — defending a village would call the raids down on it"); ok = false; }
+
+  // ── 6. THE STALL, BOTH WAYS ───────────────────────────────────────────────────────
+  // The militia advances into ground it can hold and stops where a source out-weighs it, and
+  // `SRC_R` is derived (`THREAT_R + GUARD_R`), not chosen: inside it a picket would be holding
+  // the den's own doorstep. ⚠ The world's one source stands far from every work site, so the
+  // stall never fires on its own here — which is exactly why the rule is asked DIRECTLY rather
+  // than waited for. A branch that only a lucky world reaches is a branch nobody gates.
+  boss = -1;
+  for i in 0..sim_enemy_count(s) {
+    if boss < 0 && sim_enemy_alive(s, i) && (sim_enemy_tags(s, i) & TAG_RUIN_BOSS) != 0 { boss = i; }
+  }
+  blocked_at_den = false;
+  free_after = false;
+  free_at_seat = false;
+  if boss >= 0 {
+    (bq2, br2) = sim_enemy_home(s, boss);
+    blocked_at_den = src_near(s, bq2, br2);
+    free_at_seat = !src_near(s, 50, 50);
+    // the ADVANCE never answers with ground a source is sitting on — asked of the answer
+    // itself, so it holds whatever the world put where
+    (aq3, ar3) = militia_site(s, false);
+    if aq3 >= 0 && src_near(s, aq3, ar3) { blocked_at_den = false; }
+    sim_slay(s, boss);
+    free_after = !src_near(s, bq2, br2);
+  }
+  println("stall: a den's ground is refused={blocked_at_den}, the square is not={free_at_seat}, and killing the den frees it={free_after} (SRC_R {SRC_R})");
+  if !blocked_at_den { println("FAIL: the militia would post on a living den's own ground — the tough spots stop being the player's job"); ok = false; }
+  if !free_at_seat { println("FAIL: SRC_R reaches the town square — the militia could never post at all"); ok = false; }
+  if !free_after { println("FAIL: a dead source still stalls the line — 'come back later' never resolves"); ok = false; }
+
+  // ── 7. LOCAL, NEVER GLOBAL — and a picket already bought is re-derived, not re-earned ──
+  // A hero in one valley is a stranger in the next, or the campaign has one reputation number
+  // and every settlement after the first is scenery. ⚠ And the return leg is the other half:
+  // the settlement must not forget, or standing would evaporate every time the player walked
+  // out of the window — and the pickets with it.
+  // ⚠ Read the number, do not re-derive it: row 6 slew the den, which is itself a deed worth
+  // `DEED_SOURCE`. A row that asserted `STAND_TRUST` here would be asserting that ending a
+  // source earns nothing.
+  stand_home = sim_standing(s);
+  went = step_over(s, true);
+  away = s;
+  crossed = false;
+  if went {
+    away = sim_travel(s);
+    (ax, ay) = sim_window(away);
+    crossed = ax != 0 || ay != 0;
+  }
+  stranger_there = sim_standing(away) == 0 && sim_militia(away) == -1 && pickets(away) == 0;
+  back = away;
+  home_again = false;
+  if crossed && step_over(away, false) {
+    back = sim_travel(away);
+    (hx, hy) = sim_window(back);
+    home_again = hx == 0 && hy == 0;
+  }
+  kept = home_again && sim_standing(back) == stand_home && sim_militia(back) == n1
+         && pickets(back) == n1;
+  println("local: crossed={crossed} a stranger there={stranger_there} | home again={home_again} standing {sim_standing(back)} militia {sim_militia(back)} pickets {pickets(back)} kept={kept}");
+  if !crossed { println("FAIL: the walk never left the window — locality is untested"); ok = false; }
+  if !stranger_there { println("FAIL: standing followed the player into the next valley — this is global karma"); ok = false; }
+  if !kept { println("FAIL: the settlement forgot the player (or its pickets) while they were away"); ok = false; }
+
+  // ── 8. THE A/B: WHAT THE MILITIA BUYS, with the den alive in BOTH arms ─────────────
+  // Two arms of the same world with the same history — six raiders turned back — differing by
+  // exactly one act. Measured at the ore face, which is where `militia_site` sends the first
+  // picket and where the plan measured the gap this step is supposed to close.
+  unsafe_a = 0;
+  unsafe_b = 0;
+  ore_a = 0;
+  ore_b = 0;
+  for arm in 0..2 {
+    w = sim_new_gen(1337, 0);
+    defend(w, STAND_TRUST);
+    if arm == 1 { sim_militia_petition(w); }
+    mwq = -1;
+    mwr = -1;
+    mis: vector<integer> = [];
+    pcm: vector<integer> = [];
+    for i in 0..sim_enemy_count(w) {
+      if sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 10 {
+        (q10, r10) = sim_enemy_work(w, i);
+        mwq = q10;
+        mwr = r10;
+        mis += [i];
+        pcm += [sim_enemy_carry(w, i)];
+      }
+    }
+    uns = 0;
+    del = 0;
+    for _ in 0..(4 * DAY_LEN) {
+      sim_tick(w);
+      if !hex_safe(w, mwq, mwr) { uns += 1; }
+      for k in 0..len(mis) {
+        cm = sim_enemy_carry(w, mis[k] ?? 0);
+        if cm == 0 && (pcm[k] ?? 0) > 0 { del += 1; }
+        pcm[k] = cm;
+      }
+    }
+    label = "no militia";
+    if arm == 1 { label = "militia   "; }
+    println("{label}: ore face ({mwq},{mwr}) unsafe {uns}/{4 * DAY_LEN}, {del} deliveries, pickets {pickets(w)}");
+    if arm == 0 { unsafe_a = uns; ore_a = del; } else { unsafe_b = uns; ore_b = del; }
+  }
+  // ⚠ ATTRIBUTED, like `stocktest`'s: the ground has to actually get safer, or a rise in
+  // deliveries is some other defect wearing this row's clothes.
+  if unsafe_b >= unsafe_a {
+    println("FAIL: the picket did not make the ore face safer ({unsafe_b} unsafe ticks against {unsafe_a}) — a militia that holds nothing buys nothing");
+    ok = false;
+  }
+  if ore_b <= ore_a {
+    println("FAIL: {ore_b} deliveries with the militia against {ore_a} without — the safe ground bought no output, which is the only reason to raise one");
+    ok = false;
+  }
+
+  if ok { println("MILITIA OK"); } else { println("MILITIA FAILED"); }
+}
