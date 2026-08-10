@@ -57,8 +57,13 @@ const OV_SEA = 0.0;
 // These four are the tuning knobs — re-tune here (keep tuned-defaults.md in sync).
 const OV_LAKE_LVL = 510.0;
 const TREEL = 2150.0;   // treeline: forest below, alpine meadow above
+const ALPINE_TOP = 2500.0; // alpine meadow gives way to scree (grass p50 2316, dominant 2300-2499)
 const SNOWL = 3100.0;   // sn/ glacier line
 const MELT = 2600.0;    // glacier ice persists above this
+// Glacier p10 = 2970 m: a tenth of real glacier sits below the snow line, so snow may reach
+// this far down on gentle ground — and NO further. It used to reach SNOWL - 870 = 2230 m,
+// which silently erased the entire alpine meadow band (see ov_kind_at).
+const SNOW_REACH = 2970.0;
 
 fn ov_mat_rows() -> vector<integer> {
   m: vector<integer> = [];
@@ -1276,18 +1281,27 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
   // beach: near sea level, AT the water, gentle ground
   if h < 15.0 && watery > 0.12 && slope < 0.08 { return (h, K_SAND); }
   steep = ov_steep_of(mdom);
-  // snow crouches far down on gentle ground; faces cut through
-  if h >= SNOWL || (steep > 20.0 && h >= SNOWL - 870.0 && slope < 0.46) {
+  // snow crouches down onto gentle ground; faces cut through
+  if h >= SNOWL || (steep > 20.0 && h >= SNOW_REACH && slope < 0.46) {
     if slope > 0.55 { return (h, K_FACE); }
     if band < 0.10 && h < SNOWL + 180.0 { return (h, K_SCREE); }
     return (h, K_SNOW);
   }
   if steep > 20.0 {
-    // the alpine zone: meadows claim the gentle ground
+    // ── THE ALPINE ZONE — BANDED BY ELEVATION, NOT BY SLOPE ─────────────────────────
+    // ⚠ The real Ortler data (@PLN1 tuned-defaults.md, OSM class + EU-DEM) is explicit:
+    // "at 1.5 km, terrain type is an ELEVATION function, not slope" — per-class slope p50
+    // is 17-22° for EVERY class, because a 1.5 km hex averages real cliff faces into a
+    // gentle ramp. Splitting meadow from scree on slope therefore separates nothing; it
+    // just scatters both. The measured crossovers are the bands below.
+    // Faces still cut through every band: a cliff is a cliff at any height.
     if h >= TREEL {
       if slope >= 0.60 { return (h, K_FACE); }
-      if slope >= 0.44 { return (h, K_SCREE); }
-      return (h, K_MEADOW);
+      // 2500+ — scree (p50 2664), and above 2800 the real class is BARE ROCK, which the
+      // 14-kind vocabulary cannot say without conflating walkable rock with impassable
+      // K_FACE. Mapped to scree deliberately; it is @PLN1's open taxonomy gap, not a slip.
+      if h >= ALPINE_TOP { return (h, K_SCREE); }
+      return (h, K_MEADOW);          // 2150-2500 — alpine meadow (grass p50 2316)
     }
     // mountain/hill slopes below the tree line
     if h > 270.0 && band > 0.34 && slope < 0.50 { return (h, K_FOREST); }

@@ -303,12 +303,41 @@ Band B is **10× band A with no meadow at all**. Its 3 944 `face` are genuinely 
 the 1 749 `snow`**: gentle land *below* the snow line that the alpine branch two lines later
 exists to make meadow. Freeing it multiplies meadow ~**25×**.
 
-**Recommended fix:** shrink the snow reach-down so it stops at or above `TREEL` — keeping
-*"snow crouches far down on gentle ground"* true without erasing the zone the next branch is
-written to produce. ⚠ **Left for this plan on purpose**: it changes how the whole world looks
-(the user judges aesthetics) and default tuning is this plan's subject, not #17's. It also
-partly answers the *"alpine tundra / krummholz band … lumped into `K_FOREST`/`K_MEADOW`"*
+It also answers the *"alpine tundra / krummholz band … lumped into `K_FOREST`/`K_MEADOW`"*
 hypothesis above — the band is not lumped, it is **overwritten by snow**.
+
+### ✅ FIXED 2026-08-09 — and it was a fit-to-data question, not a taste one
+
+⚠ **The correction came from the user** — *"we have data from the real alps and there is plenty
+of alpine meadows there"* — and it was right: this plan had **already derived the answer** in
+`tuned-defaults.md` (2026-06-15, real OSM + EU-DEM) and closed with *"Next: apply these as the
+model's real-metre bands"*. That never reached `ov_kind_at`. **`ov_kind_at` took two of the
+four derived bands (`TREEL`, `SNOWL`) and skipped the two that carve the middle.**
+
+⚠ **And note where F1 was marked FIXED: in the Python render, not in the engine.** The
+blueprint got the bands and the generator did not — `DESIGN-PROTOCOL.md`'s
+*a-model-can-disagree-with-the-original-silently*, caught two months later by a plan that
+needed the terrain for something else.
+
+Applied to `src/overland.loft`:
+
+- **`ALPINE_TOP = 2500.0`** added — meadow gives way to scree (grass p50 2316, dominant 2300–2499).
+- **`SNOW_REACH = 2970.0`** replaces the bare `SNOWL - 870.0` (= 2230). 2970 is the measured
+  **glacier p10**, so snow still reaches below the snow line on gentle ground — by the amount
+  the data shows, not by 870 m.
+- **The alpine zone bands by ELEVATION, not slope**, per this plan's own headline finding
+  (*"per-class slope p50 is 17–22° for every class"*). Faces still cut through at `slope ≥ 0.60`.
+- `2800–3100` bare rock maps to `K_SCREE` deliberately, with a comment naming it as the open
+  taxonomy gap rather than a slip.
+
+Measured over 48 600 samples, before → after: **meadow 0.3 ‰ → 5 ‰ (~17×)**; band `2150–2500`
+goes from **0 % meadow to 33 % meadow / 65 % face** (essentially all *walkable* ground);
+`2500–2800` to 39 % scree; `3100+` stays 91 % snow. `make test` green (93 tests).
+
+⚠ **Still open, and now the sharper question: `face` is 52–65 % of every alpine band.** That is
+the *"bare walkable rock vs cliff"* gap at the top of this section — `K_FACE` is impassable-only,
+so all high walkable rock has nowhere to go. This change did not introduce it and does not
+address it.
 
 ## Roadmap / conditional follow-on
 

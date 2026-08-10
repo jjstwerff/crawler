@@ -198,7 +198,32 @@ guard+threat reach), because if a change ever pulls every producer inside the ri
 stops being able to touch production and every step from `S3` on goes **inert while still
 passing its own tests**.
 
-### ⚠ And there are no picking grounds — anywhere
+### ⚠ And the home town has no picking ground — for a reason no terrain fix reaches
+
+⚠ **CORRECTION to the first version of this section, which claimed there were no picking
+grounds *anywhere*.** That over-generalised from the home window. Measured per town: **2 of
+the 4 towns have a picking ground in reach** (22 and 25 scree hexes in the 210–750 m annulus
+the gatherer searches). The home town is not one of them.
+
+**The chain is exact, and it ends somewhere terrain cannot help:**
+
+1. `sim.loft:3139` — `intown = wwx == 0 && wwy == 0`. **Town life (houses, people, harbour,
+   industry) belongs to the home window ONLY**; the land's own features place by world
+   coordinates in whichever window holds them.
+2. The home window anchors at `ov_towns[0]` (`sim.loft:3127`).
+3. `ov_towns[0]` sits at `11316,6688`, window heights **−112 … 88 m** — a coastal lowland.
+4. The gatherer's spawn is gated on `intown`, and its picking ground needs scree or meadow.
+5. → **No gatherer can spawn in any world, ever.** Towns 2 and 3 *have* the terrain and get
+   **no people at all**, because they are not the home window.
+
+⚠ **So this was never a terrain-rarity problem — it is `ov_towns[0]`.** Fixing the alpine
+bands (below) was right on its own evidence and changed this **not at all**: the town-by-town
+count is identical before and after. Three ways out, none of them #17's to pick: anchor the
+home window at a town that has a picking ground (town **3**, at `3166,2474`, reaches 2 108 m
+and has 25), give town life to more than one window, or accept that the gatherer waits for
+whichever plan lets a second settlement live.
+
+### The alpine bands were also wrong — fixed against the real data
 
 The alchemist's gatherer (role **9**) needs **scree or meadow ≥14 hexes from the town
 centre**. Terrain census of the home window: **grass 2 686 · field 1 805 · sea 5 588 · sand
@@ -259,15 +284,34 @@ and the snow line, which the alpine branch two lines later exists to make meadow
 multiplies meadow by roughly **25×**, and puts scree-or-meadow within reach of a town window —
 which is all the gatherer ever needed.
 
-⚠ **NOT FIXED HERE, deliberately.** The one-line change is to a world-generation constant: it
-alters how the whole world looks (the user judges aesthetics), and it is
-[plan #1](../1-ortler-worldgen-fixture/)'s subject — *terrain-taxonomy adequacy + default tuning, real
-Ortler terrain* — not #17's. Recorded with the measurement so #1 can act on evidence rather
-than taste. **The recommendation is to shrink the snow reach-down so it stops at or above
-`TREEL`**, leaving "snow crouches far down on gentle ground" true without erasing the zone the
-next branch is written to produce.
+⚠ **FIXED 2026-08-09, and it was never an aesthetic call** (user: *"we have data from the real
+alps and there is plenty of alpine meadows there"*). It is a **fit-to-data** question, and the
+data has been in the repo since 2026-06-15 — `plans/1-ortler-worldgen-fixture/tuned-defaults.md`,
+derived from real OSM classes + EU-DEM, ending in a **"Next: apply these"** that never
+happened. The engine took two of the four derived bands (`TREEL`, `SNOWL`) and skipped the two
+that carve the middle (`ALPINE_TOP = 2500`, `ROCK = 2800`).
 
-Until it moves, the home town's only lever is **the mine**, and `S3` must be honest that the
+⚠ **And the study's headline finding condemns the code that was there:** *"at 1.5 km, terrain
+type is an ELEVATION function, not slope — per-class slope p50 is 17–22° for EVERY class."*
+The alpine branch was separating meadow from scree **by slope**, which by that measurement
+separates nothing. It is banded by height now, with faces still cutting through.
+
+Result, one sweep of 48 600 samples, before → after:
+
+| | before | after |
+|---|---|---|
+| meadow, world-wide | **0.3 ‰** | **5 ‰** (~17×) |
+| band `2150–2500` | 0 % meadow | **33 % meadow, 65 % face** — essentially all *walkable* ground |
+| band `2500–2800` | mixed snow/scree | **39 % scree**, 52 % face |
+| band `3100+` | snow | **91 % snow** — unchanged, correct |
+
+⚠ **`face` at 52–65 % of the alpine bands is untouched by this and still looks too high** —
+that is `@PLN1`'s own open gap (*"bare walkable rock vs cliff — `K_FACE` is impassable-only"*),
+not something this change introduced.
+
+⚠ **This fixes the world and does NOT fix the gatherer** — the block is `ov_towns[0]`, not
+terrain, and the town-by-town picking-ground count is **identical before and after**. Until
+that moves, the home town's only lever is **the mine**, and `S3` must be honest that the
 loop's visible surface is one site and two workers.
 
 ### `S5` — contested safety, designed
