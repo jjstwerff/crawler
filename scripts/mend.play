@@ -37,10 +37,25 @@ corrode
 expect damaged == 1
 expect ac < ac0
 
-echo --- the town's answer: bump the smith, and it is mended
+# ⚠ AND FIRST THE ANSWER I-SAFE IS FOR: A TOWN WITH NO IRON CANNOT HELP YOU.
+# The forge lines are armed (the miners deliver from the ore face), so the smith draws the
+# same store the forge draws — and at genesis that store is empty. This is the moment the
+# whole plan closes on the PLAYER rather than on the town: an unsafe valley eventually means
+# YOUR sword stays chipped.
+echo --- the store is empty, and the smith says so
+expect forgea == 0
+talk smith
+expect damaged == 1
+
+echo --- the ore comes down (a poke; the miners' walk is stocktest's claim)
+stock forge_armor 1
+expect forgea == 1
+
+echo --- NOW the town can answer: bump the smith, and it is mended
 talk smith
 expect damaged == 0
 expect ac == ac0
+expect forgea == 0
 
 # ⚠ AND THE HP POOL CAME BACK WITH IT. Armour grants max HP, so a repair that restored AC
 # alone would shave the character a little on every visit — invisible, permanent, and

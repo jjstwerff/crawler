@@ -86,7 +86,7 @@ where crawler sits in the stack.
 > rides slot-parallel vectors instead, which costs a copy at each of the **nine** sites that
 > move an item, and a missed copy is a *silent repair*.
 >
-> ## ⚠⚠ AND THE CAUSE IS BIGGER THAN THE MINE: **THE TOWN WAS SEALED** (2026-08-10)
+> ## ✅✅ AND THE CAUSE WAS BIGGER THAN THE MINE: **THE TOWN WAS SEALED** — FIXED (2026-08-10)
 >
 > Chasing the mine found the root. The town wall is a hex-distance ring and *"roads make the
 > gates"* — a ring hex stays open only where the terrain is already road. **On the shipped
@@ -98,25 +98,47 @@ where crawler sits in the stack.
 > (`raid_objective`'s 45-hex field, `walk_reach`'s picking grounds, the mine) were all *this*,
 > seen from the outside — which is why fixing them one at a time never converged.
 >
-> ✅ **A FIX EXISTS, IS MEASURED, AND IS PARKED** — `patches/town-gates-reachability.patch`.
-> Six gates cut per hex direction (exact by construction, ±2 so a lookout tower cannot
-> re-seal them) plus `walk_reach` on the mine and a `WORK_MAX_D` bound, because **reachable is
-> not workable**: with the window open the gatherer re-sited onto real alpine shelves 50 hexes
-> out and its deliveries went 3 → 0. Bounded, the numbers are **498 → 8951 hexes** walkable,
-> **13/21 → 4/20** broken routes (the rest are penned livestock and one guard leg), and the
-> gatherer's throughput **doubles**, 3 → 6 deliveries in four days.
+> ✅ **SHIPPED, AND IT TOOK FOUR THINGS IN ORDER.** Six gates cut per hex direction (exact by
+> construction — walk `wrad` steps out and you are *on* the ring — ±2 so a lookout tower
+> cannot re-seal the gate it was stamped after); `walk_reach` on the mine; a **`WORK_MAX_D`**
+> bound because **reachable is not workable** (with the window open the gatherer re-sited onto
+> real alpine shelves 50 hexes out and its deliveries went 3 → 0); the furnace and miners moved
+> to a **camp at the ore face**; and — the user's call, and the one that made the trade live —
+> **a guard posted on the works.**
 >
-> ⚠ **IT IS PARKED ON A DESIGN CALL, NOT A DEFECT.** Opening the window changes *which work is
-> most exposed*, and that is exactly what `I-SAFE`'s A/B measures. The den's raids now press
-> the **ore face** instead of the picking ground, so `stocktest` row 7 reads **6 deliveries at
-> peace against 6 under pressure** — and the chain they do press is unarmed, because a mining
-> camp out at the rock is unsafe **1600 of 1600 ticks** and delivers nothing. Capping the mine
-> to `WORK_MAX_D` instead deletes the mine, which takes the surface **cave mouth** with it and
-> reddens `cavetest`. **The open question is where a valley town's industry lives and what the
-> raids press** — `S7`'s territory (pickets over outlying work). Full write-up + replay:
-> `patches/README.md`.
+> | | before | after |
+> |---|---|---|
+> | hexes the town can walk | 498 / 9801 | **8951 / 9801** |
+> | civilians who cannot walk their route | 13 of 21 | **4 of 20** (3 penned livestock, 1 guard leg) |
+> | gatherer deliveries, 4 days | 3 | **6** |
 >
-> ## ⚠ THE NARROWER FINDING IT STARTED FROM: THE MINE CANNOT BE REACHED
+> ⚠ **WITHOUT THE POSTED GUARD THE TRADE IS NOT HINDERED, IT IS DEAD** — no `GUARD_R` reaches
+> the foot of the mountain, so the camp measured unsafe **1600 of 1600 ticks** and `npc_target`
+> kept the miners home every tick of every day. *A lever the world holds at zero is not a
+> lever.* One guard walking the works (legs at the face and the camp) holds one end at a time,
+> which is deliberately not total cover — it leaves `S7`'s pickets something to buy.
+>
+> ✅ **AND `I-SAFE` NOW CLOSES ON THE CHAIN THE RAIDS ACTUALLY PRESS.** The forge lines are
+> **armed** (the stated precondition — a supply — finally exists), and on the shipped world
+> over four days, den cleared against den alive:
+>
+> | | at peace | under pressure |
+> |---|---|---|
+> | **ore** (the pressed chain) | 7 deliveries, store 0..5, face safe 1600/1600 | **3 deliveries, store 0..3, face unsafe 775/1600** |
+> | herbs (the control) | 6 deliveries, store 0..4 | 6 deliveries, store 0..4 |
+>
+> ⚠ **`stocktest` row 7 now FOLLOWS THE DANGER rather than naming a trade** — it measures both
+> chains and asserts the claim on whichever the raid pressed, with the other as a control.
+> Pinned to the gatherer it read 6-against-6 and looked like `I-SAFE` failing; it was the row
+> watching the wrong valley. `safetytest` and `incursiontest` moved the same way: both used to
+> sample at a fixed 100 ticks, which was only ever enough while the most exposed work sat 14
+> hexes from the square.
+>
+> ✅ **AND `S6`'s REPAIR COUPLING IS LIVE**: the shipped smith refuses on an empty forge store
+> and mends when the ore is in — *the forge you protected is the one that fixes it*, which is
+> the point at which this plan closes on the PLAYER and not only on the town.
+>
+> ## ✅ THE NARROWER FINDING IT STARTED FROM: THE MINE COULD NOT BE REACHED — FIXED
 >
 > The smith should draw the store the forge draws, so danger closes the loop on the player's
 > own gear. Measuring that found something else: the ore face sits at **(7,49)**, 42 hexes
@@ -126,12 +148,11 @@ where crawler sits in the stack.
 > reported it** — they wander, and until something depended on the delivery there was nothing
 > to notice.
 >
-> It is the third instance of one defect: **a site chosen by desirability and never checked
-> for reachability** (`raid_objective`'s 45-hex field, `walk_reach`'s picking grounds, now the
-> mine). The delivery (`npc_mine`) and the repair draw both ship; the **arming does not** —
-> arming a producer on a supply that cannot arrive would take the forge from one piece a day
-> to nothing, ever. `sim_smith_mend_when` takes the arming as an argument so both answers are
-> gated **today** rather than going live untested on the day a reachable mine exists.
+> It looked like the third instance of one defect — **a site chosen by desirability and never
+> checked for reachability** (`raid_objective`'s 45-hex field, `walk_reach`'s picking grounds,
+> now the mine) — and it was, but all three were the **sealed town** seen from the outside,
+> which is why fixing them one at a time never converged: each scan was being taught to prefer
+> the inside of the pocket it was trapped in. Fixed at the source, above.
 
 ## What moved on 2026-08-09/10
 

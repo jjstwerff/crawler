@@ -2198,6 +2198,23 @@ pub const GUARD_R  = 4;      // hexes: how far a guard's presence holds ground s
 pub const GATHER_LOAD = 1;
 pub const PROD_STOCK_MAX = 8;
 
+// ⚠ AND HOW FAR A WORK SITE MAY BE — because REACHABLE IS NOT WORKABLE (2026-08-10).
+//
+// The town wall used to seal its own people in (498 of 9801 hexes), so every siting scan
+// chose from a pocket that was mostly the market square. Cutting real gates opened the
+// window to 8951 hexes — and the gatherer immediately re-sited onto genuine alpine shelves
+// **50 hexes out**, because rank beat distance absolutely and the good ground is up in the
+// mountains. Measured: **3 deliveries in four days became 0.** The site got better and the
+// supply died, which is the whole lesson — a work site nobody can round-trip in a working
+// day is a work site nobody works, exactly as unusable as one with no path at all.
+//
+// The bound is the DAY, not taste: daylight is 280 of `DAY_LEN`'s 400 ticks and a walker
+// covers about a hex a tick, so a round trip has ~140 hexes of budget — but a civilian
+// crossing monster country stalls at every safety border (measured: 1023 of 1600 daylight
+// ticks frozen), which spends most of it. 22 leaves room for two trips on a clear day and
+// one on a bad one, and it keeps the `>= 14` far-out preference meaningful inside it.
+pub const WORK_MAX_D = 22;
+
 pub fn hex_safe(s: Sim, q: integer, r: integer) -> boolean {
   es = s.enemies;
   for i in 0..len(es) {
@@ -2234,27 +2251,28 @@ pub fn hex_safe(s: Sim, q: integer, r: integer) -> boolean {
 // travels to work that is unsafe** (`npc_target`). Measured over a week on world 777, den
 // alive vs cleared: **1 load and 1 potion against 17 and 11.**
 //
-// The six other producers have no input stream, so they are deliberately NOT armed — an
-// unarmed producer draws nothing and makes as it always did. `prod_draw_when` takes the
-// arming as an argument so both branches stay gated whichever way the switch is set.
 //
-// ⚠ THE TWO FORGE LINES NOW HAVE A DELIVERY (`npc_mine`, plan #17 `S6`) AND STILL DO NOT
-// QUALIFY — measured 2026-08-10 on the shipped world, and this is the whole reason the
-// arming is a switch rather than a consequence. The miner's ore face sits at (7,49), 42
-// hexes from its home at (47,53), with **no path between them at all**
-// (`sim_npc_path_dist` = FLOW_BIG) — and its open neighbours are equally cut off, so it is
-// the SITE that is unreachable, not the cave mouth. The mine-site scan picks the best rock
-// it can see and never asks whether anyone can walk there: the same defect `raid_objective`
-// carried until it was made to choose over ground the source can cross, and the same one
-// that left `walk_reach`'s gatherer decorative for months.
+// ✅ AND THE TWO FORGE LINES ARE ARMED TOO (2026-08-10) — because the ore now arrives.
+// Arming follows the supply and never leads it, and getting a supply took three things, in
+// this order: a town whose wall has GATES (its people were sealed in, 498 of 9801 hexes
+// walkable), a mine sited on ground the miners can reach AND round-trip in a working day
+// (`walk_reach` + `WORK_MAX_D`), and a GUARD POSTED ON THE WORKS — without which the camp
+// at the foot of the mountain is unsafe 1600 of 1600 ticks and the trade is not hindered
+// but dead. Measured over four days on the shipped world, den cleared against den alive:
+// **the ore face is safe 1600/1600 and delivers, against unsafe 775/1600 and delivering
+// nothing.** That is the whole claim, on the chain the raids actually press.
 //
-// So the miners have never delivered anything, and arming the forge on that supply would
-// take the shipped town from one piece a day to NOTHING, EVER. Arming follows the supply and
-// never leads it. ⚠ The delivery ships anyway (it is correct, it costs nothing while nobody
-// arrives, and it is the input stream the rule asks for) — what is missing is a reachable
-// mine, which is worldgen's business and needs a built `Sim` to test against.
+// ⚠ IT IS ALSO WHAT MAKES `S6`'s REPAIR MEAN ANYTHING. A smith draws the same store the
+// forge draws, so a mine nobody dares walk to means nobody mends your sword either — the
+// point at which I-SAFE closes on the PLAYER and not only on the town (CRAFTING.md).
+//
+// The four still unarmed (scriptorium x2, town_craft, import) have no worker delivering to
+// them. An unarmed producer draws nothing and makes as it always did; `prod_draw_when` takes
+// the arming as an argument so both branches stay gated whichever way the switch is set.
 fn prod_gated(pi: integer) -> boolean {
-  pi >= 0 && pi == producer_index("alchemy")
+  pi >= 0 && (pi == producer_index("alchemy")
+              || pi == producer_index("forge_weapon")
+              || pi == producer_index("forge_armor"))
 }
 
 // A worker came home with something. Raising an ungated producer is harmless and still
@@ -3591,6 +3609,31 @@ pub fn sim_enemy_home(s: Sim, i: integer) -> (integer, integer) {
   (0, 0)
 }
 
+// Surface terrain kind at (q,r) — the STORED form (kind + 1, 0 = dungeon/none), as the level
+// arrays hold it. Read-only; the siting scans read the same array directly because they run
+// before a `Sim` exists, and a gate that wants to ask "is there rock beside this hex" needs
+// the answer through the Sim.
+pub fn sim_terrain_at(s: Sim, q: integer, r: integer) -> integer {
+  if q < 0 || r < 0 || q >= s.lw || r >= s.lh { return 0; }
+  ti = r * s.lw + q;
+  if ti < len(s.tkind) { return s.tkind[ti] ?? 0; }
+  0
+}
+
+// The SECOND end of a two-ended route — the stall a farmer carries to, the furnace a miner
+// delivers ore to, patrol leg B. Roles with one destination repeat their work hex here.
+// ⚠ A route is only walkable if BOTH ends are, and the delivery end is the one a supply
+// chain actually turns on: a miner that can reach its ore face and not its furnace raises
+// no stock at all (`I-WALK`).
+pub fn sim_enemy_anchor(s: Sim, i: integer) -> (integer, integer) {
+  es = s.enemies;
+  if i < len(es) {
+    e = es[i];
+    if e != null { return (e.aq2, e.ar2); }
+  }
+  (0, 0)
+}
+
 // The gatherer's bag (plan #17 `S3`): 1 = carrying a pick home, 0 = empty. Read-only, and
 // exposed so a gate can watch the round trip rather than infer it from the stock.
 pub fn sim_enemy_carry(s: Sim, i: integer) -> integer {
@@ -4289,6 +4332,35 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         lr = h / 2 + round((wrad as float) * sin(lang) * 0.866) as integer;
         stamp_round_tower(tiles, tk, w, h, lq, lr, 2);
       }
+      // ⚠ AND THEN THE GATES ARE CUT, BECAUSE "ROADS MAKE THE GATES" MADE NONE.
+      //
+      // Measured 2026-08-10 on the shipped world: the ring carried NO road hex anywhere, so
+      // every hex of it was stamped solid and the wall closed completely. The town's own
+      // people were sealed inside it — **498 of 9801 hexes reachable**, and every worker
+      // whose job is outside walked at a wall for the life of the world: both farmers (the
+      // field), the fisher (the water), two of the guards (their outer legs), and both
+      // miners (the ore face, 42 hexes out with no path). Nothing reported it, because until
+      // `S6` made the forge depend on the ore arriving, nothing depended on any of them
+      // arriving. THREE earlier bugs in this file are the same defect one level down
+      // (`raid_objective`'s unreachable field, `walk_reach`'s picking grounds, the mine) —
+      // they were all *this*, seen from the outside.
+      //
+      // ⚠ A GATE THAT DEPENDS ON A COINCIDENCE IS A GATE THAT IS SOMETIMES ABSENT. Roads
+      // still open the ring wherever they cross it — that is the intent and it is kept —
+      // but six gates are now cut REGARDLESS, one per hex direction. Walking `wrad` steps
+      // out from the centre in direction `gd` lands exactly on the ring by construction, so
+      // there is no rounding to get wrong; the ±2 either side clears a lookout tower
+      // standing on that bearing, which would otherwise re-seal the gate it was stamped
+      // after. Terrain is left alone (`-1`) — a gate is a hole in a wall, not a new road.
+      for gdir in 0..6 {
+        ggq = w / 2;
+        ggr = h / 2;
+        for _gs in 0..(wrad - 2) { (ggq, ggr) = hex_neighbor(ggq, ggr, gdir); }
+        for _gs2 in 0..5 {
+          st_set(tiles, tk, w, h, ggq, ggr, 0, -1);
+          (ggq, ggr) = hex_neighbor(ggq, ggr, gdir);
+        }
+      }
     }
     }
     // THE FORTRESS: above and away, watching the ways — a walled keep with
@@ -4944,28 +5016,52 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       // stays out of town): miners cycle ore from the mountain face to the
       // furnace, day in day out
       if intown && tsize >= 2 {
+        // ⚠ REACHABLE FIRST, NEAREST SECOND — `walk_reach`'s rule, and the MINE is the third
+        // site this repo has had to learn it on (`raid_objective`'s 45-hex field, the
+        // gatherer's picking grounds, now this). Measured before the fix, on the shipped
+        // world: the ore face sat at (7,49), 42 hexes from the miner's home at (47,53), with
+        // NO PATH between them — and its open neighbours were equally cut off, so it was the
+        // SITE that was unreachable, not the cave mouth. Two miners walked at it for the life
+        // of the world and delivered nothing, and nothing reported it, because until `S6` gave
+        // the forge an input stream nothing depended on their arriving.
+        mhq = w / 2 - 3;                                     // the miners' own doorstep
+        mhr = h / 2 + 3;
+        reachm = walk_reach(tiles, tk, w, h, mhq, mhr);
         mnq = -1;
         mnr = -1;
         bmn = 999;
+        farmq = -1;      // the farthest reachable face, for when none is >= 16 out
+        farmr = -1;
+        bfarm = -1;
         for mr8 in 2..h - 2 {
           for mq8 in 2..w - 2 {
-            dmn = hex_distance(mq8, mr8, w / 2, h / 2);
-            if dmn >= 16 && dmn < bmn {
-              tim = mr8 * w + mq8;
-              if tim < len(tiles) && (tiles[tim] ?? 1) == 0 {
-                facenb = false;
-                for d6 in 0..6 {
-                  (nq6, nr6) = hex_neighbor(mq8, mr8, d6);
-                  if nq6 >= 0 && nq6 < w && nr6 >= 0 && nr6 < h {
-                    tj6 = nr6 * w + nq6;
-                    if tj6 < len(tk) && (tk[tj6] ?? 0) == K_FACE + 1 { facenb = true; }
-                  }
+            tim = mr8 * w + mq8;
+            if tim < len(tiles) && (tiles[tim] ?? 1) == 0 && (reachm[tim] ?? 0) == 1 {
+              facenb = false;
+              for d6 in 0..6 {
+                (nq6, nr6) = hex_neighbor(mq8, mr8, d6);
+                if nq6 >= 0 && nq6 < w && nr6 >= 0 && nr6 < h {
+                  tj6 = nr6 * w + nq6;
+                  if tj6 < len(tk) && (tk[tj6] ?? 0) == K_FACE + 1 { facenb = true; }
                 }
-                if facenb { bmn = dmn; mnq = mq8; mnr = mr8; }
+              }
+              if facenb {
+                dmn = hex_distance(mq8, mr8, w / 2, h / 2);
+                // ⚠ AND WITHIN A DAY'S WALK (`WORK_MAX_D`) — the ore face the old scan chose
+                // sat 43 hexes out, and a miner whose leg flips every 90 ticks never
+                // completes that round trip even with a clear path the whole way.
+                if dmn <= WORK_MAX_D {
+                  if dmn >= 16 && dmn < bmn { bmn = dmn; mnq = mq8; mnr = mr8; }
+                  if dmn > bfarm { bfarm = dmn; farmq = mq8; farmr = mr8; }
+                }
               }
             }
           }
         }
+        // Dirty industry belongs out of town, but that is the INTENT and not a requirement:
+        // a rock face the miners can walk to at 9 hexes beats one at 20 they cannot. The
+        // gatherer's fallback, for the gatherer's reason.
+        if mnq < 0 { mnq = farmq; mnr = farmr; }
         if mnq < 0 {
           // no rock in this window: the mine lies BEYOND it — its mouth sits
           // at the window edge toward the nearest mountain/hill cell
@@ -4997,7 +5093,19 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
                   tic = cr9 * w + cq9;
                   tkc = 0;
                   if tic < len(tk) { tkc = tk[tic] ?? 0; }
-                  if (tiles[tic] ?? 1) == 0 && tkc != K_LAKE + 1 && tkc != K_SEA + 1 {
+                  // ⚠ AND REACHABLE, AND WITHIN A DAY'S WALK. "Walkable" is a property of the
+                  // hex; "reachable" is a property of the hex AND the town; "workable" is a
+                  // property of the ROUTE. This branch puts the mouth at the WINDOW EDGE, ~45
+                  // hexes out, so it fails the third — and a mine nobody can round-trip is
+                  // not a mine, it is two miners standing still forever. Measured: the camp
+                  // out there is unsafe 1600 of 1600 ticks (no guard reaches it), delivers
+                  // nothing ever, and absorbs every incursion the den sends — which took the
+                  // pressure OFF the chain `I-SAFE` is measured on.
+                  // ⚠ SO A VALLEY TOWN SIMPLY HAS NO MINE, and that is the honest answer:
+                  // `walk_reach`'s own rule ("no reachable picking ground means no gatherer")
+                  // applied to the trade whose rock is beyond a day's walk.
+                  if (tiles[tic] ?? 1) == 0 && tkc != K_LAKE + 1 && tkc != K_SEA + 1
+                     && (reachm[tic] ?? 0) == 1 {
                     mnq = cq9;
                     mnr = cr9;
                   }
@@ -5009,12 +5117,27 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         if mnq >= 0 {
           ti13 = mnr * w + mnq;
           if ti13 < len(tiles) { tiles[ti13] = 6; }   // the mine IS a cave mouth
-          // the furnace sits OUTSIDE the wall, toward the mine
+          // THE FURNACE SITS BETWEEN THE TOWN AND THE MINE, AND NEVER FAR FROM THE MINE.
+          //
+          // ⚠ IT USED TO SIT AT A FIXED 20 HEXES FROM THE TOWN, WHICH IS THE WRONG END OF
+          // THE ROUTE. The miners' day is mine -> furnace -> mine, so what has to be short
+          // is *that* leg, not the town's view of it: with an ore face at the window edge
+          // the old placement left a 23-hex haul each way and the miners delivered nothing
+          // in four days. Ore is heavy and slag is filthy — a real works stands at the foot
+          // of the mountain, not at the town's gate.
+          //
+          // So: four hexes back down the line toward town, but never inside the walls
+          // (`wrad + 3`) — dirty industry still stays out of town, which was the original
+          // and correct half of this rule.
           fdx = (mnq - w / 2) as float;
           fdy = (mnr - h / 2) as float;
           fdl = sqrt(fdx * fdx + fdy * fdy) ?? 0.0;
-          fux2 = ((fdx / fdl) ?? 0.0) * 20.0;
-          fuy2 = ((fdy / fdl) ?? 0.0) * 20.0;
+          fdist = fdl - 4.0;
+          fmin = (round(hring) as integer + 7) as float;
+          if fdist < fmin { fdist = fmin; }
+          if fdist > fdl { fdist = fdl; }
+          fux2 = ((fdx / fdl) ?? 0.0) * fdist;
+          fuy2 = ((fdy / fdl) ?? 0.0) * fdist;
           fnq = w / 2 + round(fux2) as integer;
           fnr = h / 2 + round(fuy2) as integer;
           stamp_round_tower(tiles, tk, w, h, fnq, fnr, 3);   // the BIG furnace
@@ -5026,12 +5149,59 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               tk[ti7b] = K_SCREE + 1;
             }
           }
+          // ⚠ AND THE DELIVERY END, WHICH IS THE ONE THE STOCK TURNS ON. A route is only as
+          // walkable as its WORSE end: a miner that reaches its ore face and not its furnace
+          // raises nothing, and `npc_mine` empties the bag HERE. The ideal spot is four hexes
+          // out from the furnace mouth; take the reachable hex nearest to it instead, and
+          // never one inside the tower itself (radius 3, and stamped after the reach map).
+          daq = fnq;
+          dar = fnr + 4;
+          bda = 9999;
+          for ar9 in 0..9 {
+            for aq9 in 0..9 {
+              cq8 = fnq + aq9 - 4;
+              cr8 = fnr + ar9 - 4;
+              if cq8 >= 1 && cq8 < w - 1 && cr8 >= 1 && cr8 < h - 1 {
+                ti8 = cr8 * w + cq8;
+                if ti8 >= 0 && ti8 < len(tiles) && (reachm[ti8] ?? 0) == 1
+                   && hex_distance(cq8, cr8, fnq, fnr) > 3 {
+                  d8 = hex_distance(cq8, cr8, fnq, fnr + 4);
+                  if d8 < bda { bda = d8; daq = cq8; dar = cr8; }
+                }
+              }
+            }
+          }
+          // ⚠ AND THE MINERS LIVE AT THE WORKS, NOT IN TOWN. They used to sleep on the
+          // town's doorstep and commute to whatever face worldgen had found — which is only
+          // sane when the rock is a short walk away, and on the shipped world it is 43 hexes.
+          // A mining camp at the foot of the mountain is both the working arrangement and
+          // the real one; the ore still reaches the town's forge, because the stock belongs
+          // to the SETTLEMENT and the furnace is where it is raised (`npc_mine`).
+          (m2q, m2r) = hex_neighbor(daq, dar, 3);
           enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
-                             w / 2 - 3, h / 2 + 3, w / 2 - 3, h / 2 + 3,
-                             mnq, mnr, fnq, fnr + 4)];
+                             daq, dar, daq, dar,
+                             mnq, mnr, daq, dar)];
           enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
-                             w / 2 - 4, h / 2 + 2, w / 2 - 4, h / 2 + 2,
-                             mnq, mnr, fnq, fnr + 4)];
+                             m2q, m2r, m2q, m2r,
+                             mnq, mnr, daq, dar)];
+          // ⚠ AND THE SETTLEMENT POSTS A GUARD ON ITS OWN WORKS (user, 2026-08-10).
+          //
+          // Without one the camp is unsafe **1600 of 1600 ticks** — no guard's `GUARD_R`
+          // reaches the foot of the mountain — so `npc_target` keeps the miners home every
+          // tick of every day and the trade is not merely hindered, it is permanently dead.
+          // That is not `I-SAFE` working: a lever the world holds at zero is not a lever.
+          // It is the same argument that moved the guard master onto the town's own seat —
+          // *guards are a term in the safety expression, not spectators* (`S1`) — applied to
+          // the works instead of the square.
+          //
+          // ⚠ ONE GUARD, WALKING THE WORKS: legs at the ore face and the camp, so each end is
+          // held when the watch is at it and exposed when it is not. That is deliberately not
+          // total cover — the mine still stops when something is standing on it and the guard
+          // is at the other end, which is what leaves `S7`'s pickets something to buy and
+          // keeps the den's raids able to bite.
+          enemies += [mk_npc(3, "guard", "works guard", "g", 175, 180, 210,
+                             daq, dar, daq, dar,
+                             mnq, mnr, daq, dar)];
         }
       }
 
@@ -5101,7 +5271,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
             rank = pick_rank(tkh);
             if rank >= 0 && rank <= bestrank && (reach8[tih] ?? 0) == 1 {
               dh8 = hex_distance(gq8, gr8, ghq, ghr);
-              if dh8 > 0 {
+              if dh8 > 0 && dh8 <= WORK_MAX_D {
                 if rank < bestrank {      // a better ground exists: forget the poorer ones
                   bestrank = rank;
                   hsq = -1; hsr = -1; bhs = 999;

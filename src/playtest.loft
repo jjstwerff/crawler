@@ -264,6 +264,13 @@ y`;
       // about what the settlement does once your gear is ruined.
       cs = sim_damage_gear(s);
       println("  corrode -> slot {cs} ({sim_damaged_count(s)} damaged, ac {sim_player_ac(s)})");
+    } else if verb == "stock" {
+      // A poke standing in for the miners' day: `stock forge_armor 1` puts one delivery in
+      // the settlement's store. Walking the ore down from the face takes days of ticks and
+      // is `stocktest`'s claim, not this script's — what is under test here is what the
+      // SMITH does with a store that has something in it, and with one that does not.
+      for _sk in 0..num(word(raw, 2)) { prod_raise(s, word(raw, 1)); }
+      println("  stock {word(raw, 1)} -> {sim_prod_stock(s, word(raw, 1))}");
     } else if verb == "talk" {
       // Bump-to-speak, by NPC key. The BUMP is a poke (finding a wandering townsperson on
       // foot is a walk, not a claim); `sim_talk_to` is the shipped path and the whole point

@@ -43,8 +43,19 @@ and the measurement of what already exists, which turned out to be most of it. `
 > supply that cannot arrive would stop the forge outright. → *the supply coupling is built,
 > unarmed, and the reason is a defect in the world*, below.
 >
-> **→ NEXT: `S7`** (standing, and the militia it raises), with **a reachable mine** the one
-> loose thread `S6` leaves behind.
+> ✅ **AND THE LOOSE THREAD IS CLOSED (2026-08-10): the town wall had no gates.** *"Roads make
+> the gates"* produced **zero** on the shipped world, so the wall sealed the town's own people
+> in — **498 of 9801 hexes** reachable, **13 of 21 civilians** unable to walk their own route,
+> and every earlier "unreachable site" bug in this repo was that, seen from the outside. Six
+> gates cut per hex direction, the mine sited by `walk_reach`, a **`WORK_MAX_D`** bound
+> (*reachable is not workable*), the works moved to the ore face, and — the call that made the
+> trade live — **a guard posted on it.** → **498 → 8951 hexes, 13/21 → 4/20**, and the forge is
+> **armed**: `I-SAFE` reads **7 ore deliveries at peace against 3 under pressure**, with the
+> herb chain unmoved as the control.
+>
+> **→ NEXT: `S7`** (standing, and the militia it raises) — and it now has a measured thing to
+> buy: the works guard holds one end of its walk at a time, so the ore face is still unsafe
+> **775 of 1600** ticks with the den alive.
 
 **Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
 on it by construction (`M3` authors 18 Handiness values against this system), and its own
@@ -840,7 +851,40 @@ there, so a save is what keeps them survivable; this fires once per sound piece 
 nothing left to take, which bounds it without a roll (`mendtest` row 8). A save would only make
 the cause harder to attribute, and attribution is the entire difference between this and wear.
 
-#### ⚠ The supply coupling is BUILT, UNARMED, and the reason is a defect in the world
+#### ✅ The supply coupling is ARMED — after the town's wall turned out to have no gates
+
+**Landed 2026-08-10.** The smith draws the same store the forge draws, the miners fill it, and
+on the shipped world `I-SAFE` now holds on the chain the raids actually press: **7 ore
+deliveries at peace against 3 under pressure**, the ore face unsafe **775 of 1600** ticks with
+the den alive and **0** with it cleared, the store peaking at 3 of 8 against 5. The herb chain
+is the control and does not move (6 against 6). ⚠ **The shipped smith refuses on an empty
+store**, which is the point at which this plan closes on the player.
+
+It took four things in order, and the first was not a supply problem at all:
+
+1. **The town wall had no gates.** *"Roads make the gates"* leaves a ring hex open only where
+   the terrain is already road, and on the shipped world that produced **zero** — the wall
+   closed completely and sealed the town's own people inside it: **498 of 9801 hexes**
+   reachable, **13 of 21 civilians** unable to walk their own route. Six gates are now cut per
+   hex direction, exact by construction. → **498 → 8951 hexes, 13/21 → 4/20.**
+2. **The mine sited by `walk_reach`**, both branches — reachable first, nearest second.
+3. **`WORK_MAX_D = 22`, because reachable is not workable.** With the window open the gatherer
+   re-sited onto genuine alpine shelves 50 hexes out and its deliveries went **3 → 0**. A site
+   nobody can round-trip in a working day is as useless as one with no path at all.
+4. **A guard posted on the works** (user, 2026-08-10). Without one the camp at the foot of the
+   mountain is unsafe **1600 of 1600 ticks** — no `GUARD_R` reaches it — so the trade is not
+   hindered but *dead*, and **a lever the world holds at zero is not a lever**. One guard
+   walking the works holds one end at a time, which is deliberately not total cover: it leaves
+   `S7`'s pickets something to buy.
+
+⚠ **AND THE GATE HAD TO LEARN THE SAME LESSON.** `stocktest` row 7 was pinned to the gatherer,
+so when the raid correctly moved to the more exposed ore face it read 6-against-6 and looked
+like `I-SAFE` failing — it was the row watching the wrong valley. It now measures **both**
+chains and asserts the claim on whichever the raid pressed, with the other as a control.
+`safetytest` and `incursiontest` moved the same way: both sampled at a fixed 100 ticks, which
+was only ever enough while the settlement's most exposed work sat 14 hexes from the square.
+
+<details><summary>The original finding, kept — why it was parked before the guard</summary>
 
 `S6`'s point is that the loop closes on the **player** — *the forge you protected is the one
 that fixes it* (`CRAFTING.md`). So the smith draws the same store the forge draws, and the
@@ -865,6 +909,12 @@ is written and inert (`prod_draw` passes an unarmed producer), and `sim_smith_me
 the arming as an argument so **both answers are gated today** rather than going live untested
 on the day the switch flips. → a candidate step: **a reachable mine**, which is worldgen's
 business and needs a built `Sim` to test against.
+
+*(That candidate step is the one that turned into the wall's missing gates, above — and
+`sim_smith_mend_when`'s split earned its keep exactly as intended: the refusal branch was
+gated for a day before it went live, and went live green.)*
+
+</details>
 
 #### What is NOT in it
 

@@ -110,18 +110,23 @@ fn main() {
   drew = sim_prod_stock(e2, "forge_armor") == stock_before - 1;
   nothing_left = sim_smith_mend_when(e2, true) == 0;
   no_waste = sim_prod_stock(e2, "forge_armor") == stock_before - 1;
-  // And the shipped (unarmed) path: the smith mends and the store is not consulted, which is
-  // what keeps a town with no mine from having a smith who can never help.
+  // And the SHIPPED path agrees with the armed one, because the forge lines are armed now
+  // (the ore arrives — a town whose wall has gates, a mine within a day's walk, and a guard
+  // posted on the works). ⚠ This row is the one that notices if the switch is ever flipped
+  // back: `sim_smith_mend` must reach the same refusal `sim_smith_mend_when(…, true)` does.
   e3 = armed_sim();
   _s3b = sim_damage_gear(e3);
+  ship_starved = sim_smith_mend(e3) < 0 && sim_damaged_count(e3) == 1;
+  prod_raise(e3, "forge_armor");
   ship_mends = sim_smith_mend(e3) == 1 && sim_damaged_count(e3) == 0;
   println("supply (armed): empty-store-refuses={starved} gear-untouched={still_bad} stocked-mends={now_ok} drew-one={drew} nothing-to-do={nothing_left} no-waste={no_waste}");
-  println("supply (as shipped, unarmed): mends anyway={ship_mends}");
+  println("supply (as shipped): empty store refuses={ship_starved}, ore in the store mends={ship_mends}");
   if !starved { println("FAIL: the smith mended with an empty store — the supply coupling is decorative"); ok = false; }
   if !still_bad { println("FAIL: a refused repair still changed the gear"); ok = false; }
   if !now_ok || !drew { println("FAIL: a mend did not draw the forge's stock"); ok = false; }
   if !nothing_left || !no_waste { println("FAIL: the smith spent iron on gear that needed nothing"); ok = false; }
-  if !ship_mends { println("FAIL: the shipped smith cannot mend — an unarmed producer must not gate the repair"); ok = false; }
+  if !ship_starved { println("FAIL: the SHIPPED smith mended with an empty forge — the coupling is armed in the gate and not in the game"); ok = false; }
+  if !ship_mends { println("FAIL: the shipped smith would not mend even with ore in the store"); ok = false; }
 
   // ── 4. NO LAUNDERING: the condition rides the ITEM through every seam ─────────────────
   // unequip -> the pack -> back on. Each hop is a separate write site in sim.loft and each

@@ -13,6 +13,21 @@ use hex_grid;
 
 DT = 0.016666;
 
+// How many workers `npc_target` is currently holding back — a worker whose own work site is
+// unsafe. Guards and wild things are exempt there and so are they here; the merchant cart and
+// the wizard have quest arms that pre-empt the ambient line, so they cannot report either.
+fn idle_workers(t: Sim) -> integer {
+  n = 0;
+  for i in 0..sim_enemy_count(t) {
+    rl = sim_enemy_role(t, i);
+    if sim_enemy_alive(t, i) && rl != 0 && rl != 3 && rl != 12 && rl != 7 {
+      (wq, wr) = sim_enemy_work(t, i);
+      if !hex_safe(t, wq, wr) { n += 1; }
+    }
+  }
+  n
+}
+
 fn main() {
   ok = true;
   s = flow_genesis(1337, 1);
@@ -210,7 +225,18 @@ fn main() {
   // first worker reports a trouble at **tick 19**, and is still reporting it at tick 599.
   // That number IS the `F6` answer — the signal is there before a player has crossed the
   // square, and it does not blink out.
-  for _ in 0..100 { sim_tick(t); }
+  //
+  // ⚠ 100 TICKS WAS ENOUGH ONLY WHILE THE TOWN WAS SEALED. Once its wall got real gates
+  // (2026-08-10) the settlement's most exposed work moved OUT — the works now stands at the
+  // ore face, which is where `raid_objective` correctly sends the den's people, and they
+  // have a good deal farther to walk than they did to a picking ground 14 hexes from the
+  // square. A hundred ticks now samples the world before the raid lands, finds every worker
+  // happily at work, and reports the signal missing. So it ticks until the trouble ARRIVES
+  // rather than for a fixed span — the claim is that a worker held back says why, not that
+  // it happens by a particular tick, and a hard cap keeps the row honest if it never does.
+  arrived = 0;
+  while arrived < 800 && idle_workers(t) == 0 { sim_tick(t); arrived += 1; }
+  println("the first worker is held back at tick {arrived} (cap 800)");
   //
   // Excluded: guards and wild things (exempt in `npc_target` for the same reason), and the
   // merchant cart and the wizard, whose own quest arms return before the ambient one is

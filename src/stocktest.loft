@@ -167,6 +167,12 @@ fn main() {
   peace_hi = -1;
   war_hi = -1;
   war_unsafe = 0;
+  peace_do = -1;      // the ore chain, measured beside the herbs
+  war_do = -1;
+  peace_flo = 999;
+  peace_fhi = -1;
+  war_fhi = -1;
+  war_unsafe_o = 0;
   for arm in 0..2 {
     w = sim_new_gen(1337, 0);
     // ⚠ THE ONLY DIFFERENCE BETWEEN THE ARMS IS THE CAUSE. Not the seed, not the window,
@@ -176,44 +182,101 @@ fn main() {
         if sim_enemy_alive(w, i) && (sim_enemy_tags(w, i) & TAG_RUIN_BOSS) != 0 { sim_slay(w, i); }
       }
     }
+    // ⚠ THE SETTLEMENT HAS TWO SUPPLY CHAINS AND THE RAID CHOOSES BETWEEN THEM, so this row
+    // has to FOLLOW THE DANGER rather than name a trade. `raid_objective` presses the most
+    // exposed work; pinned to the gatherer, this row went red the day the town's wall got
+    // real gates (2026-08-10) — the window opened from 498 walkable hexes to 8951, the works
+    // moved out to the ore face where only its own posted guard reaches, and the raid
+    // correctly went THERE. The picking ground then read 6 deliveries at peace against 6
+    // under pressure, which is not I-SAFE failing but this row watching the wrong valley.
+    //
+    // So both chains are measured in both arms, and the CLAIM is asserted on whichever one
+    // the raid actually pressed. Herbs: role 9 -> `alchemy`. Ore: role 10 -> the forge.
     gi = -1;
+    mi = -1;
     for i in 0..sim_enemy_count(w) {
       if gi < 0 && sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 9 { gi = i; }
+      if mi < 0 && sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 10 { mi = i; }
     }
-    if gi < 0 {
-      println("FAIL: no gatherer on the home surface — the settlement has no supply at all");
+    if gi < 0 || mi < 0 {
+      println("FAIL: the settlement is missing a supply trade (gatherer={gi} miner={mi})");
       ok = false;
     } else {
       (hq, hr) = sim_enemy_home(w, gi);
       (wq, wr) = sim_enemy_work(w, gi);
+      (mhq, mhr) = sim_enemy_home(w, mi);
+      (mwq, mwr) = sim_enemy_work(w, mi);
       pd = sim_npc_path_dist(w, wq, wr, 9, hq, hr);
-      if pd >= 1000000 {
-        println("FAIL: the picking ground has NO PATH from home — the worker cannot ever work");
+      pdm = sim_npc_path_dist(w, mwq, mwr, 10, mhq, mhr);
+      if pd >= 1000000 || pdm >= 1000000 {
+        println("FAIL: a work site has NO PATH from its home (herb={pd} ore={pdm}) — the worker cannot ever work");
         ok = false;
       }
       // Deliveries counted as ARRIVALS, not as days the number went up: at the cap a real
       // delivery moves nothing, and in a starved week one delivery looks like seven.
-      deliveries = 0;
+      // ⚠ BOTH miners are counted — one worker's bag is not the settlement's supply.
+      dh = 0;
+      dor = 0;
       lo = 999;
       hi = -1;
-      unsafe_ticks = 0;
-      prev_carry = sim_enemy_carry(w, gi);
+      flo = 999;
+      fhi = -1;
+      uh = 0;
+      uo = 0;
+      pcg = sim_enemy_carry(w, gi);
+      pcm: vector<integer> = [];
+      mis: vector<integer> = [];
+      for i in 0..sim_enemy_count(w) {
+        if sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 10 {
+          mis += [i];
+          pcm += [sim_enemy_carry(w, i)];
+        }
+      }
       for _ in 0..(4 * DAY_LEN) {
         sim_tick(w);
-        if !hex_safe(w, wq, wr) { unsafe_ticks += 1; }
+        if !hex_safe(w, wq, wr) { uh += 1; }
+        if !hex_safe(w, mwq, mwr) { uo += 1; }
         c = sim_enemy_carry(w, gi);
-        if c == 0 && prev_carry > 0 { deliveries += 1; }
-        prev_carry = c;
+        if c == 0 && pcg > 0 { dh += 1; }
+        pcg = c;
+        for k in 0..len(mis) {
+          cm = sim_enemy_carry(w, mis[k] ?? 0);
+          if cm == 0 && (pcm[k] ?? 0) > 0 { dor += 1; }
+          pcm[k] = cm;
+        }
         st = sim_prod_stock(w, "alchemy");
         if st < lo { lo = st; }
         if st > hi { hi = st; }
+        fst = sim_prod_stock(w, "forge_weapon") + sim_prod_stock(w, "forge_armor");
+        if fst < flo { flo = fst; }
+        if fst > fhi { fhi = fst; }
       }
       label = "under pressure";
       if arm == 0 { label = "at peace      "; }
-      println("{label}: pick ({wq},{wr}) path={pd} unsafe {unsafe_ticks}/{4 * DAY_LEN} ticks, deliveries={deliveries}, stock ranged {lo}..{hi}");
-      if arm == 0 { peace_d = deliveries; peace_lo = lo; peace_hi = hi; }
-      else { war_d = deliveries; war_hi = hi; war_unsafe = unsafe_ticks; }
+      println("{label}: herbs ({wq},{wr}) unsafe {uh}/{4 * DAY_LEN}, {dh} deliveries, store {lo}..{hi} | ore ({mwq},{mwr}) unsafe {uo}/{4 * DAY_LEN}, {dor} deliveries, store {flo}..{fhi}");
+      // The PRESSED chain is the one whose ground the raid actually spoiled; the other is a
+      // control that must keep working, or a collapse in both is some other defect.
+      if arm == 0 {
+        peace_d = dh; peace_lo = lo; peace_hi = hi;
+        peace_do = dor; peace_flo = flo; peace_fhi = fhi;
+      } else {
+        war_d = dh; war_hi = hi; war_unsafe = uh;
+        war_do = dor; war_fhi = fhi; war_unsafe_o = uo;
+      }
     }
+  }
+  // ⚠ WHICH CHAIN THE DANGER REACHED decides which numbers carry the claim. Measured on the
+  // shipped world: the ore face is unsafe 775 of 1600 ticks with the den alive and 0 with it
+  // cleared, while the picking ground stays clear in both — so the ore is the pressed chain
+  // today and the herbs are the control.
+  ore_is_pressed = war_unsafe_o > war_unsafe;
+  if ore_is_pressed {
+    println("the raid pressed the ORE (unsafe {war_unsafe_o} ticks vs {war_unsafe} on the herbs); the herb chain is the control");
+    peace_d = peace_do; war_d = war_do;
+    peace_hi = peace_fhi; war_hi = war_fhi; peace_lo = peace_flo;
+    war_unsafe = war_unsafe_o;
+  } else {
+    println("the raid pressed the HERBS (unsafe {war_unsafe} ticks vs {war_unsafe_o} on the ore); the ore chain is the control");
   }
   // The peaceful arm: the loop turns. Both failure modes named, as before — a store stuck
   // at 0 supplies nothing, a store stuck at the cap gates nothing. ⚠ The bar is 2 against a
@@ -234,8 +297,13 @@ fn main() {
   }
   // The contested arm. ⚠ ATTRIBUTED: the ground has to actually BE unsafe, or a collapse
   // here is some other defect wearing this row's clothes.
-  if war_unsafe < 2 * DAY_LEN {
-    println("FAIL: the picking ground was unsafe only {war_unsafe} ticks — the den never pressed on it, so the comparison is of two peaceful worlds");
+  // ⚠ The bar is DAY_LEN against a measured 775 of 1600 on the pressed chain. It was 2 days
+  // when this row watched the picking ground; the ore face is pressed hard but not
+  // continuously, because the works has its own posted guard holding one end of the walk at
+  // a time — which is the design (`S1`: guards are a term in the safety expression) and is
+  // exactly what leaves `S7`'s pickets something left to buy.
+  if war_unsafe < DAY_LEN {
+    println("FAIL: the pressed work was unsafe only {war_unsafe} ticks — the den never reached it, so the comparison is of two peaceful worlds");
     ok = false;
   }
   if war_d * 2 > peace_d {

@@ -174,6 +174,18 @@ fn main() {
   // row that only asked "is it unsafe now" would pass on a wandering jackal and would have
   // passed against every broken version of this mechanism measured today. So it also
   // requires a RAIDER to be the thing standing there.
+  // ⚠ IT WATCHES THE WORK THE RAID CHOSE, NOT THE GATHERER'S. `raid_objective` aims at the
+  // settlement's MOST EXPOSED work — "the outlying hex some worker has to reach and nobody
+  // can guard" — and which trade that is belongs to the world, not to this row. Pinned to
+  // the gatherer it went red the day the town's wall got real gates (2026-08-10): the window
+  // opened from 498 walkable hexes to 8951, the mining camp moved out to the ore face where
+  // no guard reaches, and the raid correctly went THERE instead. That is the mechanism
+  // working, and a row that reads it as a failure is a row measuring the wrong thing.
+  //
+  // So: find a work site that was safe at genesis and is unsafe under the raid WITH A RAIDER
+  // STANDING ON IT. The attribution requirement below is unchanged and is what keeps this
+  // from passing on a wandering jackal — it is now simply asked of whichever work the raid
+  // picked.
   w4 = sim_new_gen(1337, 0);
   g4 = -1;
   for i in 0..sim_enemy_count(w4) {
@@ -181,17 +193,42 @@ fn main() {
   }
   if g4 < 0 { println("FAIL: no gatherer — the settlement has no outlying work to press on"); ok = false; }
   else {
-    (gwq, gwr) = sim_enemy_work(w4, g4);
-    before = hex_safe(w4, gwq, gwr);
-    for _ in 0..100 { sim_tick(w4); }
-    under = hex_safe(w4, gwq, gwr);
-    raider_on_it = false;
+    // every civilian work site that is safe right now — the raid must press on one of them
+    wq_all: vector<integer> = [];
+    wr_all: vector<integer> = [];
     for i in 0..sim_enemy_count(w4) {
-      if sim_enemy_alive(w4, i) && sim_enemy_raid(w4, i) == 1 {
-        (rq, rr) = sim_enemy_hex(w4, i);
-        if hex_distance(rq, rr, gwq, gwr) <= THREAT_R { raider_on_it = true; }
+      role4 = sim_enemy_role(w4, i);
+      if sim_enemy_alive(w4, i) && role4 != 0 && role4 != 12 && role4 != 3 {
+        (cwq, cwr) = sim_enemy_work(w4, i);
+        if hex_safe(w4, cwq, cwr) { wq_all += [cwq]; wr_all += [cwr]; }
       }
     }
+    (gwq, gwr) = sim_enemy_work(w4, g4);
+    before = hex_safe(w4, gwq, gwr);
+    // ⚠ 100 TICKS WAS ENOUGH ONLY WHILE THE TOWN WAS SEALED — the most exposed work is now
+    // the ore face rather than a picking ground beside the square, and the raid has that much
+    // farther to march. A fixed span that is too short reads "the raid never arrived", which
+    // is the failure this row is FOR, so it must not be the row's own artefact.
+    for _ in 0..500 { sim_tick(w4); }
+    // The claim, over the settlement's work rather than one trade: SOME site that was safe
+    // at genesis is now unsafe, and a RAIDER is the thing standing on it.
+    pressed_q = -1;
+    pressed_r = -1;
+    for k in 0..len(wq_all) {
+      cq4 = wq_all[k] ?? 0;
+      cr4 = wr_all[k] ?? 0;
+      if pressed_q < 0 && !hex_safe(w4, cq4, cr4) {
+        for i in 0..sim_enemy_count(w4) {
+          if pressed_q < 0 && sim_enemy_alive(w4, i) && sim_enemy_raid(w4, i) == 1 {
+            (rq, rr) = sim_enemy_hex(w4, i);
+            if hex_distance(rq, rr, cq4, cr4) <= THREAT_R { pressed_q = cq4; pressed_r = cr4; }
+          }
+        }
+      }
+    }
+    under = pressed_q < 0;                 // no work under pressure at all
+    raider_on_it = pressed_q >= 0;
+    if pressed_q >= 0 { gwq = pressed_q; gwr = pressed_r; }   // judge the clearing on THAT site
     // the hero clears the camp AND the den behind it — half the job leaves a source that
     // simply sends the ground back into danger, which is the point of doing both.
     for i in 0..sim_enemy_count(w4) {
@@ -200,9 +237,13 @@ fn main() {
         sim_slay(w4, i);
       }
     }
-    for _ in 0..100 { sim_tick(w4); }
+    // ⚠ 100 TICKS WAS ENOUGH ONLY WHILE THE TOWN WAS SEALED — the most exposed work is now
+    // the ore face rather than a picking ground beside the square, and the raid has that much
+    // farther to march. A fixed span that is too short reads "the raid never arrived", which
+    // is the failure this row is FOR, so it must not be the row's own artefact.
+    for _ in 0..500 { sim_tick(w4); }
     after4 = hex_safe(w4, gwq, gwr);
-    println("gatherer's ground ({gwq},{gwr}): safe at genesis={before}, under the raid safe={under} (a raider is on it={raider_on_it}), after clearing safe={after4}");
+    println("the work the raid pressed ({gwq},{gwr}) of {len(wq_all)} safe sites: safe at genesis={before}, no-work-under-pressure={under} (a raider is on it={raider_on_it}), after clearing safe={after4}");
     if !before {
       println("FAIL: the working ground was already unsafe at genesis — this row measures nothing");
       ok = false;
