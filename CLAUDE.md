@@ -86,8 +86,12 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 99 (**101 rows** — `playtest` runs 4×) in **~1.5–2.5 min** (measured 2026-08-10,
-8-wide: 1m29s / 1m47s / 2m29s warm, **2m43s with a cold native cache**, 3m15s at `GATE_JOBS=1`).
+test` runs all 100 (**103 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10,
+8-wide: 1m29s / 1m47s / 2m29s / **2m40s** warm, **2m43s–3m34s with a cold native cache**, 3m15s
+at `GATE_JOBS=1`). ⚠ **`militiatest` is the long pole now** (111 s contended, ahead of
+`stocktest`'s 99 s): it generates five 101×101 surfaces — two of them an A/B that ticks four
+simulated days each — because plan #17 `S7`'s claim is about what a settlement produces, and
+that cannot be asked of a sandbox.
 ⚠ Box load moves that as much as cache state does — the pool absorbs the cold penalty (14
 compiles ≈ 140 s of rustc cost only +56 s of wall clock). It used to be
 **10–13 min**, closed by two changes: the 14 tests that held most of the wall clock now compile
@@ -168,9 +172,9 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **99 files / 101 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
+  (currently **100 files / 103 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
   defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
-  safety/production/repair/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it
+  safety/production/repair/standing/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it
   **warning-clean**. ⚠ **WIRING IT IN IS THE STEP THAT GETS SKIPPED, and nothing complains** —
   `tools/run_tests.sh` is the roster, not `src/`. Five tests sat on disk unwired until
   2026-08-10 (`fig`/`gen`/`grid`/`mon`/`wall`) and `canopytest` was listed twice; a test the

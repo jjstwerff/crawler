@@ -363,6 +363,9 @@ stat-gated harsh zones (#9), and the "Accessible ≠ easy / Dark Souls" framing 
   `sim_talk_to` — bump-to-petition, beside #7's bump-to-open). ⚠ **Still not a social sim,
   and the guard rail is exact**: standing is ONE number per settlement, read as a category,
   with exactly ONE consumer. A second consumer is a re-check, not a free extension.
+  ✅ **Shipped 2026-08-10** and the guard rail held as written: one integer per window, three
+  category words, one consumer (the militia), **no dialogue tree and no per-NPC relations** —
+  and the key budget is unchanged at 15, because the verb was already there.
 - **Combat-resolution model** — extends #10's "keep combat resolution": the Angband
   to-hit math is **kept but repurposed as a two-tailed *crit engine*** (no hit/miss
   whiff; **damage always ≥1**; a crit strips the foe's mitigation / a fumble exposes

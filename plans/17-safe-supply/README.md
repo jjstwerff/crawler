@@ -6,10 +6,10 @@
 ## Status
 
 **`status:active` from 2026-08-09** (user), taking `#12`'s slot — the roster is
-`#11`/`#13`/`#17`, still at the cap of three. `S0` is shipped: the design (`CRAFTING.md`)
-and the measurement of what already exists, which turned out to be most of it. `S1`–`S6` are
-**shipped** — `I-SAFE` holds end to end as of 2026-08-10 and `I-MEND` with it; only `S7`
-(standing, and the militia it raises) is designed and unbuilt.
+`#11`/`#13`/`#17`, still at the cap of three. **Every step `S0`–`S7` is now shipped and
+gated** (2026-08-10): `I-SAFE` holds end to end, `I-MEND` with it, and `I-STAND`/`I-PICKET`
+close the loop from the other side — the player's push out. **The plan is ready to close;
+that call is the user's.**
 
 > ## ✅ `I-SAFE` IS CLOSED END TO END (2026-08-10)
 >
@@ -53,9 +53,16 @@ and the measurement of what already exists, which turned out to be most of it. `
 > **armed**: `I-SAFE` reads **7 ore deliveries at peace against 3 under pressure**, with the
 > herb chain unmoved as the control.
 >
-> **→ NEXT: `S7`** (standing, and the militia it raises) — and it now has a measured thing to
-> buy: the works guard holds one end of its walk at a time, so the ore face is still unsafe
-> **775 of 1600** ticks with the den alive.
+> ✅ **AND `S7` SHIPPED, WHICH CLOSES THE PLAN (2026-08-10).** It had a measured thing to buy —
+> the works guard holds one end of its walk at a time, so the ore face was unsafe **775 of
+> 1600** ticks with the den alive — and it bought exactly that: with a militia raised, **0 of
+> 1600 unsafe and 6 deliveries against 3**, the den alive in both arms. Standing is earned by
+> acts, **local to the settlement that owes it**, said by the guard master and never shown, and
+> the petition is a bump — **still zero new keys.** ⚠ Getting there cost three defects, two of
+> them the militia's own: a picket posted ON the work strangled the road to it (3 deliveries →
+> **0**), and a picket with a patrol BEAT took flow-field slots the miners needed — the cache
+> is **full at 24 of 24 in the shipped world before a militia exists**, which is a silent
+> capacity cliff this step records and deliberately does not fix. → *`S7` is BUILT and GATED*.
 
 **Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
 on it by construction (`M3` authors 18 Handiness values against this system), and its own
@@ -117,7 +124,7 @@ that only became visible once both were on the page:
 | **`S4`** — the world shows it, with no panel | M | `make test` (`safetytest` row 8) + a user read | ✅ **Shipped** — `I-SAY`, and `F6` measured at **tick 19** |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` (`incursiontest`, `stocktest`) | ✅ **Shipped, ARMED and CLOSED** — `I-SAFE` holds end to end |
 | **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` (`mendtest`) + `scripts/mend.play` | ✅ **Shipped** — `I-MEND`; the supply coupling is built and **unarmed** (no reachable mine) |
-| **`S7`** — standing, and the militia it raises | M | `make test` + a `scripts/*.play` session | **Designed, not built** |
+| **`S7`** — standing, and the militia it raises | M | `make test` (`militiatest`) + `scripts/militia.play` | ✅ **Shipped** — `I-STAND`/`I-PICKET`; the ore face goes **775/1600 unsafe → 0**, deliveries **3 → 6**, den alive in both arms |
 
 ### `S1` — the safety category, designed
 
@@ -986,6 +993,91 @@ acts, and it gates access — *"reference cards … earned when the party reache
 card describes"*, and *"cards reward engagement, not exposure"* (`doc/claude/RULES.md`). crawler
 takes the **shape** — local, earned, gating — not the cards.
 
+### ✅ `S7` is BUILT and GATED — and what it bought is measured on the shipped world
+
+**I-STAND: standing is ONE number per settlement, raised only by acts done for that
+settlement, read only as a category, with exactly ONE consumer** — whether the militia may be
+raised. **I-PICKET: a picket is a guard the settlement would not otherwise have posted** — an
+ordinary role-3 actor, so `hex_safe` gains no term. `S1` really did buy this whole step
+without knowing it.
+
+The A/B, on `story.loft`'s own `GEN_SEED` with **the den alive in both arms** and the same
+history in both (six raiders turned back), differing by exactly one act — the petition:
+
+| four days, den alive | ore face unsafe | ore deliveries |
+|---|---|---|
+| no militia | **775 / 1600** | **3** |
+| militia raised | **0 / 1600** | **6** |
+
+That is the number `S6` left on the table (*"the works guard holds one end of its walk at a
+time, so the ore face is still unsafe 775 of 1600 ticks"*), bought by the player's standing and
+nothing else. **Output doubles under the same pressure.**
+
+What shipped, and where each piece went:
+
+| | |
+|---|---|
+| standing | `s.stand`, stride 4 — `[win_x, win_y, deeds, pickets]`. ⚠ **The window IS the settlement's identity**, which is what makes it local rather than campaign-wide karma; gated by travelling out (a stranger there) and back (a hero again) |
+| the acts | one deed per raider turned back, **three** for ending a source — folded into `on_hostile_slain`, **one chokepoint** replacing the poster bounty's three copies across melee/bolt/shot |
+| the categories | *stranger* `< 3` · *known* `< 6` · *trusted*. Said by the guard master, never shown: no bar, no panel, read off the same number that gates the militia |
+| the petition | `sim_talk_to` on the guard master — **zero new keys**, beside bump-to-open, attack-on-push and `S6`'s bump-to-mend |
+| the advance | one picket a dawn, on the same hook `send_incursions` uses, into the settlement's most exposed unheld work — **the set `raid_objective` presses on, read from the other side** |
+| the stall | `SRC_R = THREAT_R + GUARD_R`, **derived not chosen**: inside that sum a picket would be holding a den's own doorstep by main force |
+
+#### ⚠ Three defects found by measuring, and two were the militia's own
+
+**1. A picket standing ON the work strangles the road to it.** Posted at the work hex, the
+first build made the ore face safe **1600 of 1600 ticks and the deliveries went 3 → 0.**
+`npc_step` refuses an occupied hex and takes only a strictly improving neighbour, so a
+permanent body in a one-hex mountain pass freezes everyone behind it — both miners stuck three
+hexes short, one carrying a load it could never bring home. **It is the corpse defect** (*the
+dead do not hold ground*, `S5`) **with a living body, and worse, because the militia put it
+there itself.** Fixed by a directional rule that the fiction and the mechanism agree on for
+once: **a picket faces outward** — two hexes beyond the work, on the side away from town, so
+the road the workers come up is behind it and the working ring stays clear.
+
+**2. And a picket with a BEAT costs a worker its route home.** With the stand fixed the ore
+still read **0 deliveries**. Attributed rather than guessed: the miner stood on ground whose
+path field read `FLOW_BIG` in every direction. ⚠ **The flow-field cache is keyed by
+(destination, class) and capped at `FLOWD_MAX = 24` — and the shipped world already sits at
+24 of 24 before a militia exists.** Fields are first-come, so every extra destination a
+picket's second leg wanted took one a worker needed, and the loser silently fell back to greedy
+stepping — the freeze this repo has already paid for once. Fixed by giving a picket **no beat
+at all**: standing its post, `npc_step` returns at `d0 == 0` and it asks the cache for nothing.
+A sentry that does not move is also what a picket IS; the two-leg beat was borrowed from the
+town guard, whose job is different.
+
+> ⚠ **AND THE CAP ITSELF IS A LOOSE THREAD, left deliberately.** `FLOWD_MAX` being *full* in
+> the shipped world means some civilian, today, is walking greedily and nobody knows which —
+> a silent capacity cliff, exactly what `plans/README.md` calls a cap that must say so out
+> loud. Raising it would move every number `stocktest` and `incursiontest` are gated on, so it
+> is its own change with its own measurement, not a line in this step. **Recorded, not fixed.**
+
+**3. Pickets must not count as residents.** `town_size` gates incursions at `>= 3`, so a
+counted militia would tip a **village** over the threshold and the world would start raiding it
+*because the player defended it* — `F8` wearing a different hat. One term (`picket == 0`), and
+the gate asserts the town is the same size before and after.
+
+#### The calls made here, and they are reversible
+
+- **Open question 5 — do pickets cost the settlement anything? NO, and structurally rather
+  than by preference.** A picket is a new body, not a re-tasked worker, so nothing `S3` counts
+  moves. The alternative — drawing the militia from the same people who raise the stock — is
+  richer, and it makes the mechanism's *first act* reduce the number it exists to raise, which
+  reads as a punishment for succeeding. One term to reverse if the trade turns out to be worth
+  the confusion.
+- **No cap on the militia.** The design names exactly one stall (a source), so the bound is the
+  number of work sites and the source rule protects the ground near dens. ⚠ **The consequence
+  is deliberate: a fully picketed home valley is the EARNED end state**, not a failure of
+  `I-SAFE`. Danger cuts output in every valley the player has not yet earned — and the world's
+  answer to a secured one is the next one, which is the campaign axis this step is for.
+- **A picket does not march; it is posted.** Walking one out through a one-hex pass meets a
+  miner walking in, and neither may enter the other's hex — a permanent, silent deadlock. It
+  also makes an advance and a re-derivation the same operation, so the two cannot disagree.
+- ⚠ **Open question 6 — can standing fall? Still open, and untouched.** Nothing lowers it
+  today. That is the conservative half: a number that only rises needs no rule for *why* it
+  fell, and the pillar-#6 guard rail above is what any such rule has to clear first.
+
 ## What this plan does NOT change
 
 - **The player's verbs.** Zero new keys, no crafting screen, no recipe list, no material
@@ -1020,12 +1112,14 @@ Carried from `CRAFTING.md`, and the fourth is the one that blocks `#16`:
    is `S6`, and it is now settled: **damage is an EVENT, never running wear** — Angband's
    own model, so it costs one item state rather than a maintenance loop.
 
-5. **Do pickets cost the settlement anything?** If a militia is drawn from the same people
-   `S3` counts, then safety and output trade against each other and the player picks the
-   balance — richer, and a real risk of **starving the loop it was raised to feed**.
+5. ✅ **RESOLVED 2026-08-10 by building it — NO, and structurally rather than by preference.**
+   A picket is a new body, not a re-tasked worker, so nothing `S3` counts moves. Drawing the
+   militia from the same people would be richer *and* would make the mechanism's first act
+   reduce the number it exists to raise. One term to reverse — see *the calls made here*.
 6. **Can standing fall?** `S5` says safety is not a ratchet; the symmetric question is whether
    *standing* is. ⚠ Falling standing is where this stops being one number and starts wanting a
-   social sim — the pillar-#6 guard rail above is what that decision has to clear.
+   social sim — the pillar-#6 guard rail above is what that decision has to clear. **Still
+   open: nothing lowers standing today**, which is the conservative half.
 
 ## See also
 

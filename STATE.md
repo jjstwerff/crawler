@@ -1,15 +1,50 @@
 # STATE.md — where things stand (2026-08-10)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 101 rows in
-**1m44s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
-after a `/clear`.
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, **103 rows**
+in **2m40s** warm / 3m34s cold, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10).
+⚠ `militiatest` is the new long pole at 111 s — five surfaces, two of them a four-day A/B.
+Written as a handoff: read after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
 
-> ## → NEXT: **plan #17 `S7`** — standing, and the militia it raises (the last unbuilt step).
+> ## → **plan #17 is BUILT END TO END** — `S0`–`S7` all shipped and gated. Closing it is the user's call.
 >
-> *(`S0`–`S6` are shipped. The one loose thread `S6` leaves is **a reachable mine** — below.)*
+> ✅ **`S7` SHIPPED (2026-08-10): standing, and the militia it raises.** The player's push out,
+> where `S5` is the world's push in — and they meet in one predicate, because `hex_safe`'s
+> second term is *a guard within `GUARD_R`*, so **a militia is guards the settlement would not
+> otherwise have posted.** No new safety mechanism at all, one new source of role-3 actors:
+> `S1` bought this whole step without knowing it.
+>
+> **I-STAND: one number per settlement, earned by acts, read as a category, ONE consumer.**
+> Keyed by WINDOW, which is what makes it local — a hero in one valley is a stranger in the
+> next, gated by walking out and back. Earned at one deed per raider turned back and three for
+> ending a source, through **`on_hostile_slain`, a single chokepoint that replaced the poster
+> bounty's three copies** across melee/bolt/shot. Said by the guard master, never shown — no
+> bar, no panel. The petition is a bump: **still zero new keys.**
+>
+> | four days, den alive in BOTH arms | ore face unsafe | ore deliveries |
+> |---|---|---|
+> | no militia | 775 / 1600 | 3 |
+> | **militia raised** | **0 / 1600** | **6** |
+>
+> ⚠ **AND IT COST THREE DEFECTS, TWO OF THEM THE MILITIA'S OWN — both about a body in a
+> doorway.** A picket posted ON the work made the ground perfectly safe and took the ore from
+> 3 deliveries to **0**: `npc_step` refuses an occupied hex, so a permanent body in a one-hex
+> pass freezes everyone behind it. *It is the corpse defect with a living body*, and the fix is
+> directional — **a picket faces outward**, two hexes beyond the work, so the road behind it
+> stays open. Then a picket with a patrol BEAT still cost 0 deliveries, for a different reason:
+> **the flow-field cache is full — 24 of 24 — in the shipped world before a militia exists**,
+> fields are first-come, and the loser falls back to greedy stepping. A picket now stands its
+> post and asks the cache for nothing.
+>
+> ### ⚠ THE LOOSE THREAD `S7` LEAVES: `FLOWD_MAX` IS SATURATED IN THE SHIPPED WORLD
+>
+> 24 of 24 fields, before anything this plan added. That means **some civilian, today, is
+> walking greedily and nobody knows which** — a silent capacity cliff, and the freeze it causes
+> is one this repo has already paid for once (*greedy is not pathing*). Raising the cap moves
+> every number `stocktest`/`incursiontest`/`militiatest` are gated on, so it is **its own change
+> with its own measurement**, not a line in `S7`. Recorded, not fixed.
 >
 > **The roster is `#11` 3D world · `#13` scoped identity · `#17` safe supply** (decided
 > 2026-08-09 from evidence, `plans/README.md` → *The active roster*, cap of three). The work

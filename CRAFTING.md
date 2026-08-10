@@ -98,6 +98,14 @@ be bigger heroes during the campaign this way"* (user). The hero grows in **what
 cause**, not in what they can press — the only kind of growth that spends nothing from the
 interface budget. Designed in full as [plan #17 `S7`](plans/17-safe-supply/#s7--standing-and-the-militia-it-raises-designed).
 
+✅ **BUILT AND MEASURED (2026-08-10).** Standing is one number per settlement, keyed by window
+so it is local; the petition is a bump on the guard master; a picket is an ordinary role-3
+guard, so the safety expression gained no term at all. On the shipped world with the den alive
+in both arms, raising the militia took the ore face from **775 of 1600 unsafe ticks to 0** and
+its deliveries from **3 to 6**. ⚠ **A picket faces OUTWARD** — two hexes beyond the work,
+never on it: posted on the work it made the ground perfectly safe and killed the trade
+outright, because a permanent body in a one-hex pass freezes every worker behind it.
+
 ## The three pieces to build
 
 ### `A` — a worker will not enter an unsafe area
