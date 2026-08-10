@@ -118,9 +118,14 @@ stat raised. The `act 4` arm of `flow_action` has no session-level gate today.
   separate question and this plan does not answer it.
 - **Combat balance.** Every claim is a relation (`xp` increased, `hp` decreased,
   `livefoes` −1). Damage numbers stay `combattest`'s business.
-- **The 89 unit gates.** This adds session coverage beside them, and replaces none.
-- **Parallelism.** The gate stays serial — that is blocked upstream on
-  [loft#831](https://github.com/loft-lang/loft/issues/831), not here.
+- **The unit gates** (89 when this was written; **98 rows** since the five unwired tests were
+  wired in). This adds session coverage beside them, and replaces none.
+- ~~**Parallelism.** The gate stays serial — that is blocked upstream on
+  [loft#831](https://github.com/loft-lang/loft/issues/831), not here.~~ **Unblocked
+  2026-08-10**: loft#831 is fixed (`c69f7c1a`) and the gate now runs **8-wide**, so a row this
+  plan adds costs wall clock only if it lands in the slowest 8. ⚠ **That makes a `.play` row
+  cheaper than it looks, which is a reason to design it well, not a licence to add rows** — the
+  plan's claim-per-row discipline is unchanged, and each still names what it asserts.
 
 ## Open questions
 
@@ -135,5 +140,5 @@ stat raised. The `act 4` arm of `flow_action` has no session-level gate today.
 
 - `BUNDLE.md` → *A usable item's routine* — the seam `A3` exercises.
 - `DESIGN.md` §3a — the death model `respawn.play` already gates.
-- `LOFT-HANDOFF.md` H10 / [loft#831](https://github.com/loft-lang/loft/issues/831) — why
-  the gate is still serial.
+- `LOFT-HANDOFF.md` H10 / [loft#831](https://github.com/loft-lang/loft/issues/831) — why the
+  gate *was* serial, the fix that ended it, and the consumer confirmation filed back.
