@@ -107,42 +107,59 @@ make help     # list all targets
 
 ## Status
 
-**Playable:** descend a procedurally generated, monster-populated dungeon, fight
-in melee, gain XP and level up, and take stairs to deeper levels. Built so far:
+**Playable:** roll a race/class hero, cross a generated wilderness between towns,
+take quests, descend a monster-populated dungeon, fight in melee / at range / with
+spells, loot and equip what you find, level up, and respawn at a save point when you
+die. Built so far:
 
-- **Movement & view** — continuous egocentric glide/turn, distance-driven clock,
-  hex collision with sliding + a player radius.
-- **Combat** — bump-melee, HP, death / game-over.
-- **Procedural dungeon + monsters** — rooms + corridors (world-keyed); monsters
-  drawn from the DB by depth (rarity-weighted, packs, spawned asleep), rendered
-  as coloured glyph letters on backdrop discs.
-- **Monster AI** — awareness (sleep → wake on sight), `NEVER_MOVE`, and
-  **flow-field pathing** that routes around walls.
-- **Progression** — XP on kill (scaled by monster level), level-up, HP growth;
-  HP / XP / level / depth HUD.
-- **Levels** — `>` / `<` stairs, real depth, deterministic per-depth descent.
+- **Movement & view** — continuous egocentric glide/turn, distance-driven clock
+  (turning is free), hex collision with sliding + a player radius, FOV.
+- **Combat** — bump-melee, bolts and a bow, castable spells, statuses
+  (paralysis / poison / ward), HP + SP pools with natural regen, death → respawn.
+- **Overland** — a contract wilderness of towns, roads, rivers, fields, ruins and
+  wizard towers; travel between windows, a desert crossing, quests, and settlements
+  whose workers gather, produce and now refuse to enter unsafe ground.
+- **Dungeon + monsters** — rooms + corridors (world-keyed); monsters drawn by depth
+  (rarity-weighted, packs, spawned asleep), awareness + **flow-field pathing**.
+- **Character** — races and classes with derived stats, XP and levels, spendable stat
+  points, feats/skills, and a shrine that re-specs.
+- **Items** — inventory hub, equipment slots, quick-slots (`1`-`9`/`Q`/`E`), gold,
+  unknown-item flavours that identify on use.
+- **Levels** — `>` / `<` stairs, real depth, deterministic descent, persistence, save points.
+- **Content in bundles** — monsters, items, stencils, placement and quests live in
+  self-contained `bundles/<name>/` folders the engine merges generically; `N` re-scans
+  them and restarts into a fresh world without touching `src/`. (A `production` section
+  — what a town's workshops make — is wired on the engine side but has no bundle yet.)
+- **Under it** — loft's games kernel (`engine_host`) drives a drift-free 60 Hz tick, and
+  the intent wire replays bit-identically into a live spectator (`src/observe.loft`).
 
-Plus clean-room **monster / class / race / item** data tables. The ordered
-roadmap (next: items, the character sidebar, monster speed & fear) is the backlog
-in **[DESIGN.md §18a](DESIGN.md)**.
+**In flight:** first-person 3D (plan #11), which replaces the 2D view at parity. The
+ordered backlog is **[DESIGN.md §18a](DESIGN.md)**; what is being worked *right now* is
+**[STATE.md](STATE.md)**.
 
 ## Layout
 
 ```
-src/hexgeo.loft   hex geometry (axial)                 — kernel
-src/gridgeo.loft  square geometry for 90° walls          — kernel
-src/sim.loft      world + player + enemies + combat + AI + XP + stairs — kernel (no graphics)
-src/gen.loft      procedural dungeon generator           — kernel
-src/monsters|classes|races|items.loft   clean-room data tables — kernel
-src/wallgeo.loft  wall outline (rounded active; DP parked in patches/) — derived geometry
-src/view.loft     2D egocentric renderer                 — view
-src/story.loft    entry: window + game loop + input       — view
-src/*test.loft    headless tests
+src/sim.loft       world + player + enemies + combat + AI + XP + statuses + stairs + clock
+src/overland.loft  the contract wilderness (towns/roads/rivers/zones); ovmap.loft prints it
+src/gen.loft       procedural dungeon generator
+src/catalog.loft   merges bundle content into the game's monster/item/race/class tables
+src/castfx|itemfx  the verb layer above the kernel — cast a spell, use an item
+src/monsters|classes|races|items|spells.loft   clean-room data tables
+src/worldmesh.loft terrain mesh (kernel-side; the view only uploads it)
+src/wallgeo.loft   wall outline (rounded active; DP straightener parked in patches/)
+src/gameflow.loft  the deterministic intent seam; framekey.loft = the scene digest
+src/hexscene|view3d|scenemesh|figure   the first-person 3D pass (plan #11)
+src/view.loft      the 2D egocentric renderer — retires at 3D parity (plan #11 P9)
+src/story.loft     entry: the engine_host game host; observe.loft = live spectator
+src/*test.loft     headless tests — 91 files, 93 rows in `make test`
+bundles/<name>/    game content, merged generically (see BUNDLE.md)
 ```
 
-The `hexgeo`/`gridgeo`/`sim`/`gen`/data modules import no graphics; `view`/`story`
-are the swappable 2D front-end. That invariant is what lets the same kernel drive
-a 3D renderer (`moros_render`) later.
+Everything above `view`/`view3d`/`story` imports **no graphics** — the hex geometry
+(`hex_grid`) and the exact-integer field core (`hex_field`) are *libraries*, consumed
+from `loft-libs-world` rather than carried here. That kernel/view split is exactly what
+makes the move to 3D a view-side change.
 
 ## Docs
 
@@ -154,11 +171,6 @@ a 3D renderer (`moros_render`) later.
 - **[SCALE.md](SCALE.md)** · **[EXTRACTION.md](EXTRACTION.md)** · **[SCRIPTING.md](SCRIPTING.md)**
   · **[BUNDLE.md](BUNDLE.md)** — the measurement contract, the library plan, how content
   arrives without being scheduled, and the content seam.
-
-> **The Status and Layout sections below are stale** — they predate items, equipment, save
-> points, FOV, classes/races, quests, the overland and the games kernel, and they name modules
-> (`hexgeo`, `gridgeo`) that are now the `hex_grid` library. `tools/run_tests.sh` is the honest
-> roster of what exists; `STATE.md` is the honest status.
 
 ## License
 

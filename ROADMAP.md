@@ -104,15 +104,23 @@ overland, caves, travel, persistence, the games-kernel host and a live replica o
 per-item checkboxes in `DESIGN.md` §18a lag reality; treat the gate in `tools/run_tests.sh`
 as the truth.
 
-**Immediate next step: plan #11 — the 3D world view.** Decided 2026-07-22: the hex FIELD
+**The active roster is three, decided 2026-08-09 from evidence** — `#11` 3D world · `#13`
+scoped identity · `#17` safe supply (`plans/README.md` → *The active roster*; the cap is
+three). ⚠ **This section named plan #11 as "the immediate next step" until 2026-08-10**; the
+work is currently in **`#17`**, whose `S0`–`S2` are shipped. What is being worked *right now*
+is **[STATE.md](STATE.md)**, not this file — ROADMAP is the through-line, not the schedule.
+
+**Plan #11 — the 3D world view** remains the structural decision (2026-07-22): the hex FIELD
 built by plans #5/#9/#10 becomes the world the player stands in, first-person, and 3D
 replaces the 2D view. That reorders Phase 5's "3D as the moros future" into the present, and
 it absorbs the remaining renderer work: `RENDER.md`'s showcase-2D doctrine and plan #7's
 instanced tier apply to a renderer being retired, so only its **substrate flow-backs** into
-`graphics` still earn their keep.
+`graphics` still earn their keep. Its next piece is a `hexbody` job, not a crawler one.
 
-An **in-world editor**, built outside crawler by a second agent, rides the same decision —
-which puts library **extraction on the critical path** rather than after the game. Contract:
-`EXTRACTION.md` → *The editor as the second consumer*.
+An **in-world editor**, built outside crawler, rides the same decision — which puts library
+**extraction on the critical path** rather than after the game. Extraction has since largely
+*happened*: `hex_grid`/`hex_field`/`hex_edge`/`hex_way`/`hex_roof` are consumed from the
+registry and the crawler forks are deleted. Contract: `EXTRACTION.md` → *The editor as the
+second consumer*.
 
 Plan + the seven invariants: **plans/11-3d-world/**.

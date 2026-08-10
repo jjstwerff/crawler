@@ -160,8 +160,12 @@ the invariant, and is forgetting one *silent*?
 **The whole design's brittleness lives in one row**, and it is not the row anyone would have
 guessed. Crawler resolves libraries down **two paths that can disagree without a word**:
 
+⚠ **This is the state P3 FIXED — quoted as the finding, not as today's Makefile.** `LIB_DEPS`
+is now `--lib ../loft/lib/` alone (`engine_host`, the one unpublished package, and it says so
+there); everything else resolves from the registry via `loft.lock`. → **P3, below, is DONE**.
+
 ```make
-# Makefile:87
+# Makefile:87 — AS IT WAS, before P3
 LIB_DEPS := --lib ../loft-libs-core-main/ --lib ../loft-libs-world/ --lib ../loft/lib/
 ```
 

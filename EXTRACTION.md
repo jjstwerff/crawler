@@ -53,21 +53,22 @@ of it tightens or *removes* old caveats; act on the marked items when convenient
 - A **library package** = a folder with `loft.toml` (`[package]` + `[library] entry =
   "src/<name>.loft"`), living in a chunk repo (`loft-libs-graphics` style: several
   packages per repo). One package = one `use`-able module name.
-- **Consume locally NOW via a `--lib` dir** (VERIFIED 2026-06-10): the compile-time
-  `use` resolver searches *local src → package lib dirs → `--lib` dirs → sibling
-  packages* — crawler adds `--lib ../loft-libs-world/` to LOFTFLAGS exactly like the
-  bundle dirs. (Sibling layout + `loft install .` also verified working.)
-  **UPDATE 2026-06-14 — loft#337 is FIXED (CLOSED upstream, independently re-verified):**
-  a `{ path = "../leaf" }` manifest dep now compile-time use-resolves on the
-  **2026-06** loft (positive + negative-control probe: drop the edge → `use` fails,
-  restore it → resolves). The installed **0.8.5 still has the bug**, so `--lib` stays
-  the dev route until the toolchain refresh — after which crawler can switch its
-  `--lib ../loft-libs-world/` etc. to cleaner `{ path = … }` deps in `loft.toml`.
+- ⚠ **SUPERSEDED 2026-08-09 by ADOPTION.md P3 — the registry is the resolution path.**
+  This bullet used to say "crawler adds `--lib ../loft-libs-world/` to LOFTFLAGS exactly
+  like the bundle dirs". **Do not do that.** A `--lib` sibling tree *outranks* the registry
+  copy, so every one is a silent override — `random` sat locked at 0.1.0 while the build
+  quietly took the working tree's 0.2.0, and the lock described a build that could not
+  compile, unreported, for weeks. Today `hex_grid`/`hex_field`/`hex_edge`/`hex_way`/
+  `hex_roof`/`hex_terrain` all resolve from the **registry**, pinned in `loft.lock`; the
+  only `--lib` in the Makefile is `../loft/lib/`, for the unpublished `engine_host`.
+  **Test against an unreleased sibling on the command line for that run**, never in the
+  Makefile. *(The resolver order itself is unchanged: local src → package lib dirs →
+  `--lib` dirs → sibling packages — which is exactly why the override is silent.)*
 - **Registry publication** is the five-step flow in loft2 `doc/claude/REGISTRY_SUBMIT.md`
   (see "Updating a library" below) — done when a package settles.
-- **The crawler gate keeps guarding**: after each extraction the full gate (39
-  tests today) runs against the lib code; the in-repo module is DELETED (never
-  two copies drifting).
+- **The crawler gate keeps guarding**: after each extraction the full gate (91 test
+  files / 93 rows today) runs against the lib code; the in-repo module is DELETED
+  (never two copies drifting).
 
 ## Updating a library repo (the change loop, per contribution)
 
@@ -170,7 +171,7 @@ Side lessons:
 1. The package builds standalone (`loft test` in its folder, with at least a smoke test).
 2. crawler consumes it (dev: the `--lib` dir; released: the registry version) and the
    duplicated `src/` module is **deleted**.
-3. `make test` green (the full gate — 39 tests today) + `make check` clean against the dep.
+3. `make test` green (the full gate — 91 test files / 93 rows today) + `make check` clean.
 4. Globally-unique pub names preferred (style — the native dup-symbol bug that
    required this is fixed).
 5. Style rule honoured (the one live bug): no capture-append-reassign on struct

@@ -79,7 +79,8 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` interprets all 40 and takes minutes. Run the full gate **once**, before committing —
+test` interprets all 91 (**93 rows** — `playtest` runs 3×) and takes ~7 min idle, **but 13 min
+measured under a loaded box**. Run the full gate **once**, before committing —
 and read the existing `/tmp/story_<name>.log` rather than re-running it to check a result.
 
 ## Design / debug protocol (exact-invariant work)
@@ -146,9 +147,12 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently 39 — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
-  msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
-  idle-skip/mesh/kernel/replay/…). Keep it **warning-clean**. Pixel-level render checks
+  (currently **91** — combat/AI/placement/levels/hero/items/equip/bundles/defs/quests/
+  msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/safety/
+  production/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it **warning-clean**.
+  ⚠ **Wiring it in is the step that gets skipped** — `tools/run_tests.sh` is the roster, and
+  5 test files on disk are not in it (`fig`/`gen`/`grid`/`mon`/`wall`); a test the gate never
+  runs is not a gate. Pixel-level render checks
   live in **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7)
   P0). The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
 - **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under
@@ -281,11 +285,12 @@ notice a newly declared dependency** (it walks the lock, not the manifest, and s
 names it.**
 
 The **pull** side is **ADOPTION.md**: what is already in the family and is still here as a
-copy. `hexedge`/`hexway`/`hexroof` are the same construction as the published
-`hex_edge`/`hex_way`/`hex_roof` (100 % shared API, 30 semantics-neutral differing lines) and
-must be consumed, not carried — **a duplicate of a library module is a fork.** The rest of the
-family shares 0–1 function names with crawler, so switching costs a rewrite: those are
-**deferred on price, not refused on principle**, and they close by convergence in the library.
+copy. ✅ **The four known forks are gone** — `hexform`/`hexedge`/`hexway`/`hexroof` were the
+same construction as the published `hex_field`/`hex_edge`/`hex_way`/`hex_roof`, and all four
+are now **consumed from the registry** and deleted from `src/` (verified 2026-08-10; the rule
+that drove it stands — **a duplicate of a library module is a fork**). The rest of the family
+shares 0–1 function names with crawler, so switching costs a rewrite: those are **deferred on
+price, not refused on principle**, and they close by convergence in the library.
 
 ## Where things are
 
@@ -326,8 +331,9 @@ family shares 0–1 function names with crawler, so switching costs a rewrite: t
   `stamp_house` becomes a caller; today crawler's game does not use it. Design + goals:
   `../hexbody/{VISION,ARCHITECTURE}.md`; the detailed geometry spec is still `plans/11-3d-world/
   BUILDING.md`.
-- `hexroof.loft` — every roof form as one distance read through a profile (ridge/hip/cone/
-  dome/vaults) + the `roof_ponds` / `eave_spread` / `clear_height` gates.
+- **`hex_roof`** (LIB) — every roof form as one distance read through a profile (ridge/hip/
+  cone/dome/vaults) + the `roof_ponds` / `eave_spread` / `clear_height` gates. *Was
+  `src/hexroof.loft`; consumed from the registry and the copy deleted.*
 - `gameflow.loft` — the deterministic intent seam (K2): `flow_genesis`/`flow_move`/
   `flow_action` + the S/T/A wire codec; the host applies AND broadcasts, a replica
   replays — scene_key-identical worlds (replaytest). `observe.loft` = the live

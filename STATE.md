@@ -1,60 +1,58 @@
-# STATE.md — where things stand (2026-07-23)
+# STATE.md — where things stand (2026-08-10)
 
-> ## ⚠ SINCE THIS WAS WRITTEN — 2026-08-09
->
-> The body below is still the design position and still the NEXT job. Four things about it
-> have moved, and the first one contradicts it outright:
->
-> - **The halt is OVER.** §"the user HALTED the other agent" no longer holds — `../moros`
->   has its own agent running and committed four times this evening (through *"A4 closes"*
->   at 22:12). ⚠ **That tree is READ-ONLY** (`CLAUDE.md`); findings become documents here.
-> - **The active roster is `#11`, `#12`, `#13`** — decided 2026-08-09 from evidence
->   (`plans/README.md` → *The active roster*). Excluding doc edits, **no plan had been
->   genuinely worked since 2026-07-23**: #11 is paused mid-step at the wall fit, which is
->   still the NEXT job below.
-> - **The toolchain is 2026.8.0** — and it is `../loft`'s *working-tree build*, 15+ commits
->   past the tag, rebuilt while gates run. `make test` now stamps version + md5 in its
->   header, because `loft --version` is not provenance.
-> - **The gate is quiet and 92 tests** (~6 min): one `ok <secs> <name>` line per test, a
->   closing line for anything over 5 s, `GATE_VERBOSE=1` for the old stream. ⚠ To prove a
->   change behaviour-preserving, diff the **per-test** logs (`/tmp/story_<name>.log`), not
->   the gate's stdout.
->
-> New since: `ADOPTION.md` (the library pull side, P0–P4 shipped), `MOROS.md` (what moros
-> must write for crawler: nothing), `tools/libcheck.py` (9 gated rules), the playthrough
-> harness (`src/playtest.loft` + `scripts/*.play`), and the `production` bundle section.
-
-Branch **`combat`**, **the full gate green** (`make test` — run it, don't trust a count; the
-table in `tools/run_tests.sh` is the roster). Written as a handoff: read after a `/clear`.
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 93 rows,
+2026-08-10). Written as a handoff: read after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
-where crawler sits in the stack. Then **`plans/11-3d-world/`**: the game is moving into
-first-person 3D and the hex field becomes the world the player stands in.
+where crawler sits in the stack.
 
-> ## → NEXT: **the wall FIT** — the routines exist, their output still renders as a zigzag.
+> ## → NEXT: **plan #17 `S3` — stock**. Its blocker cleared; nothing else is mid-step.
 >
-> **The geometry-body work now lives in the `hexbody` project** (`../hexbody`, split out
-> 2026-07-23 — its VISION/ARCHITECTURE carry the harness thesis, the vehicle/proxy/animation/
-> destruction line, and the roadmap to a *Shadow of the Colossus*-class body). **Plan #11 P5.
-> `housedraw` is built and gated** (`hexbody`'s own `make test`): `draw_floor` (massing →
-> HexSet+Labels), `draw_walls` (its boundary → EdgeSet, **thin**, so no floor is lost),
-> `place_opening` (doors/windows as N edges at `(side, t)`, **annotating, never deleting**),
-> `draw_roof` (a ridge, via `hexroof`). 12/12 equivariant in cells **and** edges; per-side edge
-> counts identical at all 12. `hexbody`'s `houseshot` renders the contact sheet →
-> `/tmp/house12.png`. The wall fit below is the next piece and belongs in `hexbody`.
+> **The roster is `#11` 3D world · `#13` scoped identity · `#17` safe supply** (decided
+> 2026-08-09 from evidence, `plans/README.md` → *The active roster*, cap of three). The work
+> is in **`#17`**, and `#16` queues explicitly behind it — #16's `M3` re-authors 18 race
+> blocks with a Handiness value, and what Handiness is *for* is decided in #17.
 >
-> **What that sheet shows is the next job.** A thin wall is a *strip of hex edges*, so it runs
-> longer than the line it stands on by one of **two exact amounts** — `2/√3 = 15.5 %` where the
-> side is perpendicular to a lattice line (2 of the 3 hex axes), `3√3/4 = 29.9 %` where it runs
-> along one (all 3). At eye height that reads as ten faceted panels. **The fit is load-bearing,
-> not an optimisation**: store the zigzag, draw the line. `mesh_walls_fitted` already does this
-> shape of thing. → `plans/11-3d-world/BUILDING.md` §4, order step **F**.
+> **`S0`/`S1`/`S2` are shipped.** `hex_safe(s, q, r)` is the safety **category** (not a
+> gradient — a threshold the player can cross and see crossed); `npc_may_enter` is the one
+> term that makes a worker refuse unsafe ground; `safetytest` gates four claims with each
+> seen **both ways**. That unblocks **`S3` (stock — a number per producer, raised on arrival
+> and drawn on making; ⚠ never an item inventory)** and `S5` (contested safety). `S4`, `S6`,
+> `S7` are designed and written out in the plan. → `plans/17-safe-supply/README.md`
 >
-> **Then the `HOUSE.md` fixture**, still unbuilt: a two-storey house — stair, first floor,
-> terrace, interior walls — which is what makes the routines falsifiable beyond a rectangle.
->
-> **The user HALTED the other agent** so this could be built without two people writing similar
-> routines. `loft-libs-world` is yours alone for now. **Finishing this unblocks them.**
+> ⚠ **The wall fit is NOT crawler's next job** — that was this file's previous NEXT and it is
+> stale twice over. It lives in the **`hexbody`** project (`../hexbody`), whose geometry has
+> since shipped as the **`hex_body`** library, and which has not been touched since 07-25.
+> Plan #11's own next piece is still `BUILDING.md` §4 step **F** *there*, not here.
+
+## What moved on 2026-08-09/10
+
+- **The home window is anchored at the alpine town** — `ov_home_town(o)` picks the town with
+  the greatest height reach rather than the literal `ov_towns[0]`, so the starting economy has
+  both valley fields and high ground. **The gatherer (role 9) finally exists**: picking grounds
+  ≥14 hexes out went **0 → 124**, producers 5 → 6. ⚠ **Two real costs:** the **sea economy is
+  gone** (roles 5/6/8 and the harbour no longer spawn), and the **starting neighbourhood is
+  harder** — the nearest hostile at `surfacetest`'s vantage went from a jackal (mlvl 1) 43
+  hexes out to a **gnoll (mlvl 6) 8 hexes out**, and a level-1 hero standing there died on
+  tick 13. That is DESIGN §3a pillar #8's (gentle curve) business and is **not addressed**.
+- **Plan #1 shipped the real-Ortler alpine bands** the study derived and never applied, and
+  fixed an exact defect in `ov_kind_at` — meadow was 0.3 ‰ because the snow branch ate it.
+- **The toolchain is 2026.8.0** — and it is `../loft`'s *working-tree build*, 15+ commits past
+  the tag, rebuilt while gates run. `make test` stamps version + **md5** in its header, because
+  `loft --version` is not provenance. Two logs with different md5 are not comparable.
+- **The gate is quiet and green — 91 test files, 93 rows** (`playtest` runs 3×), up from ~5 min
+  to ~7 because three tests now generate extra windows instead of assuming geography. ⚠ **That
+  ~7 min is the idle figure: measured 12m55s on 2026-08-10 while a sibling tree ran ~50 loft
+  processes**, so budget by load, not by the number. One `ok <secs> <name>` line per test, a
+  closing line for anything over 5 s, `GATE_VERBOSE=1` for the old stream. ⚠ To prove a change
+  behaviour-preserving, diff the **per-test** logs (`/tmp/story_<name>.log`), not stdout.
+  The four slowest are `travel` 147s · `quest` 72s · `surface` 50s · `cave` 45s.
+- **`../moros` has its own agent** and is **READ-ONLY** (`CLAUDE.md`) — findings become
+  documents here; how one reaches the other project is the user's call.
+- Also new: `CRAFTING.md`, `ADOPTION.md` (library pull side, P0–P4 shipped), `MOROS.md` (what
+  moros must write for crawler: nothing), `tools/libcheck.py` (9 gated rules), the playthrough
+  harness (`src/playtest.loft` + `scripts/*.play`), and the `production` bundle seam — engine
+  side only so far; **no bundle declares one yet** (below).
 
 ## The design position — eight statements, and they compose
 
@@ -86,12 +84,18 @@ the behaviour layer); and that the behaviour layer **splits** — movement over 
 **The tracker is the truth, not a hand-kept table** (`CLAUDE.md`):
 `gh issue list -R jjstwerff/crawler --label plan --state all`.
 
-Briefly: **#5 geometry** active · **#9 canopy trees** and **#10 props** done · **#11 3D world**
-active (P0–P4 built and SEEN; **P5 routines built**, the fit and the two-storey fixture open).
-Plus the render path (`scenemesh`/`figure`/`tools/glbview.py`), the scale contract (`SCALE.md`,
-gated), and **`hex_field` 0.1.0 extracted** to `loft-libs-world` with its `EdgeSet` merged —
-which took crawler's own edge storage out entirely (−192 lines, `edgetest`/`sweeptest`
+Briefly: **#9 canopy trees** and **#10 props** finished · **#11 3D world** active (P0–P4 built
+and SEEN; P5's routines built, but the fit and the two-storey fixture are `hexbody`'s, above) ·
+**#13 scoped identity** active · **#17 safe supply** active and where the work is (`S0`–`S2`
+shipped). **#5 geometry is `status:future`**, not active — this file said otherwise until
+2026-08-10. Plus the render path (`scenemesh`/`figure`/`tools/glbview.py`), the scale contract
+(`SCALE.md`, gated), and **`hex_field` 0.1.0 extracted** to `loft-libs-world` with its `EdgeSet`
+merged — which took crawler's own edge storage out entirely (−192 lines, `edgetest`/`sweeptest`
 unchanged).
+
+⚠ **Plan #1 is `status:future` but was worked on 2026-08-10** (the alpine bands, the meadow
+defect). That is legitimate — #17's measurement handed a worldgen defect to the plan that owns
+the area — but if it continues, the label is wrong and should move.
 
 ## Decisions taken (don't re-litigate these)
 
@@ -130,7 +134,24 @@ unchanged).
 
 ## Open, and whose call it is
 
-- **The wall fit** — see NEXT. Everything downstream of it renders the zigzag.
+- **The starting neighbourhood is now hostile at level 1** — a gnoll (mlvl 6) 8 hexes from the
+  vantage, a level-1 hero dead on tick 13. The alpine anchor bought the gatherer and cost the
+  onboarding curve. **DESIGN §3a pillar #8's business, and nobody owns it yet.** The user's call
+  whether the answer is placement, the curve, or a starting-window guarantee.
+- **The sea economy no longer spawns** in the starting town (roles 5 boat / 6 ship / 8 merchant
+  ship, and the harbour with them), so *"goods from BEYOND the map"* (`OVERLAND.md` §584) is not
+  reachable from the start. A fisher remains on the river. Accepted as a cost, not yet answered.
+- **The `production` seam is built but has NO bundle content** — `bundle_production_len()`
+  returns 0 for all seven producers, so today's workshops rotate the **engine's** repertoire
+  only. Consequence worth knowing before #17 `S3` builds on it: `producttest` proves the merge
+  algebra, but its bundle-arm assertion sits in a `0..bn` loop with `bn = 0`, so **the bundle
+  half is structurally unexercised** — the same family as lesson 3 below. `S3` declares stock
+  *beside* that repertoire, so it should ship the first real `production` section with it.
+- **5 test files are on disk but the gate never runs them** — `figtest`, `gentest`, `gridtest`,
+  `montest`, `walltest`. All five still compile under the gate's flags (checked 2026-08-10), so
+  they are unwired rather than rotted, but *a test the gate never runs is not a gate*. Either
+  wire them into `tools/run_tests.sh` or delete them; leaving them is the worst of the three.
+- **The wall fit** — in `hexbody`, not here (see NEXT). Everything downstream renders the zigzag.
 - **Does a flip preserve the LAYOUT or the READING?** `HOUSE.md` §7 claims the massing mirrors
   *and* the facade *and* interior readings are unchanged. Those cannot all hold once the massing
   is chiral, which §7 itself requires: a `(side, t)` feature lands at `mirror(original (s, 1−t))`,
@@ -138,16 +159,19 @@ unchanged).
   expects 12 distinct footprints collapsing to 6 without the terrace, but a *centred* terrace is
   still mirror-symmetric about the other axis. **Not yet measured in-engine** — the rectangle
   fixture cannot see it. Decide before building the two-storey fixture.
-- **Library extraction is on the CRITICAL PATH**, not the tail. `hex_field` 0.1.0 has LANDED and
-  the second agent is unblocked. Contract: `EXTRACTION.md` → *The editor as the second consumer*.
+- **Library extraction was on the critical path and has largely LANDED** — `hex_grid`,
+  `hex_field`, `hex_edge`, `hex_way`, `hex_roof`, `hex_terrain` are consumed from the registry
+  and the crawler forks are deleted (`tools/libcheck.py` gates it: *no forked module*). What
+  remains is priced debt, not a blocker: `hexplace` shares zero function names with `hex_place`,
+  so switching is a rewrite. Contract: `EXTRACTION.md` → *The editor as the second consumer*.
 - **Split `EdgeSet` out of `hex_field.loft`** into its own file — the merge is done, but one
-  1350-line module with two writers is what cost ~40 minutes. Nobody owns this; it is cheap.
+  1350-line module with two writers is what cost ~40 minutes. ⚠ **This is now a `loft-libs-world`
+  change, not a crawler one** — `hex_field` is a published package pinned in `loft.lock`, so it
+  is a PR + a release there, not an in-tree edit. Any project may contribute; nobody owns it.
 - **The eligibility/trigger system is designed but unbuilt** (`SCRIPTING.md`). Today the only
   trigger in the game is one hardcoded `infest_trigger == "boss_slain"` check. **Its gate is
   unlike the others:** it already has a known second consumer with *harder* requirements
   (crew_punk has no director), so design it against that and crawler gets the good version free.
-- **`README.md`'s Status and Layout sections are stale** and carry a marker saying so. A
-  contained, unglamorous job.
 - **`LOFT-HANDOFF.md` H1/H2, G5, and now N1/N2 are unfiled upstream.** N1 (`%` as an if-branch
   tail breaks `--native` codegen) and N2 (`save_png` returns false under `--native`) are new
   2026-07-23; both have standalone repros and N1 has a verified workaround already applied.
@@ -167,7 +191,7 @@ extended it: **a first-person camera found a world too small for its own player*
 a 1.45 m door, a 1.75 m figure) which every raised camera had missed.
 
 **3. The failure mode is never a check that fails — it is one that PASSES FOR THE WRONG
-REASON.** The single most productive rule in this repo. Seven instances, and they arrive by
+REASON.** The single most productive rule in this repo. Nine instances, and they arrive by
 genuinely different routes:
 
 - geometry too *thick* to show the bug (a solid wall hides tunnelling; only a thin one shows it)
@@ -186,8 +210,19 @@ genuinely different routes:
   overhead as 39 % where the engine measures 15.5 %, because its side-classification credited
   corner edges to the wrong side. The wrong number reached a design doc. *If the primitives
   exist, measure in the engine; a model can disagree with the original silently.*
+- a **subject that walked away from the assertion** (2026-08-10) — `meshtest` asserted a sand
+  hex's colour; the home window moved to the alpine town, which has no sand, so it found none
+  and reported `sand-exact=false` **without failing**. It did not go red, it went *vacuous*. The
+  same move broke three other tests loudly, and those were the lucky ones: ⚠ **the world's
+  geography was written into four tests as literals** (`sim_teleport(75, 75)`, a wizard tower at
+  `(-3,-2)`, a nest at `(-1,-4)`, a gate at `(0,-2)`). Each now *asks the world* —
+  `sim_window_of`, `sim_wizard_tower`, `sim_ruin_count`/`sim_ruin_pos`, `sim_desert_gate_world`.
+  *A literal coordinate in a test is an assertion about a world that is free to move.*
+- a **test the gate never runs** (2026-08-10) — five test files sit in `src/` and appear in no
+  row of `tools/run_tests.sh`. They compile, so nothing complains; they simply never execute.
+  *Being written is not being wired.*
 
-**All of them printed a healthy-looking number.** The rule that would have caught every one:
+**All of them printed a healthy-looking number** — or, in the last two, no number at all. The rule that would have caught every one:
 *state what would have to break for this control to go red, and check that is reachable.* Hence
 a **negative control in every phase** — and note that a negative control which stays green is a
 result, not a formality (P1's did exactly that, revealing two ungated arms of a rule).
@@ -209,8 +244,8 @@ because of a negative control the *other* agent found. → `EXTRACTION.md`, `LOF
 ## How to run things
 
 ```sh
-make test                     # the headless suite — run ONCE before committing
-loft --interpret --path ../loft/ --lib ../loft/lib/ --lib ../loft-libs-world/ src/<x>test.loft
+make test                     # the headless suite (91 files / 93 rows) — run ONCE before committing
+loft --interpret --path ../loft/ --lib ../loft/lib/ src/<x>test.loft   # + the bundles/ --libs
 python3 tools/glbview.py build/x.glb out.png --eye 30,-46,12 --target=-4,0,6 \
      --shadow 640 --stats          # --stats = coverage per MATERIAL, never by pixel colour
 ```
@@ -225,9 +260,14 @@ codegen to matter; startup dominates. It also currently costs correctness: `save
 an if-branch tail expression breaks native codegen outright (**N1**). Use `--interpret` unless
 profiling says otherwise.
 
-**`loft-libs-world` is consumed from its shared `dev` branch** — both projects check it out; no
-PR per change until stabilisation. `--lib` reads the **working tree**, so a consumer on the
-wrong branch silently compiles different code. Check the branch before debugging anything odd.
+⚠ **`loft-libs-world` is NOT consumed from a sibling checkout any more** (changed 2026-08-09,
+ADOPTION.md **P3**). `hex_grid`, `hex_field`, `hex_edge`, `hex_way`, `hex_roof` and
+`hex_terrain` all resolve from the **registry**, pinned in `loft.lock`; the crawler forks
+(`hexform`/`hexedge`/`hexway`/`hexroof`) are **deleted**. The only `--lib` in the Makefile is
+`../loft/lib/`, because `engine_host` is not published — and it says so there. **A `--lib`
+sibling tree outranks the registry, so every extra one is a silent override**: that is exactly
+how the lock came to describe a build that could not compile. Test against an unreleased
+sibling on the **command line for that run**, never in the Makefile.
 
 **`xvfb-run` IS installed** — the native `gl_screenshot` path and `make probe` work. For plain
 2D diagnostics the `graphics` `Canvas` (`fill_triangle`/`save_png`) needs no GL or Xvfb at all;
