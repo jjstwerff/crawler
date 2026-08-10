@@ -1,7 +1,8 @@
 # STATE.md — where things stand (2026-08-10)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 98 rows,
-2026-08-10). Written as a handoff: read after a `/clear`.
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 98 rows in
+**1m13s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
+after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
