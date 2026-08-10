@@ -183,7 +183,7 @@ field. Two halves, and measuring them found they cost very differently.
 | | state today | cost |
 |---|---|---|
 | **improvised gear** | ✅ **already designed** — `Ingenuity` (Hand·Will), *"improvise a weapon/tool mid-scene"* (`CATALOG.md` §1), and races already carry it (Badgers, Beavers) | **none.** It is a **card**, priced in an action under §6.3's economy. No new verb, no new system |
-| **repairs** | ⚠ nothing exists — no condition or damaged state in `items.loft`/`sim.loft`, and `sim_damage` branches on `"physical"` only | **small** — one item state, caused by events, ✅ **no running degradation** (below) |
+| **repairs** | ✅ **built 2026-08-10** (plan #17 `S6`) — one damaged bit per equipment/inventory slot, set by an acid touch, cleared by the town's smith. *Was: nothing existed* | **small, and it was** — one item state, caused by events, ✅ **no running degradation** (below) |
 
 ### ⚠ NO RUNNING DEGRADATION — damage is an EVENT, and my scepticism was aimed at the wrong mechanic
 
@@ -220,11 +220,30 @@ Without it the supply loop improves the stalls — someone else's gear. With it,
 valley eventually means **your** sword stays chipped and the forge you protected is the one
 that fixes it. The loop closes on the player, not only on the town.
 
-**The cheap form, if it is taken:** condition is a small integer on an equipped item,
-degraded by use, restored by a smith — or in the field, worse and slower, with `Handiness`
-setting how well. ⚠ **No repair kits, no material cost to the player, no menu**: the moment
-it needs an inventory of parts it is crafting, which is the thing this design says the hero
-does not do.
+⚠ **No repair kits, no material cost to the player, no menu**: the moment it needs an
+inventory of parts it is crafting, which is the thing this design says the hero does not do.
+
+### ✅ BUILT 2026-08-10 (plan #17 `S6`) — and it is one BIT, not a condition integer
+
+**I-MEND: repair is the exact inverse of damage, and the damage belongs to the ITEM rather
+than to where it stands.** Gated by `mendtest`, walked end to end in the shipped town by
+`scripts/mend.play`. What the build settled, beyond what was designed here:
+
+- ⚠ **Not `IF_*`, and not a small integer either.** `IF_*` is a flag on the `ItemDef` and
+  crawler has **no item instances** — a flag there corrodes every dagger in the world. The
+  state rides vectors parallel to `inv`/`eq`, which costs a copy at each of the nine sites
+  that move an item, and a missed copy is a *silent repair*. That is the whole risk of the
+  design and `mendtest` walks every seam for it.
+- ⚠ **A BIT, not a condition integer.** A small integer is a meter, and a meter invites the
+  wear it was written to refuse — the same argument `S1` makes for a safety *category* over a
+  gradient. Damaged / sound, halved / whole, and the player can read it off the item's name.
+- **The one honest cause is a green jelly's acid touch** (`MF_CORRODE`, the third special blow
+  beside gaze and venom) — stationary, nearly harmless, and it ruins what you wear. A creature
+  you could have walked around is what makes the damage attributable.
+- **The cure is a bump on the town's smith**, through the seam that already carries the
+  bounty: zero new keys, one piece per ask.
+- **Field repair and `Handiness` are NOT in it** — `#16` has not built the stat, and this step
+  is the durability mechanic that field repair was waiting on. It is now unblocked.
 
 ### Handiness is a DEGREE, never a KEY
 

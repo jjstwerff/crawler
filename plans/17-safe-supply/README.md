@@ -7,9 +7,9 @@
 
 **`status:active` from 2026-08-09** (user), taking `#12`'s slot — the roster is
 `#11`/`#13`/`#17`, still at the cap of three. `S0` is shipped: the design (`CRAFTING.md`)
-and the measurement of what already exists, which turned out to be most of it. `S1`–`S3` and
-**`S5`** are **shipped, armed and closed** — `I-SAFE` holds end to end as of 2026-08-10;
-`S4`, `S6`, `S7` are designed, and each is written out below.
+and the measurement of what already exists, which turned out to be most of it. `S1`–`S6` are
+**shipped** — `I-SAFE` holds end to end as of 2026-08-10 and `I-MEND` with it; only `S7`
+(standing, and the militia it raises) is designed and unbuilt.
 
 > ## ✅ `I-SAFE` IS CLOSED END TO END (2026-08-10)
 >
@@ -27,7 +27,24 @@ and the measurement of what already exists, which turned out to be most of it. `
 > `GUARD_R` continuously — 215/400 ticks unsafe → **0**. The mine stays 400/400, which is the
 > plan's designed lever, not a defect. → *the site veto gave two OLD numbers a consumer*.
 >
-> **→ NEXT: `S4`** (the world says it, with no panel), then `S6`/`S7`.
+> ✅ **`S6` SHIPPED TOO (2026-08-10) — and the state has no home where the design put it.**
+> `IF_*` is a flag on the item *def* and crawler has no item instances, so a damaged flag
+> there would corrode every dagger in the world. It rides slot-parallel vectors instead, at
+> the cost of nine copy sites that `mendtest` walks. **I-MEND: repair is the exact inverse of
+> damage** (`pac`/`wdam`/`phpmax` return identical, because `refresh_stats` derives), **and
+> the damage belongs to the item, not to where it stands** (no seam launders it — not
+> unequipping, not a staircase, not death). The cause is a green jelly's acid touch; the cure
+> is a bump on the town's smith, at zero new keys.
+>
+> ⚠ **AND MEASURING ITS SUPPLY COUPLING FOUND A DEAD MINE.** The smith should draw the store
+> the forge draws — but the shipped world's ore face has **no path to the miner's home**
+> (42 hexes, `FLOW_BIG`), so the miners have never delivered anything and nothing reported it.
+> The delivery and the draw both ship; the **arming does not**, because arming a producer on a
+> supply that cannot arrive would stop the forge outright. → *the supply coupling is built,
+> unarmed, and the reason is a defect in the world*, below.
+>
+> **→ NEXT: `S7`** (standing, and the militia it raises), with **a reachable mine** the one
+> loose thread `S6` leaves behind.
 
 **Why it earns the slot:** it is the design everything else now queues behind. `#16` waits
 on it by construction (`M3` authors 18 Handiness values against this system), and its own
@@ -88,7 +105,7 @@ that only became visible once both were on the page:
 | **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (`stocktest`) | ✅ **Shipped and ARMED** |
 | **`S4`** — the world shows it, with no panel | M | `make test` (`safetytest` row 8) + a user read | ✅ **Shipped** — `I-SAY`, and `F6` measured at **tick 19** |
 | **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` (`incursiontest`, `stocktest`) | ✅ **Shipped, ARMED and CLOSED** — `I-SAFE` holds end to end |
-| **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` + a `scripts/*.play` session | **Designed, not built** |
+| **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` (`mendtest`) + `scripts/mend.play` | ✅ **Shipped** — `I-MEND`; the supply coupling is built and **unarmed** (no reachable mine) |
 | **`S7`** — standing, and the militia it raises | M | `make test` + a `scripts/*.play` session | **Designed, not built** |
 
 ### `S1` — the safety category, designed
@@ -793,6 +810,67 @@ cleared by a smith — or in the field, worse and slower, with `Handiness` setti
 ⚠ **The causes do not exist yet, and that is fine**: `sim_damage` branches on `"physical"`
 alone. Land the state with one honest cause and grow it with the damage model — but **every
 cause must be legible in play**, or this is wear-per-use in an event's clothes.
+
+### ✅ `S6` is BUILT and GATED — and the design's proposed home for the state does not exist
+
+**I-MEND: repair is the exact inverse of damage, and the damage belongs to the ITEM, not to
+where it stands.** Both halves are gated by `mendtest` (8 rows) and both were verified able to
+go red. A `scripts/mend.play` session runs the whole thing in the shipped town.
+
+⚠ **THE `IF_*` BITMASK WAS THE WRONG HOME AND IT IS WORTH SAYING WHY**, because the same trap
+is waiting for anything else that wants per-item state. `IF_*` is a flag on the **`ItemDef`**,
+and `inv`/`eq` hold **def indices** — crawler has no item instances at all. A flag there would
+corrode every dagger in the world, including the one the forge makes tomorrow. So the state
+rides two vectors parallel to `inv`/`eq`, and the cost of that choice is named rather than
+hidden: **the condition has to be copied at every site that moves an item, and a missed copy
+is a SILENT repair.** There are nine such sites; `mendtest` walks each one, because that is the
+only failure this design can have and nothing else would report it.
+
+| | what it is |
+|---|---|
+| **the state** | `eq_dmg` / `inv_dmg`, one flag per slot. A damaged piece contributes **half** its `i_ac` (or half its weapon average) |
+| **the exactness** | `refresh_stats` **derives** `pac`/`wdam`/`phpmax` from the def table every time — never accumulates — so `repair(damage(x)) == x` holds structurally, not by arithmetic care |
+| **the cause** | `MF_CORRODE`, the third special blow beside `MF_GAZE`/`MF_POISON`. Carried by a **green jelly** (depth 4): stationary, `m_dam 1`, and it ruins what you wear. Angband's actual acid-touch monster |
+| **the choice of piece** | the sound piece **with the most to lose**, weapon last — deterministic where Angband rolls, so the *first* blow always produces a signal the player can notice |
+| **the repair** | a **smith** at the market seat. `sim_talk_to` — bump-to-ask, **zero new keys**, the seam that already carries the bounty. One piece per ask |
+| **the interface** | the item's own name gains ` (damaged)`. No bar, no menu, no parts — `F2` spends nothing |
+
+**No save on the corroding blow, deliberately.** Gaze and venom re-roll every tick you stand
+there, so a save is what keeps them survivable; this fires once per sound piece and then has
+nothing left to take, which bounds it without a roll (`mendtest` row 8). A save would only make
+the cause harder to attribute, and attribution is the entire difference between this and wear.
+
+#### ⚠ The supply coupling is BUILT, UNARMED, and the reason is a defect in the world
+
+`S6`'s point is that the loop closes on the **player** — *the forge you protected is the one
+that fixes it* (`CRAFTING.md`). So the smith draws the same store the forge draws, and the
+miner now delivers into it (`npc_mine`, the gatherer's shape exactly: fill at the ore face
+only while it is safe, empty at the furnace).
+
+**It cannot be armed yet, and measuring why turned up something separate and worse.** On the
+shipped world the ore face sits at **(7,49)**, 42 hexes from the miner's home at (47,53), with
+**no path between them at all** — `sim_npc_path_dist` = `FLOW_BIG`, and its open neighbours are
+equally cut off, so it is the **site** that is unreachable, not the cave mouth. Over four days:
+**0 deliveries, forge stock 0.**
+
+⚠ **The miners have therefore never worked, and nothing reported it** — they wander, and until
+something depended on their delivery there was nothing to notice. It is the same defect
+`raid_objective` carried until it was made to choose over ground the source can cross, and the
+same one that left `walk_reach`'s gatherer decorative for months: **the mine-site scan picks
+the best rock it can see and never asks whether anyone can walk there.**
+
+So arming the forge on that supply would take the town from one piece a day to **nothing,
+ever** — the plan's own rule is that *arming follows the supply and never leads it*. The draw
+is written and inert (`prod_draw` passes an unarmed producer), and `sim_smith_mend_when` takes
+the arming as an argument so **both answers are gated today** rather than going live untested
+on the day the switch flips. → a candidate step: **a reachable mine**, which is worldgen's
+business and needs a built `Sim` to test against.
+
+#### What is NOT in it
+
+**Field repair, and `Handiness` with it** — `#16` has not built the stat, and the design says
+*repairs need a durability mechanic that does not exist*, which is what this step just built.
+The order was right; the field half is now unblocked and belongs beside `#16` `M3`.
 
 ### `S7` — standing, and the militia it raises, designed
 

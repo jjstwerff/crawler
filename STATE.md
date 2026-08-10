@@ -1,13 +1,15 @@
 # STATE.md — where things stand (2026-08-10)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 99 rows in
-**1m49s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, 101 rows in
+**1m44s**, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10). Written as a handoff: read
 after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
 
-> ## → NEXT: **plan #17** — make the settlement's SUPPLY depend on ground that can become unsafe.
+> ## → NEXT: **plan #17 `S7`** — standing, and the militia it raises (the last unbuilt step).
+>
+> *(`S0`–`S6` are shipped. The one loose thread `S6` leaves is **a reachable mine** — below.)*
 >
 > **The roster is `#11` 3D world · `#13` scoped identity · `#17` safe supply** (decided
 > 2026-08-09 from evidence, `plans/README.md` → *The active roster*, cap of three). The work
@@ -68,6 +70,38 @@ where crawler sits in the stack.
 > faster commute. Closed by two terms: the bag fills only at the work site and only on safe
 > ground, and **nobody travels to work that is unsafe** (`S2`'s never-built second half).
 > → `plans/17-safe-supply/README.md`
+
+> ✅ **AND `S6` SHIPPED — GEAR DAMAGE IS AN EVENT, AND THE TOWN IS WHAT MENDS IT (2026-08-10).**
+> **I-MEND**: repair is the *exact* inverse of damage (`pac`/`wdam`/`phpmax` return identical,
+> because `refresh_stats` derives rather than accumulates), **and the damage belongs to the
+> item, not to where it stands** — no seam launders it, not unequipping, not a staircase, not
+> death. A green jelly's acid touch takes the sound piece with the most to lose; the town's
+> **smith** mends one piece per bump, at **zero new keys**, and the item's own name carries
+> ` (damaged)` so nothing new is shown to anybody. `mendtest` (8 rows, verified red both ways)
+> + `scripts/mend.play` in the shipped town.
+>
+> ⚠ **THE DESIGN'S PROPOSED HOME FOR THE STATE DID NOT EXIST**, and the trap generalises:
+> `IF_*` is a flag on the item **def**, and crawler has **no item instances** — a flag there
+> would corrode every dagger in the world, including the one the forge makes tomorrow. It
+> rides slot-parallel vectors instead, which costs a copy at each of the **nine** sites that
+> move an item, and a missed copy is a *silent repair*.
+>
+> ## ⚠ OPEN, AND FOUND BY `S6`: THE SHIPPED TOWN'S MINE CANNOT BE REACHED
+>
+> The smith should draw the store the forge draws, so danger closes the loop on the player's
+> own gear. Measuring that found something else: the ore face sits at **(7,49)**, 42 hexes
+> from the miner's home at (47,53), with **no path between them at all**
+> (`sim_npc_path_dist` = `FLOW_BIG`; its open neighbours are equally cut off, so it is the
+> **site**, not the cave mouth). **The miners have never delivered anything, and nothing
+> reported it** — they wander, and until something depended on the delivery there was nothing
+> to notice.
+>
+> It is the third instance of one defect: **a site chosen by desirability and never checked
+> for reachability** (`raid_objective`'s 45-hex field, `walk_reach`'s picking grounds, now the
+> mine). The delivery (`npc_mine`) and the repair draw both ship; the **arming does not** —
+> arming a producer on a supply that cannot arrive would take the forge from one piece a day
+> to nothing, ever. `sim_smith_mend_when` takes the arming as an argument so both answers are
+> gated **today** rather than going live untested on the day a reachable mine exists.
 
 ## What moved on 2026-08-09/10
 
