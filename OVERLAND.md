@@ -627,7 +627,53 @@ ROLE — never aggressive, never punched; the player's bump slides past):
   deep contexts and PANIC when indexed in call args — production repertoires
   are branch-selector functions instead.
 
-### 13e. THE HISTORY: the maximal past, broken (user direction, implemented)
+### 13d-bis. ⚠ OPEN DEFECT — roads do not know about each other, so they run PARALLEL
+
+**Reported by the user, 2026-08-10; documented, not fixed.**
+
+**The symptom:** two roads can end up running side by side a short distance apart, each with
+its own path, where a real road network would have **merged them into one**. Nobody builds a
+second road a field's width from an existing one heading the same way — they join it, share
+the trunk, and fork where they must.
+
+**The mechanism** (`overland.loft`, the road pass). Every town is linked to the *nearest
+already-placed* town by an independent Dijkstra over the vertex lattice, and the step cost
+reads **terrain only**:
+
+```
+step = 1.0 + |Δheight| / 90.0        // climb
+     + 6.0  if material == 5          // the expensive material
+     + 1.2  if material == 4
+     + 1.0  if acc >= 4.0             // fording a river
+```
+
+⚠ **Nothing in that expression mentions the roads already built** — `cost`/`from` are
+allocated fresh per town pair, so each road is optimal *in isolation* and blind to every road
+before it. Two pairs whose corridors overlap therefore solve nearly the same problem against
+the same cost field and can settle on **adjacent** vertex chains rather than the same one; the
+per-road `ov_displace(…, 0.30, …)` then draws them as two separate curves. Parallel duplicates
+are the artefact of routing each road as if it were the first.
+
+**The fix is a bonus on existing roads** (user): a route that can *join* an existing road
+should pay materially less than one that parallels it, so roads braid into shared trunks and
+diverge only where terrain forces it. Design notes for whoever takes it:
+
+- ⚠ **A "bonus" must never make a step ≤ 0** — Dijkstra requires non-negative weights, and a
+  flat subtraction is the obvious way to get a negative one. Use a **multiplier** on the step
+  (`step * f`, `f` ≈ 0.3–0.5), not `step - k`.
+- Apply it to the **edge**, keyed on the edge already being carried by a road, so joining is
+  rewarded and merely *touching* a road is not.
+- **Order dependence is fine and realistic**: roads are built in town order, so the earlier
+  road becomes the trunk and later ones feed it. That is how road networks actually grow.
+- Tune so a road will make a *modest* detour to join, not an absurd one. The failure mode of
+  too large a bonus is every road collapsing onto one trunk.
+- **The faded paths (`rd_faded = 1`) must NOT give the bonus** — they claim nothing already
+  (§13e, and `ov_road_dist` skips them); a dead way should not attract a living road.
+
+**How to know it is fixed** — the falsifiable check, and it needs to be a gate rather than a
+screenshot: no two living road polylines may run **within one lattice step of each other for
+more than a short run** without sharing their vertices. Measure the offending length before
+and after; "the map looks better" is not the test.
 The world's history derives from its own settlement scoring: re-score the
 sites with a LOWER bar and looser spacing — the runners-up the living world
 rejected were inhabited ONCE, in the maximal past. Something went wrong; they

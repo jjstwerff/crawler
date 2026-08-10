@@ -1386,6 +1386,12 @@ UVs.) Now: one PNG per sprite via `gl_load_texture`.*
 - [ ] **L5** bottom-level guardians + final boss.
 - [ ] **P7 / A2 / H4 / H5 / I5** — smart/pack/doors/wall-pass; unique escorts;
   character creation; monster health-bar/look; artifacts + encumbrance.
+- [ ] **Roads merge instead of running parallel** (user-reported 2026-08-10) —
+  the road router costs terrain only and is blind to the roads already built, so
+  two roads can run side by side where a real network would share a trunk. Fix =
+  a **bonus** (a step *multiplier*, never a subtraction — Dijkstra needs
+  non-negative weights) for reusing an existing living road. Mechanism, design
+  notes and the falsifiable gate: **`OVERLAND.md` §13d-bis**.
 
 ### Eventually
 - [ ] **L6** multi-layer height model (§7); the feature-overlay processor
