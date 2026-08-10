@@ -85,6 +85,10 @@ fn probe(s: Sim, name: text) -> integer {
     for i in 0..sim_floor_count(s) { if sim_floor_live(s, i) { n += 1; } }
     return n;
   }
+  if name == "ac" { return sim_player_ac(s); }
+  if name == "damaged" { return sim_damaged_count(s); }        // plan #17 S6 — gear a smith would work on
+  if name == "forgew" { return sim_prod_stock(s, "forge_weapon"); }
+  if name == "forgea" { return sim_prod_stock(s, "forge_armor"); }
   if name == "livefoes" {
     n = 0;
     for i in 0..sim_enemy_count(s) { if sim_enemy_alive(s, i) { n += 1; } }
@@ -253,6 +257,35 @@ y`;
       sim_damage(s, num(word(raw, 1)), "physical");
     } else if verb == "anchor" {
       sim_anchor_here(s, num(word(raw, 1)));
+    } else if verb == "corrode" {
+      // A POKE, and it says so: the creature that carries this blow (MF_CORRODE) lives at
+      // depth 4, and walking a level-1 hero down to find one is not what the town-side
+      // claim below is about. The MELEE wiring is `mendtest` row 1's job; this script is
+      // about what the settlement does once your gear is ruined.
+      cs = sim_damage_gear(s);
+      println("  corrode -> slot {cs} ({sim_damaged_count(s)} damaged, ac {sim_player_ac(s)})");
+    } else if verb == "talk" {
+      // Bump-to-speak, by NPC key. The BUMP is a poke (finding a wandering townsperson on
+      // foot is a walk, not a claim); `sim_talk_to` is the shipped path and the whole point
+      // — it is the same call the player's bump makes, dialogue, stock draw and all.
+      who = word(raw, 1);
+      ti = -1;
+      for ei in 0..sim_enemy_count(s) {
+        if ti < 0 && sim_enemy_alive(s, ei) && sim_enemy_key(s, ei) == who { ti = ei; }
+      }
+      if ti < 0 {
+        println("FAIL line {li + 1}: no live `{who}` in this world — the script cannot proceed");
+        ok = false;
+      } else {
+        n_before = sim_msg_total(s);
+        sim_talk_to(s, ti);
+        n_new = sim_msg_total(s) - n_before;
+        println("  talk {who} -> {n_new} line(s):");
+        // sim_msg_at counts BACK from the newest (k = 0), so oldest-first is a countdown.
+        for mi2 in 0..n_new {
+          println("      \"{sim_msg_at(s, n_new - 1 - mi2)}\"");
+        }
+      }
     } else if verb == "remember" {
       // ⚠ THE CLAIM THAT MATTERS IS USUALLY "IT DID NOT CHANGE", and that cannot be
       // written against a literal without pinning this week's content. `remember inv0

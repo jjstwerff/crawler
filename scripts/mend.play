@@ -1,0 +1,53 @@
+# mend.play — plan #17 `S6`: THE TOWN IS WHAT FIXES YOUR GEAR, AND IT COSTS NO KEY.
+#
+# `mendtest` states the algebra — damage is an event, repair is its exact inverse, and the
+# condition rides the item through every seam. What it CANNOT say is that any of this is
+# reachable in the world a player boots into, because it runs on `sim_new()` sandboxes.
+#
+# This script is that claim, on `story.loft`'s own GEN_SEED, in the town at depth 0:
+#   • a SMITH stands in the shipped settlement, findable, alive, at the market seat;
+#   • bumping them is the whole interface — `sim_talk_to`, the same seam that already
+#     carries the bounty and the Circle's favour, so the repair costs ZERO new keys
+#     (DESIGN §3a #7, and I-SAFE's zero-new-keys claim survives);
+#   • the smith reads the gear, mends ONE piece, and says so;
+#   • asked again with nothing wrong, they say that instead — the negative half, without
+#     which "the smith answered" proves only that an NPC exists.
+#
+# ⚠ `corrode` IS A POKE AND THE ONLY ONE. The creature that carries the blow (a green jelly,
+# MF_CORRODE) lives at depth 4; walking a level-1 hero down to meet one and back up is a
+# different test, and `mendtest` row 1 already proves the blow wires to the melee arm. What
+# is under test here is everything the settlement does afterwards.
+
+genesis 1337 0
+echo --- the shipped world, the home town, day one
+
+expect depth == 0
+expect alive == 1
+remember ac0 ac
+
+# Nothing is wrong yet, and the smith must say so rather than mend thin air. This row is
+# also what makes the mend below mean something: a smith who answered identically either
+# way would prove nothing about reading the gear.
+expect damaged == 0
+talk smith
+expect damaged == 0
+
+echo --- something ate the armour (a poke; the jelly is four levels down)
+corrode
+expect damaged == 1
+expect ac < ac0
+
+echo --- the town's answer: bump the smith, and it is mended
+talk smith
+expect damaged == 0
+expect ac == ac0
+
+# ⚠ AND THE HP POOL CAME BACK WITH IT. Armour grants max HP, so a repair that restored AC
+# alone would shave the character a little on every visit — invisible, permanent, and
+# exactly the kind of drift a round-trip claim is for.
+expect hp <= hpmax
+
+echo --- and the smith has nothing left to do
+talk smith
+expect damaged == 0
+expect ac == ac0

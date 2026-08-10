@@ -235,6 +235,26 @@ pub fn item_ds(table: vector<ItemDef>, idx: integer) -> integer {
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_ds; }
   v
 }
+// ── What a smith can ruin, and what a smith can mend (plan #17 `S6`) ────────────────────
+//
+// Damage is an EVENT on WORKED GEAR — the arms and armour a forge makes and a forge repairs.
+// ⚠ NOT everything the player carries: a corroded potion is a destroyed potion, not a
+// damaged one, and a damaged ring has no number to halve that is not the ring's whole point.
+// Keeping the set to what the two forge producers make is also what lets a repair draw the
+// matching stock without inventing a third store.
+pub fn item_damageable(table: vector<ItemDef>, idx: integer) -> boolean {
+  c = item_cat(table, idx);
+  c == IT_WEAPON || c == IT_BOW || c == IT_ARMOR
+}
+
+// Which forge line mends this item — the producer key a repair draws from. "" = not gear.
+pub fn item_repair_producer(table: vector<ItemDef>, idx: integer) -> text {
+  c = item_cat(table, idx);
+  if c == IT_WEAPON || c == IT_BOW { return "forge_weapon"; }
+  if c == IT_ARMOR { return "forge_armor"; }
+  ""
+}
+
 pub fn item_key(table: vector<ItemDef>, idx: integer) -> text {
   v = "";
   if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_key; }

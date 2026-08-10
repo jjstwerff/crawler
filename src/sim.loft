@@ -244,6 +244,14 @@ pub struct Sim {
   inv:     vector<integer> not null,   // carried item def indices [0..ninv) (UI = I2)
   eq:      vector<integer> not null,   // equipped item: defidx+1 per SLOT_* slot (0 = empty)
   qs:      vector<integer> not null,   // quick-slots [0..QS_N): bound item defidx+1 (0 = empty)
+  // DAMAGED GEAR (plan #17 `S6`) — 1 = the item standing in this slot is damaged, parallel to
+  // `eq` and `inv`. ⚠ IT CANNOT LIVE ON THE ITEM: `inv`/`eq` hold DEF INDICES, so there is no
+  // instance to carry a state, and the `IF_*` bitmask the plan proposed is on the *def* — a
+  // flag there would corrode every dagger in the world, including the one the forge makes
+  // tomorrow. So the state belongs to the PLACE the item stands in, and I-MEND's second half
+  // (below) is the rule that keeps that from meaning "damage evaporates when you take it off".
+  eq_dmg:  vector<integer> not null,
+  inv_dmg: vector<integer> not null,
   wdam:    integer not null,           // cached melee damage (PLAYER_DAM + equipped weapon)
   pac:     integer not null,           // cached armour class (sum equipped i_ac) — feeds HP + DR
   fi_n:    integer not null,   // floor-item count
@@ -651,20 +659,36 @@ fn xp_for_level(lvl: integer) -> integer {
 // Recompute cached weapon damage, armour class, and max HP from the equipped slots.
 // Same module as its &-callers (C4). AC feeds BOTH max HP (heavy armour = tanky — the
 // fighter's compensation, §3a #3) and damage reduction.
+// ⚠ I-MEND RIDES ON THIS FUNCTION BEING A DERIVATION (plan #17 `S6`). Every number below is
+// recomputed from the def table plus the current flags — never incremented, never patched in
+// place — so *repair is the exact inverse of damage* holds structurally rather than by
+// arithmetic care: clear the flag and `pac`/`wdam`/`phpmax` return to the identical values.
+// Damaging is idempotent for the same reason. Anything here that started ACCUMULATING would
+// break the invariant silently, which is why the damage term is a factor on a read, not a
+// subtraction from a stored total.
 fn refresh_stats(s: &Sim) {
   itbl = game_items();
   eq = s.eq;
+  ed = s.eq_dmg;
   ac = 0;
   for sl in 0..NUM_SLOTS {
     e = eq[sl] ?? 0;
-    if e > 0 { ac += item_ac(itbl, e - 1); }
+    if e > 0 {
+      a1 = item_ac(itbl, e - 1);
+      if (ed[sl] ?? 0) != 0 { a1 = a1 / 2 ?? 0; }   // damaged: the piece protects half as well
+      ac += a1;
+    }
   }
   wd = PLAYER_DAM;
   w = eq[SLOT_WEAPON] ?? 0;
   if w > 0 {
     dd = item_dd(itbl, w - 1);
     ds = item_ds(itbl, w - 1);
-    if dd > 0 && ds > 0 { wd += dd * (ds + 1) / 2 ?? 0; }   // average weapon roll
+    if dd > 0 && ds > 0 {
+      avg = dd * (ds + 1) / 2 ?? 0;                                  // average weapon roll
+      if (ed[SLOT_WEAPON] ?? 0) != 0 { avg = avg / 2 ?? 0; }         // damaged: a chipped edge
+      wd += avg;
+    }
   }
   wd += sim_skill_melee(s);   // passive melee skill (level + STR) sharpens melee damage
   s.wdam = wd;
@@ -720,13 +744,25 @@ pub fn sim_equip(s: &Sim, ii: integer) {
     else { sl = SLOT_RING; }
   }
   prev = eq[sl] ?? 0;
+  // ⚠ THE DAMAGE MOVES WITH THE ITEM, IN LOCKSTEP WITH THE DEF INDEX (I-MEND). Every write
+  // to `eq`/`inv` in this file has a partner write here; a missed one is a SILENT repair,
+  // which is the one failure this design can have. `mendtest` walks each seam for that reason.
+  ed = s.eq_dmg;
+  idg = s.inv_dmg;
+  mydmg = 0;
+  if ii < len(idg) { mydmg = idg[ii] ?? 0; }
+  prevdmg = 0;
+  if sl < len(ed) { prevdmg = ed[sl] ?? 0; }
   if sl < len(eq) { eq[sl] = defidx + 1; }
+  if sl < len(ed) { ed[sl] = mydmg; }
   if prev > 0 {
     if ii < len(iv) { iv[ii] = prev - 1; }   // swap: displaced item takes the slot
+    if ii < len(idg) { idg[ii] = prevdmg; }  //   — carrying its own condition back
   } else {
     n = s.ninv;
     for k in ii..(n - 1) {
       if k >= 0 && k + 1 < len(iv) { iv[k] = iv[k + 1] ?? -1; }   // remove: shift down
+      if k >= 0 && k + 1 < len(idg) { idg[k] = idg[k + 1] ?? 0; }
     }
     s.ninv = n - 1;
   }
@@ -740,12 +776,16 @@ pub fn sim_unequip(s: &Sim, sl: integer) {
   e = eq[sl] ?? 0;
   if e == 0 { return; }
   iv = s.inv;
+  ed = s.eq_dmg;
+  idg = s.inv_dmg;
   n = s.ninv;
   if n >= 0 && n < len(iv) {
     iv[n] = e - 1;
+    if n < len(idg) && sl < len(ed) { idg[n] = ed[sl] ?? 0; }   // I-MEND: taking it off is not mending it
     s.ninv = n + 1;
   }
   if sl < len(eq) { eq[sl] = 0; }
+  if sl < len(ed) { ed[sl] = 0; }
   refresh_stats(s);
 }
 
@@ -774,6 +814,11 @@ pub fn sim_give_item(s: &Sim, key: text) {
     n = s.ninv;
     v = s.inv;
     v[n] = idx;
+    // ⚠ ZERO THE CONDITION, DO NOT INHERIT IT. `sim_consume_inv` shifts the tail down and
+    // leaves the vacated slot holding its old value, so an arriving item that trusted the
+    // slot would be born damaged by whatever stood there last (I-MEND).
+    dgv = s.inv_dmg;
+    if n < len(dgv) { dgv[n] = 0; }
     s.ninv = n + 1;
     sim_qs_autoslot(s, idx);    // first useable item of its kind auto-fills a quick-slot
   }
@@ -987,7 +1032,7 @@ pub fn sim_inv_name(s: Sim, slot: integer) -> text {
   iv = s.inv;
   if slot < 0 || slot >= s.ninv || slot >= len(iv) { return ""; }
   defidx = iv[slot] ?? -1;
-  sim_item_display_name(s, defidx)
+  "{sim_item_display_name(s, defidx)}{dmg_suffix(sim_inv_damaged(s, slot))}"
 }
 // Description of the carried item in `slot` (the inventory hub's examine line). "" if empty.
 pub fn sim_inv_desc(s: Sim, slot: integer) -> text {
@@ -1017,10 +1062,12 @@ pub fn sim_find_item(s: Sim, key: text) -> integer {
 // Remove one item from inventory slot `slot` (shift the tail down) — a single-use consume.
 pub fn sim_consume_inv(s: &Sim, slot: integer) {
   iv = s.inv;
+  idg = s.inv_dmg;
   n = s.ninv;
   if slot < 0 || slot >= n { return; }
   for k in slot..(n - 1) {
     if k >= 0 && k + 1 < len(iv) { iv[k] = iv[k + 1] ?? -1; }
+    if k >= 0 && k + 1 < len(idg) { idg[k] = idg[k + 1] ?? 0; }   // the condition shifts with the item
   }
   s.ninv = n - 1;
 }
@@ -1037,7 +1084,9 @@ pub fn sim_equip_by_key(s: &Sim, key: text) {
     d = itbl[idx];
     sl = d.i_slot;
     eq = s.eq;
+    ed = s.eq_dmg;
     if sl >= 0 && sl < len(eq) { eq[sl] = idx + 1; }
+    if sl >= 0 && sl < len(ed) { ed[sl] = 0; }   // conjured straight into the slot: sound
   }
   refresh_stats(s);
 }
@@ -1793,6 +1842,8 @@ pub fn sim_pickup(s: &Sim) {
           if ni >= 0 && ni < len(iv) {
             di = fd[i] ?? -1;
             iv[ni] = di;
+            idg9 = s.inv_dmg;
+            if ni < len(idg9) { idg9[ni] = 0; }   // what you find off the floor is sound (I-MEND)
             s.ninv = ni + 1;
             sim_log(s, "You pick up the {sim_item_display_name(s, di)}.");
             sim_qs_autoslot(s, di);    // auto-fill a quick-slot on first pickup of a useable item
@@ -1994,6 +2045,121 @@ pub fn sim_make_gaze(s: &Sim, i: integer) {
   enemies[i] = e;
 }
 
+// Give monster `i` a corroding touch (MF_CORRODE) — the acid-jelly blow, and the test hook
+// for it (the sibling of sim_make_gaze, and for the same reason: a special blow reachable
+// only by finding its one carrier at depth is one the gate cannot see both sides of).
+pub fn sim_make_corrode(s: &Sim, i: integer) {
+  enemies = s.enemies;
+  if i < 0 || i >= len(enemies) { return; }
+  e = enemies[i];
+  e.flags = e.flags | MF_CORRODE;
+  enemies[i] = e;
+}
+
+// ── I-MEND: damage is an EVENT, and repair is its exact inverse (plan #17 `S6`) ──────────
+//
+// ⚠ NO RUNNING DEGRADATION ANYWHERE IN THIS. Nothing here is called by the clock; the only
+// callers are a landed blow and a smith. That is the whole distinction the design turns on
+// (CRAFTING.md): wear-per-use is a maintenance chore with a meter behind it, event damage is
+// one state that the causing event teaches — and event damage is Angband's actual model
+// (acid ruins armour), so faithfulness settles it rather than taste.
+//
+// ⚠ IT GOES FOR WHAT YOU WOULD MISS: the sound piece with the most to lose, weapon last.
+// Angband rolls a random slot; deterministic is better here on two grounds — the first blow
+// always produces a signal the player can NOTICE (a random pick can eat a cloak's 1 AC and
+// teach nothing), and a gate can then state which piece without pinning the roll stream.
+// Returns the slot corroded, or -1 when the player has nothing left to ruin.
+//
+// Pub for the reason `prod_draw_when` is: an effect reachable only by standing next to the
+// one creature that carries it, at the depth it lives, is an effect whose ALGEBRA nobody
+// gates. `mendtest` proves the blow wires to this once, then states the invariant against
+// the primitive — which is also the shape that keeps a second cause from re-deriving the rule.
+pub fn sim_damage_gear(s: &Sim) -> integer {
+  itbl = game_items();
+  eq = s.eq;
+  ed = s.eq_dmg;
+  best = -1;
+  bestv = -1;
+  for sl in 0..NUM_SLOTS {
+    e = eq[sl] ?? 0;
+    if e > 0 && (ed[sl] ?? 0) == 0 && item_damageable(itbl, e - 1) {
+      v = item_ac(itbl, e - 1);
+      if sl == SLOT_WEAPON { v = 0; }   // the arm is the last thing to go
+      if v > bestv { bestv = v; best = sl; }
+    }
+  }
+  if best < 0 { return -1; }
+  if best < len(ed) { ed[best] = 1; }
+  refresh_stats(s);
+  best
+}
+
+// THE SMITH'S WHOLE DECISION, in one call: is there anything to mend, may the forge spare
+// the iron, and mend it. ⚠ ONE UNIT ON PURPOSE — a mend that could happen without a draw
+// would make the supply coupling decorative, and split across two public calls the gate
+// would prove each half while the pairing rotted. `sim_talk_to`'s smith arm is dialogue
+// over this and nothing else.
+//   1 = mended · 0 = nothing needed mending · -1 = the ore store is empty
+pub fn sim_smith_mend(s: &Sim) -> integer {
+  d = sim_next_damaged(s);
+  if d < 0 { return 0; }
+  sim_smith_mend_when(s, prod_gated(producer_index(item_repair_producer(game_items(), d))))
+}
+
+// The same decision with the arming supplied by the caller — `prod_draw_when`'s reason
+// exactly, and today it is the load-bearing one: the forge lines are UNARMED (no reachable
+// mine, see `prod_gated`), so the shipped smith always has iron and the REFUSAL branch would
+// be dead code that compiles. It is the branch the whole coupling rests on, and it goes live
+// the day the ore face becomes walkable — `mendtest` proves both answers now, not then.
+pub fn sim_smith_mend_when(s: &Sim, gated: boolean) -> integer {
+  d = sim_next_damaged(s);
+  if d < 0 { return 0; }
+  if !prod_draw_when(s, item_repair_producer(game_items(), d), gated) { return -1; }
+  _m = mend_one(s);
+  1
+}
+
+// Mend ONE piece: equipment first (what is worn is what is missed), then the pack. Answers
+// the slot's item def, or -1 when nothing needed it — so the caller can name what it fixed
+// without asking twice. ⚠ It does NOT decide whether the smith may: that is the stock's
+// call, and it is made at the one call site so a mend cannot happen without a draw.
+fn mend_one(s: &Sim) -> integer {
+  ed = s.eq_dmg;
+  eq = s.eq;
+  for sl in 0..NUM_SLOTS {
+    if (ed[sl] ?? 0) != 0 {
+      ed[sl] = 0;
+      refresh_stats(s);
+      return (eq[sl] ?? 0) - 1;
+    }
+  }
+  idg = s.inv_dmg;
+  iv = s.inv;
+  for i in 0..s.ninv {
+    if i < len(idg) && (idg[i] ?? 0) != 0 {
+      idg[i] = 0;
+      return iv[i] ?? -1;
+    }
+  }
+  -1
+}
+
+// What the smith would be handed next, without handing it over — the stock question needs
+// the item's forge line BEFORE the mend, and asking twice would mend the wrong thing.
+pub fn sim_next_damaged(s: Sim) -> integer {
+  ed = s.eq_dmg;
+  eq = s.eq;
+  for sl in 0..NUM_SLOTS {
+    if (ed[sl] ?? 0) != 0 { return (eq[sl] ?? 0) - 1; }
+  }
+  idg = s.inv_dmg;
+  iv = s.inv;
+  for i in 0..s.ninv {
+    if i < len(idg) && (idg[i] ?? 0) != 0 { return iv[i] ?? -1; }
+  }
+  -1
+}
+
 // The DAILY LOOP: a day lasts DAY_LEN ticks; phase 0 = day, 1 = night.
 pub const DAY_LEN = 400;
 pub fn sim_phase(s: Sim) -> integer {
@@ -2071,12 +2237,24 @@ pub fn hex_safe(s: Sim, q: integer, r: integer) -> boolean {
 // The six other producers have no input stream, so they are deliberately NOT armed — an
 // unarmed producer draws nothing and makes as it always did. `prod_draw_when` takes the
 // arming as an argument so both branches stay gated whichever way the switch is set.
-fn prod_armed_index() -> integer {
-  producer_index("alchemy")
-}
-
+//
+// ⚠ THE TWO FORGE LINES NOW HAVE A DELIVERY (`npc_mine`, plan #17 `S6`) AND STILL DO NOT
+// QUALIFY — measured 2026-08-10 on the shipped world, and this is the whole reason the
+// arming is a switch rather than a consequence. The miner's ore face sits at (7,49), 42
+// hexes from its home at (47,53), with **no path between them at all**
+// (`sim_npc_path_dist` = FLOW_BIG) — and its open neighbours are equally cut off, so it is
+// the SITE that is unreachable, not the cave mouth. The mine-site scan picks the best rock
+// it can see and never asks whether anyone can walk there: the same defect `raid_objective`
+// carried until it was made to choose over ground the source can cross, and the same one
+// that left `walk_reach`'s gatherer decorative for months.
+//
+// So the miners have never delivered anything, and arming the forge on that supply would
+// take the shipped town from one piece a day to NOTHING, EVER. Arming follows the supply and
+// never leads it. ⚠ The delivery ships anyway (it is correct, it costs nothing while nobody
+// arrives, and it is the input stream the rule asks for) — what is missing is a reachable
+// mine, which is worldgen's business and needs a built `Sim` to test against.
 fn prod_gated(pi: integer) -> boolean {
-  pi >= 0 && pi == prod_armed_index()
+  pi >= 0 && pi == producer_index("alchemy")
 }
 
 // A worker came home with something. Raising an ungated producer is harmless and still
@@ -2702,6 +2880,37 @@ fn npc_gather(s: &Sim, e: &Enemy) {
   }
 }
 
+// THE MINER'S ROUND TRIP (plan #17 `S6`) — cut at the face, carry it down to the furnace.
+//
+// The gatherer's shape exactly (`npc_gather`), against the same two terms: the bag fills only
+// AT the ore face and only while that ground is safe, and it empties at the furnace, which is
+// where worldgen already sends this NPC (`aq2`). ⚠ Both halves are load-bearing for the same
+// reasons measured there — a fill site with no place attached is a thing danger cannot press
+// on, and refusing to *enter* danger does not cover a worker already standing in it.
+//
+// ⚠ WHICH LINE IT FEEDS IS THE FORGE'S OWN ROTATION, not a new term: the forge works weapons
+// on even days and armour on odd (`sim_tick`), so the ore that comes down today goes to the
+// line that will consume it. That keeps one load = one raise — inventing a shared ore store,
+// or raising both, would create matter and break I-STOCK's conservation.
+fn npc_mine(s: &Sim, e: &Enemy) {
+  if hex_distance(e.cur_q, e.cur_r, e.wq2, e.wr2) <= 1 && hex_safe(s, e.cur_q, e.cur_r) {
+    e.carry = GATHER_LOAD;
+  }
+  if e.carry > 0 && hex_distance(e.cur_q, e.cur_r, e.aq2, e.ar2) <= 1 {
+    for _ in 0..e.carry { prod_raise(s, forge_line_today(s)); }
+    e.carry = 0;
+  }
+}
+
+// Which forge line the day belongs to. ONE definition, read by the miner's delivery and by
+// the forge's own making — they have to agree or the ore lands in the store the forge is not
+// drawing from today, and the coupling silently stops.
+fn forge_line_today(s: Sim) -> text {
+  day = (s.ticks / DAY_LEN) ?? 0;
+  if (day % 2 ?? 0) == 0 { return "forge_weapon"; }
+  "forge_armor"
+}
+
 // The SHIP'S MANIFEST: when the merchant ship lies at anchor by night, it
 // lands the goods no local craft can make — the magic imports from beyond
 // the map — onto the pier planks beside it.
@@ -2739,12 +2948,17 @@ pub fn sim_tick(s: &Sim) {
     if tsize2 >= 3 {
       // THE FORGE rotates its whole repertoire: weapons on even days, armour
       // on odd — the heavy pieces never leave town (the cart's weight cap)
+      // ⚠ THE DRAW IS WRITTEN AND UNARMED (plan #17 `S6`): `prod_draw` returns true for an
+      // unarmed producer, so the forge makes exactly as it always did, and the day the mine
+      // becomes reachable this line starts costing ore without being touched. The reason it
+      // is not armed today is measured beside `prod_gated` — the ore face has no path to the
+      // miner's home, so arming would stop the forge outright rather than couple it.
       if (day3 % 2 ?? 0) == 0 {
         wkey3 = game_production_key("forge_weapon", ((day3 / 2) ?? 0) % game_production_len("forge_weapon") ?? 0);
-        sim_drop_item(s, stq3, str3, wkey3);
+        if prod_draw(s, "forge_weapon") { sim_drop_item(s, stq3, str3, wkey3); }
       } else {
         akey3 = game_production_key("forge_armor", ((day3 / 2) ?? 0) % game_production_len("forge_armor") ?? 0);
-        sim_drop_item(s, stq3, str3, akey3);
+        if prod_draw(s, "forge_armor") { sim_drop_item(s, stq3, str3, akey3); }
       }
       // the MILL's bread reaches the stalls every morning
       sim_drop_item(s, stq3 - 1, str3 - 1, "ration_of_food");
@@ -2835,6 +3049,7 @@ pub fn sim_tick(s: &Sim) {
           if e.role == 7 { npc_trade(s, e); }
           if e.role == 8 { npc_land_cargo(s, e); }
           if e.role == 9 { npc_gather(s, e); }
+          if e.role == 10 { npc_mine(s, e); }
         } else if e.awake {
           if d <= 1 {
             hit = false;
@@ -2858,6 +3073,20 @@ pub fn sim_tick(s: &Sim) {
               s.poison_until = s.ticks + POISON_DUR;
               s.poison_dmg = POISON_DMG;
               if !was { sim_log(s, "The {e.name}'s bite floods you with venom."); }
+            }
+            // CORRODE (the acid jelly): the touch eats a piece of gear, until a smith mends it.
+            // ⚠ NO SAVE, AND THAT IS DELIBERATE. Gaze and venom are re-rolled every tick you
+            // stand there, so a save is what keeps them survivable; this fires ONCE per sound
+            // piece and then has nothing left to take, which bounds it without a roll. A save
+            // would only make the cause harder to attribute — the player must be able to say
+            // *the jelly did this*, or `S6` is wear-per-use in an event's clothes.
+            if (e.flags & MF_CORRODE) != 0 && !s.over {
+              csl = sim_damage_gear(s);
+              if csl >= 0 {
+                // The PLAIN name here — sim_equipped_name would now append "(damaged)", and
+                // "eats into your mail (damaged)" says the outcome twice and the event once.
+                sim_log(s, "The {e.name}'s touch eats into your {sim_item_display_name(s, sim_equipped(s, csl))}.");
+              }
             }
             e.tgt_q = e.cur_q;
             e.tgt_r = e.cur_r;
@@ -3076,6 +3305,33 @@ fn work_words(role: integer) -> (text, text) {
   ("my work", "It'll keep.")
 }
 
+// THE SMITH MENDS ONE PIECE, AND ONLY IF THE ORE CAME DOWN (plan #17 `S6`).
+//
+// ⚠ BUMP-TO-ASK, so the repair costs ZERO keys — the same seam that already carries the
+// bounty and the Circle's favour (`DESIGN.md` §3a #7). No repair menu, no parts, no material
+// cost to the player: `CRAFTING.md` refuses all three, because the moment it needs an
+// inventory of parts it is crafting, and the hero does not craft.
+//
+// ⚠ ONE PIECE PER ASK is what keeps a bad valley legible. A smith who mended everything in
+// one bump would turn an empty store into a single "no" the player hears once; mending one at
+// a time means a half-supplied forge fixes the sword and not the mail — the same readable
+// thinning `S4` shows at the stalls.
+//
+// Split out of `sim_talk_to` rather than written inline: it is DIALOGUE over one decision
+// (`sim_smith_mend`), and inline it pushed that function past the complexity nudge.
+fn smith_talk(s: &Sim) {
+  d9 = sim_next_damaged(s);          // read the NAME first — after the mend it is gone
+  r9 = sim_smith_mend(s);
+  if r9 == 0 {
+    sim_log(s, "The smith turns your gear over and hands it back. 'Sound enough.'");
+  } else if r9 > 0 {
+    sim_log(s, "The smith works your {sim_item_display_name(s, d9)} back to true.");
+  } else {
+    sim_log(s, "The smith spreads their hands: 'Nothing's come down from the ore");
+    sim_log(s, "face. Bring me iron, or make the road safe for them that carry it.'");
+  }
+}
+
 // TALK: bumping a civilian speaks. The town carries its quest lines here —
 // merchants point at the Circle, the Circle's mages ask their favour (and pay
 // for it), the rest of the town nods. Bump-triggered, so it never spams.
@@ -3110,6 +3366,7 @@ pub fn sim_talk_to(s: &Sim, idx: integer) {
     }
     return;
   }
+  if e.key == "smith" { smith_talk(s); return; }   // the repair (plan #17 `S6`) — see smith_talk
   if e.key == "wizard" {
     if s.boss_slain == 1 && s.q_mage < 3 {
       s.q_mage = 3;
@@ -3127,6 +3384,8 @@ pub fn sim_talk_to(s: &Sim, idx: integer) {
         iv2 = s.inv;
         if eidx >= 0 && bslot < len(iv2) {
           iv2[bslot] = eidx;
+          idg7 = s.inv_dmg;
+          if bslot < len(idg7) { idg7[bslot] = 0; }   // a slot re-used for another item starts sound
           sim_grant_gold(s, 60);
           sim_log(s, "The wizard decants your phial with shaking care: 60 gold,");
           sim_log(s, "and the empty glass back in your hand. 'Again, when you can.'");
@@ -3184,6 +3443,8 @@ fn sim_quest_walkons(s: &Sim) {
       iv = s.inv;
       if bidx >= 0 && slot < len(iv) {
         iv[slot] = bidx;
+        idg8 = s.inv_dmg;
+        if slot < len(idg8) { idg8[slot] = 0; }   // a slot re-used for another item starts sound
         sim_log(s, "You stoop and fill the phial; the water hums against the glass.");
       }
     }
@@ -3485,7 +3746,36 @@ pub fn sim_equipped(s: Sim, slot: integer) -> integer {
 pub fn sim_equipped_name(s: Sim, slot: integer) -> text {
   d = sim_equipped(s, slot);
   if d < 0 { return ""; }
-  sim_item_display_name(s, d)
+  "{sim_item_display_name(s, d)}{dmg_suffix(sim_eq_damaged(s, slot))}"
+}
+
+// ── Damaged gear: is this one, and how it reads (plan #17 `S6`) ─────────────────────────
+//
+// ⚠ THE SUFFIX IS THE WHOLE INTERFACE. `F2`'s budget is spent by any screen that shows a
+// number, so a damaged item says so in the name it already prints and costs nothing: no
+// condition bar, no repair menu, no key. The player learns the state from the blow that
+// caused it and reads it back off the list they already open.
+fn dmg_suffix(damaged: boolean) -> text {
+  if damaged { return " (damaged)"; }
+  ""
+}
+pub fn sim_eq_damaged(s: Sim, slot: integer) -> boolean {
+  ed = s.eq_dmg;
+  if slot < 0 || slot >= len(ed) { return false; }
+  (ed[slot] ?? 0) != 0
+}
+pub fn sim_inv_damaged(s: Sim, slot: integer) -> boolean {
+  idg = s.inv_dmg;
+  if slot < 0 || slot >= s.ninv || slot >= len(idg) { return false; }
+  (idg[slot] ?? 0) != 0
+}
+// How many pieces the player owns that a smith would work on — the gate's one-number read,
+// and what the smith counts when asked.
+pub fn sim_damaged_count(s: Sim) -> integer {
+  n = 0;
+  for sl in 0..NUM_SLOTS { if sim_eq_damaged(s, sl) { n += 1; } }
+  for i in 0..s.ninv { if sim_inv_damaged(s, i) { n += 1; } }
+  n
 }
 // Damage `raw` would deal after the player's armour DR (never below 1).
 pub fn sim_mitigate(s: Sim, raw: integer) -> integer { apply_dr(raw, s.pac) }
@@ -3685,6 +3975,7 @@ pub fn sim_new() -> Sim {
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
     rs1: 0, rs2: 0, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
+    eq_dmg: zeros(NUM_SLOTS), inv_dmg: zeros(INV_MAX),
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     prod_stock: zeros(NUM_PRODUCERS),
@@ -4250,6 +4541,17 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
             enemies += [mk_npc(4, "fisher", "fisher", "f", 150, 190, 210,
                                hx5, hy5, hx5, hy5, fsq, fsr, fsq, fsr)];
           }
+        } else if hb == 3 {
+          // THE SMITH (plan #17 `S6`): the one townsperson who works on the PLAYER's gear.
+          //
+          // ⚠ AT THE MARKET SEAT, not out at the furnace. The seat is where the forge sets
+          // its day's work out (`sim_tick`) and where the guard master's beat holds ground
+          // safe, so the smith is somewhere a player can reliably find — and a smith who
+          // refused to stand at an unsafe furnace would read as a bug rather than as a
+          // rule, since nothing tells the player why the shop is shut. What the FURNACE
+          // decides is whether there is any iron to work; that is `npc_mine`'s business.
+          enemies += [mk_npc(1, "smith", "smith", "p", 200, 140, 100,
+                             hx5, hy5, hx5, hy5, w / 2 + 2, h / 2 - 2, w / 2 + 2, h / 2 - 2)];
         } else {
           // VILLAGERS: sleep home, take the square by day
           enemies += [mk_npc(1, "villager", "villager", "p", 228, 205, 160,
@@ -5092,6 +5394,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     para_until: 0, poison_until: 0, poison_dmg: 0, venom_until: 0,
     rs1: 0, rs2: 0, ninv: 0, inv: zeros(INV_MAX),
     eq: zeros(NUM_SLOTS), qs: zeros(QS_N), wdam: PLAYER_DAM, pac: 0,
+    eq_dmg: zeros(NUM_SLOTS), inv_dmg: zeros(INV_MAX),
     fi_n: 0, fi_q: zeros(FLOOR_MAX), fi_r: zeros(FLOOR_MAX), fi_gold: zeros(FLOOR_MAX),
     fi_cat: zeros(FLOOR_MAX), fi_def: zeros(FLOOR_MAX), fi_live: zeros(FLOOR_MAX),
     prod_stock: zeros(NUM_PRODUCERS),
@@ -5168,6 +5471,8 @@ pub fn sim_descend(s: Sim, dir: integer) -> Sim {
   ns.inv = s.inv;         // carry the inventory; floor items stay on their level
   ns.ninv = s.ninv;
   ns.eq = s.eq;           // carry equipment + its cached effects across levels
+  ns.eq_dmg = s.eq_dmg;   // ⚠ and the DAMAGE those items carry (I-MEND): a stair is not a smith
+  ns.inv_dmg = s.inv_dmg;
   ns.qs = s.qs;           // carry the quick-slot bindings across levels (like inventory)
   ns.wdam = s.wdam;
   ns.pac = s.pac;
@@ -5249,6 +5554,8 @@ pub fn sim_respawn(s: Sim) -> Sim {
   rs.inv = s.inv;
   rs.ninv = s.ninv;
   rs.eq = s.eq;
+  rs.eq_dmg = s.eq_dmg;   // ⚠ death is a setback, not a repair shop (I-MEND)
+  rs.inv_dmg = s.inv_dmg;
   rs.qs = s.qs;           // quick-slot bindings survive death (kept like inventory/equipment)
   rs.boss_slain = s.boss_slain;   // quest progress survives death (the brood stays loose)
   rs.msg_q = s.msg_q;             // the log persists through death
@@ -5471,6 +5778,8 @@ pub fn sim_travel(s: Sim) -> Sim {
   ns.inv = s.inv;         // carry the inventory; floor items stay on their level
   ns.ninv = s.ninv;
   ns.eq = s.eq;           // carry equipment + its cached effects across levels
+  ns.eq_dmg = s.eq_dmg;   // ⚠ and the DAMAGE those items carry (I-MEND): a stair is not a smith
+  ns.inv_dmg = s.inv_dmg;
   ns.qs = s.qs;           // carry the quick-slot bindings across levels (like inventory)
   ns.wdam = s.wdam;
   ns.pac = s.pac;

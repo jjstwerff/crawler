@@ -1,0 +1,197 @@
+// mendtest — plan #17 `S6`: item damage is an EVENT, and a smith is its exact inverse.
+//
+// I-MEND (sim.loft), and it is two claims that fail in opposite directions:
+//
+//   1. REPAIR IS THE EXACT INVERSE OF DAMAGE. Every derived number — `pac`, `wdam`, `phpmax`
+//      — returns to the IDENTICAL value when the flag clears. That holds structurally because
+//      `refresh_stats` derives rather than accumulates; this gate is what notices the day
+//      somebody makes it accumulate.
+//   2. THE DAMAGE IS A PROPERTY OF THE ITEM, NOT OF WHERE IT STANDS. Taking a corroded mail
+//      off, carrying it, putting it back on, walking it down a staircase — none of those is a
+//      smith. ⚠ THIS IS THE ONE FAILURE THIS DESIGN CAN HAVE AND IT IS SILENT: `inv`/`eq` hold
+//      def indices with no instance to carry a state, so the condition rides parallel vectors,
+//      and a move site that forgets its partner write LAUNDERS the damage. Every seam that
+//      moves an item is walked below for exactly that reason.
+//
+// ⚠ AND NO RUNNING DEGRADATION. Row 7 stands still for a day and asserts nothing wore out —
+// the negative control for the whole design, because event damage and wear-per-use are
+// indistinguishable from a single damaged item and opposite in what they cost the player.
+use sim;
+use items;
+use catalog;
+use monsters;
+use hex_grid;
+
+// The sandbox WITH a character in it. `sim_new()` builds a level and a chaser but no kit,
+// and gear damage has nothing to say about a hero who is wearing nothing — measured: every
+// row below reported ac 0 and passed vacuously until this was added.
+fn armed_sim() -> Sim {
+  s = sim_new();
+  sim_starting_loadout(s);
+  s
+}
+
+fn main() {
+  println("=== story mend test (plan #17 S6) ===");
+  ok = true;
+
+  // ── 1. THE CAUSE, THROUGH THE REAL MELEE PATH ─────────────────────────────────────────
+  // Not the primitive: an adjacent corroder, the shipped tick loop, the blow. Without this
+  // row the whole mechanism could be correct algebra that nothing in the game ever calls.
+  // ⚠ It must also go for the BODY, not the dagger — the rule is "what you would miss most",
+  // and a first blow that ate a 0-AC weapon would teach the player nothing.
+  s = armed_sim();
+  sim_make_corrode(s, 0);
+  (ex, ey) = sim_enemy_pos(s, 0);
+  (eq0, er0) = px_to_hex(ex, ey);
+  (nq0, nr0) = hex_neighbor(eq0, er0, 0);
+  (nx0, ny0) = hex_to_px(nq0, nr0);
+  s.px = nx0; s.py = ny0;
+  ac_before = sim_player_ac(s);
+  sound_first = sim_damaged_count(s) == 0;
+  // ⚠ STOP AT THE FIRST BLOW. A fixed run of ticks is a fixed run of blows, and by the
+  // eighth the jelly has taken the sword as well — which reads as "it went for the weapon"
+  // and makes the ORDER, the only claim this row is about, untestable.
+  tries = 0;
+  while sim_damaged_count(s) == 0 && tries < 8 { sim_tick(s); tries += 1; }
+  bit = sim_damaged_count(s) > 0;
+  body_went = sim_eq_damaged(s, SLOT_BODY);
+  arm_kept  = !sim_eq_damaged(s, SLOT_WEAPON);
+  ac_fell   = sim_player_ac(s) < ac_before;
+  named = sim_equipped_name(s, SLOT_BODY);
+  says_it = ends_with(named, "(damaged)");
+  println("the blow: sound-before={sound_first} corroded={bit} body={body_went} weapon-spared={arm_kept} ac {ac_before}->{sim_player_ac(s)} name=`{named}`");
+  if !sound_first { println("FAIL: a new character starts with damaged kit it never earned"); ok = false; }
+  if !bit { println("FAIL: a corroding blow landed and no gear was damaged — MF_CORRODE is not wired to the melee arm"); ok = false; }
+  if !body_went || !arm_kept { println("FAIL: the blow did not take the piece with the most to lose"); ok = false; }
+  if !ac_fell { println("FAIL: damaged armour still protects in full — the state is cosmetic"); ok = false; }
+  if !says_it { println("FAIL: nothing in the item's name says it is damaged — the player cannot see the state"); ok = false; }
+
+  // ── 2. I-MEND: repair restores the IDENTICAL numbers ──────────────────────────────────
+  // Every derived number, taken before any damage and compared after a mend. ⚠ `phpmax` is
+  // in the list because armour grants HP: a repair that restored AC but not the pool would
+  // pass an AC-only check and quietly shave the character on every trip to the smith.
+  r = armed_sim();
+  ac0 = sim_player_ac(r);
+  dam0 = sim_player_dam(r);
+  hpm0 = sim_player_hp_max(r);
+  sl2 = sim_damage_gear(r);
+  ac1 = sim_player_ac(r);
+  hpm1 = sim_player_hp_max(r);
+  prod_raise(r, "forge_armor");            // the ore is in: the smith may work
+  prod_raise(r, "forge_weapon");
+  mended = sim_smith_mend(r) == 1;
+  round_trip = sim_player_ac(r) == ac0 && sim_player_dam(r) == dam0 && sim_player_hp_max(r) == hpm0;
+  clean = sim_damaged_count(r) == 0;
+  println("round trip: slot={sl2} ac {ac0}->{ac1}->{sim_player_ac(r)} hpmax {hpm0}->{hpm1}->{sim_player_hp_max(r)} dam {dam0}->{sim_player_dam(r)} mended={mended} clean={clean}");
+  if ac1 >= ac0 { println("FAIL: damage did not lower AC, so the round trip below proves nothing"); ok = false; }
+  if !mended { println("FAIL: a stocked smith refused to mend"); ok = false; }
+  if !round_trip { println("FAIL: repair is NOT the inverse of damage — a derived number did not return"); ok = false; }
+  if !clean { println("FAIL: the smith reported a mend and the item is still damaged"); ok = false; }
+
+  // ── 3. THE SUPPLY DECIDES (the reason `S6` belongs to this plan) ──────────────────────
+  // A smith draws the same store the forge draws. With no ore in it there is no repair, and
+  // the answer is a refusal that leaves the gear exactly as damaged as it was.
+  //
+  // ⚠ THROUGH `sim_smith_mend_when`, BECAUSE THE FORGE LINES ARE UNARMED TODAY. The shipped
+  // world's ore face has no path to the miner's home (measured — see `prod_gated`), so
+  // arming the forge on that supply would stop it outright; until a reachable mine exists,
+  // `sim_smith_mend` always has iron and the refusal is unreachable in play. That is exactly
+  // the branch this row exists for: a policy that cannot be set in a test is one whose other
+  // half nobody proves, and it would go live untested on the day the switch flips.
+  e2 = armed_sim();
+  _s3 = sim_damage_gear(e2);
+  ac_dmg = sim_player_ac(e2);
+  starved = sim_smith_mend_when(e2, true) < 0;
+  still_bad = sim_damaged_count(e2) == 1 && sim_player_ac(e2) == ac_dmg;
+  prod_raise(e2, "forge_armor");
+  stock_before = sim_prod_stock(e2, "forge_armor");
+  now_ok = sim_smith_mend_when(e2, true) == 1;
+  drew = sim_prod_stock(e2, "forge_armor") == stock_before - 1;
+  nothing_left = sim_smith_mend_when(e2, true) == 0;
+  no_waste = sim_prod_stock(e2, "forge_armor") == stock_before - 1;
+  // And the shipped (unarmed) path: the smith mends and the store is not consulted, which is
+  // what keeps a town with no mine from having a smith who can never help.
+  e3 = armed_sim();
+  _s3b = sim_damage_gear(e3);
+  ship_mends = sim_smith_mend(e3) == 1 && sim_damaged_count(e3) == 0;
+  println("supply (armed): empty-store-refuses={starved} gear-untouched={still_bad} stocked-mends={now_ok} drew-one={drew} nothing-to-do={nothing_left} no-waste={no_waste}");
+  println("supply (as shipped, unarmed): mends anyway={ship_mends}");
+  if !starved { println("FAIL: the smith mended with an empty store — the supply coupling is decorative"); ok = false; }
+  if !still_bad { println("FAIL: a refused repair still changed the gear"); ok = false; }
+  if !now_ok || !drew { println("FAIL: a mend did not draw the forge's stock"); ok = false; }
+  if !nothing_left || !no_waste { println("FAIL: the smith spent iron on gear that needed nothing"); ok = false; }
+  if !ship_mends { println("FAIL: the shipped smith cannot mend — an unarmed producer must not gate the repair"); ok = false; }
+
+  // ── 4. NO LAUNDERING: the condition rides the ITEM through every seam ─────────────────
+  // unequip -> the pack -> back on. Each hop is a separate write site in sim.loft and each
+  // one can silently forget its partner.
+  u = armed_sim();
+  _s4 = sim_damage_gear(u);
+  ac_worn = sim_player_ac(u);
+  sim_unequip(u, SLOT_BODY);
+  in_pack = sim_inv_damaged(u, sim_inv_count(u) - 1);
+  pack_name = sim_inv_name(u, sim_inv_count(u) - 1);
+  sim_equip(u, sim_inv_count(u) - 1);
+  back_on = sim_eq_damaged(u, SLOT_BODY) && sim_player_ac(u) == ac_worn;
+  println("no laundering: carried={in_pack} `{pack_name}` re-worn={back_on} ac={sim_player_ac(u)}");
+  if !in_pack { println("FAIL: taking damaged armour OFF repaired it"); ok = false; }
+  if !back_on { println("FAIL: putting damaged armour back ON repaired it"); ok = false; }
+
+  // ── 5. A STAIRCASE IS NOT A SMITH ─────────────────────────────────────────────────────
+  // The level-carry sites copy `inv`/`eq` by hand, one line each; the condition vectors sit
+  // beside them and are exactly as easy to leave out.
+  d = sim_new_gen(1337, 1);
+  _s5 = sim_damage_gear(d);
+  ac_d = sim_player_ac(d);
+  d2 = sim_descend(d, 1);
+  crossed = sim_damaged_count(d2) == 1 && sim_player_ac(d2) == ac_d;
+  println("descent: damaged-across={crossed} ac {ac_d}->{sim_player_ac(d2)} depth {sim_depth(d)}->{sim_depth(d2)}");
+  if !crossed { println("FAIL: the character crossed a level and the damage did not"); ok = false; }
+
+  // ── 6. A FRESH ITEM IS SOUND, EVEN IN A SLOT THAT HELD A RUINED ONE ───────────────────
+  // `sim_consume_inv` shifts the tail down and leaves the vacated slot holding its old
+  // value, so an arriving item that trusted its slot would be born damaged by whatever
+  // stood there last. Contagion is the failure mode a def-indexed design would have had
+  // everywhere; this is the one place the slot-indexed one can still have it.
+  f = armed_sim();
+  sim_give_item(f, "chain_mail");
+  ci = sim_inv_count(f) - 1;
+  sim_equip(f, ci);
+  _s6 = sim_damage_gear(f);                      // takes the chain mail: the best piece
+  sim_unequip(f, SLOT_BODY);                     // ... into the pack, still damaged
+  sim_consume_inv(f, sim_inv_count(f) - 1);      // ... and gone
+  sim_give_item(f, "chain_mail");
+  fresh_sound = !sim_inv_damaged(f, sim_inv_count(f) - 1) && sim_damaged_count(f) == 0;
+  println("no contagion: a replacement in the vacated slot is sound={fresh_sound}");
+  if !fresh_sound { println("FAIL: a newly acquired item inherited a dead slot's damage"); ok = false; }
+
+  // ── 7. NO RUNNING DEGRADATION — the negative control ──────────────────────────────────
+  // ⚠ THE ROW THE DESIGN IS ACTUALLY ABOUT (CRAFTING.md): wear-per-use is a maintenance
+  // chore with a meter behind it; event damage is one state its cause teaches. A day of
+  // ticks with nothing corrosive anywhere near must ruin nothing at all.
+  w = armed_sim();
+  ac_w = sim_player_ac(w);
+  dam_w = sim_player_dam(w);
+  for _ in 0..DAY_LEN { sim_tick(w); }
+  no_wear = sim_damaged_count(w) == 0 && sim_player_ac(w) == ac_w && sim_player_dam(w) == dam_w;
+  println("no wear: {DAY_LEN} ticks of use ruined nothing={no_wear} (ac {ac_w}, dam {dam_w})");
+  if !no_wear { println("FAIL: gear degraded with time or use — S6 has become the wear meter it refuses"); ok = false; }
+
+  // ── 8. THE BLOW RUNS OUT OF THINGS TO TAKE ────────────────────────────────────────────
+  // A damaged piece is never re-damaged, so a creature standing on you forever costs a
+  // bounded amount — which is why the corroding blow needs no saving throw to stay fair.
+  x = armed_sim();
+  first = sim_damage_gear(x);
+  second = sim_damage_gear(x);
+  ac_x = sim_player_ac(x);
+  dam_x = sim_player_dam(x);
+  third = sim_damage_gear(x);
+  spent_out = third < 0 && sim_player_ac(x) == ac_x && sim_player_dam(x) == dam_x;
+  distinct = first >= 0 && second >= 0 && first != second;
+  println("bounded: slots {first},{second} then {third}; frozen after={spent_out}");
+  if !distinct { println("FAIL: two blows took the same slot twice"); ok = false; }
+  if !spent_out { println("FAIL: the blow kept eating gear that was already ruined"); ok = false; }
+
+  if ok { println("=== MEND OK ==="); } else { println("=== FAIL ==="); }
+}

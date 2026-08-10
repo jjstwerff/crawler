@@ -19,6 +19,9 @@ pub const MF_GAZE       = 128;  // a paralysing GAZE (the floating eye) — a me
 pub const MF_POISON     = 256;  // a venomous bite — its melee can poison the player
 pub const MF_SHRINE     = 512;  // bump = INTERACT, not melee (the spawning crystal's re-spec);
                                 //   still targetable by ranged fire — destroying it is a choice
+pub const MF_CORRODE    = 1024; // an ACID touch: its melee DAMAGES a piece of worn gear until a
+                                //   smith mends it (plan #17 `S6`). Angband's own model — acid
+                                //   ruins armour — and the third special blow beside GAZE/POISON
 
 // ── THE TRAIT SEAM (plan #4 Phase A) ────────────────────────────────────
 // The engine never asks for a monster BY KEY — it asks the merged catalog for
@@ -94,6 +97,12 @@ pub fn monster_table() -> vector<MonsterDef> {
   // Do NOT give it a stand-in bite — implement the gaze instead.
   t += [MonsterDef { m_key: "floating_eye", m_name: "floating eye", m_glyph: "e", m_cr: 240, m_cg: 220, m_cb: 60, m_depth: 3, m_rarity: 2, m_hp: 11, m_ac: 3, m_speed: 0, m_dam: 0, m_vision: 5, m_xp: 5, m_flags: MF_NEVER_MOVE | MF_CASTER | MF_GAZE }];
   // ── mid (4-10) ──
+  // THE CORRODING BLOW'S ONE HONEST CAUSE (plan #17 `S6`). Faithful design: Angband's acid
+  // jelly is stationary, barely hurts, and RUINS what you are wearing — so the lesson is
+  // taught by a creature you could have walked around, which is what makes gear damage an
+  // EVENT the player can attribute rather than a meter that drains. Do NOT tune it toward a
+  // fight; the low `m_dam` IS the mechanic.
+  t += [MonsterDef { m_key: "green_jelly", m_name: "green jelly", m_glyph: "J", m_cr: 90, m_cg: 190, m_cb: 100, m_depth: 4, m_rarity: 2, m_hp: 26, m_ac: 4, m_speed: 0 - 10, m_dam: 1, m_vision: 2, m_xp: 6, m_flags: MF_NEVER_MOVE | MF_CORRODE }];
   t += [MonsterDef { m_key: "giant_frog", m_name: "giant frog", m_glyph: "R", m_cr: 90, m_cg: 200, m_cb: 90, m_depth: 4, m_rarity: 1, m_hp: 14, m_ac: 8, m_speed: 0, m_dam: 4, m_vision: 7, m_xp: 5, m_flags: MF_NONE , m_habitat: HB_SWAMP | HB_SWAMP * HB_T2 }];
   t += [MonsterDef { m_key: "orc", m_name: "orc", m_glyph: "o", m_cr: 90, m_cg: 150, m_cb: 70, m_depth: 4, m_rarity: 1, m_hp: 16, m_ac: 12, m_speed: 0, m_dam: 5, m_vision: 10, m_xp: 6, m_flags: MF_GROUP }];
   t += [MonsterDef { m_key: "skeleton", m_name: "skeleton", m_glyph: "s", m_cr: 230, m_cg: 230, m_cb: 210, m_depth: 5, m_rarity: 1, m_hp: 15, m_ac: 11, m_speed: 0, m_dam: 5, m_vision: 9, m_xp: 6, m_flags: MF_NONE , m_tags: TAG_GRAVE | TAG_TOWER_DWELLER }];
