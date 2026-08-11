@@ -751,7 +751,14 @@ struct), which is `sev:low` / `wa:clean` but a real time sink.
 
 ## Filed
 
-*(nothing yet — move entries here with their issue numbers)*
+⚠ **Entries do NOT move here** — that was the original plan and it never happened, because an
+entry is worth more beside its siblings than in a list. They keep their place and gain a
+**Status** line. This section is the INDEX, so "has this been filed?" is one lookup.
+
+| entry | issue | state |
+|---|---|---|
+| **H10** — auto-native cdylib fails to wire intermittently under concurrent `loft` | [loft#831](https://github.com/loft-lang/loft/issues/831) | ✅ fixed upstream 2026-08-10, confirmed back |
+| **H11** — a library package's public `fn` claims the consumer's variable namespace | [loft#852](https://github.com/loft-lang/loft/issues/852) | open — `needs-design` |
 
 ---
 
@@ -1308,8 +1315,23 @@ failure: the `-P8` runs above reproduced it with no rebuild in progress.
 
 ## H11 — a library's public `fn` claims the CONSUMER's variable namespace: `use engine_host` makes `turn = 0` a compile error
 
-**Found 2026-08-11** on toolchain 2026.8.0. **Not filed yet — and the first question is whether
-it is a defect at all**, which is why it is written down before anything is renamed.
+**Status:** ✅ **FILED as [loft#852](https://github.com/loft-lang/loft/issues/852)** (2026-08-11,
+`enhancement` · `needs-design` · `sev:low` · `wa:clean` · `area:parser` · `both-backends`) ·
+**Repo:** `loft-lang/loft`
+
+**Found 2026-08-11** on toolchain 2026.8.0.
+
+⚠ **IT IS NOT A NEW QUESTION, AND THE SEARCH IS WHAT FOUND THAT** — [#756](https://github.com/loft-lang/loft/issues/756)
+(filed by *moros*, closed 2026-08-03) hit the same wall from the stdlib side: `chr` landed in
+`default/03_text.loft` and a months-old local called `chr` stopped compiling. That issue fixed
+the *diagnostic* — which is why the error we got names `turn` in one clear line instead of three
+misleading ones — and closed naming this half explicitly: *"Whether a global function should be
+shadowable at all is untouched — both forms agree in refusing it, which is the invariant. That
+is a separate design question and I did not widen into it."*
+
+So #852 is that follow-up, and it carries the dimension #756 did not have: **#756 was the
+stdlib, this is a PACKAGE.** One owner weighing each new name versus an unbounded ecosystem
+where anyone may claim a common verb, and nothing announces which words a release took.
 
 **Repro — six lines, no crawler code involved:**
 
