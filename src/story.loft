@@ -229,7 +229,9 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     }
     sdn = sd >= 0;
     if sdn && !w.spend_was {
-      if w.page_open && sd < 6 {
+      // ⚠ `NUM_STATS`, not a literal 6 (plan #16 `M2`): the handler already reads 1-9, so the
+      // two new axes cost ZERO new keys — the budget was always spent on the row, not the axis.
+      if w.page_open && sd < NUM_STATS {
         emit(w, "A 4 {sd} 0");
         if flow_action(w.s, 4, sd, 0) == 1 { w.pg = build_charpage(w.s, w.hud.font); }
       } else if w.inv_open {

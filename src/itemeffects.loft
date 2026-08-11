@@ -27,8 +27,11 @@ pub fn engine_item_effect(s: &Sim, p: Player, key: text) -> boolean {
     return true;
   }
   if key == "potion_restore" {                            // Restoration: undo any stat drain
-    p.restore_stat(s, "str"); p.restore_stat(s, "int"); p.restore_stat(s, "wis");
-    p.restore_stat(s, "dex"); p.restore_stat(s, "con"); p.restore_stat(s, "chr");
+    // the EIGHT (plan #16 `M2`) — restore-all means all of them, so this list grows with the
+    // axis set or the potion quietly stops restoring the newest ones
+    p.restore_stat(s, "might"); p.restore_stat(s, "endu"); p.restore_stat(s, "dex");
+    p.restore_stat(s, "perc"); p.restore_stat(s, "speed"); p.restore_stat(s, "will");
+    p.restore_stat(s, "char"); p.restore_stat(s, "hand");
     return true;
   }
   if key == "scroll_phase_door" { sim_blink(s, 5); return true; }    // short random blink

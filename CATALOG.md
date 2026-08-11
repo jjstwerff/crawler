@@ -16,12 +16,26 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 
 ---
 
-## 0. KEY DECISION — adopt moros's 8 stats (DECIDED 2026-06-27, ⚠ NOT BUILT)
+## 0. KEY DECISION — adopt moros's 8 stats (DECIDED 2026-06-27, ✅ ENGINE BUILT 2026-08-10)
 
-> ⚠ **Decided, never executed — measured 2026-08-09.** The engine runs Angband's SIX
-> (`str/int/wis/dex/con/chr` — `gameflow::stat_name`, `sim::stat_index`); Might, Endurance
-> and the rest appear in no code path. Six weeks between the decision and the measurement,
-> and nothing said so.
+> ✅ **The engine answers the eight** (plan #16 `M2`): `NUM_STATS = 8`, `sim::stat_index` and
+> `gameflow::stat_name` speak Might·Endurance·Dexterity·Perception·Speed·Will·Charisma·Handiness
+> in this table's order, and the character page lists and spends all eight. **It cost zero new
+> keys** — the front-end already read 1–9 and merely gated at six.
+>
+> ⚠ **The CONTENT is still on six.** The 18 race/class bundles carry `r_str…r_chr` and are
+> re-authored as a set in `M3`; until then a placeholder places the six authored values on
+> their axes and **Perception, Speed and Handiness are unauthored** (the character page says
+> *(later)* rather than showing a number the game does not use). So read the powers below as
+> the target for the *values*, and as the state for the *axes*.
+>
+> ⚠ **And `r_int` has nowhere to land**, which is the finding worth carrying: under the eight
+> there is exactly ONE casting axis, so arcane and divine both key off **Will** — *which races
+> cast well* stopped being a data migration and became a judgement about the roster.
+>
+> *(Historical, measured 2026-08-09: decided 2026-06-27 and never executed — six weeks in which
+> three documents specified a game against eight axes while the code offered six, and nothing
+> said so.)*
 >
 > ⚠ **This is crawler's own open decision, not a dependency on anybody.** moros has nothing
 > to write for it (`MOROS.md`): the stat set was *seeded* here in June and the mapping

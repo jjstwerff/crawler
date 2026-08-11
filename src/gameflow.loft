@@ -29,14 +29,20 @@ pub fn flow_genesis(seed: integer, depth: integer) -> Sim {
   s
 }
 
-// Stat name for raise-stat intents (index 0..5 -> STR..CHR).
+// Stat name for raise-stat intents (index 0..7 -> the EIGHT, CATALOG.md §0 order).
+// ⚠ THE EXACT INVERSE OF `sim::stat_index`, and it has to stay that way: an intent travels the
+// wire as an INDEX and is applied by NAME, so a disagreement between these two would raise a
+// different stat on the replica than on the host and desync the world silently (K2).
+// `replaytest` walks it.
 pub fn stat_name(i: integer) -> text {
-  if i == 0 { return "str"; }
-  if i == 1 { return "int"; }
-  if i == 2 { return "wis"; }
-  if i == 3 { return "dex"; }
-  if i == 4 { return "con"; }
-  "chr"
+  if i == 0 { return "might"; }
+  if i == 1 { return "endu"; }
+  if i == 2 { return "dex"; }
+  if i == 3 { return "perc"; }
+  if i == 4 { return "speed"; }
+  if i == 5 { return "will"; }
+  if i == 6 { return "char"; }
+  "hand"
 }
 
 // Apply an action intent. Returns 1 when a raise-stat actually landed (the

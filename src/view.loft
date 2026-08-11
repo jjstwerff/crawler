@@ -699,12 +699,14 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   graphics::draw_rect_at(painter, pad, 68.0, SIDEBAR_W - 2.0 * pad, 5.0, 0.10, 0.10, 0.22, 1.0);
   graphics::draw_rect_at(painter, pad, 68.0, (SIDEBAR_W - 2.0 * pad) * xpf, 5.0, 0.45, 0.45, 0.85, 1.0);
 
-  // The 6 base stats (label + value).
-  snames = ["STR", "INT", "WIS", "DEX", "CON", "CHR"];
-  skeys  = ["str", "int", "wis", "dex", "con", "chr"];
+  // The EIGHT base stats (label + value) — CATALOG.md §0 order, plan #16 `M2`.
+  // ⚠ Driven by the ARRAY's length, not a literal count, so the sidebar follows the axis set
+  // (I-AXIS). Whether eight rows still FIT here is `M4`'s judgement, in `make play`.
+  snames = ["MIG", "END", "DEX", "PER", "SPD", "WIL", "CHA", "HAN"];
+  skeys  = ["might", "endu", "dex", "perc", "speed", "will", "char", "hand"];
   slbl = hud.statlbl;
   sy = 84.0;
-  for i in 0..6 {
+  for i in 0..len(skeys) {
     t = if i < len(slbl) { slbl[i] ?? 0 } else { 0 };
     sb_text(painter, hud, t, snames[i] ?? "", pad, sy);
     draw_number(painter, hud, sim_stat(s, skeys[i] ?? ""), pad + 46.0, sy - 2.0);
@@ -963,18 +965,25 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
 // Lines are baked once (build_charpage, on open/spend), then drawn (draw_charpage) — no per-frame
 // texture churn. The line strings are derived from the Sim, so the same `s` gives the same layout.
 fn charpage_lines(s: Sim) -> vector<text> {
-  st = sim_stat(s, "str"); it = sim_stat(s, "int"); wi = sim_stat(s, "wis");
-  dx = sim_stat(s, "dex"); cn = sim_stat(s, "con"); ch = sim_stat(s, "chr");
+  // THE EIGHT (CATALOG.md §0, plan #16 `M2`). ⚠ The three that say *(later)* are honest, not
+  // placeholders left by accident: Perception, Speed and Handiness have no consumer until `M4`
+  // re-keys the derived stats, and no race has authored a value for them until `M3`. Saying so
+  // beats showing a number the game does not use.
+  mg = sim_stat(s, "might"); en = sim_stat(s, "endu"); dx = sim_stat(s, "dex");
+  pe = sim_stat(s, "perc"); sp = sim_stat(s, "speed"); wl = sim_stat(s, "will");
+  ch = sim_stat(s, "char"); hn = sim_stat(s, "hand");
   out: vector<text> = [];
   out += ["CHARACTER    level {sim_clevel(s)}    XP {sim_xp(s)}"];
   out += ["HP {sim_player_hp(s)}/{sim_player_hp_max(s)}    save {sim_player_save(s)}%    melee +{sim_skill_melee(s)}    stealth {sim_skill_stealth(s)}"];
-  out += ["stat points: {sim_stat_points(s)}   (press 1-6 to spend; a stat rises once per 3 levels)"];
-  out += ["  1  STR {st}    sharpens melee damage"];
-  out += ["  2  INT {it}    spells / devices (later)"];
-  out += ["  3  WIS {wi}    willpower / faith (later)"];
-  out += ["  4  DEX {dx}    stealth: sneak closer unseen"];
-  out += ["  5  CON {cn}    saving throw + hit points"];
-  out += ["  6  CHR {ch}    prices / charisma (later)"];
+  out += ["stat points: {sim_stat_points(s)}   (press 1-8 to spend; a stat rises once per 3 levels)"];
+  out += ["  1  MIGHT {mg}    sharpens melee damage"];
+  out += ["  2  ENDURANCE {en}    saving throw + hit points"];
+  out += ["  3  DEXTERITY {dx}    stealth: sneak closer unseen"];
+  out += ["  4  PERCEPTION {pe}    reading the field / ranged aim (later)"];
+  out += ["  5  SPEED {sp}    the distance clock / repositioning (later)"];
+  out += ["  6  WILL {wl}    focus, the casting realms, resisting Tension"];
+  out += ["  7  CHARISMA {ch}    leadership / prices (later)"];
+  out += ["  8  HANDINESS {hn}    repairs and making do (later)"];
   out += ["save% resists magic and never reaches 100.    C closes."];
   out
 }
