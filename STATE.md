@@ -8,7 +8,18 @@ Written as a handoff: read after a `/clear`.
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
 
-> ## → **plan #17 is BUILT END TO END** — `S0`–`S7` all shipped and gated. Closing it is the user's call.
+> ## ✅ **plan #17 is CLOSED** (`status:finished`, 2026-08-10) — `S0`–`S7` shipped and gated, and **a roster slot is free**.
+>
+> **How the shipped system works is [`CRAFTING.md`](CRAFTING.md)** → *All of it shipped — the
+> invariants, and where each one lives*. The plan is now a closure record: what it cost, not
+> how it works. `#16` (eight statistics) was queued explicitly behind #17 and is **unblocked** —
+> its `M3` re-authors 18 race blocks with a `Handiness` value, and what Handiness is *for* was
+> the question #17 had to answer first (repairs and improvised gear, never crafting; a degree,
+> never a key).
+>
+> **→ NEXT is a roster call, not a step.** The free slot, the two live plans (`#11` 3D world,
+> `#13` scoped identity), `#16` now unblocked, and the loose thread #17 left (`FLOWD_MAX`
+> saturated, below) are the candidates.
 >
 > ✅ **`S7` SHIPPED (2026-08-10): standing, and the militia it raises.** The player's push out,
 > where `S5` is the world's push in — and they meet in one predicate, because `hex_safe`'s

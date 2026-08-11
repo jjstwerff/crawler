@@ -5,11 +5,32 @@
 
 ## Status
 
-**`status:active` from 2026-08-09** (user), taking `#12`'s slot — the roster is
-`#11`/`#13`/`#17`, still at the cap of three. **Every step `S0`–`S7` is now shipped and
-gated** (2026-08-10): `I-SAFE` holds end to end, `I-MEND` with it, and `I-STAND`/`I-PICKET`
-close the loop from the other side — the player's push out. **The plan is ready to close;
-that call is the user's.**
+> # ✅ CLOSED — `status:finished`, 2026-08-10 (user)
+>
+> Active 2026-08-09 → closed 2026-08-10, taking `#12`'s slot on the roster of three. **Every
+> step `S0`–`S7` shipped and gated**, in one day of work: `I-SAFE` holds end to end, `I-MEND`
+> with it, and `I-STAND`/`I-PICKET` close the loop from the other side — the player's push out.
+>
+> ## ⚠ THIS DOCUMENT IS A CLOSURE RECORD, NOT THE REFERENCE
+>
+> **How the shipped system works: [`CRAFTING.md`](../../CRAFTING.md) → *All of it shipped — the
+> invariants, and where each one lives*.** That table is the entry point, and every mechanism's
+> authority is the code that implements it. What is kept below is what a reference doc must not
+> carry: **what it cost** — the defects, the measurements that found them, the wrong diagnoses,
+> and the calls that were made and could be unmade.
+>
+> | Reference content that grew here | Now lives in |
+> |---|---|
+> | the safety category, the two vetoes, stock, the incursion mechanism, damage/repair, standing and pickets | `CRAFTING.md` (index) → `sim.loft` (authority) |
+> | the settlement's `production` seam | `BUNDLE.md` → *The `production` section* |
+> | the alpine bands, the meadow band and `SNOW_REACH`, the home window's anchor | `src/overland.loft` (`TREEL`/`ALPINE_TOP`/`SNOW_REACH`, `ov_kind_at`, `ov_home_window`) |
+> | real dimensions for every threshold named here | `SCALE.md` + `src/scaletest.loft` |
+>
+> **What this plan leaves behind, and it is the one thing NOT closed:** `FLOWD_MAX` is
+> **saturated at 24 of 24 in the shipped world** before anything #17 added, so some civilian is
+> walking greedily today and nobody knows which. Recorded in `STATE.md`; raising it moves every
+> number `stocktest`/`incursiontest`/`militiatest` are gated on, so it is **its own change with
+> its own measurement**, not a line here.
 
 > ## ✅ `I-SAFE` IS CLOSED END TO END (2026-08-10)
 >
@@ -115,16 +136,26 @@ that only became visible once both were on the page:
 
 ## Steps
 
-| Step | Effort | Verify | Status |
-|---|---|---|---|
-| **`S0`** — the design + measure what exists | S | `CRAFTING.md` | **Shipped** |
-| **`S1`** — a safety category over the surface | S | `make test` (`safetytest`) | ✅ **Shipped** |
-| **`S2`** — workers refuse to ENTER unsafe ground | S | `make test` (`safetytest`) | ✅ **Shipped** |
-| **`S3`** — stock: workers raise it, workshops draw it | M | `make test` (`stocktest`) | ✅ **Shipped and ARMED** |
-| **`S4`** — the world shows it, with no panel | M | `make test` (`safetytest` row 8) + a user read | ✅ **Shipped** — `I-SAY`, and `F6` measured at **tick 19** |
-| **`S5`** — safety is CONTESTED: sources send incursions | M | `make test` (`incursiontest`, `stocktest`) | ✅ **Shipped, ARMED and CLOSED** — `I-SAFE` holds end to end |
-| **`S6`** — item damage as an EVENT (no running wear) + repair | S | `make test` (`mendtest`) + `scripts/mend.play` | ✅ **Shipped** — `I-MEND`; the supply coupling is built and **unarmed** (no reachable mine) |
-| **`S7`** — standing, and the militia it raises | M | `make test` (`militiatest`) + `scripts/militia.play` | ✅ **Shipped** — `I-STAND`/`I-PICKET`; the ore face goes **775/1600 unsafe → 0**, deliveries **3 → 6**, den alive in both arms |
+All shipped 2026-08-10. **The `Reference` column is where each mechanism is described now** —
+the `… designed` sections below are the *intent* that was agreed beforehand (HISTORICAL), and
+the `✅ … is BUILT` sections are what it cost (CLOSURE RECORD). Neither is the authority.
+
+| Step | Verify (in the standing gate) | Reference |
+|---|---|---|
+| **`S0`** — the design + measure what exists | `CRAFTING.md` | `CRAFTING.md` |
+| **`S1`** — a safety category over the surface | `safetytest` | `I-CAT` → `sim.loft` `hex_safe` |
+| **`S2`** — workers refuse to ENTER unsafe ground | `safetytest` | `I-ENTER`/`I-SITE` → `npc_may_enter`, `npc_target` |
+| **`S3`** — stock: workers raise it, workshops draw it | `stocktest` | `I-STOCK` → `prod_raise`/`prod_draw_when`; `BUNDLE.md` → *`production`* |
+| **`S4`** — the world shows it, with no panel | `safetytest` row 8 | `I-SAY` → `sim_talk_to`, `work_words` |
+| **`S5`** — safety is CONTESTED: sources send incursions | `incursiontest`, `stocktest` | `I-SOURCE` → `send_incursions`, `raid_objective` |
+| **`S6`** — item damage as an EVENT (no running wear) + repair | `mendtest` + `scripts/mend.play` | `I-MEND` → `sim_damage_gear`/`sim_smith_mend` |
+| **`S7`** — standing, and the militia it raises | `militiatest` + `scripts/militia.play` | `I-STAND`/`I-PICKET` → `s.stand`, `militia_stand`/`militia_site` |
+
+**The headline numbers, all on `story.loft`'s own `GEN_SEED`:** `I-SAFE` — four days, den alive
+against cleared, **0 deliveries against 3** and the store never holding anything under pressure
+(`S5`); then with the mine reachable, **3 under pressure against 7 at peace** on the ore chain
+(`S6`); then with a militia raised and **the den still alive**, the ore face **775/1600 unsafe
+→ 0** and deliveries **3 → 6** (`S7`).
 
 ### `S1` — the safety category, designed
 

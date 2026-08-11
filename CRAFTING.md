@@ -1,8 +1,9 @@
 # CRAFTING.md — the settlement makes things; the hero makes that possible
 
-> **Design, 2026-08-09** (user direction). Tracked by
-> [plan #17](plans/17-safe-supply/). ⚠ This doc owns the design; the plan owns the
-> schedule and the step status.
+> **Design, 2026-08-09** (user direction). Built as [plan #17](plans/17-safe-supply/),
+> **closed `status:finished` 2026-08-10**. ⚠ **This doc is now the reference** — start at
+> *All of it shipped — the invariants, and where each one lives*, below; the plan is a
+> closure record of what it cost, and nothing depends on reading it.
 
 ## The inversion
 
@@ -96,7 +97,8 @@ hold**: standing is earned by the acts they were already doing, and the petition
 ⚠ **AND IT IS THE CAMPAIGN'S ADVANCEMENT AXIS**, not a side system: *"players will migrate to
 be bigger heroes during the campaign this way"* (user). The hero grows in **what they can
 cause**, not in what they can press — the only kind of growth that spends nothing from the
-interface budget. Designed in full as [plan #17 `S7`](plans/17-safe-supply/#s7--standing-and-the-militia-it-raises-designed).
+interface budget. Built as plan #17 `S7` — the shipped form is `I-STAND`/`I-PICKET` in the
+table below; what it cost is [the plan's closure record](plans/17-safe-supply/#-s7-is-built-and-gated--and-what-it-bought-is-measured-on-the-shipped-world).
 
 ✅ **BUILT AND MEASURED (2026-08-10).** Standing is one number per settlement, keyed by window
 so it is local; the petition is a bump on the guard master; a picket is an ordinary role-3
@@ -105,6 +107,29 @@ in both arms, raising the militia took the ore face from **775 of 1600 unsafe ti
 its deliveries from **3 to 6**. ⚠ **A picket faces OUTWARD** — two hexes beyond the work,
 never on it: posted on the work it made the ground perfectly safe and killed the trade
 outright, because a permanent body in a one-hex pass freezes every worker behind it.
+
+## ✅ ALL OF IT SHIPPED — the invariants, and where each one lives
+
+Built as [plan #17](plans/17-safe-supply/) over `S0`–`S7` and **closed 2026-08-10**. The design
+below is what was decided; **this table is what runs**, and it is the entry point — every
+mechanism's authority is the code that implements it, not the plan that asked for it.
+
+| Invariant | What it says | Lives in | Held by |
+|---|---|---|---|
+| **I-SAFE** | a settlement's output is a function of the danger around it | the whole chain below | `stocktest` row 7 (A/B, den alive vs cleared) |
+| **I-CAT** | safety is a **category**, not a gradient: a hostile within `THREAT_R` spoils ground, a guard within `GUARD_R` holds it — **presence, not wakefulness**, because a sleeping monster in the woods is exactly why nobody goes into the woods | `sim.loft` → `hex_safe` | `safetytest` |
+| **I-ENTER** | a worker refuses a step INTO danger, and **anyone already in danger may always move** — asymmetric by construction, or avoidance would mean entrapment | `sim.loft` → `npc_may_enter` | `safetytest` |
+| **I-SITE** | **nobody travels to work that is unsafe** — and it vetoes to HOME, never to a frozen step, so the signal is a settlement idling rather than a town of statues | `sim.loft` → `npc_target` | `safetytest`, `stocktest` |
+| **I-STOCK** | a producer's stock is `raised − drawn` at every tick; both are discrete EVENTS, and the store is **capped** so it can run out | `sim.loft` → `prod_raise` / `prod_draw_when`; the repertoires are bundle-owned (`BUNDLE.md` → *The `production` section*) | `stocktest` |
+| **I-SAY** | what a worker says about its work is read from the **same term** that decided whether it went, at the moment of asking — so the line cannot drift from the world | `sim.loft` → `sim_talk_to`, `work_words` | `safetytest` row 8 |
+| **I-SOURCE** | every hostile pressing on a settlement **came from a source that still exists**. Pressure arrives; it does not accumulate. No timer anywhere — kill the leader and it never sends again | `sim.loft` → `send_incursions`, `raid_objective` | `incursiontest` |
+| **I-MEND** | repair is the **exact inverse** of damage, and the damage belongs to the ITEM, not to where it stands — no seam launders it, not unequipping, not a staircase, not death | `sim.loft` → `sim_damage_gear` / `sim_smith_mend`, `eq_dmg`/`inv_dmg` | `mendtest`, `scripts/mend.play` |
+| **I-STAND** | standing is **one number per settlement**, raised only by acts done for it, read only as a category, with exactly **one consumer** (the militia). Keyed by WINDOW — local, never global karma | `sim.loft` → `s.stand`, `stand_earn`, `on_hostile_slain` | `militiatest`, `scripts/militia.play` |
+| **I-PICKET** | a picket is a guard the settlement would not otherwise have posted — an ordinary role-3 actor, so the safety expression gains no term. ⚠ **It faces OUTWARD**, two hexes beyond the work: posted ON the work it holds the ground by strangling the road to it | `sim.loft` → `militia_stand`, `militia_place`, `militia_site` | `militiatest` |
+
+⚠ **The whole system costs ZERO new keys**, which was the claim it had to survive: every verb
+it needs was already bound. Bump-to-mend and bump-to-petition sit beside bump-to-open and
+attack-on-push (`DESIGN.md` §3a #7), and the interface budget is unchanged at 15.
 
 ## The three pieces to build
 

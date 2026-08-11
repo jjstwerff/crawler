@@ -105,10 +105,16 @@ per-item checkboxes in `DESIGN.md` §18a lag reality; treat the gate in `tools/r
 as the truth.
 
 **The active roster is three, decided 2026-08-09 from evidence** — `#11` 3D world · `#13`
-scoped identity · `#17` safe supply (`plans/README.md` → *The active roster*; the cap is
-three). ⚠ **This section named plan #11 as "the immediate next step" until 2026-08-10**; the
-work is currently in **`#17`**, whose `S0`–`S2` are shipped. What is being worked *right now*
-is **[STATE.md](STATE.md)**, not this file — ROADMAP is the through-line, not the schedule.
+scoped identity · **`#17` safe supply, now CLOSED** (`plans/README.md` → *The active roster*;
+the cap is three, so the slot is free). ⚠ **This section named plan #11 as "the immediate next
+step" until 2026-08-10.** What is being worked *right now* is **[STATE.md](STATE.md)**, not
+this file — ROADMAP is the through-line, not the schedule.
+
+✅ **A living settlement is on the through-line as of 2026-08-10** (plan #17, `S0`–`S7`): a
+settlement's output is a function of the danger around it, and the player moves that number —
+by clearing the cause, and then by raising a militia the town would not have posted. It is the
+campaign's **advancement axis that costs no interface**: the hero grows in what they can
+*cause*, not in what they can press. How it works: **[CRAFTING.md](CRAFTING.md)**.
 
 **Plan #11 — the 3D world view** remains the structural decision (2026-07-22): the hex FIELD
 built by plans #5/#9/#10 becomes the world the player stands in, first-person, and 3D

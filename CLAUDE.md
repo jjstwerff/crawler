@@ -204,6 +204,13 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
 - **Where things stand right now — `STATE.md`.** Plans #5/#9/#10, the decisions already
   taken (scale, the library/content seam, props-as-objects, stencils), what is open and
   whose call it is, and the three lessons worth carrying. **Read it first after a `/clear`.**
+- **The living settlement — `CRAFTING.md`.** A settlement's output is a function of the danger
+  around it, and the player moves that number: safety as a category, workers who refuse unsafe
+  ground, stock a workshop can run out of, incursions that arrive from a source you can end,
+  gear a town's smith mends only if the ore came down, and **standing** — earned locally,
+  spent on a militia that holds ground you are not standing on. Shipped end to end as plan #17
+  (closed 2026-08-10) at **zero new keys**. Start at *All of it shipped — the invariants, and
+  where each one lives*; the code is the authority, `sim.loft` mostly.
 - **Scale: one grid, two readings — `SCALE.md`.** Architecture is true-scale at **1.5 m
   per hex step** (1 world unit = 0.866 m); terrain is the *same* hex compressed 10× at
   **15 natural m per walked hex** (`OV_STEP`, a gameplay-evaluated user ruling). The

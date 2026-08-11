@@ -71,10 +71,14 @@ status.** This drifts silently; when you touch a closed plan, check the label ma
 
 ## The active roster — decided 2026-08-09
 
-**`#11` 3D world · `#13` scoped identity · `#17` safe supply.** Everything else is
-`status:future`; `#9`/`#10` are finished.
+**`#11` 3D world · `#13` scoped identity** — and **one slot is FREE**: `#17` safe supply was
+finished on 2026-08-10 (`status:finished`). Everything else is `status:future`; `#9`/`#10` are
+finished too.
 
-*(`#17` took `#12`'s slot on 2026-08-09, the same day both were created — see below.)*
+*(`#17` took `#12`'s slot on 2026-08-09, the same day both were created — see below — and gave
+it back the next day, `S0`–`S7` shipped. ⚠ **That is the cap working, not a fluke**: the slot
+bought a plan that could actually be finished, against five held by things nobody was doing.
+`#16` was queued explicitly behind it and is now unblocked.)*
 
 ⚠ **"Active" means work is happening or is next — not that the plan is unfinished.** The
 roster had drifted to **six** against this file's own cap of three, so it was decided from
@@ -84,7 +88,7 @@ evidence rather than intent: excluding doc edits, **no plan had been genuinely w
 | | why active |
 |---|---|
 | **`#11`** | the declared direction (`CLAUDE.md`), 28 of the last 40 file touches, and `STATE.md`'s NEXT — paused mid-step at the wall fit |
-| **`#17`** | the design everything else queues behind — `#16` waits on it by construction, and `S1`/`S2` are one predicate and one category against machinery that already exists |
+| ~~**`#17`**~~ | the design everything else queues behind — `#16` waits on it by construction, and `S1`/`S2` are one predicate and one category against machinery that already exists. ✅ **Finished 2026-08-10**, and the bet paid: it was small *because* the machinery existed |
 | **`#13`** | the only plan with an **external** deadline: moros plan 21 is finishing the other half of one mechanism now. `S1` is a cheap review that **expires** — unscheduled, it is effectively declined |
 
 Each demotion says why in its own Status block, because a label with no reason gets
