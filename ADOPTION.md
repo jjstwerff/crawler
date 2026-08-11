@@ -579,9 +579,46 @@ manifests):
 - `moros_render` → `moros_map` (→ `hex_field` only), `hex_proj` (→ `hex_grid`, `graphics`),
   `graphics`, `hex_grid`. So **three small packages** and none of them needs the voxel world.
 
-⚠ **Publishing is moros' to do — that tree is read-only and has its own agent** (CLAUDE.md).
-This document is the crawler-side record; **how the finding reaches them is the user's call**,
-the same shape as plan #13 `S1`.
+### ✅ AND IT IS BEING PUBLISHED — the blocker has a known end, not an open one
+
+**User, 2026-08-11: moros is building a LAVITION EDITOR, and will publish the libraries as
+part of that work.** So the wait is on someone else's shipping schedule, not on a decision
+crawler has to win or a favour it has to ask.
+
+Their own tree corroborates it, which is why this is a date-able fact rather than a hope —
+`../moros/plans/19-lavition-split/` is *"Extract lavition: the editor as its own project, with
+the Moros name out of it"*, and its status reads:
+
+> `layering.sh` is silent with `KNOWN=""`, which means **the lavition stack has no Moros
+> dependency at all** — the first time that has been true.
+
+That is exactly the precondition for publishing: a package carrying a `path` dependency on a
+project cannot go to the registry, and the split is what removes the last one. The store is
+already renamed (`hex_voxel`, `VoxelWorld`/`VoxelChunk`) so `use hex_world;` resolves to the
+registry and nothing else — the same one-resolution-path rule as P3 above, arrived at
+independently on the other side.
+
+⚠ **Publishing is still moros' to do — that tree is read-only and has its own agent**
+(CLAUDE.md). This document is the crawler-side record; **how anything here reaches them is the
+user's call**, the same shape as plan #13 `S1`.
+
+### ⚠ "Do not wait" still applies, and this is what it means here
+
+`MOROS.md` corollary 3 is *do not wait* — and it is not contradicted by the above, because
+what crawler stops doing is **deriving**, not working. Waiting idly would be the mistake; so
+would carrying on building a second renderer because the first is not on the registry yet.
+The distinction is the whole of it:
+
+- **Frozen:** the renderer surface. Every addition to `view3d` is thrown away at adoption and
+  is a second implementation of something the family already tested.
+- **Open:** everything kernel-side, which is crawler's own and which adoption does not touch —
+  the field, the settlement simulation, bundles, the derivation of the world. Plan #11's tail
+  (P7 props, P8 sprites, P9's retirement of the 2D view) is renderer-side and waits; its
+  kernel-side halves do not.
+
+That split is also the honest reading of the over-engineering test in `CLAUDE.md`: the
+renderer was never the part that makes a hard thing reusable for someone else — the family
+already is that — and crawler's own contribution is the world underneath it.
 
 ### What crawler does until then
 
