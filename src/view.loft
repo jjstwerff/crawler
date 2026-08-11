@@ -977,11 +977,12 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
 // Lines are baked once (build_charpage, on open/spend), then drawn (draw_charpage) — no per-frame
 // texture churn. The line strings are derived from the Sim, so the same `s` gives the same layout.
 fn charpage_lines(s: Sim) -> vector<text> {
-  // THE EIGHT (CATALOG.md §0). ⚠ The rows that say *(later)* are honest, not placeholders left
-  // by accident — but what they mean CHANGED with plan #16 `M3`: every race and class now
-  // authors a real value on all eight, so the numbers here are content, and only the CONSUMER
-  // is missing (Perception, Speed, Charisma and Handiness are re-keyed to derived stats in
-  // `M4`). Saying so beats showing a number the game reads nowhere.
+  // THE EIGHT (CATALOG.md §0), and after plan #16 `M4` **six of them are read by the engine** —
+  // each line names the thing the number actually moves, so a player can tell what a point buys
+  // before spending it. ⚠ TWO still say *(later)*, and that is a deliberate report rather than
+  // an oversight: Charisma waits on a party or a priced transaction, Handiness on the disarm /
+  // device / durability layer, and neither is a derivation `M4` could key — they are systems
+  // crawler does not have. Showing "leadership" beside a number nothing reads would be the lie.
   mg = sim_stat(s, "might"); en = sim_stat(s, "endu"); dx = sim_stat(s, "dex");
   pe = sim_stat(s, "perc"); sp = sim_stat(s, "speed"); wl = sim_stat(s, "will");
   ch = sim_stat(s, "char"); hn = sim_stat(s, "hand");
@@ -990,11 +991,11 @@ fn charpage_lines(s: Sim) -> vector<text> {
   out += ["HP {sim_player_hp(s)}/{sim_player_hp_max(s)}    save {sim_player_save(s)}%    melee +{sim_skill_melee(s)}    stealth {sim_skill_stealth(s)}"];
   out += ["stat points: {sim_stat_points(s)}   (press 1-8 to spend; a stat rises once per 3 levels)"];
   out += ["  1  MIGHT {mg}    sharpens melee damage"];
-  out += ["  2  ENDURANCE {en}    saving throw + hit points"];
+  out += ["  2  ENDURANCE {en}    hit points: the soak you carry"];
   out += ["  3  DEXTERITY {dx}    stealth: sneak closer unseen"];
-  out += ["  4  PERCEPTION {pe}    reading the field / ranged aim (later)"];
-  out += ["  5  SPEED {sp}    the distance clock / repositioning (later)"];
-  out += ["  6  WILL {wl}    focus, the casting realms, resisting Tension"];
+  out += ["  4  PERCEPTION {pe}    aim: adds to every shot you loose"];
+  out += ["  5  SPEED {sp}    walk further before the world takes its turn"];
+  out += ["  6  WILL {wl}    saving throw + the caster's mana pool"];
   out += ["  7  CHARISMA {ch}    leadership / prices (later)"];
   out += ["  8  HANDINESS {hn}    repairs and making do (later)"];
   out += ["save% resists magic and never reaches 100.    C closes."];

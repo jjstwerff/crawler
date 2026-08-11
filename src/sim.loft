@@ -54,14 +54,29 @@ HERO_CON   = 16;      // starting Constitution (full stat block = H2; HP is clas
 pub NUM_STATS = 8;    // MIGHT, ENDU, DEX, PERC, SPEED, WILL, CHAR, HAND. ⚠ Pub because the
                       //   FRONT-END bounds the spend keys by it — a literal 6 there was what
                       //   made two new axes look like they would cost two new keys.
-// The three axes the engine actually CONSUMES today. ⚠ They re-pointed with the eight, and by
-// `CATALOG.md` §0's own role table rather than by a fresh judgement: *Might = the damage
-// channel*, *Endurance = mitigation / HP ceiling*, *Dexterity = crit / precision*. So the
-// melee skill, the HP pool and the stealth skill each still read the axis that carries their
-// role — the names moved, the roles did not.
+// The axes the engine CONSUMES, and what each one drives — `CATALOG.md` §0's role table,
+// re-keyed onto the code by plan #16 `M4`. Six of the eight are read; the two that are not say
+// so, because an axis with no consumer is a number the player spends points on for nothing.
+//
+//   ST_MIGHT  -> melee skill, folded into wdam        (§0: the damage channel)
+//   ST_ENDU   -> the max-HP pool                      (§0: mitigation / HP ceiling — soak)
+//   ST_DEX    -> the stealth skill                    (§0: precision / evasion)
+//   ST_PERC   -> the shooting skill                   (§0: ranged accuracy)   ⚠ was ST_DEX
+//   ST_SPEED  -> the distance clock, via tick_span()  (§0: the distance clock / initiative)
+//   ST_WILL   -> the saving throw + the SP pool       (§0: focus / Tension-resist / realms)
+//                                                     ⚠ the save was ST_ENDU's
+//   ST_CHAR   -> NOTHING YET. §0 gives it leadership/calling (PARTY.md §5b) and prices; crawler
+//                has no party and no priced transaction — gold is found and staked, never spent
+//                at a price. Both are systems, not derivations, so `M4` does not invent them.
+//   ST_HAND   -> NOTHING YET. §0 gives it disarm/device/repair. `r_device`/`r_disarm` are
+//                authored on every race and consumed NOWHERE, and #17's mending is the SMITH's
+//                act, not the player's. It waits on the durability call (`CRAFTING.md` q4).
 ST_MIGHT   = 0;       // Might's index in the stat vectors (feeds the melee skill; was ST_STR)
 ST_ENDU    = 1;       // Endurance (feeds the HP pool; was ST_CON at 4)
 ST_DEX     = 2;       // Dexterity (feeds the stealth skill; was 3)
+ST_PERC    = 3;       // Perception (feeds the shooting skill — §0's "ranged accuracy")
+ST_SPEED   = 4;       // Speed (feeds tick_span: how far you walk before the world acts)
+ST_WILL    = 5;       // Will (feeds the saving throw and the caster's SP pool)
 HERO_HP_BASE      = 28; // base max HP — identical for every class (fair); armour adds HP% (G3, §3a #3)
 HERO_HP_PER_LEVEL = 2;  // gentle per-level HP (§3a #2): whole-game span a few×, not 10×+
 STAT_COOLDOWN     = 3;  // a given stat can rise at most once per 3 character levels (player-chosen)
@@ -188,7 +203,7 @@ pub struct Sim {
   px:      float not null,
   py:      float not null,
   heading: float not null,             // radians; forward = (cos,sin)
-  accrued: float not null,             // remainder distance in [0, HEX_LEN)
+  accrued: float not null,             // remainder distance in [0, tick_span(s)) — Speed-scaled
   ticks:   integer not null,
   enemies: vector<Enemy> not null,
   php:     integer not null,   // player hit points
@@ -732,7 +747,10 @@ fn refresh_stats(s: &Sim) {
   s.wdam = wd;
   s.pac = ac;
   oldmax = s.phpmax;
-  newmax = hero_maxhp(s.player.clevel) + ac + rc_hp_bonus(s);   // the cached race+class hit-die, level-scaled
+  // Max HP: the class-uniform base + armour + the cached race/class hit-die + ENDURANCE
+  // (plan #16 `M4`). ⚠ `endu_hp_bonus` reads the PERMANENT layer (I-POOL) — a 2-tick potion
+  // must not move a stored ceiling.
+  newmax = hero_maxhp(s.player.clevel) + ac + rc_hp_bonus(s) + endu_hp_bonus(s);
   if newmax < 1 { newmax = 1; }
   if newmax > oldmax { s.php += newmax - oldmax; }   // donning armour grants the HP
   if s.php > newmax { s.php = newmax; }
@@ -744,7 +762,7 @@ fn refresh_stats(s: &Sim) {
   newsp = 0;
   if s.rc_realm != "none" && s.rc_realm != "" {
     bonus = 0;
-    if s.rc_spi >= 0 { bonus = stat_eff(s, s.rc_spi) - HERO_CON; }
+    if s.rc_spi >= 0 { bonus = stat_perm(s, s.rc_spi) - HERO_CON; }   // I-POOL: permanent layer only
     newsp = 2 + s.player.clevel + bonus;
     if newsp < 1 { newsp = 1; }
   }
@@ -1166,6 +1184,23 @@ fn rc_hp_bonus(s: Sim) -> integer {
   s.rc_hd * (s.player.clevel + 2) / 2 ?? 0
 }
 
+// ENDURANCE HP at the current level — §0's *"mitigation / HP ceiling — soak"*, keyed by plan
+// #16 `M4`. Deliberately the SAME SHAPE as the hit-die bonus above (a per-point term scaled by
+// level) at HALF its weight, so the two stack legibly instead of the stat quietly out-weighing
+// the class choice: a half-troll warrior carries +4 Endurance into +18 HP by level 10, against
+// the hit-die's +54, and a human mage's -2 costs it 6.
+//
+// ⚠ SOAK IS THE HP CEILING HERE, not a second damage-reduction term. §0 names Endurance
+// "mitigation / HP" as ONE role, and damage reduction is already armour's number (`apply_dr`
+// on `pac`); keying Endurance into both would make one axis pay twice while Charisma and
+// Handiness pay nothing.
+//
+// ⚠ Reads `stat_perm`, not `stat_eff` — I-POOL. See the note on stat_perm for what reading the
+// overlay here would have cost.
+fn endu_hp_bonus(s: Sim) -> integer {
+  (stat_perm(s, ST_ENDU) - HERO_CON) * (s.player.clevel + 2) / 4 ?? 0
+}
+
 // XP required to BE at level `lvl` for THIS character: the base curve scaled by the CACHED
 // combined race × class experience factor (Angband's expfact; 100 = baseline).
 fn xp_need(s: Sim, lvl: integer) -> integer {
@@ -1328,6 +1363,26 @@ pub fn sim_player_free_action(s: Sim) -> boolean { (s.rc_flags & RF_FREE_ACTION)
 pub fn sim_player_res_poison(s: Sim) -> boolean { (s.rc_flags & RF_RES_POISON) != 0 }
 
 // Effective value of stat i = current + the temporary modifier WHILE it is still active.
+// The PERMANENT layer of a stat — innate max after any drain/gain, with the temporary potion
+// overlay deliberately EXCLUDED.
+//
+// **I-POOL: a STORED pool derives only from the permanent layers; the temporary layer is a
+// live-read overlay that never enters stored state.** `refresh_stats` writes `phpmax`/`spmax`
+// into the Sim, so anything it reads is *frozen there* until something else re-derives — and
+// `sim_buff_stat` pointedly does NOT re-derive, which is what made the overlay live-only.
+//
+// ⚠ IT WAS ALREADY BROKEN AT ONE SITE, measured in plan #16 `M4`: `refresh_stats` read
+// `stat_eff` for the SP pool, so a temporary Will potion plus ANY unrelated re-derive (equip a
+// helmet, gain a level, drink a stat-gain potion) baked the potion's points into `spmax`, where
+// they outlived it — `base=7 → 11 → still 11 long after expiry`. Not reachable by the buff
+// alone, which is why it sat there. The fix is this accessor at the one site that stores, not a
+// re-derive hook on expiry: the overlay should never have reached stored state at all.
+fn stat_perm(s: Sim, i: integer) -> integer {
+  if i < 0 { return 0; }
+  cv = s.stat_cur;
+  cv[i] ?? 0
+}
+
 fn stat_eff(s: Sim, i: integer) -> integer {
   if i < 0 { return 0; }
   cv = s.stat_cur;
@@ -1432,10 +1487,18 @@ pub fn sim_damage(s: &Sim, amount: integer, kind: text) {
 }
 
 // The player's saving throw (% resist for magic/elemental damage). Grows with character
-// level, equipped armour (AC), and Constitution — so gearing up and stat upgrades both help.
+// level, equipped armour (AC), and WILL — so gearing up and stat upgrades both help.
 // Capped below 100% (friendly but fair — never total immunity; §3a).
+//
+// ⚠ RE-KEYED FROM ENDURANCE TO WILL (plan #16 `M4`), and it is the one re-key that changes who
+// is good at something rather than only which name is on the door. This number resists MAGIC
+// (§0: *Will — focus / Tension-resistance*), so it is a mind, not a constitution; Endurance
+// keeps the soak it was given, as the HP ceiling. A warrior therefore loses ~2 save and a mage
+// gains ~1 — which is the design saying casters are hard to bend, not a tuning accident.
+// ⚠ `stat_eff`, not `stat_perm`: this is computed LIVE per call, so the temporary overlay is
+// exactly what a potion of Will should buy (I-POOL constrains STORED pools only).
 pub fn sim_player_save(s: Sim) -> integer {
-  sv = 5 + s.player.clevel + s.pac / 4 + stat_eff(s, ST_ENDU) / 3 + s.rc_save;   // cached race+class bonus
+  sv = 5 + s.player.clevel + s.pac / 4 + stat_eff(s, ST_WILL) / 3 + s.rc_save;   // cached race+class bonus
   if sv > 75 { sv = 75; }
   if sv < 0 { sv = 0; }
   sv
@@ -1488,10 +1551,15 @@ pub fn sim_skill_stealth(s: Sim) -> integer {
   b
 }
 
-// Passive SHOOTING skill — a flat to-damage bonus for missiles, from level + DEX (Angband shoots
-// off DEX). 0 at the baseline; grows with level and DEX-spending. Added to the launched damage.
+// Passive SHOOTING skill — a flat to-damage bonus for missiles, from level + PERCEPTION. 0 at
+// the baseline; grows with level and with points spent on Perception. Added to the launched damage.
+//
+// ⚠ RE-KEYED FROM DEXTERITY (plan #16 `M4`). Angband shoots off DEX and we followed it; §0 gives
+// ranged accuracy to Perception instead, and that is the better reading — a bow is aimed, not
+// fumbled. It also gives the ranger (Perc +4, bow 32) and the elf (Perc +3, bow 5) one axis that
+// says the same thing their skills already said, where before the two pulled apart.
 pub fn sim_skill_shoot(s: Sim) -> integer {
-  b = (s.player.clevel - 1) / 2 + (stat_eff(s, ST_DEX) - HERO_CON) + s.rc_bow;   // cached race+class aptitude
+  b = (s.player.clevel - 1) / 2 + (stat_eff(s, ST_PERC) - HERO_CON) + s.rc_bow;   // cached race+class aptitude
   if b < 0 { b = 0; }
   b
 }
@@ -3612,6 +3680,32 @@ pub fn sim_grant_gold(s: &Sim, amt: integer) {
   if amt > 0 { s.player.gold += amt; }
 }
 
+// ── SPEED: how far the player walks before the world gets a turn (plan #16 `M4`) ─────────────
+// The clock is distance-driven — every span of travel is one `sim_tick`, and the span WAS the
+// literal `HEX_LEN`. §0 gives Speed *"the distance clock / initiative / reposition"*, and this
+// is that: a faster character covers more ground per world turn, so monsters act fewer times
+// over the same walk. It is the mirror of the monster energy model (`e.speed`), on the axis the
+// player's clock actually has.
+//
+// ⚠ ONE OWNER, because a span is read at FIVE sites — two `while` loops, `sim_frac`, and the
+// enemy interpolation — and a length-driven quantity rots at whichever site forgets to ask.
+// (`M3` shipped exactly that bug in the sidebar; this is the same shape, in the clock.)
+//
+// ⚠ THE CLAMP IS LOAD-BEARING, NOT COSMETIC. The consumers are `while accrued >= span`; a span
+// of zero or below never terminates. Drain is real (a stat floors at 1, i.e. -15 here), so the
+// floor is what stands between a poison potion and a hung frame.
+// ⚠ Sampled ONCE per `sim_step`, not per loop iteration: a tick inside the loop can drain the
+// player's Speed, and re-reading mid-loop would make the span depend on how the frame happened
+// to divide. One frame of lag, identical on host and replica — which is what the replay
+// contract needs (`gameflow`/`replaytest`).
+SPEED_PER_POINT = 0.05;   // ±5% span per point off the baseline — race+class spread is -4..+5
+fn tick_span(s: Sim) -> float {
+  m = 1.0 + ((stat_eff(s, ST_SPEED) - HERO_CON) as float) * SPEED_PER_POINT;
+  if m < 0.5 { m = 0.5; }
+  if m > 2.0 { m = 2.0; }
+  HEX_LEN * m
+}
+
 pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
   if s.over { return; }
   // PARALYSED: the player can't act, but the world must still advance (the gaze horror — and the
@@ -3622,8 +3716,9 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
     rate = MOVE_SPEED;
     if fwd != 0 || turn != 0 { rate = MOVE_SPEED * (STRUGGLE_X as float); }
     s.accrued += rate * dt;
-    while s.accrued >= HEX_LEN {
-      s.accrued -= HEX_LEN;
+    span = tick_span(s);
+    while s.accrued >= span {
+      s.accrued -= span;
       sim_tick(s);
     }
     return;
@@ -3658,8 +3753,9 @@ pub fn sim_step(s: &Sim, fwd: integer, turn: integer, dt: float) {
     sd = abs(step);
     if fe >= 0 && dist < sd { dist = sd; }
     s.accrued += dist;
-    while s.accrued >= HEX_LEN {
-      s.accrued -= HEX_LEN;
+    span = tick_span(s);
+    while s.accrued >= span {
+      s.accrued -= span;
       if fe >= 0 {
         ev = s.enemies;
         e = ev[fe];
@@ -3976,7 +4072,17 @@ fn sim_quest_walkons(s: &Sim) {
 
 // ── Read-only accessors for the view / tests ────────────────────────
 
-pub fn sim_frac(s: Sim) -> float { s.accrued / HEX_LEN }
+// Progress towards the next tick, in [0, 1] — the view's sub-tick interpolation. ⚠ Divides by
+// `tick_span`, not `HEX_LEN`: with Speed keyed into the clock those differ, and a stale
+// denominator here would desync every enemy's drawn position from the tick it is walking to.
+// Clamped because the span can SHRINK under the accrued distance when a Speed buff expires
+// mid-stride; the `while` loop settles that on the next step, and the view must not see >1 meanwhile.
+pub fn sim_frac(s: Sim) -> float {
+  f = s.accrued / tick_span(s) ?? 0.0;
+  if f < 0.0 { f = 0.0; }
+  if f > 1.0 { f = 1.0; }
+  f
+}
 
 pub fn sim_player_hex(s: Sim) -> (integer, integer) { px_to_hex(s.px, s.py) }
 
@@ -4234,7 +4340,7 @@ pub fn sim_enemy_pos(s: Sim, i: integer) -> (float, float) {
     e = enemies[i];
     (acx, acy) = hex_to_px(e.cur_q, e.cur_r);
     (atx, aty) = hex_to_px(e.tgt_q, e.tgt_r);
-    f = s.accrued / HEX_LEN;
+    f = sim_frac(s);   // the SAME span the clock uses (tick_span), clamped — never HEX_LEN
     ex = acx + (atx - acx) * f;
     ey = acy + (aty - acy) * f;
   }

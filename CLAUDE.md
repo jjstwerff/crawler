@@ -183,7 +183,11 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   — it should print only `src/selftest.loft` (the kernel self-test, run before the tables).
   Pixel-level render checks
   live in **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7)
-  P0). The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
+  P0). ⚠ **`make probe` IS NOT IN `make test` and it rots** — plan #16 `M4` found it RED at
+  HEAD (three undischarged `float?` divides in `gpushot.loft`, from a tightened loft rule), for
+  however long it had been since anyone typed it. It takes **~10 min**, which is why it is not
+  in the gate. **Run it after render-side work**, and treat green as a fact with a date on it.
+  The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
 - **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under
   Xvfb reads the GL **framebuffer reliably** — it's exactly what `make probe` uses (plan #7
   P0). **`xvfb-run` IS installed on this box.** The only *positionally-unreliable* capture is

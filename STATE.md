@@ -8,7 +8,34 @@ Written as a handoff: read after a `/clear`.
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
 
-> ## ✅ **plan #16 `M3` SHIPPED (2026-08-11) — the game's CONTENT is on the eight statistics, and the old six are gone from the tree.**
+> ## ✅ **plan #16 is BUILT END TO END (2026-08-11) — `M0`–`M4`. The eight statistics are the engine's, the content's, and six of them drive a number.**
+>
+> **`M4` keyed the derivations** (gate **104 rows**, `derivetest` is new): Might→melee damage,
+> Endurance→**the HP pool**, Dexterity→stealth, Perception→**ranged accuracy** (taken from Dex),
+> Speed→**the distance clock**, Will→**the saving throw** (taken from Endurance) + the SP pool.
+> Two of those are SWAPS, so the gate asserts both directions — the new axis moves the number
+> **and the old one no longer does**.
+>
+> ⚠ **Charisma and Handiness drive NOTHING, deliberately.** §0 keys them to leadership/prices
+> and disarm/device/repair; crawler has no party, **no priced transaction** (gold is found and
+> staked, never spent at a price), and `r_device`/`r_disarm` are authored on every race and
+> **consumed nowhere** — measured. Those are systems, not derivations, so `M4` refused to invent
+> one and the character page says *(later)* on exactly those two rows.
+>
+> ⚠ **`M4` found a live defect and a rotted gate.** A temporary Will potion plus **any**
+> unrelated re-derive baked the potion into `spmax` permanently (`7 → 11 → still 11`) — fixed by
+> **I-POOL**: a stored pool reads the PERMANENT stat layers only, enforced at the one site that
+> stores. ⚠ **And `make probe` was RED at HEAD** (three undischarged `float?` divides in
+> `gpushot.loft`) — fixed, but nothing schedules it, so it will rot again; that is now the plan's
+> open question 3, and a call for plan #7.
+>
+> **→ The one thing still owed is a JUDGEMENT, not a step: the `make play` read.** Whether the
+> spread feels right in motion — Speed especially, a halfling at 1.15× against a half-troll's
+> 0.90× — is the user's call. The level-1 numbers are tabled in the plan under `M4`.
+>
+> ---
+>
+> ### ✅ **`M3` (same day) — the CONTENT moved to the eight, and the old six left the tree.**
 >
 > All 18 race/class bundles were re-authored **as a set**: `RaceDef`/`ClassDef` carry eight
 > named fields (`r_might…r_hand`), every caster declares `c_spell_stat: "will"`, and both of
@@ -28,10 +55,6 @@ where crawler sits in the stack.
 > lesson, since a build site can satisfy a different length and nothing compares them. One
 > chokepoint (`view::stat_abbrevs`) now owns the names. **103 gate rows could not see it**, and
 > still cannot; whether the sidebar earns a `make probe` row is `M4`'s call.
->
-> **→ NEXT is `M4`** — re-key the derived stats (Might→damage, Endu→mitigation, Dex→crit,
-> Perc→perception, Speed→the clock, Will→Tension-resist) and judge the numbers in `make play`.
-> Perception, Speed, Charisma and Handiness are **authored but unread** until it lands.
 >
 > *(Previously: plan #17 closed `status:finished` 2026-08-10, `S0`–`S7` shipped — how that
 > system works is [`CRAFTING.md`](CRAFTING.md) → *All of it shipped*. It answered what

@@ -1,0 +1,133 @@
+// derivetest — THE EIGHT AXES AND WHAT EACH ONE DRIVES (plan #16 `M4`).
+//
+// `M3` gave every race and class a value on all eight statistics; `M4` is where six of those
+// axes acquired a CONSUMER. This gate states the wiring as a matrix — raise one axis, and the
+// derived number that should move moves, while the one it was TAKEN FROM does not. That second
+// half is the whole point: two of the re-keys move a number from one axis to another (the
+// saving throw Endurance -> Will, the shooting skill Dexterity -> Perception), and a gate that
+// only asserted "Will raises the save" would still pass if Endurance raised it too.
+//
+// It also pins the two things `M4` could get silently wrong:
+//   - **the clock** — Speed scales how far you walk before the world takes its turn, and the
+//     span it scales is read at five sites. One owner (`tick_span`), and a CLAMP that stands
+//     between a drained stat and a `while` loop that never terminates.
+//   - **I-POOL** — a stored pool derives from the PERMANENT stat layers only. This was already
+//     broken for the SP pool before `M4` measured it, and keying Endurance into max HP would
+//     have added a second instance.
+use sim;
+use catalog;
+use hex_grid;
+
+// Each helper builds a FRESH character, raises ONE axis, reads ONE derived number — so no
+// helper ever holds two Sims (the C22 shape the other kernel tests keep to).
+fn save_up(axis: text, n: integer) -> integer { s = sim_new(); sim_grant_stat(s, axis, n); sim_player_save(s) }
+fn shoot_up(axis: text, n: integer) -> integer { s = sim_new(); sim_grant_stat(s, axis, n); sim_skill_shoot(s) }
+fn hp_up(axis: text, n: integer) -> integer { s = sim_new(); sim_grant_stat(s, axis, n); sim_player_hp_max(s) }
+fn melee_up(axis: text, n: integer) -> integer { s = sim_new(); sim_grant_stat(s, axis, n); sim_skill_melee(s) }
+fn stealth_up(axis: text, n: integer) -> integer { s = sim_new(); sim_grant_stat(s, axis, n); sim_skill_stealth(s) }
+
+fn base_save() -> integer { s = sim_new(); sim_player_save(s) }
+fn base_shoot() -> integer { s = sim_new(); sim_skill_shoot(s) }
+fn base_hp() -> integer { s = sim_new(); sim_player_hp_max(s) }
+fn base_melee() -> integer { s = sim_new(); sim_skill_melee(s) }
+fn base_stealth() -> integer { s = sim_new(); sim_skill_stealth(s) }
+
+// Ticks the world takes over a FIXED walked distance, at `n` points of Speed off the baseline.
+//
+// ⚠ Driven through the PARALYSED branch of sim_step on purpose: it accrues distance at wait
+// pace with no geometry at all, so the row measures the CLOCK rather than which wall the map
+// happens to put in front of the player. It is the same `tick_span` the walking branch reads —
+// that is the point of there being one owner. The rat is put to sleep so nothing but the clock
+// moves, and the player is parked on a known-walkable hex.
+fn ticks_over(n: integer, calls: integer) -> integer {
+  s = sim_new();
+  sim_set_awake(s, 0, false);
+  (fx, fy) = hex_to_px(2, 2);
+  s.px = fx; s.py = fy;
+  if n > 0 { sim_grant_stat(s, "speed", n); }
+  if n < 0 { sim_drain_stat(s, "speed", -n); }
+  s.para_until = s.ticks + 1000000;
+  t0 = s.ticks;
+  for _ in 0..calls { sim_step(s, 0, 0, 0.1); }
+  s.ticks - t0
+}
+
+fn main() {
+  println("=== story derived-stat test (the eight axes and what each one drives) ===");
+
+  // ── 1) THE RE-KEY MATRIX ────────────────────────────────────────────────────────────────
+  // +6 on an axis, against the baseline. Each row asserts BOTH directions: the axis that now
+  // owns the number raises it, and the axis that used to own it does nothing.
+  sv0 = base_save();
+  sh0 = base_shoot();
+  hp0 = base_hp();
+  me0 = base_melee();
+  st0 = base_stealth();
+
+  // WILL -> the saving throw (§0: focus / Tension-resistance). ⚠ Taken FROM Endurance in `M4`.
+  save_keyed = save_up("will", 6) > sv0 && save_up("endu", 6) == sv0;
+
+  // PERCEPTION -> the shooting skill (§0: ranged accuracy). ⚠ Taken FROM Dexterity in `M4`.
+  shoot_keyed = shoot_up("perc", 6) == sh0 + 6 && shoot_up("dex", 6) == sh0;
+
+  // ENDURANCE -> the max-HP pool (§0: soak). Nothing else may move it — in particular not Will,
+  // which is the other half of the save/HP swap.
+  hp_keyed = hp_up("endu", 6) > hp0 && hp_up("will", 6) == hp0;
+
+  // The two axes that did NOT move keep their consumers: Might -> melee, Dex -> stealth.
+  held = melee_up("might", 6) == me0 + 6 && stealth_up("dex", 6) == st0 + 6
+      && melee_up("perc", 6) == me0 && stealth_up("speed", 6) == st0;
+
+  matrix = save_keyed && shoot_keyed && hp_keyed && held;
+  if !matrix {
+    println("  matrix: save={save_keyed} shoot={shoot_keyed} hp={hp_keyed} held={held}");
+  }
+
+  // ── 2) SPEED DRIVES THE CLOCK ───────────────────────────────────────────────────────────
+  // Same walked distance, three characters: the fast one gives the world FEWER turns, because
+  // it covers more ground before each one. This is the axis's whole meaning (§0: the distance
+  // clock), and it is the row that would fail if `tick_span` were still the literal HEX_LEN.
+  t_norm = ticks_over(0, 60);
+  t_fast = ticks_over(6, 60);
+  t_slow = ticks_over(-6, 60);
+  clock = t_fast < t_norm && t_norm < t_slow;
+
+  // ⚠ THE CLAMP, AND IT IS NOT COSMETIC. A stat drains to a floor of 1 — 15 points under the
+  // baseline — which unclamped is a span of 0.25x, and a hair further along a `while accrued >=
+  // span` that never terminates. The clamp bites at 0.5x, so this asserts an EQUALITY that can
+  // only hold because of it: -10 sits exactly ON the boundary and -20 is driven well past it,
+  // and they must produce the same walk. Unclamped, -20 would be ~2x these ticks, so the row
+  // fails loudly rather than drifting.
+  t_edge = ticks_over(-10, 60);
+  t_ruin = ticks_over(-20, 60);
+  clamped = t_ruin == t_edge && t_ruin > t_slow;
+
+  // ── 3) I-POOL: A STORED POOL READS THE PERMANENT LAYERS ONLY ────────────────────────────
+  // Measured broken in `M4`: `refresh_stats` read the effective stat (temporary overlay
+  // included) for the SP pool, so a temporary Will potion plus ANY unrelated re-derive baked
+  // the potion into `spmax`, where it outlived the potion — 7 -> 11 -> still 11. The trigger is
+  // the SECOND event, which is why drinking alone never showed it and nothing caught it.
+  ip = sim_new_gen(99, 1);
+  sim_set_class(ip, "mage");
+  sp_base = sim_player_sp_max(ip);
+  sim_buff_stat(ip, "will", 4, 3);          // the overlay: live reads see it, stored pools must not
+  sim_grant_stat(ip, "might", 1);           // the unrelated re-derive that used to bake it in
+  sp_while = sim_player_sp_max(ip);
+  for _ in 0..8 { sim_tick(ip); }           // 8 > 3: long expired
+  sp_after = sim_player_sp_max(ip);
+  pool = sp_while == sp_base && sp_after == sp_base;
+
+  // The overlay's OTHER half, and the reason it is an overlay rather than a mistake: a live
+  // read must still see it. A Will potion buys saving throw for as long as it lasts.
+  lv = sim_new();
+  lv_before = sim_player_save(lv);
+  sim_buff_stat(lv, "will", 9, 5);
+  lv_during = sim_player_save(lv);
+  overlay = lv_during > lv_before;
+
+  println("matrix={matrix}(save={save_keyed} shoot={shoot_keyed} hp={hp_keyed} held={held})");
+  println("clock={clock}(fast={t_fast} norm={t_norm} slow={t_slow}) clamped={clamped}(edge={t_edge} ruined={t_ruin})");
+  println("i-pool={pool}(sp base={sp_base} mid={sp_while} after={sp_after}) overlay={overlay}");
+  ok = matrix && clock && clamped && pool && overlay;
+  if ok { println("=== DERIVE OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -26,9 +26,17 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 > ✅ **And the CONTENT is on the eight too** (plan #16 `M3`, 2026-08-11): all 18 race/class
 > bundles were re-authored as a set, so every race and class states a real value on all eight
 > — the roster tables are in the plan. The old six-stat vocabulary is **gone from the tree**:
-> no `r_str`/`c_int`, no `stat_index` alias arm, no `RF_SUST_STR`. What is still missing is the
-> **consumer**: Perception, Speed, Charisma and Handiness are authored but not yet read by a
-> derived stat, which `M4` re-keys — the character page says *(later)* on exactly those rows.
+> no `r_str`/`c_int`, no `stat_index` alias arm, no `RF_SUST_STR`.
+>
+> ✅ **And SIX of the eight now DRIVE something** (`M4`, same day): Might→melee damage,
+> Endurance→the HP pool, Dexterity→stealth, **Perception→ranged accuracy** (taken from Dex),
+> **Speed→the distance clock**, **Will→the saving throw** (taken from Endurance) plus the SP
+> pool. ⚠ **Charisma and Handiness still drive NOTHING, on purpose**: §0 keys them to
+> leadership/prices and to disarm/device/repair, and crawler has no party, **no priced
+> transaction** (gold is found and staked, never spent at a price) and no durability layer —
+> `r_device`/`r_disarm` are authored on every race and consumed nowhere, measured. Those are
+> SYSTEMS, not derivations, so the character page says *(later)* on exactly those two rows
+> rather than naming a consumer that does not exist. They are `OW2` and `CRAFTING.md` q4.
 >
 > ⚠ **`r_int` had nowhere to land**, which is the finding worth carrying: under the eight there
 > is exactly ONE casting axis, so arcane and divine both key off **Will** — *which races cast
@@ -45,9 +53,10 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 > to write for it (`MOROS.md`): the stat set was *seeded* here in June and the mapping
 > below is crawler's document about crawler's game. Executing it, or reversing it, is a
 > crawler call — and it was made on 2026-08-09: **adopt the eight**, tracked as
-> [plan #16](plans/16-eight-statistics/), `status:active`, `M0`–`M3` shipped.
-> The axes and the values below are now the **state**; §12a's derived stats and
-> `RESOLUTION.md` §5a are still the **target** until `M4` re-keys them.
+> [plan #16](plans/16-eight-statistics/) — `M0`–`M4` all shipped 2026-08-11. The axes, the
+> values below and six of the eight derivations are now the **state**. What remains a *target*
+> is narrower than "the eight": the powers in §1, `RESOLUTION.md` §5a's card economy, and the
+> two axes whose consumers are unbuilt systems.
 
 **Decided: crawler adopts moros's 8 statistics**, replacing Angband's 6 (§12a's
 STR/INT/WIS/DEX/CON/CHR). The powers are authored against the 8, and they map onto

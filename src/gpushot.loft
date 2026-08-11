@@ -50,14 +50,17 @@ fn cam_mat4(px: float, py: float, heading: float) -> vector<float> {
   ss = sin(phi);
   hw = VIEW_W / 2.0;
   hh = VIEW_H / 2.0;
-  sxw = SCALE / hw;
-  syw = SCALE / hh;
+  // ⚠ `??` on every VARIABLE divide: loft returns `float?` from `/` when the divisor is not a
+  // literal, and an undischarged one poisons the whole matrix below (plan #16 `M4` found
+  // `make probe` red at HEAD for exactly this — see the plan's note on the unrun gate).
+  sxw = SCALE / hw ?? 0.0;
+  syw = SCALE / hh ?? 0.0;
   a = sxw * cc;
   b = 0.0 - sxw * ss;
   c = syw * ss;
   d = syw * cc;
-  e = CX / hw - 1.0 - sxw * (px * cc - py * ss);
-  f = 1.0 - ANCHOR_Y / hh - syw * (px * ss + py * cc);
+  e = (CX / hw ?? 0.0) - 1.0 - sxw * (px * cc - py * ss);
+  f = 1.0 - (ANCHOR_Y / hh ?? 0.0) - syw * (px * ss + py * cc);
   [a, c, 0.0, 0.0,  b, d, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  e, f, 0.0, 1.0]
 }
 
@@ -76,8 +79,8 @@ fn build_world_mesh(s: Sim) -> vector<single> {
       cr = 0.80; cg = 0.745; cb = 0.59;
       if t == 1 { cr = 0.15; cg = 0.14; cb = 0.13; }
       cR = cr as single; cG = cg as single; cB = cb as single;
-      U = ((gq as float + 0.5) / lwf) as single;
-      V = ((gr as float + 0.5) / lhf) as single;
+      U = ((gq as float + 0.5) / lwf ?? 0.0) as single;
+      V = ((gr as float + 0.5) / lhf ?? 0.0) as single;
       (wx, wy) = hex_to_px(q, r);
       X0 = (wx - HALF) as single; X1 = (wx + HALF) as single;
       Y0 = (wy - HALF) as single; Y1 = (wy + HALF) as single;

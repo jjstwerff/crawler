@@ -8,15 +8,24 @@
 **`status:active` from 2026-08-10** (user: *"start #16"*), taking the slot [#17](../17-safe-supply/)
 freed by finishing — the roster is `#11`/`#13`/`#16`, still capped at three.
 
-`M0`/`M1`/`M2`/**`M3`** are **shipped**: the measurements, the scope ruling, the engine
-answering the eight, and — 2026-08-11 — **the 18 bundles re-authored as a set** (full gate
-green, 103 rows). The old six-stat vocabulary is **gone from the tree**: no `r_str`, no
-`c_int`, no legacy alias arm, no `RF_SUST_STR`. **→ NEXT is `M4`** — re-key the derived stats
-and judge the numbers in `make play`.
+**ALL FIVE STEPS ARE SHIPPED** (`M0`–`M4`, the last two on 2026-08-11): the measurements, the
+scope ruling, the engine answering the eight, **the 18 bundles re-authored as a set**, and
+**six of the eight axes keyed to a derived number**. Full gate green, **104 rows**
+(`derivetest` is new). The old six-stat vocabulary is **gone from the tree**: no `r_str`, no
+`c_int`, no legacy alias arm, no `RF_SUST_STR`.
 
-⚠ **`M3` also closed a live rendering defect it found on the way**: the sidebar was still
-baking six labels reading `STR INT WIS DEX CON CHR` against eight values, with two blank rows
-underneath. See *What `M3` found* below — the mechanism is worth more than the fix.
+**→ The one thing still owed is a judgement, not a step: the `make play` read.** The plan's own
+verify line for `M4` is *"`make test`, `make play`"*, and whether the spread feels right in
+motion — Speed especially — is the user's call. The numbers are tabled under `M4` for it.
+
+⚠ **Two axes deliberately drive NOTHING**: Charisma waits on a party or a priced transaction,
+Handiness on the durability call. Neither is a derivation, so `M4` refused to invent one —
+see *the finding* under `M4`.
+
+⚠ **The plan closed three defects it was not looking for**, and all three are the same shape —
+*a check nobody runs is not a check*: `M3` found the sidebar baking six stat labels against
+eight values; `M4` found a temporary stat potion permanently inflating max SP, and `make probe`
+red at HEAD. Each is written up where it was found.
 
 ## Goal
 
@@ -61,7 +70,7 @@ refactor's clothes — is the whole cost. That asymmetry is why `M0` came first.
 | **`M1`** — settle the SCOPE: the eight only, or the economy too | XS | decided below | ✅ **Shipped — the axes only** |
 | **`M2`** — the engine answers eight | S | `make test` green (103 rows) | ✅ **Shipped 2026-08-10** — `I-AXIS`; and it cost **zero new keys** |
 | **`M3`** — re-author 18 bundles' stat blocks | **M/H** | `make test` + a user read of the roster | ✅ **Shipped 2026-08-11** — the roster is below, for that read |
-| **`M4`** — re-key the derived stats and the character page | M | `make test`, `make play` | **→ NEXT** (unblocked) |
+| **`M4`** — re-key the derived stats and the character page | M | `make test`, `make play` | ✅ **Shipped 2026-08-11** — six axes keyed, `derivetest` (row 104); the `make play` read is the user's |
 
 ### `M1` — the scope, ✅ settled 2026-08-09
 
@@ -290,6 +299,136 @@ already exist.
 Perception→the perception action, Speed→the distance clock, Will→Tension-resist. The
 character page (§12a) lists eight. This is where the tuning is judged, in `make play`.
 
+#### ✅ `M4` is BUILT and GATED — 2026-08-11, full gate green (**104 rows**, `derivetest` is new)
+
+**Six of the eight axes now drive something. Two do not, and saying which is the finding.**
+
+| axis | before `M4` | after |
+|---|---|---|
+| **Might** | melee skill → `wdam` | unchanged — it already held §0's role |
+| **Endurance** | the saving throw | **the max-HP pool** (§0's *soak*) |
+| **Dexterity** | stealth **and** shooting | stealth only |
+| **Perception** | — | **the shooting skill** (§0's *ranged accuracy*) |
+| **Speed** | — | **the distance clock**, via `tick_span()` |
+| **Will** | the SP pool | the SP pool **and the saving throw** |
+| **Charisma** | — | **still nothing** — see below |
+| **Handiness** | — | **still nothing** — see below |
+
+⚠ **Two of these are swaps, not additions**, and that is what needed gating: the saving throw
+moved Endurance→Will and the shooting skill moved Dexterity→Perception. A gate asserting only
+*"Will raises the save"* would still pass if Endurance raised it too, so `derivetest`'s matrix
+asserts **both directions** — the new axis moves the number and **the old one no longer does**.
+
+⚠ **Dexterity came out of `M4` with FEWER consumers than it went in with**, and that is
+correct rather than a regression to fix. §0 gives it *crit / precision / evasion*; crawler has
+**no crit channel** — `RESOLUTION.md` §2a's two-tailed crit engine is designed and unbuilt — so
+Dex keeps stealth and hands ranged accuracy to the axis §0 assigns it to. Padding Dex with a
+replacement consumer to keep it "worth as much" would be tuning by bookkeeping. It gets its
+second half when the crit engine lands, not before.
+
+#### ⚠ The finding: two axes have no consumer, and `M4` refused to invent one
+
+`M4` could re-key everything §0 names except the last two, and the honest reason is that they
+are not derivations at all:
+
+- **Charisma** — §0 gives it *leadership / calling* (`PARTY.md` §5b) and *prices*. crawler has
+  **no party** and **no priced transaction**: gold is found, auto-collected and staked on death,
+  and it is never spent *at a price*. Both are systems.
+- **Handiness** — §0 gives it *disarm / device / repair*. ⚠ **`r_device` and `r_disarm` are
+  authored on all 10 races and consumed NOWHERE in the tree** — measured, not assumed — and
+  #17's mending is the **smith's** act, not the player's. It waits on `CRAFTING.md` q4's
+  durability call.
+
+**Building either would be a new system, not a re-key** — and under §3a pillar 0 a new system
+must earn its place against the 15-key budget rather than be smuggled in as tuning. So the
+character page says *(later)* on exactly those two rows and names the real consumer on the other
+six. ⚠ **A page that said "leadership" beside a number nothing reads would be the lie** — this
+is the same standard `M2` set when it refused to fudge `r_int`.
+
+#### `I-POOL`, and the defect that was already there
+
+**I-POOL: a STORED pool derives only from the PERMANENT stat layers; the temporary layer is a
+live-read overlay that never enters stored state.**
+
+`refresh_stats` writes `phpmax`/`spmax` *into* the Sim, so whatever it reads is frozen there
+until something else re-derives — and `sim_buff_stat` pointedly does **not** re-derive, which is
+what made the temporary layer live-only. But `refresh_stats` read `stat_eff` for the SP pool,
+which **includes** the overlay. Measured with a 15-line probe:
+
+```
+spmax: base=7  after-buff=7  after-unrelated-refresh=11  after-expiry=11
+```
+
+A temporary Will potion, then **any** unrelated re-derive — equip a helmet, gain a level — and
+the potion's points are baked into `spmax` **permanently**. Not reachable by drinking alone,
+which is exactly why it sat there unnoticed.
+
+⚠ **The probe is the reason this is in the plan at all.** The first hypothesis was *"expiry
+never re-derives, so add a refresh hook"* — and the probe **refuted it** in about a minute:
+`sim_buff_stat` doesn't store anything, so there was nothing stale to refresh. The real defect
+needed the *second* event, and the real fix is the opposite of the first idea — `stat_perm` at
+the one site that stores, so the overlay never reaches stored state. Had `M4` acted on the
+fluent explanation it would have added an expiry hook that fixed nothing and hidden the
+mechanism. **Keying Endurance into max HP would have added a second instance of this defect**,
+which is how it came to be measured at all.
+
+#### Speed and the clock — one owner, and a clamp that is load-bearing
+
+The clock is distance-driven: a span of travel is one `sim_tick`, and the span **was** the
+literal `HEX_LEN`. It is now `tick_span(s)` = `HEX_LEN × (1 ± 5 %/point)`, clamped to
+`[0.5×, 2×]`.
+
+⚠ **The span is read at FIVE sites** — two `while` loops, `sim_frac`, and the enemy
+interpolation — so it went behind one owner immediately. This is `M3`'s sidebar lesson applied
+before it could bite: a length-driven quantity rots at whichever site forgets to ask, and the
+enemy-interpolation site would have desynced every drawn monster from the tick it was walking
+to, **silently**.
+
+⚠ **The clamp is not cosmetic.** The consumers are `while accrued >= span`; a span at or below
+zero never terminates. A stat drains to a floor of 1 — fifteen points under the baseline, i.e.
+0.25× unclamped — so the floor is what stands between a poison potion and a hung frame.
+`derivetest` asserts it as an **equality that can only hold because of the clamp**: −10 sits
+exactly on the boundary and −20 is driven well past it, and the two must produce the *same*
+walk (41 ticks each; unclamped, −20 would roughly double it).
+
+#### What the numbers came out at — the material for the `make play` read
+
+Level 1, no equipment. Races are unclassed; classes are shown on a human.
+
+| race | HP | save | shoot | Speed | | class | HP | save | shoot | Speed |
+|---|--:|--:|--:|--:|---|---|--:|--:|--:|--:|
+| Human | 30 | 11 | 0 | 16 | | Warrior | 44 | 13 | 3 | 17 |
+| Half-Elf | 29 | 14 | 3 | 16 | | Mage | 29 | 17 | 1 | 15 |
+| Elf | 26 | 18 | 8 | 17 | | Priest | 33 | 17 | 2 | 15 |
+| High-Elf | 30 | 20 | 10 | 17 | | Rogue | 39 | 15 | 5 | 17 |
+| Dwarf | 35 | 18 | 1 | 15 | | Ranger | 36 | 16 | 9 | 18 |
+| Gnome | 29 | 14 | 4 | 17 | | Paladin | 40 | 17 | 1 | 15 |
+| Halfling | 27 | 16 | 6 | 19 | | Druid | 33 | 17 | 5 | 16 |
+| Half-Orc | 32 | 14 | 0 | 16 | | Necromancer | 29 | 16 | 2 | 14 |
+| Half-Troll | 39 | 14 | 0 | 14 | | | | | | |
+| Highborn | 32 | 17 | 2 | 15 | | | | | | |
+
+The shapes read the way `M3` authored them — the ranger and the high-elf top the bow, the
+half-troll and the warrior top HP, the halfling is the fastest thing on the roster and the
+half-troll the slowest. **The judgement that is still the user's is whether the SPREAD feels
+right in motion** — Speed especially, since a halfling walking at 1.15× against a half-troll's
+0.90× is a 28 % difference in how often the world gets a turn, and no gate can say whether that
+reads as *nimble* or as *twitchy*.
+
+#### ⚠ And `make probe` was RED at HEAD, which nothing was going to tell anyone
+
+Verifying the render side turned up `make probe` failing — and `git stash` confirmed it fails
+**at HEAD too**, so `M4` did not break it. Three undischarged `float?` divides in
+`src/gpushot.loft` (`SCALE / hw`, `CX / hw`, `(gq + 0.5) / lwf`) that a tightened loft rule
+turned into errors. Fixed here, since it is three `?? 0.0`s and it restores a gate.
+
+**The mechanism is the same one this plan keeps finding: a gate nobody runs is not a gate.**
+`make probe` is not part of `make test`, so it can rot for as long as nobody types it — exactly
+like the five unwired tests CLAUDE.md records, and exactly like the sidebar labels `M3` found.
+⚠ **This is now a standing question rather than a fixed bug**: nothing schedules `make probe`,
+so it will rot again. Whether it joins `make test` (it needs Xvfb, which is why it did not) is
+a call for whoever owns the render gate — recorded as open question 3.
+
 ## What this plan does NOT change
 
 - **The clean-room rule.** Race and power *names* are shared-world IP and already in use
@@ -314,9 +453,21 @@ character page (§12a) lists eight. This is where the tuning is judged, in `make
    number to weigh a stat bundle against, and the honest note is that the same eight keys now
    also appear as 16 STRUCT FIELD NAMES, which no bundle can make dynamic. Decide in `M4` or
    defer it to #13, whose problem this is a smaller copy of.
-3. **Does the sidebar want a `make probe` row?** `M3` shipped a wrong-label defect that 103
-   gate rows could not see (above). `M4` judges the page in `make play` regardless — that is
-   the cheap moment to add the probe, or to rule that the page is judged by eye.
+3. **What keeps `make probe` honest?** ⚠ **Sharpened by `M4` into something worse than the
+   original question.** `M3` shipped a wrong-label defect no gate row could see, and the
+   suggestion was a sidebar probe — then `M4` found **`make probe` itself red at HEAD**, on
+   three undischarged `float?` divides, for however long it had been since anyone typed it.
+   Fixing the rot is done; nothing stops it recurring, because the render gate is outside
+   `make test` (it needs Xvfb). So the real question is **scheduling, not coverage**: does
+   `make probe` join `make test`, gain a CI row, or get accepted as by-hand? Adding a sidebar
+   probe to a gate nobody runs would buy nothing. **A call for whoever owns the render gate
+   (plan #7).**
+4. **Charisma and Handiness drive nothing, and `M4` is the last step that could have keyed
+   them.** Both need a SYSTEM (a party / a priced transaction; the durability layer), and both
+   are tracked elsewhere — `CATALOG.md` `OW2` and `CRAFTING.md` q4. ⚠ The risk to name is that
+   *"authored but unread"* is a stable-looking state that can last as long as the six-vs-eight
+   gap did (six weeks, and nothing said so). The character page saying *(later)* out loud is
+   the only thing in the tree that will keep saying it.
 
 ## See also
 

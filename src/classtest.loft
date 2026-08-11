@@ -26,9 +26,13 @@ fn main() {
         && class_find(ct, "warrior").c_hd == 9 && class_find(ct, "mage").c_realm == "arcane"
         && class_find(ct, "priest").c_realm == "divine" && class_find(ct, "druid").c_realm == "nature";
 
-  // 2) APPLY: warrior hit-die (+13 at level 1) vs the unclassed 30; mage stat block bakes.
+  // 2) APPLY: the class's HP against the unclassed 30 — hit-die AND, since plan #16 `M4`,
+  //    ENDURANCE (§0's soak). ⚠ The mage row is the one that moved and it is the point of the
+  //    re-key: it used to land exactly ON the baseline (hit-die 0), and now its Endurance -2
+  //    puts it BELOW — a class can be frailer than a person with no training at all, which is
+  //    what "Endurance is the HP ceiling" has to mean if the axis is doing any work.
   base_hp = maxhp_of_class("");
-  hp_apply = maxhp_of_class("warrior") == base_hp + 13 && maxhp_of_class("mage") == base_hp;
+  hp_apply = maxhp_of_class("warrior") == base_hp + 14 && maxhp_of_class("mage") == base_hp - 1;
   m = sim_new(); sim_set_class(m, "mage");
   // ⚠ ON THE EIGHT, RE-AUTHORED (plan #16 `M3`): the mage states all eight axes itself, so
   // this row reads Might (16-4 = 12) and WILL (16+4 = 20). There is no Intelligence to assert.
