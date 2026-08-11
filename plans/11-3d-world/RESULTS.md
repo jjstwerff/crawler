@@ -869,6 +869,68 @@ redraw what could not have changed*) applied to space instead of time.
 
 P6b (parallax layers) and P6d (the blend band) follow it.
 
+## ✅ P6b-far — the far field is drawn, and its skyline is the world's (2026-08-11)
+
+**The wilderness past the window is drawn out to 48 km, and the horizon closes: worst
+0.77° across 12 bearings** against a dense independent walk of `ov_height` (`horizontest`
+rows 7–9). The bound is 2°, which is the skirt's own angular resolution rather than a taste.
+
+### The construction, and why it is not a clipmap
+
+A circular far mesh is the obvious shape and it is wrong here: the window is a hex rhombus,
+so a circle through its corners leaves a void at its edge midpoints and one through its
+midpoints overlaps its corners. **Ring 0 follows the window's own perimeter**, and every ring
+beyond it is that polygon scaled outward about the centre (45 rings, 9% growth). Three
+properties fall out and none needs machinery:
+
+| | |
+|---|---|
+| **the seam is exact** | ring 0 takes the near field's *stored* heights — gated at **0 wu** over all 400 vertices |
+| **no T-junctions** | equal vertex counts, so rings connect index to index; nothing to stitch |
+| **angular resolution is constant** | which is the resolution a horizon is made of; radial coarseness grows where a hex is sub-pixel |
+
+### ⚠ The negative control earned its place on the first run, twice
+
+**Render with the far field, render without, diff the PNGs.** First run: 108 000 uploaded
+vertices changed **exactly zero pixels** — the far plane was 400 wu and the skirt reaches
+4100. *108 000 vertices that change nothing look precisely like 108 000 vertices that were
+never uploaded.*
+
+**And after fixing that it still changed zero pixels, for a reason that is not a defect.**
+From the shipped spawn the far field is **100% occluded**: drawn alone it fills 47% of the
+frame, but the *near* rim at bearing 300 already stands at **32°**, outside a 60° vertical
+field. The bowl hides its own horizon. From a vantage on the window's high rim the far field
+contributes **7%** of the frame. ⚠ *A frame that cannot show the thing is not evidence about
+the thing* — P6a's unlit-terrain lesson arriving from the other side.
+
+### ⚠ Row 9 found three faults in ITSELF before finding none in its subject
+
+Each read exactly like *"the far field is broken"*:
+
+| reported | what was actually wrong |
+|---|---|
+| **44.5°** | it compared the **skirt** against the world, when what is drawn is near ∪ far — at bearing 270 the tallest thing stands *inside* the window |
+| **39.6°** | **the skirt's angular index is not an angle.** Its samples run along the window PERIMETER, and a sheared rhombus is very unequal in angle, so `i = b·na/12` pointed the probe at a different part of the sky |
+| **6.4°** | the reference walked in uniform 25 wu steps and missed a ridge 12 wu away — *a reference must be at least as fine as what it judges* |
+| **0.77°** | — the answer |
+
+That middle one is also a property of the construction worth carrying: **angular sampling is
+uniform along the perimeter, not in bearing**, so some directions are sampled more finely than
+others. It bounds per-bearing horizon accuracy and is why the gate's bound is stated as the
+skirt's resolution.
+
+### Aerial perspective replaces the stand-in
+
+The distance fade saturated at 42 wu — 36 m — and its own comment called itself *"a cheap
+stand-in for the horizon P6 derives from the hex world"*. With terrain drawn to 36 km it made
+everything past a street corner one flat colour. It is exponential extinction over a stated
+**25 km visibility** now, so near geometry is crisp and far ridges wash out with distance.
+
+**Still owed by P6:** P6b's parallax layers (cache the far rings and re-project rather than
+redraw — I-PARALLAX) and P6d's blend band. ⚠ And one measured fact should shape P6b: from the
+shipped start, **nine of twelve bearings are fully occluded by the near rim**, so a cache
+keyed on what is *visible* saves more here than one keyed on distance.
+
 **Gate:** `src/horizontest.loft` (6 rows, in `NATIVE_TESTS` at 21 s interpreted). Full suite
 green, **107 rows in 2m32s**, and every plan #17 measurement reads what it read before — which
 is what the bit-identical sampling arithmetic buys.

@@ -10,7 +10,7 @@ once `xvfb` was installed — [`RESULTS.md`](RESULTS.md) → *VERIFIED*). **P3b 
 landcover now rides a world texture derived from the field (`src/worldtex.loft`, sampled in
 `view3d`), exact on the shipped world over 488 032 texels — and the measurement there says the
 design named the *expensive* construction, which is written up under *P3b plumbing*.
-**P6 is next**, which is what P3b was ordered ahead of. The kernel now stands on the field: `sim.loft`
+**P6 IS DONE (2026-08-11)**: the ground has height, the two readings agree at exactly 0, and the far field reaches 48 km with its skyline matching the world to 0.77 degrees. The kernel now stands on the field: `sim.loft`
 imports `hex_field` and `hexedge`, and **passability is an edge query** (`Sim.field`, an
 `EdgeSet`) rather than a lookup in `Sim.tiles` — proved equal to the old model over ~135 000
 `(hex, direction)` answers with zero mismatches from any reachable position
@@ -103,8 +103,8 @@ check must go red.
 | **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | ✅ **DONE** — exact on the SHIPPED world (`worldtextest`, 0/488032), texture + sampler live in `view3d`; the `worldmesh` bake retires with its only consumer in **P9** |
 | **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | ✅ **DONE** — the playable milestone; actors are flat colours until P8's atlas |
 | **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | **PART DONE** — metrics + purity gated; towers still hexagons, doors still gaps |
-| **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | **PART DONE — the NEAR reading is built and the diff is exactly 0** (`horizontest`, 6 rows). The ground has height, the camera stands on the surface it draws (28 800 points, worst 7e-15 wu), and `SCALE.md` states the vertical. The gameplay call that blocked it resolved first (the start is a walkable valley). ⚠ Still owed: **the far field and the air box**. [`RESULTS.md`](RESULTS.md) → *P6a* |
-| **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
+| **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | ✅ **DONE** — near reading exact (diff **0** over the 404-hex ring), camera stands on the surface it draws (28 800 points, 7e-15 wu), and the far field is drawn to **48 km** with its skyline matching the world's to **0.77°**. The seam is exact by construction (ring 0 = the window's own boundary hexes, 0 wu over 400 vertices). `SCALE.md` now states the vertical. `horizontest`, 9 rows. ⚠ The **air box** proper is P6b's. [`RESULTS.md`](RESULTS.md) → *P6a*, *P6b-far* |
+| **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | **UNBLOCKED** — P6 done. ⚠ One measured fact should shape it: from the shipped start **nine of twelve bearings are fully occluded by the near rim**, so a cache keyed on VISIBILITY saves more than one keyed on distance |
 | **P6d** — the blend band where near geometry meets the sky-box | M | silhouette agreement at the switch distance; no pop, no ghost | Blocked on P6 |
 | **P7** — props + trees in the live world | M | existing plan #9/#10 gates, now on generated worlds | Blocked on P5 |
 | **P8** — sprites redrawn side-on | H | the sprite recognition bar (SPRITES.md), re-stated for elevation views | Blocked on P4 |

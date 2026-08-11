@@ -59,8 +59,39 @@ where crawler sits in the stack.
 > edge field, so a slope neither blocks nor slows. Whether a gradient should cost the walker
 > anything is a gameplay question with its own keys.
 >
-> **Still owed by P6: the far field and the air box** — what `sim_window_frame` /
-> `window_hex_world` were exposed for. → `plans/11-3d-world/RESULTS.md` → *P6a*.
+> ## ✅ **AND THE FAR FIELD IS DRAWN (2026-08-11) — P6 IS DONE.**
+>
+> The wilderness past the window reaches **48 km**, and **the skyline it draws is the world's:
+> worst 0.77°** across 12 bearings against a dense independent walk of `ov_height`. The
+> construction is a **polar skirt whose ring 0 IS the window's own boundary** — a circle would
+> leave a void at the rhombus's edge midpoints and overlap its corners — so the **seam is exact
+> (0 wu over all 400 vertices)**, there are **no T-junctions**, and angular resolution is
+> constant, which is the resolution a horizon is made of. No clipmap.
+>
+> ⚠ **The far field's negative control (render with, render without, diff the PNGs) earned its
+> place on the first run, twice.** 108 000 uploaded vertices changed **exactly zero pixels** —
+> the far plane was 400 wu and the skirt reaches 4100. *Vertices that change nothing look
+> precisely like vertices that were never uploaded.* And after that was fixed it STILL changed
+> zero pixels, for a reason that is not a defect: from the shipped spawn the far field is
+> **100% occluded** (drawn alone it fills 47% of the frame, but the *near* rim at bearing 300
+> already stands at 32°, outside a 60° vertical field). From the window's high rim it
+> contributes 7%.
+>
+> ⚠ **The horizon row found THREE faults in itself before finding none in its subject** — 44.5°
+> (it compared the skirt against the world when what is drawn is near ∪ far), 39.6° (**the
+> skirt's angular index is not an angle**: samples run along the window PERIMETER, and a sheared
+> rhombus is very unequal in bearing), 6.4° (the reference walked in 25 wu steps and missed a
+> ridge 12 wu away — *a reference must be at least as fine as what it judges*), then 0.77°.
+> Every one read exactly like *"the far field is broken"*.
+>
+> Also: **aerial perspective replaces the fade that saturated at 42 wu** (36 m) — its own comment
+> called itself a stand-in for the horizon P6 derives. Exponential extinction over a stated 25 km
+> visibility.
+>
+> **Next is P6b** (cache the far rings and re-project — I-PARALLAX). ⚠ One measured fact should
+> shape it: **nine of twelve bearings are fully occluded by the near rim**, so a cache keyed on
+> VISIBILITY saves more here than one keyed on distance.
+> → `plans/11-3d-world/RESULTS.md` → *P6a*, *P6b-far*.
 
 > ## ✅ **plan #11 P3b IS BUILT (2026-08-11) — landcover is a texture derived from the field, and the design named the expensive way to make one.**
 >
