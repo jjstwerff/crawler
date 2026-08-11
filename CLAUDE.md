@@ -105,6 +105,9 @@ make shot     # one Xvfb frame -> story.png   (a window-grab: positionally unrel
 make probe    # pixel-probe gate: Xvfb renders + tools/probe.py asserts probes/*.probe (~10 min)
 make bundles  # re-scan bundles/*/bundle.json -> the generated registries (loft scanner)
 make apidoc   # regenerate LIBRARIES.md from the resolved packages (apidoc-check verifies it)
+make ovshot   # re-draw README's two world maps from overland.loft (NATIVE, ~35 s; >10 min
+              #   interpreted). Re-running must leave doc/*.png byte-identical unless the world
+              #   derivation genuinely moved — the target says which, and it is a real check.
 make game     # single-file story.html (WebGL)
 ```
 

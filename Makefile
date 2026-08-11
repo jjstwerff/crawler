@@ -110,7 +110,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test
+.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe ovshot viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test
 
 # Default target: print the overview above.
 help:
@@ -255,8 +255,29 @@ loft-doctor:
 	    && echo "OK — installed loft runs the kernel headlessly (no --path/--lib; bundle libs only)" \
 	    || echo "FAIL — installed loft errors (usually a stale stdlib; run the refresh above)"
 
-test:
-	@tools/run_tests.sh "$(LOFT)" "$(LOFTFLAGS)" "$(KTEST)" "$(SRC)"
+# ── README's world maps ──────────────────────────────────────────────────
+# `make ovshot` re-draws doc/world_loft.png (the flat map) and doc/world_ortho.png (the
+# orthographic relief) straight from overland.loft at 10 m/px, in the in-game palette.
+#
+# ⚠ NATIVE, NOT BY PREFERENCE. Interpreted this samples 1350x910 px through the overland and
+# runs past ten minutes; --native-release does it in ~35 s. That is the documented 7-22x, and
+# it is why this target exists at all: there was none, so the invocation had to be
+# reconstructed each time — and the file quietly stopped compiling for two months (six
+# undischarged `float?` divides from a tightened rule) with nothing to notice.
+#
+# ⚠ AND THE OUTPUT IS A ROUND-TRIP CHECK, LIKE `make bundles`. Re-running it must leave
+# doc/*.png BYTE-IDENTICAL unless the world derivation genuinely changed — `git status doc/`
+# is the assertion. It held across two months and a backend change (2026-08-11: regenerated
+# native, identical to the June images built by the interpreter), which is a real statement
+# about the world being deterministic. A diff here is either a deliberate worldgen change or
+# a bug; either way, look at the picture before committing it.
+ovshot:
+	@echo "  [ovshot] doc/world_loft.png + doc/world_ortho.png (native, ~35 s) ..."
+	@$(LOFT) --native-release $(LOFTFLAGS) $(BUNDLE_LIBS) src/ovshot.loft 2>&1 | grep '^ovshot:'
+	@if [ -n "$$(git status --porcelain doc/ 2>/dev/null)" ]; then \
+	    echo "  ⚠ doc/ CHANGED — the world derivation moved. Look at the images before committing:"; \
+	    git status --short doc/; \
+	else echo "  doc/ byte-identical — the world has not moved"; fi
 
 # The library seam on its own (ADOPTION.md P4). `make test` runs it too; this is the
 # ~1 s standalone form for when you have just touched loft.toml, the lock, LIB_DEPS,
