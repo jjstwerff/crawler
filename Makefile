@@ -237,20 +237,31 @@ shot:
 # gl_screenshot reads the GL framebuffer — reliable under Xvfb (the
 # positional caveat applies only to `make shot`'s X11 window grab).
 
+# ⚠ THE GATE'S SCENES ARE NAMED, NOT GLOBBED — `src/*probe.loft` is not the gate.
+# A scene belongs here only if it is HEADLESS (renders, screenshots, exits on its own) and
+# produces a PNG that some `probes/*.probe` asserts. `src/reloadprobe.loft` matches the old
+# glob and is neither: it is plan #6 K3's live-reload verification, a WINDOWED program that
+# waits for Esc. Under Xvfb with no input it never exits, so `make probe` HUNG — and a hang
+# reads as progress, which is why it went unnoticed longer than a failure would have.
+# (Found in plan #16 `M4`: three undischarged `float?` divides in gpushot.loft aborted the
+# target one step earlier and MASKED the hang. Two rots stacked, the first hiding the second.)
+PROBE_SCENES  := src/bootprobe.loft src/postprobe.loft src/worldprobe.loft
+PROBE_TIMEOUT := 180
+
 probe:
 	@command -v xvfb-run >/dev/null 2>&1 || { \
 	    echo "  probe: missing xvfb-run — install: apt install xvfb"; exit 1; }
 	@python3 tools/probe.py --selftest >/dev/null || { \
 	    echo "  probe: harness self-test FAILED"; exit 1; }
 	@echo "  [render] src/gpushot.loft -> /tmp/gpu_r3.png ..."
-	@xvfb-run -a -s "-screen 0 800x600x24" \
+	@timeout $(PROBE_TIMEOUT) xvfb-run -a -s "-screen 0 800x600x24" \
 	    $(LOFT) --interpret $(LOFTFLAGS) src/gpushot.loft >/dev/null 2>&1 || { \
-	    echo "  probe: gpushot render FAILED"; exit 1; }
-	@for p in src/*probe.loft; do [ -e "$$p" ] || continue; \
+	    echo "  probe: gpushot render FAILED or timed out (>$(PROBE_TIMEOUT)s)"; exit 1; }
+	@for p in $(PROBE_SCENES); do [ -e "$$p" ] || continue; \
 	    echo "  [render] $$p ..."; \
-	    xvfb-run -a -s "-screen 0 800x600x24" \
+	    timeout $(PROBE_TIMEOUT) xvfb-run -a -s "-screen 0 800x600x24" \
 	        $(LOFT) --interpret $(LOFTFLAGS) $$p >/dev/null 2>&1 || { \
-	        echo "  probe: $$p render FAILED"; exit 1; }; done
+	        echo "  probe: $$p render FAILED or timed out (>$(PROBE_TIMEOUT)s)"; exit 1; }; done
 	@fail=0; for s in probes/*.probe; do \
 	    python3 tools/probe.py $$s || fail=1; done; \
 	    [ $$fail -eq 0 ] || { echo "  probe: FAILURES"; exit 1; }

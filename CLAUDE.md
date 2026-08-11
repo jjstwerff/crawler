@@ -183,10 +183,16 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   — it should print only `src/selftest.loft` (the kernel self-test, run before the tables).
   Pixel-level render checks
   live in **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7)
-  P0). ⚠ **`make probe` IS NOT IN `make test` and it rots** — plan #16 `M4` found it RED at
-  HEAD (three undischarged `float?` divides in `gpushot.loft`, from a tightened loft rule), for
-  however long it had been since anyone typed it. It takes **~10 min**, which is why it is not
-  in the gate. **Run it after render-side work**, and treat green as a fact with a date on it.
+  P0). ⚠ **`make probe` IS NOT IN `make test` and it rots — plan #16 `M4` found it three layers
+  deep**, each hiding the next: (1) three undischarged `float?` divides in `gpushot.loft` from a
+  tightened loft rule, which aborted step one; (2) the target globbed `src/*probe.loft`, which
+  swallows the **windowed** `reloadprobe.loft` (plan #6 K3) and **HUNG** — a hang reads as
+  progress; (3) `world_r4`/`world_r5` failing against goldens measured **2026-06-12**. 1 and 2
+  are fixed (`PROBE_SCENES` is now a NAMED list with a `timeout`; a scene joins it only if it is
+  headless and some `.probe` asserts its PNG). ⚠ **3 is OPEN and must not be re-pinned blind** —
+  the world moved (seed 777→1337, #17's wall gates), and adopting today's frame as golden
+  destroys the evidence. Plan #7's call. It takes **~10 min**, which is why it is not in the
+  gate. **Run it after render-side work**, and treat green as a fact with a date on it.
   The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
 - **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under
   Xvfb reads the GL **framebuffer reliably** — it's exactly what `make probe` uses (plan #7

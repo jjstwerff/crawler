@@ -415,19 +415,43 @@ right in motion** — Speed especially, since a halfling walking at 1.15× again
 0.90× is a 28 % difference in how often the world gets a turn, and no gate can say whether that
 reads as *nimble* or as *twitchy*.
 
-#### ⚠ And `make probe` was RED at HEAD, which nothing was going to tell anyone
+#### ⚠ And `make probe` was rotted THREE LAYERS DEEP, each one hiding the next
 
-Verifying the render side turned up `make probe` failing — and `git stash` confirmed it fails
-**at HEAD too**, so `M4` did not break it. Three undischarged `float?` divides in
-`src/gpushot.loft` (`SCALE / hw`, `CX / hw`, `(gq + 0.5) / lwf`) that a tightened loft rule
-turned into errors. Fixed here, since it is three `?? 0.0`s and it restores a gate.
+Verifying the render side turned up `make probe` failing. Peeling it took three passes, and the
+order matters — **each rot masked the one behind it**, which is how a gate ends up this far gone
+without a single complaint:
 
-**The mechanism is the same one this plan keeps finding: a gate nobody runs is not a gate.**
-`make probe` is not part of `make test`, so it can rot for as long as nobody types it — exactly
-like the five unwired tests CLAUDE.md records, and exactly like the sidebar labels `M3` found.
-⚠ **This is now a standing question rather than a fixed bug**: nothing schedules `make probe`,
-so it will rot again. Whether it joins `make test` (it needs Xvfb, which is why it did not) is
-a call for whoever owns the render gate — recorded as open question 3.
+| # | what was wrong | how it hid |
+|---|---|---|
+| **1** | three undischarged `float?` divides in `src/gpushot.loft` (`SCALE / hw`, `CX / hw`, `(gq+0.5) / lwf`) — a tightened loft rule turned them into compile errors | aborted the target at step one, so nothing after it ever ran |
+| **2** | the target rendered **`src/*probe.loft`**, a glob that swallows `src/reloadprobe.loft` — plan #6 `K3`'s **windowed** live-reload tool, which waits for Esc and under Xvfb **never exits** | it HUNG rather than failed, and **a hang reads as progress** |
+| **3** | `probes/world_r4` (1/4) and `world_r5` (0/3) fail against goldens **measured 2026-06-12** | unreachable behind 1 and 2 |
+
+**Fixed here (1 and 2):** the three `?? 0.0`s, and the scene list is now **named, not globbed**
+(`PROBE_SCENES`) with a `timeout` so a hang fails loudly. A scene belongs in the gate only if it
+is headless and produces a PNG some `.probe` asserts — `reloadprobe` is neither.
+
+⚠ **NOT fixed, and deliberately not (3).** The two world specs fail **identically with pre-`M4`
+code** — verified by checking `src/sim.loft`/`src/view.loft` out at the `M3` commit and
+re-rendering, not by argument. `worldprobe.loft` reads no statistic and runs no tick, so `M4`
+could not have moved it; the world it renders has changed since the goldens were pinned (the
+tree's measurement seed moved 777 → 1337, and #17 cut gates into the town wall). **Re-pinning
+them to whatever renders today would destroy the evidence** — that is adopting a frame nobody
+has judged, and `SCALE.md`'s whole point is that a wrong world should be *provable* wrong. It is
+plan #7's call. `gpu_r3` (3/3) and `post_r6` (5/5) pass.
+
+⚠ **A method note, because it nearly went wrong.** The first attempt to establish "pre-existing"
+used `git stash push -- <paths>` on files that were *already committed* — so it stashed nothing,
+and `git stash pop` then popped **an unrelated pre-existing stash** (`WIP on main: e8c2cb4`),
+conflicting `loft.lock`. Restored, and that stash is untouched and still listed. The lesson is
+the one this repo already writes down: **another agent's work is routinely sitting in the tree**,
+so reach for `git checkout <commit> -- <paths>` to compare against history, never `stash`.
+
+**The mechanism behind all three is the same one this plan keeps finding: a check nobody runs is
+not a check.** `make probe` is outside `make test` (it needs Xvfb and takes ~10 min), so it rots
+for as long as nobody types it — exactly like the five unwired tests CLAUDE.md records, and
+exactly like the sidebar labels `M3` found. ⚠ **Nothing yet stops it rotting again** — open
+question 3.
 
 ## What this plan does NOT change
 

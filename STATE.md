@@ -25,9 +25,16 @@ where crawler sits in the stack.
 > ⚠ **`M4` found a live defect and a rotted gate.** A temporary Will potion plus **any**
 > unrelated re-derive baked the potion into `spmax` permanently (`7 → 11 → still 11`) — fixed by
 > **I-POOL**: a stored pool reads the PERMANENT stat layers only, enforced at the one site that
-> stores. ⚠ **And `make probe` was RED at HEAD** (three undischarged `float?` divides in
-> `gpushot.loft`) — fixed, but nothing schedules it, so it will rot again; that is now the plan's
-> open question 3, and a call for plan #7.
+> stores.
+>
+> ⚠ **And `make probe` was rotted THREE LAYERS DEEP, each hiding the next**: (1) three
+> undischarged `float?` divides in `gpushot.loft` aborted step one; (2) the target globbed
+> `src/*probe.loft` and swallowed the **windowed** `reloadprobe.loft`, so it **HUNG** — and a
+> hang reads as progress; (3) `world_r4`/`world_r5` fail against goldens measured 2026-06-12.
+> **1 and 2 fixed** (`PROBE_SCENES` named + `timeout`). ⚠ **3 IS OPEN AND MUST NOT BE RE-PINNED
+> BLIND** — verified pre-existing by re-rendering with the `M3` commit's `sim`/`view`, and the
+> world moved underneath it (seed 777→1337, #17's wall gates). Adopting today's frame as golden
+> destroys the evidence. **Plan #7's call.** `gpu_r3` 3/3 and `post_r6` 5/5 pass.
 >
 > **→ The one thing still owed is a JUDGEMENT, not a step: the `make play` read.** Whether the
 > spread feels right in motion — Speed especially, a halfling at 1.15× against a half-troll's
