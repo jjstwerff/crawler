@@ -693,21 +693,52 @@ fails too**: plan #17 `S7`'s claim is literally about the ore face (*"the picket
 the ore face safer"*). The mining economy is load-bearing in two gates, so a mine-less valley
 start is a plan #17 rewrite, not a side effect to absorb here.
 
-**So the rule shipped is the correct one, and in this example world it still selects town 3** —
-because no town has both gentle ground and rock within a day's walk. The four towns are: two
-sea-level (no alpine at all), one gentle valley with distant rock, one mountainside with rock.
-**The walkable start is not available in this world without a second decision**, and all three
-candidates are outside plan #11:
+### ✅ (b) WAS TRIED AND IT WORKS — the distant mine is the BETTER mine, and the start is now a valley
 
-> **OPEN, the user's call, now priced.**
-> **(a)** Accept a mine-less valley start and re-derive plan #17's gates onto the herb chain —
-> `stocktest` and `militiatest` both key on the ore face today. Biggest blast radius, and it
-> gives up the "protect the forge that mends your gear" loop `S6` closed on the player.
-> **(b)** Test whether a **distant** mine actually works: plan #17 already moved the furnace
-> beside the mine and posted a guard on the works, so the 90-tick leg flip may no longer bind
-> at 46 hexes. One gate run answers it, and if it passes, town 2 becomes eligible and nothing
-> else changes. **Cheapest, and the one to try first.**
-> **(c)** Give worldgen a town with both — the example world simply offers none.
+Three options were priced; **(b)** — *"test whether a distant mine actually works"* — was the
+cheapest and it passed. **The walkable start is shipped: `ov_home_town` selects town 2, and the
+full gate is green at 106 rows.**
+
+**Two things had to move, and both were asking the wrong question rather than answering it
+wrongly:**
+
+1. **`MINE_REACH` was `WORK_MAX_D` (330 m) and should have been the window.** A miner's day is
+   mine → furnace → mine, and plan #17 had *already* moved the furnace to the mine and posted a
+   guard on the works — so what must be short is that leg, not the town's view of it. The 330 m
+   test was a leftover from before #17 fixed the thing it was guarding against.
+2. **The siting scan had no candidate between "within a day's walk" and "the window edge".**
+   When no face sits inside `WORK_MAX_D` it fell straight through to a mouth on the window
+   EDGE — *a site pointing at rock rather than a site on it*, which is why it delivered 1 load
+   and absorbed every incursion. It now takes the **nearest reachable face at any distance**
+   first, and only falls to the edge when the window holds no rock at all. `reachm` already
+   gated the scan on reachability, so the new candidate is reachable by construction.
+
+**The result is better than the world it replaced, on both of #17's own measurements:**
+
+| four days, shipped world | old (town 3, mountainside) | new (town 2, valley) |
+|---|---|---|
+| ore at peace | 3 deliveries, store 0..3 | **13 deliveries, store 0..11** |
+| ore under pressure | 0 deliveries | **1 delivery** |
+| ore face unsafe, no militia | 775 / 1600 | **1514 / 1600** |
+| ore face unsafe, militia raised | 0 / 1600 | **0 / 1600** |
+| deliveries, militia raised | 6 | **7** |
+
+⚠ **`I-SAFE` and `S7` both separate MORE sharply now, not less** — 13 → 1 under pressure where
+it used to be 3 → 0, and the picket takes a face that is unsafe 1514 of 1600 ticks to 0. A
+distant mine is *more* exposed, which is exactly what makes the militia worth raising: the
+lever the player holds got longer.
+
+⚠ **And note what the old number was hiding.** The mountain town's ore chain read 3 deliveries
+and looked like a working economy under strain. The valley's reads 13. The old start was not
+merely steep — its supply chain was running at a quarter speed nobody had a baseline for, which
+is `S4`'s lesson (*an observable difference is not an observable signal*) arriving from the
+other side.
+
+**What the player gets:** mean walkable slope **1.02 → 0.403**, cliff steps **6303 → 36**,
+gentle-ramp steps **3813 → 13451**, 20 gentle alpine hexes against 0 — and a stronger ore trade.
+The onboarding-curve concern `STATE.md` records separately (a gnoll at mlvl 6, eight hexes from
+the vantage) is a *placement* question and is untouched by this; it should be re-measured on the
+new window before it is assumed to have moved either way.
 
 Until it resolves, P6 can still build the parts that do not depend on the answer: the boundary
 ring's geometry, the two-reading sampling seam, and the diff harness itself — all of which need

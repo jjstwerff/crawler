@@ -48,10 +48,12 @@ where crawler sits in the stack.
 > plumbing a texture into a renderer about to be removed is work done to be thrown away. A
 > decision, not an oversight. → `plans/11-3d-world/RESULTS.md` → *P3b plumbing*.
 >
-> **P6 is OPENED and part-blocked on a gameplay call** — the horizon needs two readings and the
-> world has one, and switching the second on makes the starting town a 42°-average mountainside.
-> The measurement, the control that makes it a finding, and the lever are in *Open, and whose
-> call it is* below.
+> **P6 is OPENED, and opening it changed the game's starting town.** The horizon needs two
+> readings of the world's height and the world implements one — `sim` fetches the height and
+> discards it, so the ground is flat. Switching the second on exposed that the *start* was a
+> 42°-average mountainside, and that the rule choosing it (`ov_home_town`, maximising height
+> reach) selected for exactly that. **Fixed: the start is now a walkable valley and the ore
+> trade got STRONGER** (3 → 13 deliveries at peace). See *Open, and whose call it is* below.
 
 > ## ✅ **plan #16 is BUILT END TO END (2026-08-11) — `M0`–`M4`. The eight statistics are the engine's, the content's, and six of them drive a number.**
 >
@@ -476,28 +478,33 @@ the area — but if it continues, the label is wrong and should move.
   window simply *is* mean slope. It bought the gatherer (plan #17 needs scree/meadow, absent at
   sea level) and cost the onboarding curve; it also costs the terrain, invisibly, until P6
   makes height real. **Narrowest lever first: score `ov_home_town` on reachable high ground in a
-  walkable neighbourhood rather than raw height reach** — and that is now **DONE** (below).
+  walkable neighbourhood rather than raw height reach** — **DONE, and it worked** (below).
   → `plans/11-3d-world/RESULTS.md` → *P6 opened*; instrument `src/horizonprobe.loft`.
-- ⚠ **THE LEVER WAS PULLED AND THE WORLD REFUSED IT (2026-08-11) — the user's call, now priced.**
-  `ov_home_town` now scores what its own comment always wanted: reach `ALPINE_MIN` (scree/meadow
-  can exist) **and** rock within a working day (a mine can exist), then **the most walkable
-  window wins**. *Height reach is a CONSTRAINT, not an OBJECTIVE* — maximising it was selecting
-  for unwalkability. `ALPINE_MIN` is now shared with `ov_kind_at` (one owner), and the rock test
-  **asks the classifier** rather than predicting K_FACE from slope: a slope proxy reported 50
-  face-like samples near town 2 where the real nearest face is **46 hexes out**.
-  **Dropping the walkability objective alone moves the start to town 2 and it is a far better
-  world** — mean walkable slope **1.02 → 0.403**, cliff steps **6303 → 36**, gentle-ramp steps
-  **3813 → 13451**, and 20 gentle alpine hexes against 0. ⚠ **But town 2 has no mine** (nearest
-  face 46 hexes, zero within `WORK_MAX_D` = 22) and `stocktest` caught it on the first run —
-  1 delivery in four peaceful days, herb chain healthy at 9. ⚠ **And deleting the edge-mine
-  fallback that `sim.loft`'s own comment argues for makes it WORSE**: `militiatest` fails too,
-  because plan #17 `S7`'s claim is literally about the ore face. **The mining economy is
-  load-bearing in two gates.** So the shipped rule is correct and *still picks town 3*, because
-  no town in the example world has both gentle ground and nearby rock. Three levers, all outside
-  plan #11: **(b) test whether a DISTANT mine now works** — #17 already moved the furnace beside
-  the mine and posted a guard, so the 90-tick leg flip may no longer bind at 46 hexes; **one
-  gate run answers it and nothing else changes — try this first**; (a) accept a mine-less valley
-  and re-derive #17's gates onto the herb chain; (c) give worldgen a town with both.
+- ✅ **THE STARTING WINDOW IS NOW A WALKABLE VALLEY (2026-08-11), AND THE ORE TRADE GOT
+  STRONGER.** `ov_home_town` scores what its own comment always wanted: reach `ALPINE_MIN`
+  (scree/meadow can exist) **and** have rock in the window (a mine can exist), then **the most
+  walkable window wins**. *Height reach is a CONSTRAINT, not an OBJECTIVE* — maximising it was
+  selecting for unwalkability. `ALPINE_MIN` is shared with `ov_kind_at` (one owner) and the rock
+  test **asks the classifier** rather than predicting K_FACE from slope (a slope proxy reported
+  50 face-like samples near town 2 where the real nearest face is 46 hexes out).
+  **The start moved town 3 → town 2:** mean walkable slope **1.02 → 0.403**, cliff steps
+  **6303 → 36**, gentle-ramp steps **3813 → 13451**, 20 gentle alpine hexes against 0.
+  ⚠ **It took two things that were asking the wrong question, not answering it wrongly.**
+  (1) The home-town rock test used `WORK_MAX_D` (330 m) — but plan #17 had already moved the
+  furnace *to* the mine and posted a guard, so what must be short is the mine→furnace leg, not
+  the town's view of it; the 330 m test guarded something already fixed. (2) The siting scan had
+  **no candidate between "within a day's walk" and "the window edge"**, so a valley town's mine
+  mouth landed on the edge — *a site pointing at rock rather than a site on it*. It now takes the
+  **nearest reachable face at any distance** first (`reachm` already gated it on reachability).
+  ⚠ **BOTH OF #17's MEASUREMENTS SEPARATE MORE SHARPLY NOW**: ore at peace **3 → 13 deliveries**,
+  under pressure 0 → 1, the face unsafe 775/1600 → **1514/1600** without a militia and 0/1600
+  with one, deliveries with a militia 6 → **7**. A distant mine is *more* exposed, which is
+  exactly what makes raising a militia worth it — the lever the player holds got longer.
+  ⚠ **And the old number was hiding something**: the mountain town's 3 deliveries looked like a
+  working economy under strain; the valley's is 13. The old start's supply chain ran at a quarter
+  speed nobody had a baseline for. Full gate green, 106 rows.
+  → `plans/11-3d-world/RESULTS.md` → *P6 opened*; probes `horizonprobe` / `hometownprobe` /
+  `rockprobe`.
 - **The starting neighbourhood is now hostile at level 1** — a gnoll (mlvl 6) 8 hexes from the
   vantage, a level-1 hero dead on tick 13. The alpine anchor bought the gatherer and cost the
   onboarding curve. **DESIGN §3a pillar #8's business, and nobody owns it yet.** The user's call

@@ -5683,6 +5683,16 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         farmq = -1;      // the farthest reachable face, for when none is >= 16 out
         farmr = -1;
         bfarm = -1;
+        // ⚠ AND THE NEAREST REACHABLE FACE AT *ANY* DISTANCE (plan #11 P6). A valley town's
+        // rock can sit beyond `WORK_MAX_D` — town 2's nearest is 46 hexes — and the branch
+        // that used to catch that put the mouth at the WINDOW EDGE, which is a site pointing
+        // at rock rather than a site ON it. Aiming at the real face instead is what makes the
+        // "does a distant mine work?" question answerable: the furnace follows the mine and a
+        // guard walks the works, so what has to be short is the mine->furnace leg, not the
+        // town's view of it. `reachm` already gates this on reachability.
+        nearq = -1;
+        nearr = -1;
+        bnear = 9999;
         for mr8 in 2..h - 2 {
           for mq8 in 2..w - 2 {
             tim = mr8 * w + mq8;
@@ -5697,6 +5707,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               }
               if facenb {
                 dmn = hex_distance(mq8, mr8, w / 2, h / 2);
+                if dmn < bnear { bnear = dmn; nearq = mq8; nearr = mr8; }
                 // ⚠ AND WITHIN A DAY'S WALK (`WORK_MAX_D`) — the ore face the old scan chose
                 // sat 43 hexes out, and a miner whose leg flips every 90 ticks never
                 // completes that round trip even with a clear path the whole way.
@@ -5712,6 +5723,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         // a rock face the miners can walk to at 9 hexes beats one at 20 they cannot. The
         // gatherer's fallback, for the gatherer's reason.
         if mnq < 0 { mnq = farmq; mnr = farmr; }
+        if mnq < 0 { mnq = nearq; mnr = nearr; }
         if mnq < 0 {
           // no rock in this window: the mine lies BEYOND it — its mouth sits
           // at the window edge toward the nearest mountain/hill cell

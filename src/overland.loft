@@ -1381,11 +1381,15 @@ pub fn ov_hex_world(q: integer, r: integer) -> (float, float) {
 const HT_N    = 13;
 const HT_STEP = 125.0;
 const HT_HALF = 750.0;
-// The mine test's disc: `sim.loft`'s WORK_MAX_D is 22 walked hexes and a hex is OV_STEP
-// natural metres, so a mine has to be inside 330 m of the centre for a miner to round-trip it
-// inside the 90-tick leg flip. ⚠ Kept as a literal rather than importing WORK_MAX_D because
-// `overland` sits BELOW `sim` — if that number moves, this comment is the thread to pull.
-const MINE_REACH = 330.0;
+// The mine test's reach: THE WHOLE WINDOW, not a day's walk.
+//
+// ⚠ IT WAS 330 m (`WORK_MAX_D` = 22 walked hexes x OV_STEP) AND THAT WAS THE WRONG QUESTION —
+// measured, plan #11 P6. A miner's day is mine -> furnace -> mine, and plan #17 already moved
+// the furnace to the mine and posted a guard on the works, so what has to be short is that
+// leg, not the town's view of it. Asked at 330 m, the one walkable town in the world had "no
+// mine" and its ore chain died; asked over the window, its rock is 46 hexes out and delivers
+// 13 loads in four peaceful days against the mountain town's 3.
+const MINE_REACH = 750.0;
 const MINE_STEP  = 30.0;
 
 // Is there rock to MINE within a working day of this town centre?
@@ -1396,8 +1400,8 @@ const MINE_STEP  = 30.0;
 // classifier puts its NEAREST face 46 hexes out — so the proxy would have been a second
 // classifier that disagrees with the first, which is the failure this repo keeps finding.
 //
-// A face is rare (~0.3 % of a window) and clustered, so this samples densely over a SMALL
-// disc rather than sparsely over the window: coarse sampling of a rare event finds it by luck.
+// A face is rare (~0.3 % of a window) and clustered, so this samples at 30 m rather than at the
+// gradient scan's 125 m: coarse sampling of a rare event finds it by luck, not by looking.
 fn ov_has_rock(o: Overland, tx: float, ty: float) -> boolean {
   n = ((2.0 * MINE_REACH) / MINE_STEP ?? 1.0) as integer ?? 20;
   for ry in 0..n + 1 {
