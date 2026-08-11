@@ -113,7 +113,27 @@ where crawler sits in the stack.
 >
 > A layer whose whole budget is under one step cannot be reused for even one frame. That is
 > I-PARALLAX *answering*, not failing: such a layer must be **geometry**, which is exactly what
-> P6's skirt is. **So the layer machinery is worth 1 of 4 layers — decide before building it.**
+> P6's skirt is.
+>
+> ## ✅ **DECIDED (user ruling, 2026-08-11): SKIP THE LAYER MACHINERY. THE FAR FIELD STAYS GEOMETRY.**
+>
+> The cache buys 1 of 4 layers; the alternative — the skirt, which already ships — costs nothing
+> more. So **P6b closes without building the layers**, and the criterion stays in the tree and in
+> the gate because it is the *evidence for the ruling*, and because the **flight/orbit regime**
+> `DESIGN.md` reserves it for is where it becomes true (at 100 m/s the same layers die every
+> frame, and at walking speed they die faster than the design thought — both come out of the
+> same one function).
+>
+> ⚠ **A consequence to notice rather than absorb: P6d's premise largely dissolves.** There is no
+> sky-box to switch *to*, so there is no switch distance and no two representations to agree —
+> I-AGREE's near/far half is satisfied **by construction** (the skirt's ring 0 *is* the window's
+> boundary, gated at 0 wu). What is left of P6d is the aerial-perspective blend, which is a look
+> rather than an invariant. **Re-scope or close — flagged, not closed unilaterally.**
+>
+> ⚠ **And `DESIGN.md`'s cache-lifetime table is now known-wrong in the tree** (it omits the 10×
+> compression). It is contradicted in `parallax.loft`, `parallaxtest` and here, but the table
+> itself still reads as authoritative where it sits — worth correcting at the source next time
+> that file is open.
 > ⚠ Also measured: nine of twelve bearings are fully occluded by the near rim from the shipped
 > start, so a cache keyed on VISIBILITY would save more here than one keyed on distance.
 > → `plans/11-3d-world/RESULTS.md` → *P6a*, *P6b-far*.
