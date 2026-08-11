@@ -23,6 +23,7 @@ use overland;
 use farfield;      // the terrain BEYOND the window — the far half of I-HORIZON (P6)
 use scale;         // m_to_wu — the haze distance is stated in metres (SCALE.md)
 use ground;        // the near field's SURFACE — one construction for standing and drawing (P6)
+use hextower;      // tower_face_pt — an arc edge's corners sit ON the recorded circle (P5 step B)
 
 WALL3D_H = 3.2;          // world units ~ 2.77 m: a room you can stand up in (SCALE.md)
 EYE3D_Z  = 1.847;        // 1.6 m eye height at 0.866 m per world unit
@@ -166,6 +167,14 @@ fn tri_shade(cx: float, cy: float, cz: float, ax: float, ay: float, az: float,
 // gl_upload_vertices SILENTLY ABORTS the program once the real pipeline is in context —
 // no output, no error, exit 0. This shape is the documented workaround, not a style choice.
 pub fn build_scene3d(s: Sim) -> (integer, integer) {
+  build_scene3d_arc(s, true)
+}
+
+// `usearc` off is STEP B'S NEGATIVE CONTROL: the same world with arc-tagged edges drawn as
+// the facets they used to be. Diffing the two frames answers "which pixels does the arc
+// change?" — and that is a stricter control than looking at one picture, because a renderer
+// that curved everything would show every wall in the diff, not only the towers.
+pub fn build_scene3d_arc(s: Sim, usearc: boolean) -> (integer, integer) {
   buf: vector<single> = [];
   n = 0;
   zf = 0.0 as single;
@@ -247,33 +256,114 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
             (e0, e1) = hex_edge_corners(d);
             (w0x, w0y) = hex_corner_px(q, r, e0);
             (w1x, w1y) = hex_corner_px(q, r, e1);
-            // Face tone varies with the edge direction so corners read as corners
-            // instead of one flat mass — the only lighting this pass has.
-            sh = 0.62 + 0.10 * cos((d as float) * 1.0471975511965976);
-            wr = (0.30 * sh) as single;
-            wg = (0.285 * sh) as single;
-            wb = (0.26 * sh) as single;
-            ax = w0x as single;
-            ay = w0y as single;
-            bx = w1x as single;
-            by = w1y as single;
             // The wall's FOOT follows the ground it stands on — the same two corner heights
             // the floor triangles use, so a wall meets the floor along one line rather than
             // hovering over a slope or sinking into it. Its top rides parallel: a wall is a
             // constant height ABOVE its own ground, not a constant height above sea level.
             az0 = ground_corner_z(s, q, r, e0);
             bz0 = ground_corner_z(s, q, r, e1);
-            azs = az0 as single;
-            bzs = bz0 as single;
-            azh = (az0 + WALL3D_H) as single;
-            bzh = (bz0 + WALL3D_H) as single;
-            buf += [ax, ay, azs, wr, wg, wb, neg, neg];
-            buf += [bx, by, bzs, wr, wg, wb, neg, neg];
-            buf += [bx, by, bzh, wr, wg, wb, neg, neg];
-            buf += [ax, ay, azs, wr, wg, wb, neg, neg];
-            buf += [bx, by, bzh, wr, wg, wb, neg, neg];
-            buf += [ax, ay, azh, wr, wg, wb, neg, neg];
-            n += 6;
+            // ⚠ DOES THIS EDGE KNOW WHAT BLOCKS IT? (plan #11 P5 step B.) An edge carrying an
+            // ARC surface is part of a round tower, and the builder recorded the circle it
+            // was cut from — so it draws as a piece of that circle rather than as the facet
+            // its two hex corners suggest. Everything else keeps its quad, which is what
+            // makes the frame its own control: a straight wall must stay straight.
+            //
+            // The face is drawn on the recorded circle, offset half a hex step to whichever
+            // side this edge faces — the ring is one cell thick, so that is where its two
+            // faces are. Adjacent edges project their SHARED corner to the same point, so
+            // the pieces meet exactly and the cylinder has no seams.
+            asid = edge_surf(s.field, q, r, bnq, bnr);
+            isarc = false;
+            acx = 0.0;
+            acy = 0.0;
+            aface = 0.0;
+            if usearc && asid > 0 && asid < s.surfs.sf_n {
+              if (s.surfs.sf_kind[asid] ?? 0) == 2 {
+                isarc = true;
+                acx = s.surfs.sf_a[asid] ?? 0.0;
+                acy = s.surfs.sf_b[asid] ?? 0.0;
+                (mcx, mcy) = hex_to_px(q, r);
+                (mnx, mny) = hex_to_px(bnq, bnr);
+                dcell = (mcx - acx) * (mcx - acx) + (mcy - acy) * (mcy - acy);
+                dnb = (mnx - acx) * (mnx - acx) + (mny - acy) * (mny - acy);
+                aface = tower_face_r(s.surfs, asid, dnb > dcell);
+              }
+            }
+            // ONE LIGHTING MODEL, and the exact normal is what pays for it. The floor
+            // already takes a Lambert term against a fixed sun; a wall now takes the same
+            // one against ITS OWN normal — radial on an arc, cell-to-neighbour on a facet.
+            // A cylinder lit that way reads as round from any angle, not only in silhouette,
+            // which is precisely the difference between a recovered normal and none.
+            (lnx, lny) = hex_to_px(bnq, bnr);
+            (lcx, lcy) = hex_to_px(q, r);
+            fnx = lnx - lcx;
+            fny = lny - lcy;
+            fnl = sqrt(fnx * fnx + fny * fny) ?? 1.0;
+            fnx = fnx / fnl ?? 0.0;
+            fny = fny / fnl ?? 0.0;
+            segs = 1;
+            if isarc { segs = 4; }
+            a0x = w0x;
+            a0y = w0y;
+            a1x = w1x;
+            a1y = w1y;
+            if isarc {
+              (j0x, j0y) = tower_face_pt(s.surfs, asid, aface, w0x, w0y);
+              (j1x, j1y) = tower_face_pt(s.surfs, asid, aface, w1x, w1y);
+              a0x = j0x; a0y = j0y; a1x = j1x; a1y = j1y;
+            }
+            ang0 = atan2(a0y - acy, a0x - acx);
+            ang1 = atan2(a1y - acy, a1x - acx);
+            dang = ang1 - ang0;
+            while dang > 3.141592653589793 { dang = dang - 6.283185307179586; }
+            while dang < 0.0 - 3.141592653589793 { dang = dang + 6.283185307179586; }
+            for sg in 0..segs {
+              t0 = (sg as float) / (segs as float) ?? 0.0;
+              t1 = ((sg + 1) as float) / (segs as float) ?? 0.0;
+              px0 = a0x + (a1x - a0x) * t0;
+              py0 = a0y + (a1y - a0y) * t0;
+              px1 = a0x + (a1x - a0x) * t1;
+              py1 = a0y + (a1y - a0y) * t1;
+              snx = fnx;
+              sny = fny;
+              if isarc {
+                g0 = ang0 + dang * t0;
+                g1 = ang0 + dang * t1;
+                px0 = acx + aface * cos(g0);
+                py0 = acy + aface * sin(g0);
+                px1 = acx + aface * cos(g1);
+                py1 = acy + aface * sin(g1);
+                gm = ang0 + dang * (t0 + t1) * 0.5;
+                snx = cos(gm);
+                sny = sin(gm);
+                if aface < (s.surfs.sf_c[asid] ?? 0.0) { snx = 0.0 - snx; sny = 0.0 - sny; }
+              }
+              // the same sun as `tri_shade`, taken in the plane: a vertical face sees only
+              // the sun's horizontal component, so the terms are its x,y normalised.
+              lam = snx * (0.0 - 0.8) + sny * 0.6;
+              if lam < 0.0 { lam = 0.0; }
+              sh = 0.55 + 0.45 * lam;
+              wr = (0.30 * sh) as single;
+              wg = (0.285 * sh) as single;
+              wb = (0.26 * sh) as single;
+              fz0 = az0 + (bz0 - az0) * t0;
+              fz1 = az0 + (bz0 - az0) * t1;
+              ax = px0 as single;
+              ay = py0 as single;
+              bx = px1 as single;
+              by = py1 as single;
+              azs = fz0 as single;
+              bzs = fz1 as single;
+              azh = (fz0 + WALL3D_H) as single;
+              bzh = (fz1 + WALL3D_H) as single;
+              buf += [ax, ay, azs, wr, wg, wb, neg, neg];
+              buf += [bx, by, bzs, wr, wg, wb, neg, neg];
+              buf += [bx, by, bzh, wr, wg, wb, neg, neg];
+              buf += [ax, ay, azs, wr, wg, wb, neg, neg];
+              buf += [bx, by, bzh, wr, wg, wb, neg, neg];
+              buf += [ax, ay, azh, wr, wg, wb, neg, neg];
+              n += 6;
+            }
             }
           }
         }

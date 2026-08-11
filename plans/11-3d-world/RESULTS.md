@@ -1027,6 +1027,66 @@ arc-tagged edge draws as a curve) is what makes it visible, and the B control is
 specified below: the frame must contain a straight wall too, and the straight must stay
 straight.
 
+## ✅ P5b — step B: the renderer consumes the arc, and the control is a frame diff (2026-08-11)
+
+An arc-tagged edge no longer extrudes the facet its two hex corners suggest. Its corners are
+pushed radially onto the tower's own face — `tower_face_pt`, half a hex step either side of
+the recorded circle, because the ring is one cell thick — and the wall is subdivided into
+four pieces along the arc between them. Adjacent edges hand that function the SAME corner, so
+they get the same point back: the cylinder is continuous by construction, not by tolerance.
+
+**One lighting model, and the exact normal is what pays for it.** The floor already took a
+Lambert term against a fixed sun; a wall now takes the same one against ITS OWN normal —
+radial on an arc, cell-to-neighbour on a facet. The old wall tone was `0.62 + 0.10·cos(60°·d)`,
+a per-direction constant that made a cylinder read as six flat bands. A continuous normal is
+what lets a round tower look round from any angle rather than only in silhouette.
+
+### Gated numerically, because the exactness is not a matter of taste
+
+`towertest` row 4, on the shipped world, with no GL context:
+
+| | measured |
+|---|---|
+| projected corners that land exactly on their face | **1504 / 1504**, worst radius error **8.4e-15 wu** |
+| blocked edges that carry no arc and stay facets | **2554** (asserted `>= onarc`) |
+
+⚠ **One check was written and then deleted for being vacuous**: "straight corners did not
+move" counts a branch the renderer never enters for a straight wall, so it could not fail.
+What can fail is the arc path claiming *everything* — if the tagging were wrong that 2554
+would collapse and every wall in the world would curve — so the count of non-arc edges is the
+assertion, and the rendered half is the diff below. (The plan's own P4 lesson: a control that
+cannot go red is not a control.)
+
+### The rendered control: which pixels does the arc change?
+
+`shot3d` renders the spawn frame twice, `build_scene3d_arc(s, true)` and `(s, false)` — the
+same world with arc edges drawn as the facets they used to be — and the two are diffed:
+
+> **18 523 of 480 000 pixels (3.86 %) changed, in ONE contiguous region**, bbox
+> (305,208)–(543,353). Every other wall in the frame — the whole left and right run of the
+> town wall — is pixel-identical.
+
+That is the B-step control the blueprint asked for, and in a stronger form than it specified:
+it does not merely show that the tower curves, it shows that **nothing else did**. A renderer
+that curved everything would have lit up every wall in that diff.
+
+### ⚠ What this phase could NOT do: pick a camera
+
+Four vantages were tried for a close portrait of a tower and **all four failed**, each
+differently: (69,56) stood on a hillside 100 m off with the town in miniature; (60,44) put
+the camera inside a building; a *searched* vantage — open ground 5 hexes out with no solid
+cell on the line — returned (66,13), which is open and clear and looks straight into a slope,
+because the line test knows about walls and the world has heights now; and the town square
+looking north is a rising slope that fills the frame with grass.
+
+**This is not bad luck, it is a missing instrument.** Since P6 gave the world its heights, a
+first-person eye-height camera can no longer be aimed at a named thing by hand, and there is
+no pitch or orbit control to look at one from above. Every later phase that wants to LOOK at
+something it built (P7's props and trees, P8's sprites, P5's houses) will hit this same wall.
+**Owed: an inspection camera in `shot3d` — orbit a named hex at a stated distance and
+elevation.** Until then, the frame diff is the instrument that works, because it needs only
+that the thing be *somewhere* in frame, not centred in it.
+
 ## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
 
 The section below stands, with **two corrections found by reading the source instead of the

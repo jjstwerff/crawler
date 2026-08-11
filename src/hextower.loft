@@ -154,3 +154,30 @@ pub fn tower_door_clear_m(t: Towers, i: integer) -> float {
   ang = (s1 - s0) / rr ?? 0.0;
   wu_to_m(ang * (rr - HEX_LEN * 0.5))
 }
+
+// WHERE A WALL CORNER SITS ON ITS TOWER'S FACE (plan #11 P5 step B).
+//
+// The ring is one cell thick, so the two faces of the wall sit half a hex step either side
+// of the circle the builder recorded. A corner of a blocked edge is pushed radially onto the
+// face it belongs to — and because adjacent edges hand this the SAME corner, they get the
+// same point back and the cylinder has no seams. That is the whole of "an arc edge draws as
+// a curve": the renderer subdivides between two points that are ON the circle instead of
+// spanning the chord between two hex corners.
+//
+// It lives here rather than in the renderer because it is geometry, not drawing — which is
+// also what lets a headless gate check it without a GL context.
+pub fn tower_face_r(sf: Surfaces, sid: integer, outward: boolean) -> float {
+  if outward { return (sf.sf_c[sid] ?? 0.0) + HEX_LEN * 0.5; }
+  (sf.sf_c[sid] ?? 0.0) - HEX_LEN * 0.5
+}
+
+pub fn tower_face_pt(sf: Surfaces, sid: integer, face: float, px: float, py: float)
+    -> (float, float) {
+  cx = sf.sf_a[sid] ?? 0.0;
+  cy = sf.sf_b[sid] ?? 0.0;
+  dx = px - cx;
+  dy = py - cy;
+  dl = sqrt(dx * dx + dy * dy) ?? 0.0;
+  if dl < 0.000001 { return (px, py); }
+  (cx + face * (dx / dl ?? 0.0), cy + face * (dy / dl ?? 0.0))
+}

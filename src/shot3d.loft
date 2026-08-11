@@ -25,8 +25,13 @@ fn shot_at(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: floa
 // vertices that were never uploaded.
 fn shot_far(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float,
             usefar: boolean, usenear: boolean) {
+  shot_arc(s, name, prog, avbo, vw, vh, usefar, usenear, true);
+}
+
+fn shot_arc(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float,
+            usefar: boolean, usenear: boolean, usearc: boolean) {
   (pq, pr) = sim_player_hex(s);
-  (svao, sn) = build_scene3d(s);
+  (svao, sn) = build_scene3d_arc(s, usearc);
   (fvao, fvn) = build_far3d(s);          // plan #11 P6: the wilderness past the window
   if !usefar { fvn = 0; }
   if !usenear { sn = 0; }
@@ -84,6 +89,11 @@ fn main() {
   graphics::gl_poll_events();
   shot_far(u, "p3_surface_nofar", prog, avbo, vw, vh, false, true);
   graphics::gl_poll_events();
+  // STEP B'S RENDERED CONTROL: the same frame with arc-tagged edges drawn as the facets they
+  // used to be. Diffing the two says WHICH pixels the arc changes — and a renderer that
+  // curved everything would show every wall in that diff, not only the towers.
+  shot_arc(u, "p3_surface_flat", prog, avbo, vw, vh, true, true, false);
+  graphics::gl_poll_events();
   shot_far(u, "p6_faronly", prog, avbo, vw, vh, true, false);
 
   // ⚠ AND A CAMERA THAT CAN SEE THE ANSWER. `skyprobe` measured the missing sky per bearing:
@@ -106,6 +116,32 @@ fn main() {
   shot_at(u, "p6_rim", prog, avbo, vw, vh);
   graphics::gl_poll_events();
   shot_far(u, "p6_rim_nofar", prog, avbo, vw, vh, false, true);
+
+  // ── plan #11 P5 step B: a round tower and a STRAIGHT wall in ONE frame.
+  //
+  // The control is the frame itself, and it has to be in the same frame to be one: a
+  // renderer that curves everything passes "the tower curves". The tower at (55,44) stands
+  // inside the town among its houses, so the frame carries straight walls beside it —
+  // 5 hexes away, which is 7.5 m, close to the 8 m the P0 target frame was plotted at.
+  // ⚠ AND THE VANTAGE IS PLACED, NOT SEARCHED FOR. Three attempts failed first, each in a
+  // way worth recording: (69,56) stood on a hillside 100 m off with the town in miniature;
+  // (60,44) put the camera INSIDE a building; and a search for "open ground 5 hexes out with
+  // a clear line" found (66,13), which is open and clear and looks straight into a slope,
+  // because the line test knows about walls and the world has heights now. A frame that
+  // cannot show the thing is not evidence about the thing. So: the town square, looking
+  // north at the wall tower at (50,37) — 13 hexes, 19.5 m, with the town's straight-walled
+  // houses in between, which is what makes the frame its own control.
+  t5q = 50;
+  t5r = 37;
+  (t5x, t5y) = hex_to_px(t5q, t5r);
+  sim_teleport(u, 50, 50);
+  sim_compute_fov(u);
+  (v5x, v5y) = hex_to_px(50, 50);
+  u.heading = atan2(t5y - v5y, t5x - v5x);
+  graphics::gl_poll_events();
+  shot_at(u, "p5_tower", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_arc(u, "p5_tower_flat", prog, avbo, vw, vh, true, true, false);
 
   u.heading = 5.235987755982988;                 // bearing 300: the 7.35-degree gap
   graphics::gl_poll_events();

@@ -105,7 +105,7 @@ GATE_SLOW=$(mktemp)
 NATIVE_TESTS="questtest stocktest traveltest surfacetest replaytest safetytest
               meshtest fieldtest crystaltest effecttest cavetest roofmatchtest
               sweeptest playtest incursiontest militiatest worldtextest
-              horizontest"
+              horizontest towertest"
 # ⚠ NORMALISE THE SEPARATORS, OR THE LIST SILENTLY LIES. The names are written on three
 # lines to stay readable, so what separates the LAST name on a line from the first on the
 # next is a NEWLINE — and the `case " $NATIVE_TESTS "` membership test below matches on

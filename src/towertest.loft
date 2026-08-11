@@ -208,5 +208,73 @@ fn main() {
   if doored != arcs { ok = false; }
   if minclear < 0.8 || maxclear > 3.0 { ok = false; }
 
+  // ── 4. STEP B: what the renderer draws stands ON the recorded circle
+  //
+  // The renderer subdivides an arc edge between its two corners PROJECTED onto the tower's
+  // face. Three things have to hold, and none of them needs a GL context:
+  //   * every projected corner is exactly `face` from the centre — it is on the circle;
+  //   * two edges sharing a corner project it to the SAME point, so the cylinder has no
+  //     seams (checked as: the projection is a function of the corner alone);
+  //   * a corner of a NON-arc edge is untouched — a straight wall must stay straight, which
+  //     is the control a rendered frame can only suggest.
+  onarc = 0;
+  offarc = 0;
+  worstr = 0.0;
+  for r in 0..s.lh {
+    for q in 0..s.lw {
+      for d in 0..6 {
+        (nq, nr) = hex_neighbor(q, r, d);
+        sid = edge_surf(s.field, q, r, nq, nr);
+        if sid > 0 && sid < sfs.sf_n {
+          if (sfs.sf_kind[sid] ?? 0) == 2 {
+            (mcx, mcy) = hex_to_px(q, r);
+            (mnx, mny) = hex_to_px(nq, nr);
+            ccx2 = sfs.sf_a[sid] ?? 0.0;
+            ccy2 = sfs.sf_b[sid] ?? 0.0;
+            dc = (mcx - ccx2) * (mcx - ccx2) + (mcy - ccy2) * (mcy - ccy2);
+            dn = (mnx - ccx2) * (mnx - ccx2) + (mny - ccy2) * (mny - ccy2);
+            face = tower_face_r(sfs, sid, dn > dc);
+            (ce0, ce1) = hex_edge_corners(d);
+            (p0x, p0y) = hex_corner_px(q, r, ce0);
+            (p1x, p1y) = hex_corner_px(q, r, ce1);
+            (j0x, j0y) = tower_face_pt(sfs, sid, face, p0x, p0y);
+            (j1x, j1y) = tower_face_pt(sfs, sid, face, p1x, p1y);
+            for wend in 0..2 {
+              jx = j0x;
+              jy = j0y;
+              if wend == 1 { jx = j1x; jy = j1y; }
+              rr2 = sqrt((jx - ccx2) * (jx - ccx2) + (jy - ccy2) * (jy - ccy2)) ?? 0.0;
+              er = rr2 - face;
+              if er < 0.0 { er = 0.0 - er; }
+              if er > worstr { worstr = er; }
+              onarc = onarc + 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  // ⚠ AND THE COUNT OF EDGES THAT ARE **NOT** ARCS IS THE CONTROL, not a "straight corners
+  // did not move" counter — that one cannot fail, because the renderer only enters the arc
+  // path when the edge carries an arc, so counting unmoved straights would be counting a
+  // branch that was never taken. What CAN fail is the arc path claiming everything: if the
+  // tagging were wrong, this number would collapse and every wall in the world would curve.
+  // (Its rendered half is the frame diff — see RESULTS.md, P5 step B.)
+  for r in 0..s.lh {
+    for q in 0..s.lw {
+      for d in 0..6 {
+        (nq, nr) = hex_neighbor(q, r, d);
+        sid2 = edge_surf(s.field, q, r, nq, nr);
+        if sid2 != 0 {
+          isarc2 = false;
+          if sid2 > 0 && sid2 < sfs.sf_n { if (sfs.sf_kind[sid2] ?? 0) == 2 { isarc2 = true; } }
+          if !isarc2 { offarc = offarc + 1; }
+        }
+      }
+    }
+  }
+  println("4. STEP B: {onarc} projected corner(s) land on their face, worst radius error {worstr} wu; {offarc} blocked edge(s) carry no arc and stay facets");
+  if onarc == 0 || worstr > 0.000001 || offarc < onarc { ok = false; }
+
   if ok { println("=== TOWER OK ==="); } else { println("=== FAIL ==="); }
 }
