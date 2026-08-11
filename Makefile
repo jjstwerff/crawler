@@ -193,7 +193,18 @@ serve: game
 # So this gate now compiles every entry point, and it FAILS ON `lost-write`. That warning is
 # never intentional — the compiler is saying a mutation does nothing — which is what earns it
 # a hard failure, unlike `redundant-coalesce` (CLAUDE.md says leave those alone).
-CHECK_ENTRIES = $(SRC) src/gpushot.loft $(PROBE_SCENES)
+#
+# ⚠ WHICH ENTRY POINTS, AND WHY NOT ALL OF THEM. The rule is: EVERYTHING A GATE OR A COMMITTED
+# ASSET DEPENDS ON. That is the game, the four scenes `make probe` renders, and ovshot (which
+# draws README.md's headline world map — it had rotted the same way, six undischarged `float?`
+# divides and a `float` default on a vector<single>, and nothing had compiled it since the loft
+# rule tightened). src/ has ~130 `fn main()`s; the rest are one-off tools and diagnostic scenes
+# whose breakage costs one run, not a false-green gate. Sweep them on demand — they take ~1.4 s
+# each and two of eighteen were broken when this was written:
+#   for f in src/*.loft; do loft --interpret --check $(LOFTFLAGS) $$f >/dev/null || echo $$f; done
+# src/viewer.loft is deliberately out: it needs $(VIEWER_FLAGS), not $(LOFTFLAGS), and compiling
+# its generated per-region data module takes minutes. `make viewer` is its gate.
+CHECK_ENTRIES = $(SRC) src/gpushot.loft $(PROBE_SCENES) src/ovshot.loft
 
 check: src/bundles.loft
 	@echo "  compiling (parse + bytecode gate) ..."

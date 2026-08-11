@@ -213,6 +213,12 @@ editor as the second consumer*).
   expected colour byte-identical**. ⚠ **The source fix: `make check` now compiles EVERY entry
   point and FAILS on `lost-write`** — nothing fast used to compile a render scene at all, which
   is why a compiler warning naming the exact bug went unread for two months.
+- ⚠ **`src/` has ~130 `fn main()`s and the gates compile SIX of them** — the game, the four
+  scenes `make probe` renders, and `ovshot` (README's world map). The rest are one-off tools
+  whose breakage costs one run rather than a false-green gate, so they are swept on demand:
+  `for f in src/*.loft; do loft --interpret --check $LOFTFLAGS $f >/dev/null || echo $f; done`
+  — **two of eighteen were broken** when that was first run (2026-08-11), both the tightened
+  `float?` rule, both invisible because nothing compiled them.
 - **Headless rendering IS self-verifiable.** `gl_screenshot` reads the GL framebuffer reliably
   under Xvfb (`xvfb-run` is installed) — it is what `make probe` uses. The only
   positionally-unreliable capture is `make shot`'s window-grab. So render **correctness** gates

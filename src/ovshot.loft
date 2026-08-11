@@ -62,8 +62,8 @@ fn main() {
   for ti in 0..len(o.ov_towns) {
     t = o.ov_towns[ti];
     if t != null {
-      tx = (t.ot_x / sx) as integer;
-      ty = (t.ot_y / sy) as integer;
+      tx = ((t.ot_x / sx) ?? 0.0) as integer;
+      ty = ((t.ot_y / sy) ?? 0.0) as integer;
       r = 2 + t.ot_size;
       c.fill_circle(tx, ty, r, graphics::rgb(120, 40, 30));
       c.draw_circle(tx, ty, r + 1, graphics::rgb(255, 235, 200));
@@ -72,16 +72,16 @@ fn main() {
   for ri in 0..len(o.ov_ruins) {
     ru = o.ov_ruins[ri];
     if ru != null {
-      rx = (ru.ru_x / sx) as integer;
-      ry = (ru.ru_y / sy) as integer;
+      rx = ((ru.ru_x / sx) ?? 0.0) as integer;
+      ry = ((ru.ru_y / sy) ?? 0.0) as integer;
       c.fill_rect(rx - 2, ry - 2, 5, 5, graphics::rgb(70, 70, 78));
     }
   }
   for wi in 0..len(o.ov_wiz) {
     wz = o.ov_wiz[wi];
     if wz != null {
-      wxp = (wz.wz_x / sx) as integer;
-      wyp = (wz.wz_y / sy) as integer;
+      wxp = ((wz.wz_x / sx) ?? 0.0) as integer;
+      wyp = ((wz.wz_y / sy) ?? 0.0) as integer;
       c.fill_circle(wxp, wyp, 3, graphics::rgb(140, 90, 200));
     }
   }
@@ -102,7 +102,7 @@ fn main() {
   while r >= 0 {
     for px in 0..W {
       idx = r * W + px;
-      hpx = (hgts[idx] ?? 0.0) as float;
+      hpx = (hgts[idx] ?? 0.0f) as float;   // `hgts` is vector<single>: the default must be 0.0f
       sy2 = ((r as float) * ck) as integer + top_off - (hpx * hk) as integer;
       if sy2 < 0 { sy2 = 0; }
       yb = ybuf[px] ?? 0;
