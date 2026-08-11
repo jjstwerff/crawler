@@ -16,14 +16,26 @@ use hexscene;
 use view3d;
 
 fn shot_at(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float) {
+  shot_far(s, name, prog, avbo, vw, vh, true, true);
+}
+
+// `usefar` off is the FAR FIELD'S NEGATIVE CONTROL: the same camera with the wilderness
+// beyond the window not drawn. A diff of the two PNGs is what proves the far mesh is
+// contributing pixels — 108 000 vertices that change nothing look exactly like 108 000
+// vertices that were never uploaded.
+fn shot_far(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float,
+            usefar: boolean, usenear: boolean) {
   (pq, pr) = sim_player_hex(s);
   (svao, sn) = build_scene3d(s);
+  (fvao, fvn) = build_far3d(s);          // plan #11 P6: the wilderness past the window
+  if !usefar { fvn = 0; }
+  if !usenear { sn = 0; }
   wtex = build_world_texture3d(s);      // plan #11 P3b: landcover rides the world texture
-  view3d_frame(s, prog, svao, sn, wtex, vw, vh);
+  view3d_frame_far(s, prog, svao, sn, fvao, fvn, wtex, vw, vh);
   na = view3d_actors(s, prog, avbo, vw, vh);
   ok = graphics::gl_screenshot(vw as integer, vh as integer, "/tmp/{name}.png");
   hz = horizon_y(view3d_camera(s, vw, vh));
-  println("{name}: hex=({pq},{pr}) scene_verts={sn} actor_verts={na} horizon_y={hz} png={ok}");
+  println("{name}: hex=({pq},{pr}) scene_verts={sn} far_verts={fvn} actor_verts={na} horizon_y={hz} png={ok}");
   // ⚠ THE ONE LINK NO HEADLESS GATE REACHES: `worldtextest` proves the CPU mapping, but the
   // upload convention and the sampler are GL's. A vertically flipped texture satisfies every
   // CPU check and still puts the wrong landcover under your feet. So print what the ground at
@@ -31,6 +43,7 @@ fn shot_at(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: floa
   // tools/ can compare the two. (plan #11 P3b)
   println("  {name}: ground kind at ({pq},{pr}) = {sim_tile_kind(s, pq, pr)}");
   graphics::gl_delete_vao(svao);
+  if fvn > 0 { graphics::gl_delete_vao(fvao); }
   graphics::gl_delete_texture(wtex);
 }
 
@@ -68,6 +81,39 @@ fn main() {
   sim_compute_fov(u);
   graphics::gl_poll_events();
   shot_at(u, "p3_surface", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_far(u, "p3_surface_nofar", prog, avbo, vw, vh, false, true);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_faronly", prog, avbo, vw, vh, true, false);
+
+  // ⚠ AND A CAMERA THAT CAN SEE THE ANSWER. `skyprobe` measured the missing sky per bearing:
+  // 7.35 degrees at bearing 300, 3.51 at 90, 1.78 at 0, nothing in the other nine. The frame
+  // above looks along bearing 90 with a 75-degree horizontal field, so bearings 0 and 300 are
+  // simply not in it — and 90's own 3.5 degrees sits behind the town wall. A frame that cannot
+  // show the thing is not evidence about the thing.
+  // ⚠ AND THE ANSWER TO THAT WAS ITSELF A FRAME THAT COULD NOT CARRY ONE. From the spawn the
+  // far field is 100% occluded and the composite is pixel-identical with it and without it —
+  // not because it fails to draw (alone, it fills 47% of the frame) but because the NEAR rim
+  // at bearing 300 stands at 32 degrees, which is already outside a 60-degree vertical field.
+  // The bowl hides its own horizon. A vantage on the window's high rim, looking outward, is
+  // where near and far actually meet, so that is where the seam gets looked at.
+  sim_teleport(u, 96, 6);
+  sim_compute_fov(u);
+  (vqx, vqy) = hex_to_px(96, 6);
+  (vcx, vcy) = hex_to_px(u.lw / 2, u.lh / 2);
+  u.heading = atan2(vqy - vcy, vqx - vcx);
+  graphics::gl_poll_events();
+  shot_at(u, "p6_rim", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_rim_nofar", prog, avbo, vw, vh, false, true);
+
+  u.heading = 5.235987755982988;                 // bearing 300: the 7.35-degree gap
+  graphics::gl_poll_events();
+  shot_at(u, "p6_far300", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_far300_nofar", prog, avbo, vw, vh, false, true);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_far300_only", prog, avbo, vw, vh, true, false);
 
   graphics::gl_destroy_window();
 }

@@ -4323,8 +4323,18 @@ pub fn sim_window_frame(s: Sim) -> (float, float, float, float) {
 // tell a rounding difference from a real frame error. One expression, and the diff is 0.
 pub fn window_hex_world(ax: float, ay: float, cwx: float, cwy: float,
                         q: integer, r: integer) -> (float, float) {
-  (hx, hy) = ov_hex_world(q, r);
-  (ax + hx - cwx, ay + hy - cwy)
+  (hx, hy) = hex_to_px(q, r);
+  window_pt_world(ax, ay, cwx, cwy, hx, hy)
+}
+
+// The same mapping for a CONTINUOUS point, in world units rather than a hex index — what the
+// far field needs, since its vertices are not on the lattice. `ov_hex_world` is exactly
+// `hex_to_px` scaled by this same factor, so the two agree bit-for-bit and the seam between
+// the near window and the terrain beyond it cannot drift.
+pub fn window_pt_world(ax: float, ay: float, cwx: float, cwy: float,
+                       x: float, y: float) -> (float, float) {
+  ms = OV_STEP / HEX_LEN ?? 0.0;
+  (ax + x * ms - cwx, ay + y * ms - cwy)
 }
 
 // The SECOND end of a two-ended route — the stall a farmer carries to, the furnace a miner

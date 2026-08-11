@@ -20,6 +20,8 @@ use hex_grid;
 use hexscene;
 use worldtex;
 use overland;
+use farfield;      // the terrain BEYOND the window — the far half of I-HORIZON (P6)
+use scale;         // m_to_wu — the haze distance is stated in metres (SCALE.md)
 use ground;        // the near field's SURFACE — one construction for standing and drawing (P6)
 
 WALL3D_H = 3.2;          // world units ~ 2.77 m: a room you can stand up in (SCALE.md)
@@ -58,6 +60,7 @@ in vec2 vUV;
 in float vDepth;
 out vec4 FragColor;
 uniform vec3 uFog;
+uniform float uHaze;
 uniform sampler2D uWorld;
 void main() {{
   // I-PAINT: landcover comes off the world texture, which is rasterised from the same field
@@ -65,10 +68,13 @@ void main() {{
   // floor tone stays available without touching this branch.
   vec3 base = vCol;
   if (vUV.x >= 0.0) base = texture(uWorld, vUV).rgb * vCol;
-  // Distance fade: the near field is lit, the far field sinks into the air colour.
-  // Cheap stand-in for the horizon P6 derives from the hex world.
-  float f = clamp(vDepth / 42.0, 0.0, 1.0);
-  f = f * f;
+  // AERIAL PERSPECTIVE, at the scale the atmosphere actually has (plan #11 P6). This was a
+  // fade saturating at 42 wu — 36 m — which was a stand-in for a horizon that did not exist
+  // yet, and its own comment said so. With terrain now drawn out to ~36 km, that curve made
+  // everything past a street corner one flat colour. Exponential extinction over a stated
+  // visibility instead: near geometry is crisp (36 m fades 1%), the window edge is barely
+  // touched, and the far ridges wash out with distance the way distance washes them out.
+  float f = 1.0 - exp(-vDepth * uHaze);
   FragColor = vec4(mix(base, uFog, f), 1.0);
 }}
 `;
@@ -277,6 +283,60 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
   (graphics::gl_upload_vertices(buf, 8), n)
 }
 
+// THE FAR FIELD — the terrain beyond the level window, as a polar skirt whose ring 0 is the
+// window's own boundary (plan #11 P6; the construction and why it is not a clipmap are in
+// `farfield.loft`). Returns (vao, vertex count); (0,0) on a dungeon level, which has no
+// wilderness to continue into.
+//
+// The uv is the wall marker (-1,-1) throughout: the world texture covers the WINDOW only, so
+// past it the landcover palette is read per vertex. That is the same discriminator the walls
+// use and needs no shader branch of its own.
+//
+// Same inline-buffer rule as `build_scene3d` (loft#392).
+pub fn build_far3d(s: Sim) -> (integer, integer) {
+  if s.depth != 0 { return (0, 0); }
+  buf: vector<single> = [];
+  n = 0;
+  neg = (0.0 - 1.0) as single;
+  o = overland_new();
+  (ax, ay, cwx, cwy) = sim_window_frame(s);
+  na = far_ang_count(s);
+  for j in 0..FAR_RINGS {
+    for i in 0..na {
+      i2 = i + 1;
+      if i2 >= na { i2 = 0; }
+      (x0, y0, z0, k0) = far_point(o, s, ax, ay, cwx, cwy, i, j);
+      (x1, y1, z1, k1) = far_point(o, s, ax, ay, cwx, cwy, i2, j);
+      (x2, y2, z2, k2) = far_point(o, s, ax, ay, cwx, cwy, i, j + 1);
+      (x3, y3, z3, k3) = far_point(o, s, ax, ay, cwx, cwy, i2, j + 1);
+      // One tone for the quad, from its own outer corner: a far vertex is shared by two
+      // quads that may want different landcover, and a per-vertex kind would blend rock into
+      // meadow across a ridge line. Flat per quad keeps the classes the overland assigned.
+      (qr0, qg0, qb0) = kind_rgb3(k3);
+      sh0 = tri_shade(x0, y0, z0, x1, y1, z1, x2, y2, z2);
+      sh1 = tri_shade(x1, y1, z1, x3, y3, z3, x2, y2, z2);
+      for t in 0..2 {
+        sh = sh0;
+        if t == 1 { sh = sh1; }
+        cr = (qr0 * sh) as single;
+        cg = (qg0 * sh) as single;
+        cb = (qb0 * sh) as single;
+        if t == 0 {
+          buf += [x0 as single, y0 as single, z0 as single, cr, cg, cb, neg, neg];
+          buf += [x1 as single, y1 as single, z1 as single, cr, cg, cb, neg, neg];
+          buf += [x2 as single, y2 as single, z2 as single, cr, cg, cb, neg, neg];
+        } else {
+          buf += [x1 as single, y1 as single, z1 as single, cr, cg, cb, neg, neg];
+          buf += [x3 as single, y3 as single, z3 as single, cr, cg, cb, neg, neg];
+          buf += [x2 as single, y2 as single, z2 as single, cr, cg, cb, neg, neg];
+        }
+        n += 3;
+      }
+    }
+  }
+  (graphics::gl_upload_vertices(buf, 8), n)
+}
+
 // The ADAPTER for the presentation seam. `ActorView` and `present_boards` live in
 // hexscene because they take a SceneCamera and nothing else; this function takes `Sim`, which
 // is exactly the line EXTRACTION.md draws between library and game.
@@ -345,8 +405,19 @@ pub fn view3d_actors(s: Sim, prog: integer, avbo: integer, vw: float, vh: float)
   n
 }
 
+// VISIBILITY, as one number: the distance at which extinction reaches 1 - 1/e. 25 natural km
+// is a clear-day alpine haze, and it is stated in metres and converted, so it is a length in
+// the world rather than a shader constant nobody can price (SCALE.md's rule).
+FAR_VIS_M = 25000.0;
+
 pub fn view3d_frame(s: Sim, prog: integer, vao: integer, nverts: integer, wtex: integer,
                     vw: float, vh: float) {
+  view3d_frame_far(s, prog, vao, nverts, 0, 0, wtex, vw, vh);
+}
+
+pub fn view3d_frame_far(s: Sim, prog: integer, vao: integer, nverts: integer,
+                        fvao: integer, fverts: integer, wtex: integer,
+                        vw: float, vh: float) {
   // Depth state BEFORE the clear: gl_clear is documented as clearing colour and says
   // nothing about depth, and nothing in this repo had ever enabled depth testing before
   // (every other pass disables it), so the window may not even carry a depth attachment.
@@ -356,12 +427,24 @@ pub fn view3d_frame(s: Sim, prog: integer, vao: integer, nverts: integer, wtex: 
   graphics::gl_depth_mask(true);
   graphics::gl_clear(graphics::rgba(96, 112, 138, 255));      // the air colour
   c = view3d_camera(s, vw, vh);
-  m = cam_mat4(c, 0.05, 400.0);
+  // ⚠ THE FAR PLANE IS PART OF THE FAR FIELD, and it was the whole of it at first: the skirt
+  // reaches ~4100 wu and this clipped at 400, so 108 000 uploaded vertices changed EXACTLY
+  // ZERO pixels — which the far field's own negative control (render with it, render without,
+  // diff) is what caught. A near plane of 0.05 wu is 4 cm and buys nothing at 1.6 m eye
+  // height; 0.1 halves the depth range's cost and 5000 covers the skirt with room over.
+  // DESIGN.md's depth-partition note is about spanning 0.5 m to 600 km — 0.1 to 5000 wu is
+  // 5e4, which a 24-bit buffer carries, so the partition is still P6d's business and not yet
+  // needed here.
+  m = cam_mat4(c, 0.1, 5000.0);
   graphics::gl_use_shader(prog);
   graphics::gl_set_uniform_mat4(prog, "uMVP", m);
   graphics::gl_set_uniform_vec3(prog, "uFog", 0.376, 0.439, 0.541);
+  graphics::gl_set_uniform_float(prog, "uHaze", 1.0 / m_to_wu(FAR_VIS_M) ?? 0.0);
   graphics::gl_bind_texture(wtex, 0);
   graphics::gl_set_uniform_int(prog, "uWorld", 0);
+  // The far field first: it is behind the near window everywhere except the one-hex band
+  // they share, and the depth test settles that band rather than a draw order guess.
+  if fverts > 0 { graphics::gl_draw(fvao, fverts); }
   if nverts > 0 { graphics::gl_draw(vao, nverts); }
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
 }

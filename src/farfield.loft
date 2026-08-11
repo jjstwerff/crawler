@@ -1,0 +1,82 @@
+// farfield — the terrain BEYOND the level window (plan #11 P6, the far half of I-HORIZON).
+//
+// The near window is 101 hexes across: 1.5 km of wilderness, and the world is 151 km. What
+// lies outside it was drawn as nothing, so the sky began wherever the window ended.
+//
+// ⚠ WHAT THAT COSTS WAS MEASURED BEFORE ANYTHING WAS BUILT, and it is not the void everyone
+// expects. From the shipped start, 80 of 80 sampled frame columns have their lowest sky pixel
+// ABOVE the horizon line — there is no hole under the horizon at all, because the start sits
+// in a bowl and the near window's own rim IS the horizon. What is missing is the terrain that
+// should rise ABOVE that rim: 7.35 degrees of it at bearing 300, 3.51 at bearing 90 (where the
+// camera looks), 1.78 at bearing 0, and EXACTLY NOTHING in the other nine bearings.
+// (`src/skyprobe.loft`; RESULTS.md -> "the far field's job is NOT the one it looks like".)
+//
+// THE CONSTRUCTION — a polar skirt whose ring 0 IS the window's boundary.
+//
+// A circular far mesh is the obvious shape and it is wrong here: the window is a hex rhombus,
+// so a circle through its corners leaves a void at its edge midpoints and a circle through its
+// midpoints overlaps its corners. Ring 0 therefore follows the window's own boundary — the
+// perimeter hexes in order — and every ring beyond it is that same polygon scaled outward
+// about the window centre. Three properties fall out of that and none needs machinery:
+//
+//   * THE SEAM IS EXACT. Ring 0's vertices are near-mesh hex centres and take the near mesh's
+//     own stored heights, so near and far meet at shared points with equal values — I-HORIZON
+//     at the boundary, by construction rather than by tolerance.
+//   * NO T-JUNCTIONS. Every ring has the same vertex count, so rings connect index-to-index
+//     and there is no crack to stitch. A hex clipmap would have to.
+//   * ANGULAR RESOLUTION IS CONSTANT, which is the resolution a horizon is made of. Radial
+//     resolution grows geometrically, which is the axis a horizon barely uses.
+//
+// Kernel-side (no graphics): this emits POINTS, and the view loops over them to build its
+// buffer inline — which is also what loft#392 requires, since a `vector<single>` may never be
+// routed through a returning function into an FFI upload.
+use sim;
+use overland;
+use hex_grid;
+use scale;
+
+// 45 rings growing 9% each reach 47.6x the window radius — about 36 km, past which the
+// overland has no more world to show. The first band is then ~4.5 hexes wide, so the step
+// down from the near mesh's one-hex triangles is gradual where it is closest to the eye, and
+// the coarsest bands sit where a hex subtends a fraction of a pixel.
+pub const FAR_RINGS = 45;
+pub const FAR_GROW  = 1.09;
+
+// How many angular samples the skirt has: the window's own perimeter hex count, so ring 0
+// lands on near-mesh vertices exactly. 400 for a 101x101 window — 0.9 degrees apart, which is
+// 12 pixels of an 800-wide frame at a 60 degree field of view.
+pub fn far_ang_count(s: Sim) -> integer { 2 * (s.lw - 1) + 2 * (s.lh - 1) }
+
+// The perimeter hex at angular index `i`, walking the window boundary once. The window is a
+// sheared rectangle in world space and therefore convex about its centre, so perimeter order
+// IS angular order and the skirt's quads never cross.
+pub fn far_boundary_hex(s: Sim, i: integer) -> (integer, integer) {
+  w1 = s.lw - 1;
+  h1 = s.lh - 1;
+  if i < w1 { return (i, 0); }
+  if i < w1 + h1 { return (w1, i - w1); }
+  if i < w1 + h1 + w1 { return (w1 - (i - w1 - h1), h1); }
+  (0, h1 - (i - w1 - h1 - w1))
+}
+
+// One skirt vertex: world-unit position, height in world units, and terrain kind.
+//
+// Ring 0 reads the NEAR field (stored height, stored kind) — that is what makes the seam
+// exact. Every ring beyond it asks the wilderness directly, through the same frame the near
+// window was cut from and the same vertical dial, which is the whole of I-HORIZON: one world,
+// two readings, no third.
+pub fn far_point(o: Overland, s: Sim, ax: float, ay: float, cwx: float, cwy: float,
+                 i: integer, j: integer) -> (float, float, float, integer) {
+  (bq, br) = far_boundary_hex(s, i);
+  (bx, by) = hex_to_px(bq, br);
+  if j <= 0 {
+    return (bx, by, sim_ground_z(s, bq, br), sim_terrain_at(s, bq, br) - 1);
+  }
+  (ccx, ccy) = hex_to_px(s.lw / 2, s.lh / 2);
+  g = pow(FAR_GROW, j as float) ?? 1.0;
+  px = ccx + (bx - ccx) * g;
+  py = ccy + (by - ccy) * g;
+  (wx, wy) = window_pt_world(ax, ay, cwx, cwy, px, py);
+  (oh, ok) = ov_sample(o, wx, wy);
+  (px, py, terrain_m_to_wu(oh), ok)
+}

@@ -26,6 +26,7 @@ use overland;
 use hex_grid;
 use scale;
 use ground;
+use farfield;
 
 fn absf(v: float) -> float { if v < 0.0 { return 0.0 - v; } v }
 
@@ -206,6 +207,114 @@ fn main() {
   (spx, spy) = (s.px, s.py);
   println("");
   println("the spawn stands at z {ground_at(s, spx, spy)} wu = {wu_to_terrain_m(ground_at(s, spx, spy))} natural m");
+
+  // ── 7. THE SEAM: the far field's ring 0 IS the near field's boundary ────
+  // The skirt beyond the window starts on the window's own perimeter hexes and takes their
+  // stored heights, so near and far meet at shared points with equal values. Asserted rather
+  // than assumed because it is the one place I-HORIZON can be broken by a refactor that looks
+  // harmless — a ring 0 computed from `ov_height` instead of the store would differ by the
+  // interpolation error of a 15 m sampling and nothing would say so.
+  na = far_ang_count(s);
+  seam = 0.0;
+  for i7 in 0..na {
+    (bq7, br7) = far_boundary_hex(s, i7);
+    (fx7, fy7, fz7, _) = far_point(o, s, ax, ay, cwx, cwy, i7, 0);
+    (ex7, ey7) = hex_to_px(bq7, br7);
+    d7 = absf(fz7 - sim_ground_z(s, bq7, br7));
+    if d7 > seam { seam = d7; }
+    if absf(fx7 - ex7) > 0.0 || absf(fy7 - ey7) > 0.0 { ok = false; }
+  }
+  println("7. far seam: {na} ring-0 vertices, worst height difference from the near field {seam} wu");
+  if na < 100 { ok = false; println("   FAIL: the skirt has no angular samples"); }
+  if seam > 0.0 { ok = false; println("   FAIL: the far field does not start where the near field ends"); }
+
+  // ── 8. the skirt cannot fold ─────────────────────────────────────────────
+  // Every ring is the previous one scaled outward about the window centre, so radii must be
+  // strictly increasing at every angular index. A ring that failed to grow would put two
+  // surfaces at the same place and z-fight; one that shrank would turn the mesh inside out.
+  (kcx, kcy) = hex_to_px(s.lw / 2, s.lh / 2);
+  folds = 0;
+  reach = 0.0;
+  for i8 in 0..8 {
+    ii = (i8 * na) / 8 ?? 0;
+    prev = 0.0 - 1.0;
+    for j8 in 0..FAR_RINGS + 1 {
+      (px8, py8, _, _) = far_point(o, s, ax, ay, cwx, cwy, ii, j8);
+      rad = sqrt((px8 - kcx) * (px8 - kcx) + (py8 - kcy) * (py8 - kcy)) ?? 0.0;
+      if rad <= prev { folds = folds + 1; }
+      prev = rad;
+      if rad > reach { reach = rad; }
+    }
+  }
+  println("8. skirt: {FAR_RINGS} rings reaching {reach} wu = {wu_to_terrain_m(reach) / 1000.0 ?? 0.0} km, {folds} non-increasing steps");
+  if folds > 0 { ok = false; println("   FAIL: the skirt folds back on itself"); }
+  if wu_to_terrain_m(reach) < 20000.0 { ok = false; println("   FAIL: the skirt does not reach the visible world"); }
+
+  // ── 9. THE HORIZON CLOSES ────────────────────────────────────────────────
+  // The claim the far field exists to make: from the player's own position, the skyline the
+  // SKIRT draws is the skyline the WORLD has. Measured per bearing against dense sampling of
+  // `ov_height` out to the skirt's reach — an independent construction, since the skirt is a
+  // coarse polar mesh and the reference is a fine radial walk.
+  ez9 = ground_eye_z(s, s.px, s.py, 1.847);
+  ms9 = OV_STEP / HEX_LEN ?? 0.0;
+  (wx9, wy9) = window_pt_world(ax, ay, cwx, cwy, s.px, s.py);
+  wgap = 0.0;
+  wb9 = 0;
+  for b9 in 0..12 {
+    // ⚠ ASK THE WORLD AT THE SKIRT'S OWN BEARING. The skirt's angular samples run along the
+    // window PERIMETER, and a sheared rhombus's perimeter is very unequal in angle — so
+    // "index b*na/12" is not "bearing b*30 degrees", and comparing one to the other failed
+    // this row by 39.6 degrees while nothing was wrong with the mesh. Take an index, ask
+    // where it actually points, and hold both sides to that.
+    ii9 = (b9 * na) / 12 ?? 0;
+    (qax, qay) = hex_to_px(far_boundary_hex(s, ii9).0, far_boundary_hex(s, ii9).1);
+    ang9 = atan2(qay - s.py, qax - s.px);
+    dx9 = cos(ang9);
+    dy9 = sin(ang9);
+    // THE DRAWN skyline is near UNION far, not the skirt alone — the first version of this
+    // row compared the skirt against the world and failed by 44 degrees at bearing 270, where
+    // the tallest thing in that direction stands INSIDE the window and the skirt therefore
+    // does not draw it. A gate that omits half the picture measures the wrong world.
+    sk = 0.0 - 90.0;
+    for kn in 1..120 {
+      dn = (kn as float) * HEX_LEN;
+      xn = s.px + dx9 * dn;
+      yn = s.py + dy9 * dn;
+      (nqn, nrn) = px_to_hex(xn, yn);
+      if sim_has_ground(s, nqn, nrn) {
+        en = atan((ground_at(s, xn, yn) - ez9) / dn ?? 0.0) * 57.29577951308232;
+        if en > sk { sk = en; }
+      }
+    }
+    for j9 in 0..FAR_RINGS + 1 {
+      (sx9, sy9, sz9, _) = far_point(o, s, ax, ay, cwx, cwy, ii9, j9);
+      dd9 = sqrt((sx9 - s.px) * (sx9 - s.px) + (sy9 - s.py) * (sy9 - s.py)) ?? 1.0;
+      if dd9 > 1.0 {
+        e9 = atan((sz9 - ez9) / dd9 ?? 0.0) * 57.29577951308232;
+        if e9 > sk { sk = e9; }
+      }
+    }
+    // the world's own skyline in that direction, sampled finely
+    tr = 0.0 - 90.0;
+    // ⚠ THE REFERENCE MUST BE AT LEAST AS FINE AS WHAT IT JUDGES, near AND far. A uniform
+    // 25 wu step reads 6.4 degrees below the drawn skyline — not because the mesh is wrong but
+    // because a ridge 12 wu away falls between two reference samples. Progressive stepping:
+    // one hex close in, widening with distance, the same walk `skyprobe` uses.
+    for k9 in 1..400 {
+      d9 = (k9 as float) * HEX_LEN * (1.0 + (k9 as float) * 0.15);
+      hz9 = terrain_m_to_wu(ov_height(o, wx9 + dx9 * d9 * ms9, wy9 + dy9 * d9 * ms9));
+      e10 = atan((hz9 - ez9) / d9 ?? 0.0) * 57.29577951308232;
+      if e10 > tr { tr = e10; }
+    }
+    g9 = absf(sk - tr);
+    if g9 > wgap { wgap = g9; wb9 = b9 * 30; }
+  }
+  println("9. horizon closure: worst skirt-vs-world difference {wgap} degrees (at bearing {wb9})");
+  // ⚠ THE BOUND IS THE SKIRT'S OWN ANGULAR RESOLUTION, not a taste. 400 samples over 360
+  // degrees is 0.9 degrees apart, and a ridge between two of them is a ridge the mesh does not
+  // have; 2 degrees allows that plus the radial coarseness of the outer bands. A tighter bound
+  // would be a claim about this world rather than about the construction.
+  if wgap > 2.0 { ok = false; println("   FAIL: the drawn skyline is not the world's skyline"); }
 
   if ok { println("=== HORIZON OK ==="); } else { println("=== FAIL ==="); }
 }
