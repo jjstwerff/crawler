@@ -343,9 +343,12 @@ forge turns out better work than another. Not a permission anywhere.
    time since the player cleared something — and it must be **derivable and cheap**, since it
    runs per NPC per day.
 4. ✅ **RESOLVED 2026-08-09 — `Handiness` gates repairs and improvised gear, not crafting**
-   (see the section above), and ✅ **[plan #16](plans/16-eight-statistics/) `M3` shipped on it
-   2026-08-11**: 18 bundles authored a Handiness value each, spanning -3 (half-troll, which
-   breaks tools) to +4 (gnome). ⚠ **The durability sub-decision is still open and the roster
+   (see the section above), and ✅ **the roster was authored on it 2026-08-11** (plan #16,
+   closed): every race and class carries an `r_hand`/`c_hand`, spanning -3 (half-troll, which
+   breaks tools) to +4 (gnome). **The values are `bundles/<name>/<name>.loft`; what Handiness
+   drives is `CATALOG.md` §0** — where it currently reads ⚠ **nothing**, because the disarm /
+   device / durability layer it would key into does not exist.
+   ⚠ **The durability sub-decision is still open and the roster
    does not depend on it** — improvisation is already real (the `Ingenuity` card), and every
    authored value is backed by the `r_device`/`r_disarm` a race already had, so declining
    durability makes Handiness read narrower without making a single number wrong. That the

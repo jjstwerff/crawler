@@ -28,15 +28,41 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 > — the roster tables are in the plan. The old six-stat vocabulary is **gone from the tree**:
 > no `r_str`/`c_int`, no `stat_index` alias arm, no `RF_SUST_STR`.
 >
-> ✅ **And SIX of the eight now DRIVE something** (`M4`, same day): Might→melee damage,
-> Endurance→the HP pool, Dexterity→stealth, **Perception→ranged accuracy** (taken from Dex),
-> **Speed→the distance clock**, **Will→the saving throw** (taken from Endurance) plus the SP
-> pool. ⚠ **Charisma and Handiness still drive NOTHING, on purpose**: §0 keys them to
+> ✅ **And SIX of the eight now DRIVE something** (`M4`, same day). **This is the state of the
+> engine — what each axis actually moves:**
+>
+> | axis | what it drives today | where |
+> |---|---|---|
+> | **Might** | the melee skill, folded into weapon damage | `sim::sim_skill_melee` |
+> | **Endurance** | the **max-HP pool** — §0's soak | `sim::endu_hp_bonus` |
+> | **Dexterity** | the stealth skill | `sim::sim_skill_stealth` |
+> | **Perception** | the **shooting skill** — ranged accuracy *(was Dexterity's)* | `sim::sim_skill_shoot` |
+> | **Speed** | the **distance clock**: how far you walk before the world takes its turn, ±5 %/point clamped to `[0.5×, 2×]` | `sim::tick_span` |
+> | **Will** | the **saving throw** *(was Endurance's)* + the caster's SP pool | `sim::sim_player_save` |
+> | **Charisma** | ⚠ **nothing** | — |
+> | **Handiness** | ⚠ **nothing** | — |
+>
+> ⚠ **Charisma and Handiness drive NOTHING on purpose.** The table above keys them to
 > leadership/prices and to disarm/device/repair, and crawler has no party, **no priced
-> transaction** (gold is found and staked, never spent at a price) and no durability layer —
-> `r_device`/`r_disarm` are authored on every race and consumed nowhere, measured. Those are
+> transaction** (gold is found and staked, never spent *at a price*) and no durability layer —
+> `r_device`/`r_disarm` are authored on every race and **consumed nowhere**, measured. Those are
 > SYSTEMS, not derivations, so the character page says *(later)* on exactly those two rows
 > rather than naming a consumer that does not exist. They are `OW2` and `CRAFTING.md` q4.
+> ⚠ **Dexterity also came out of `M4` thinner than it went in** — it lost ranged accuracy and
+> gets its other half (crit/evasion) when `RESOLUTION.md` §2a's crit engine is built, not by
+> being padded with a substitute consumer.
+>
+> **Two kernel invariants came out of that keying**, both enforced in `sim.loft` at one site each:
+> - **I-AXIS** — the engine's stat vocabulary is this table's order, and every layer follows by
+>   LENGTH; `NUM_STATS` is the only thing that knows the count.
+> - **I-POOL** — a **stored** pool (max HP, max SP) derives only from the **permanent** stat
+>   layers; the temporary potion layer is a live-read overlay that never enters stored state.
+>   *(It was already violated for the SP pool: a temporary Will potion plus any unrelated
+>   re-derive baked the potion into `spmax` permanently.)*
+>
+> **The per-race and per-class values** are the bundles themselves — `bundles/<name>/<name>.loft`,
+> fields `r_might…r_hand` / `c_might…c_hand`. The authored roster is gated by `racetest`,
+> `classtest` and `deftest`; the derivations above by **`derivetest`**.
 >
 > ⚠ **`r_int` had nowhere to land**, which is the finding worth carrying: under the eight there
 > is exactly ONE casting axis, so arcane and divine both key off **Will** — *which races cast
@@ -719,18 +745,22 @@ trust/contact (§5e/§5g), spirit (§6.6), cure/repair, and barter systems.)*
 *(The lightest workflow that fits — `plans/README.md`: the row and the design share a
 file. Escalate to a plan only where noted.)*
 
-### `OW1` — the 8 stats ✅ **RESOLVED 2026-08-09 → [plan #16](plans/16-eight-statistics/)**
+### `OW1` — the 8 stats ✅ **DONE — built end to end, [plan #16](plans/16-eight-statistics/) closed 2026-08-11**
 
-> **Decided: adopt the eight** (user, *"we will adopt moros"*), **not scheduled** (*"but
-> not today"*). The fork below is closed; the work and its measured cost now live in
-> plan #16, `status:future`. ⚠ Two findings from that measurement change the shape of it:
-> **it is not a save break** (no stat vector persists), and **it is not a rename**
-> (Perception and Speed are new axes, so the 18 bundles need re-authoring, not mapping).
-> Left here for the reasoning; the schedule and step status are the plan's.
+> **Decided 2026-08-09, shipped 2026-08-11.** The engine, the 18 bundles and six of the
+> eight derivations are all on the eight — **§0 above is the state, not a target**, and it
+> is where a reader should go; this entry keeps only why the fork was live and what it cost.
+> ⚠ Both findings from the measurement held: **it was not a save break** (no stat vector
+> persists) and **it was not a rename** — the re-authoring re-ranked the roster, because the
+> races the six left flat (dwarf, gnome) are the ones the new axes repay.
+>
+> ⚠ **Two axes still drive nothing** — Charisma and Handiness — and that is not leftover
+> work from this item: their consumers are unbuilt SYSTEMS, tracked at `OW2` below and at
+> `CRAFTING.md` q4.
 
-§0 adopted moros' eight on 2026-06-27; measured 2026-08-09, the engine answers Angband's
-**six** (`gameflow::stat_name`, `sim::stat_index`) and the eight appear in no code path.
-Six weeks, and nothing said so.
+*(Historical, and the reason this item existed.)* §0 adopted moros' eight on 2026-06-27;
+measured 2026-08-09, the engine still answered Angband's **six** (`gameflow::stat_name`,
+`sim::stat_index`) and the eight appeared in no code path. Six weeks, and nothing said so.
 
 **The fork is crawler's alone** (`MOROS.md`: moros has nothing to write for this — the
 stat set was seeded here in June and this document is crawler's own):

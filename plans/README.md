@@ -82,7 +82,9 @@ still sitting inside `plans/9-canopy-trees/`. *A label is not a closure* — the
 *(`#17` took `#12`'s slot on 2026-08-09, the same day both were created — see below — and gave
 it back the next day, `S0`–`S7` shipped. ⚠ **That is the cap working, not a fluke**: the slot
 bought a plan that could actually be finished, against five held by things nobody was doing.
-`#16` was queued explicitly behind it and is now unblocked.)*
+`#16` was queued explicitly behind it, took the freed slot on 2026-08-10 and **gave it back
+on 2026-08-11**, `M0`–`M4` shipped. ⚠ **Two plans finished in three days through one slot** —
+the cap is what made that visible.)*
 
 ⚠ **"Active" means work is happening or is next — not that the plan is unfinished.** The
 roster had drifted to **six** against this file's own cap of three, so it was decided from

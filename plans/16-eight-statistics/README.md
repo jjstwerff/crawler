@@ -3,10 +3,29 @@
 **Issue:** [`jjstwerff/crawler#16`](https://github.com/jjstwerff/crawler/issues/16) ·
 **Value:** `F` · **Effort:** `MH`
 
+## ✅ CLOSED 2026-08-11 — `status:finished`. This is a CLOSURE RECORD.
+
+**Do not read this file to learn how the statistics work.** The durable truth moved out
+(`_LIFECYCLE.md` step 2); what is left here is what shipped, what it cost, and what it found.
+
+| you want | it lives in |
+|---|---|
+| **what each axis DRIVES**, the two invariants (`I-AXIS`, `I-POOL`), the two unread axes | **`CATALOG.md` §0** |
+| the per-race / per-class **values** | the bundles — `bundles/<name>/<name>.loft`, `r_might…r_hand` / `c_might…c_hand` |
+| the engine mechanism (`tick_span`, `stat_perm`, `endu_hp_bonus`, `stat_index`) | `src/sim.loft` — and `CLAUDE.md`'s `sim.loft` entry points at it |
+| what a change to any of it must keep true | `src/derivetest.loft` · `racetest` · `classtest` · `deftest` |
+| the `make probe` rot and what is still open in it | `CLAUDE.md` (`make probe` entry) · plan **#7** |
+
+**Two things left open, and neither is this plan's to finish** — both are tracked where their
+system is: **Charisma and Handiness drive nothing** (`CATALOG.md` `OW2`, `CRAFTING.md` q4), and
+**`probes/world_r4`/`world_r5` fail against 2026-06-12 goldens** (plan #7 — pre-existing,
+verified, and deliberately not re-pinned).
+
 ## Status
 
-**`status:active` from 2026-08-10** (user: *"start #16"*), taking the slot [#17](../17-safe-supply/)
-freed by finishing — the roster is `#11`/`#13`/`#16`, still capped at three.
+✅ **`status:finished` 2026-08-11** (user: *"close #16"*). It ran `status:active` from
+2026-08-10 (*"start #16"*) in the slot [#17](../17-safe-supply/) freed by finishing — **one
+day, `M2` through `M4`**, and the roster returns to `#11`/`#13` with a slot open.
 
 **ALL FIVE STEPS ARE SHIPPED** (`M0`–`M4`, the last two on 2026-08-11): the measurements, the
 scope ruling, the engine answering the eight, **the 18 bundles re-authored as a set**, and
@@ -14,9 +33,13 @@ scope ruling, the engine answering the eight, **the 18 bundles re-authored as a 
 (`derivetest` is new). The old six-stat vocabulary is **gone from the tree**: no `r_str`, no
 `c_int`, no legacy alias arm, no `RF_SUST_STR`.
 
-**→ The one thing still owed is a judgement, not a step: the `make play` read.** The plan's own
-verify line for `M4` is *"`make test`, `make play`"*, and whether the spread feels right in
-motion — Speed especially — is the user's call. The numbers are tabled under `M4` for it.
+⚠ **Closed on the user's call (2026-08-11, *"close #16"*) with the `make play` read NOT yet
+made.** `M4`'s verify line is *"`make test`, `make play`"*; the gate half is done and in the
+standing gate (104 rows), the judgement half is a **tuning** question, and tuning is not a
+phase — it is what playing the game produces. The level-1 numbers are tabled under `M4` so the
+read has a baseline to disagree with. **If the spread is wrong, that is a tuning change to
+`bundles/` values or `SPEED_PER_POINT`, not a re-opening of this plan** — the axes, the
+derivations and their gate are what shipped, and none of them move when a number does.
 
 ⚠ **Two axes deliberately drive NOTHING**: Charisma waits on a party or a priced transaction,
 Handiness on the durability call. Neither is a derivation, so `M4` refused to invent one —
@@ -461,8 +484,8 @@ question 3.
 - **The advancement economy** — unless `M1` says otherwise. Separate decision, separate cost.
 - **moros.** Nothing is requested of that project (`MOROS.md`); this executes a decision
   crawler made in June.
-- **The active roster.** `status:future` by the user's own scheduling, so `#11`/`#12`/`#13`
-  keep their slots.
+- **The active roster.** *(Historical: written while this plan was `status:future`. It took
+  #17's slot on 2026-08-10 and gave it back on 2026-08-11.)*
 
 ## Open questions
 

@@ -1270,7 +1270,8 @@ by dependency + playability). Tiers are rough priority bands, ordered top→bott
   and **route around walls** (no more greedy `best_step` wall-stick/clump).
 - [x] **H1** hero progression — **XP on kill** (scaled by monster level),
   level-up grows max HP + heals the gain; `CL` + XP bar in the HUD. (Hero stored
-  as flat `Sim` fields — `clevel/xp/gold/hcon`; full 6-stat block lands with H2.)
+  as flat `Sim` fields — `clevel/xp/gold/hcon`. ⚠ *"full 6-stat block"* is historical:
+  the block is **EIGHT** since plan #16 closed 2026-08-11 — CATALOG.md §0.)
 
 - [x] **Wait** — `.`/Space advances one world tick in place (enemies act; you
   don't move).

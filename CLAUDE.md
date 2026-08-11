@@ -251,6 +251,13 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   agent's in-flight work is routinely sitting in the tree. Put the **finding** in the commit
   message, not just the change. Still worth a word first: a PR, a published package, a
   registry entry.
+  ⚠ **AND NEVER `git stash` TO COMPARE AGAINST HISTORY — use `git checkout <commit> -- <paths>`.**
+  Same reason, one step further: `git stash push -- <paths>` on files that are already committed
+  saves **nothing**, and the `git stash pop` that follows then pops **whatever stash was already
+  there** — someone else's. That happened in plan #16 `M4` (popped `WIP on main: e8c2cb4`,
+  conflicted `loft.lock`); it was restored and the stash left intact, but the shape is a silent
+  one — the pop looks like it worked, and the "pre-existing?" answer it produces is a lie,
+  because the code under test never actually changed.
 
 ## loft — the traps that will bite you today
 
@@ -367,7 +374,13 @@ price, not refused on principle**, and they close by convergence in the library.
   flow-field pathing), XP/level (race+class-scaled `xp_need`), HP/SP pools + natural
   regen, statuses (paralysis/poison/ward), race+class apply (`apply_creation`, the
   cached `rc_*` derivations), the shrine re-spec, unknown-item flavours, stairs/depth,
-  the clock.
+  the clock. **The EIGHT statistics and what each one drives live here** (plan #16, closed
+  2026-08-11): the table is **CATALOG.md §0**, the values are the bundles, the gate is
+  `derivetest`. ⚠ Two invariants are enforced at one site each — **I-AXIS** (`NUM_STATS` is
+  the only thing that knows the axis count; every layer follows by LENGTH) and **I-POOL** (a
+  *stored* pool reads only the PERMANENT stat layers — `stat_perm`, never `stat_eff`).
+  ⚠ **Speed scales the clock** (`tick_span`, clamped `[0.5×, 2×]` — the clamp is what stops a
+  drained stat hanging a `while` loop), and the span is read at five sites through that one owner.
 - `gen.loft` — procedural dungeon (rooms+corridors), `world_key_seed`.
 - `catalog.loft` — the merges: `game_monsters`/`game_items`/`race_catalog`/`class_catalog`.
 - `castfx.loft` / `itemfx.loft` — the API layer above the kernel: cast + use-item verbs,

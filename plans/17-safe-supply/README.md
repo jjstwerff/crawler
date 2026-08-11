@@ -1020,7 +1020,9 @@ moment to re-check**, not a free extension.
 *"faction/parley (overland-side)"* — a one-line power with nothing behind it anywhere in the
 tree. Standing is what it is **for**: it should move the *rate* or the *threshold*, and ⚠
 **never be required**, or a utility power becomes a gate on the campaign's advancement axis.
-It also makes **Char** a second consumer, which is [#16](../16-eight-statistics/)'s business.
+It also makes **Char** a second consumer — ⚠ *and as of #16 closing (2026-08-11) Charisma
+still drives **nothing**: it needs a party or a priced transaction, neither of which exists.
+`CATALOG.md` §0 is the live table; this would be its first consumer.*
 
 **The moros anchor** (`MOROS.md`): moros' standing is per-NPC **and per-PLACE**, earned by
 acts, and it gates access — *"reference cards … earned when the party reaches the standing each
@@ -1158,4 +1160,5 @@ Carried from `CRAFTING.md`, and the fourth is the one that blocks `#16`:
 ## See also
 
 `CRAFTING.md` · `CATALOG.md` `OW2` (the decision this answers the crafting half of) ·
-[plan #16](../16-eight-statistics/) (which waits on question 4)
+[plan #16](../16-eight-statistics/) — *closed 2026-08-11; it no longer waits on question 4,
+and its roster deliberately does not depend on the durability call*

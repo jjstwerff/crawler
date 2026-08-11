@@ -47,8 +47,9 @@ where crawler sits in the stack.
 > All 18 race/class bundles were re-authored **as a set**: `RaceDef`/`ClassDef` carry eight
 > named fields (`r_might…r_hand`), every caster declares `c_spell_stat: "will"`, and both of
 > `M2`'s one-step shims are deleted — `stat_index("str")` now returns `-1` like any other typo.
-> Full gate green, 103 rows. **The roster tables are in
-> [`plans/16-eight-statistics/`](plans/16-eight-statistics/)** and they want a read.
+> Full gate green, 103 rows. **The values are the bundles** (`bundles/<name>/<name>.loft`,
+> `r_might…r_hand`); what each axis DRIVES is **[`CATALOG.md` §0](CATALOG.md)**. The plan is a
+> closure record — read it for the cost and the findings, not for the mechanism.
 >
 > ⚠ **The finding: adopting the eight RE-RANKS the roster, toward the races the six left flat.**
 > Dwarf went Σ -2 → +5 and gnome +2 → +7, same cause — Angband taxed them on Intelligence and
