@@ -9,7 +9,7 @@ the only part that must be current, which is why it is short enough to keep curr
 | | |
 |---|---|
 | **branch / tree** | `combat`, clean, pushed |
-| **gate** | green — `make test` PASS, **109 rows in 2m16s** 8-wide (2026-08-11). Long poles: `stocktest` 81 s, `militiatest` 81 s, `incursiontest` 52 s, `towertest` 42 s |
+| **gate** | ⚠ **RED as of 2026-08-11 evening, and NOT a crawler regression.** `make check` aborts with `Cannot redefine function 'turn' as a variable`: `engine_host` — the one legal `--lib`, so it tracks `../loft`'s *working tree* — gained `pub fn turn()` (`../loft/lib/engine_host/src/engine_host.loft:313`) and `story.loft:287` has a local `turn`. Nothing in `src/` changed. **Whose call: rename crawler's variable, or treat an unqualified library fn claiming a consumer's identifier as a loft defect** — written up as `LOFT-HANDOFF.md` → **H11**. Last green: 2026-08-11, ~2m16s 8-wide (the gate prints its own row count — no doc repeats it) |
 | **live plan** | **#11 — 3D world** (`plans/11-3d-world/`). Done: P0–P4, P3b, P6, and **P5 steps A+B** (2026-08-11). Closed by ruling: P6b (layer cache declined) |
 | **⚠ THE RULING THAT OVERRIDES THE PLAN'S TAIL** | **crawler adopts the moros editor's rendering engine and never derives from the common base** (user, 2026-08-11). So the **renderer surface is FROZEN** — `ADOPTION.md` → *The rendering engine is the editor's*. Waiting on moros publishing the packages as part of its **lavition editor** work |
 | **what is open to work on** | anything **kernel-side** (the field, settlement simulation, bundles, world derivation). Plan #11's tail (P7 props, P8 sprites, P9's 2D retirement) is renderer-side and **waits** |

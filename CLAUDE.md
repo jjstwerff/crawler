@@ -7,15 +7,57 @@ actors are camera-facing boards on the way to animated meshes, and **3D replaces
 view** once it reaches parity. The renderer-agnostic kernel is what makes that a view-side
 change — keep it. *(Superseded: "2D is first-class, 3D is additive". The 2D renderer still
 runs and is retired in plan #11 P9; DESIGN §7a's plane-first reasoning is being reworked
-with it.)* Full design + roadmap: **DESIGN.md** (backlog = §18a); the 3D plan +
-its seven invariants: **plans/11-3d-world/**.
+with it.)*
 
-> **Companion docs, loaded on demand — do NOT read them unless the task needs them.**
-> **`SPRITES.md`** — authoring 2D sprites (tool, done-criterion, perspective, palette, QA).
-> **`LOFT-NOTES.md`** — the loft survival guide in full, bug filing, and where the toolchain
-> and libraries live on this machine.
-> Split out of this file 2026-07-23: they cost ~4k tokens every session and matter in few of
-> them. This file keeps the pointer plus the handful of traps that bite most often.
+> **THIS FILE IS RULES AND POINTERS.** It is loaded into every session, so it carries only
+> what you must know *before* you know to look it up. A rule's evidence lives in the doc or
+> the script that owns it, named on the rule — read that one when the rule is what you are
+> about to break.
+>
+> ⚠ **A number a command will print is not written here.** All three that were had rotted
+> silently: on 2026-08-11 this file said 105 test files / 108 rows / 14 native rows against
+> **107 / 110 / 19** on disk, and `run_tests.sh` printed a fourth figure. Ask the gate.
+
+## Where to look it up — open ONE, and only when the task needs it
+
+| Doc | Open it when |
+|---|---|
+| **STATE.md** | starting work — ⚠ **the top block ONLY**. Everything under it is RECORD, reached by grep for one question, never top to bottom |
+| **plans/11-3d-world/** | the live plan: the 3D move and its seven invariants |
+| **plans/README.md** | opening, closing or deferring a plan — conventions, the lightest-workflow table, value categories |
+| **DESIGN.md** | the game design; **§3a** = the pillars, **§18a** = the backlog |
+| **VISION.md** | what the whole stack is for (read once, first) |
+| **README.md** | the game as a player or newcomer meets it |
+| **ROADMAP.md** | the path to a working game |
+| **LOFT-NOTES.md** | the loft survival guide in full, bug filing, and where the toolchain and libraries live on this box |
+| **LOFT-HANDOFF.md** | a loft defect — findings ready to file, each with its repro (`H<N>`) |
+| **FILING.md** | how and why to file a loft ticket |
+| **LIBRARIES.md** | ⚠ **any signature in any dependency**. Generated (`make apidoc`, verified by `make apidoc-check`) — open a package for its *reasoning*, never to find out what a function takes |
+| **EXTRACTION.md** | pushing a crawler routine down to the library layer — tiers, per-package Definition of Done |
+| **ADOPTION.md** | consuming the family instead of copying it; the frozen-renderer ruling; *Universal for the class* |
+| **MOROS.md** | what crawler depends on moros FOR (and why no library is listed there) |
+| **UPSTREAM-PLANS.md** | you meet an `@PLN<N>` — always an upstream *loft* plan; crawler's own are `plan #<N>` |
+| **BUNDLE.md** | you touch the engine↔bundle seam — including its *standing check* |
+| **BUNDLE-MIGRATION.md** | moving classes, races or content into bundles |
+| **SCRIPTING.md** | bundle scripting and the mod-platform path |
+| **CATALOG.md** | the content tables; **§0 = the eight statistics and what each one drives** |
+| **STENCILS.md** | layered, composable stencils → castles |
+| **CRAFTING.md** | the living settlement — safety, workers, stock, incursions, standing (plan #17, shipped) |
+| **OVERLAND.md** | the wilderness contract (§12-13), zonation, rivers |
+| **SCALE.md** | ⚠ **you state a new length** — the two readings (`OV_STEP`) and the vertical |
+| **TREES.md** | canopy-first trees |
+| **PROPS.md** | props with hinges, wheels and linkages |
+| **FORMS.md** | the kit of exact, interlocking hex parts |
+| **WALLS.md** | the triangle-subdivision wall model |
+| **RENDER.md** | the 2D GPU renderer (retiring in plan #11 P9) |
+| **SPRITES.md** | authoring a 2D sprite — the `draw` skill, done-criterion, perspective, palette, QA |
+| **DATA.md** | the world-state / world-data model |
+| **DESIGN-PROTOCOL.md** | the blueprint-vs-engine case log — how a model disagrees with the original *silently* |
+| **RESOLUTION.md** · **PARTY.md** | design, not built: pluggable resolution and non-trivializing progression · co-op party, Tension, cards-as-UI |
+| **SLICE.md** | *historical* — the shipped June vertical slice. Nothing points at it |
+
+Plan state is a **label on the issue**, not a directory, so the overview is the tracker:
+`gh issue list -R jjstwerff/crawler --label plan --state all`.
 
 ## The singular goal, and the test that follows from it
 
@@ -31,83 +73,65 @@ work that others build on.** So before any deep investment, ask:
 
 > *Does this make a hard part reusable by someone else?*
 
-- **Yes** → build it properly: exact, gated, extracted. Depth is the point, and the cost is
-  paid once here so it is never paid again downstream.
-- **No** → it is crawler-only polish. It waits, and it says so out loud.
+- **Yes** → build it properly: exact, gated, extracted. The cost is paid once here so it is
+  never paid again downstream.
+- **No** → it is crawler-only polish. It waits, **and it says so out loud.**
 
-The test ranks work that would otherwise look equally attractive. The exact-integer lattice,
-canopy-first trees, the scale contract and the far-field displacement are hard **and** reusable
-— build them exactly. Sprite art, per-scene colour and one game's feel are crawler-only — which
-is why the 3D actors deliberately ship with the WRONG (top-down) PNGs on boards: the seam is
-the reusable part, the art is not, and pretending otherwise would spend a month on 34 sprites
-that teach nobody anything.
+The exact-integer lattice, canopy-first trees, the scale contract and the far-field
+displacement are hard **and** reusable — build them exactly. Sprite art, per-scene colour and
+one game's feel are crawler-only — which is why the 3D actors deliberately ship with the WRONG
+(top-down) PNGs on boards: the seam is the reusable part, the art is not.
 
 Two companions, and the three compose: **depth must be reusable** (this test), **depth must not
-become interface** (DESIGN §3a pillar 0 — bounded simulation), and **depth must be measured**
-(`SCALE.md` — real dimensions by default, gated, so a wrong world can be *proved* wrong rather
-than argued about).
+become interface** (bounded simulation, below), and **depth must be measured** (`SCALE.md` —
+real dimensions by default, gated, so a wrong world can be *proved* wrong rather than argued
+about).
 
-**Multi-phase work lives in `plans/<N>-<slug>/`**, `<N>` = its `jjstwerff/crawler` issue
-number (claimed BEFORE the directory — never numbered by scanning the tree). Conventions,
-the lightest-workflow table, and the value categories: **plans/README.md**; templates +
-the close/defer checklist sit beside it. Lifecycle state is a **label on the issue**, not
-a directory — so the overview is the tracker, not a hand-kept table:
-`gh issue list -R jjstwerff/crawler --label plan --state all`. Note `@PLN<N>` always means
-an **upstream loft** plan (UPSTREAM-PLANS.md); crawler's own are written `plan #<N>`.
+**Multi-phase work lives in `plans/<N>-<slug>/`**, `<N>` = its `jjstwerff/crawler` issue number,
+**claimed BEFORE the directory** — never numbered by scanning the tree.
 
 ## Run / build / test
 
 ```sh
 make play     # native window (W/S glide, A/D turn, walk onto stairs, . wait, g grab, N next world, Esc quit)
-make test     # headless deterministic gate — RUN THIS before committing
-              #   QUIET ON PASS: one `ok  <secs>  <name>` line per test, a header
-              #   naming the compiler (version + md5 — `--version` is NOT provenance),
-              #   and a closing line for anything over 5 s. A FAILURE prints its own
-              #   evidence, so you never go hunting for the log.
-              #   GATE_VERBOSE=1 make test  -> the old full stream.
-              #   14 heavy tests (16 rows) run --native-release (`·native`), the rest
-              #   --interpret — 7-22x on those, ~10 s of rustc each when their cache
-              #   is cold. GATE_NO_NATIVE=1 puts every row back on the interpreter:
-              #   that is how you tell a native-codegen divergence from your own bug.
-              #   Rows run min(8, nproc-2) at a time — 8 on this box. GATE_JOBS=1
-              #   forces serial (and is how you tell a scheduling flake from a real
-              #   red). Row ORDER is identical either way — the log stays diffable.
-              #   ⚠ To prove a change behaviour-preserving, diff the PER-TEST logs
-              #   (/tmp/story_<name>.log), not the gate's stdout — they cannot
-              #   interleave, and stdout no longer carries the outputs.
+make test     # headless deterministic gate — RUN IT BEFORE COMMITTING. Quiet on pass (one
+              #   `ok <secs> <name>` per row + the compiler's version AND md5 — `--version` is
+              #   NOT provenance); a FAILURE prints its own evidence. It reports its own row
+              #   count, width and slow tail, so no doc has to.
 make check    # quiet compile-only gate (parse + bytecode), no display
-make shot     # one Xvfb frame -> story.png  (positionally unreliable, see below)
-make probe    # pixel-probe gate: Xvfb renders + tools/probe.py asserts probes/*.probe
+make shot     # one Xvfb frame -> story.png   (a window-grab: positionally unreliable)
+make probe    # pixel-probe gate: Xvfb renders + tools/probe.py asserts probes/*.probe (~10 min)
 make bundles  # re-scan bundles/*/bundle.json -> the generated registries (loft scanner)
-make game     # single-file story.html (WebGL) — unblocked (the E0514 rustc-mismatch is resolved)
+make apidoc   # regenerate LIBRARIES.md from the resolved packages (apidoc-check verifies it)
+make game     # single-file story.html (WebGL)
 ```
 
 Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
-**Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 105 (**108 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10/11,
-8-wide: **1m45s** / 1m29s / 1m47s / 2m29s / 2m32s / 2m40s warm, **2m43s–3m34s with a cold native
-cache**, 3m15s at `GATE_JOBS=1`). ⚠ **`militiatest` and `stocktest` are the long poles** (84 s and
-84 s contended on 2026-08-11, 55.5 s and 54.5 s earlier the same day — box load moves them a lot): each generates several 101×101 surfaces — two of them an A/B
-that ticks four simulated days — because plan #17's claims are about what a settlement
-produces, and that cannot be asked of a sandbox. `worldtextest` is third at 27 s for the same
-kind of reason: its oracle traces and fills all nine landcover classes of a real world.
-⚠ Box load moves that as much as cache state does — the pool absorbs the cold penalty (15
-compiles ≈ 150 s of rustc cost only +56 s of wall clock). It used to be
-**10–13 min**, closed by two changes: the 15 tests that held most of the wall clock now compile
-via `--native-release` while the rest interpret (`tools/run_tests.sh` → `NATIVE_TESTS` carries
-the measurement and the ≥10 s rule for joining), and rows now run **`min(8, nproc-2)` at a
-time** (8 here — the cap is measured flat past 8, the `nproc-2` is headroom for the rest of the
-box; `GATE_JOBS` overrides). ⚠ **Per-row
-seconds are wall time under contention now** — at 8-wide `matrixtest` reads 1.0 s → 16.9 s — so
-they rank the roster but are not measurements; time a test by running it alone. ⚠ **Budget
-+10 s per affected native row when the compile cache is cold** — a kernel edit invalidates the
-40 tests that transitively `use sim`, and a `make install` in `../loft` invalidates *all* of
-them (the cache key hashes the generated Rust **and** `libloft.rlib`'s mtime). A blanket
-`--native-release` was measured and rejected: 6.7× warm but **1.8× slower** cold, and cold is
-the normal state here. Run the gate **once**, before committing — and read the existing
-`/tmp/story_<name>.log` rather than re-running it to check a result.
+- **Iterate on ONE test, not the whole gate** — a single `src/<x>test.loft` runs in ~3 s where
+  the roster runs in minutes. Run the gate **once**, before committing, and to check a result
+  read the existing `/tmp/story_<name>.log` rather than re-running it.
+- ⚠ **To prove a change behaviour-preserving, diff the PER-TEST logs** (`/tmp/story_<name>.log`)
+  — never the gate's stdout, which no longer carries the outputs and could interleave if it did.
+- ⚠ **Budget ~10 s of rustc per affected native row on a cold compile cache.** A kernel edit
+  invalidates every test that transitively uses it; a `make install` in `../loft` invalidates
+  **all** of them (the key hashes the generated Rust *and* `libloft.rlib`'s mtime). Cold is the
+  normal state here — which is why a blanket `--native-release` measured *slower* than the
+  interpreter, and why the native list (`NATIVE_TESTS`, the `·native` rows) is a per-test choice.
+- ⚠ **Per-row seconds are wall time under contention** — they rank the roster, they do not
+  measure it. Time a test by running it alone.
+- The long poles are the settlement tests (`stocktest`, `militiatest`, `incursiontest`) and
+  `worldtextest`, and that is **inherent, not waste**: each generates real 101×101 surfaces,
+  because plan #17's claims are about what a settlement *produces* and #11's about a whole
+  world's landcover — neither can be asked of a sandbox.
+- Knobs: `GATE_VERBOSE=1` (the full stream; implies serial) · `GATE_NO_NATIVE=1` (every row
+  interpreted — **how you tell a native-codegen divergence from your own bug**) · `GATE_JOBS=1`
+  (serial — **how you tell a scheduling flake from a real red**). Row ORDER is identical either
+  way, so the log stays diffable.
+- **The reasoning behind all of it is `tools/run_tests.sh`'s own comment headers** — which
+  measurement chose the native list, why the width caps at 8 and must not track `nproc`, why one
+  printer walks the roster in order. That script is the authority; this file does not restate it.
 
 ## Design / debug protocol (exact-invariant work)
 
@@ -123,141 +147,88 @@ by symmetry.
 exist in the tree, the cheapest medium is **the engine itself** — write the real code and its
 gate, not a model of it. A model can disagree with the original *silently*: in plan #11 P5 a
 Python blueprint reported a 39 % wall-run overhead where the engine measured 15.5 %, and the
-wrong number reached a design doc before anyone ran the real thing. Case log + mechanism
-study: **DESIGN-PROTOCOL.md**.
+wrong number reached a design doc before anyone ran the real thing. Case log +
+mechanism study: **DESIGN-PROTOCOL.md**.
 
 ## Architecture invariant (do not break)
 
-**Kernel** modules import **no graphics** — the `hex_grid` LIB (was hexgeo+gridgeo;
-now `loft-lang/loft-libs-world`), `sim`, `gen`, `worldmesh`, `wallgeo`,
-`framekey`, `gameflow`, `genbundles`, `monsters`/`classes`/`races`/`items`. **View** is the swappable front-end —
-`view.loft` (2D, retiring in plan #11 P9), `story.loft`. The view reads the kernel only
-through `sim_*` accessors. **That split is what makes the 3D move a view-side change**, so
-keep all `graphics::` calls in `view`/`story` and keep `sim` data-only — it is now
-load-bearing, not aspirational. The 3D renderer lands as the **`hexscene`** package rather
-than a crawler-internal module, because the in-world editor draws the same field (plan #11
-P3; `EXTRACTION.md` → *The editor as the second consumer*).
+**Kernel** modules import **no graphics** — the `hex_grid` LIB (`loft-lang/loft-libs-world`),
+`sim`, `gen`, `worldmesh`, `wallgeo`, `framekey`, `gameflow`, `genbundles`,
+`monsters`/`classes`/`races`/`items`. **View** is the swappable front-end — `view.loft` (2D,
+retiring in plan #11 P9), `story.loft`. The view reads the kernel only through `sim_*`
+accessors. **That split is what makes the 3D move a view-side change**, so keep all
+`graphics::` calls in `view`/`story` and keep `sim` data-only — it is load-bearing now, not
+aspirational. The 3D renderer lands as the **`hexscene`** package rather than a crawler-internal
+module, because the in-world editor draws the same field (plan #11 P3; `EXTRACTION.md` → *The
+editor as the second consumer*).
 
 - Hex map, moros geometry (`L = √3`, pointy-top). Continuous player + heading;
   hex-locked enemies. **Distance-driven clock:** every `HEX_LEN` travelled = one
   `sim_tick`; turning is free; `sim_wait` forces one tick in place.
-- **Bundles stay library-like.** Game content (monsters/items/stencils/placement/quests) lives in
-  self-contained `bundles/<name>/` folders the engine merges generically — a stranger drops a bundle
-  in, rebuilds without touching `src/`, and plays it against an unchanged game. **Every time you
-  touch the engine↔bundle seam, re-evaluate that this still holds** (content bundle-side, mechanism
-  engine-side, no engine-references-a-bundle-by-key). The standing check: **BUNDLE.md → "Standing
-  check — keep bundles library-like"**.
+- **Bundles stay library-like.** Game content (monsters/items/stencils/placement/quests) lives
+  in self-contained `bundles/<name>/` folders the engine merges generically — a stranger drops a
+  bundle in, rebuilds without touching `src/`, and plays it against an unchanged game. **Every
+  time you touch the engine↔bundle seam, re-evaluate that this still holds** (content
+  bundle-side, mechanism engine-side, no engine-references-a-bundle-by-key): **BUNDLE.md →
+  "Standing check — keep bundles library-like"**.
 
 ## Conventions
 
-- **Clean-room IP.** Mechanics/formulas/data follow Angband faithfully, but
-  **names are original** — NEVER use Tolkien (Angband, Morgoth, Sauron, balrog,
-  Nazgûl, ent; use "halfling" not "hobbit") or Zelazny/Amber (Oberon, Amberites,
-  Trumps) names.
-- **BOUNDED SIMULATION — depth in the derivation, shallow at the interface** (DESIGN §3a
-  pillar 0, the authority over the others). Dwarf Fortress is hard to get into *not by
-  design*; the trap is entered one reasonable feature at a time. A derived system buys
-  **coherence, not mechanics**: derive as deep as you like, but ask of every one — *does this
-  add something the player must learn?* If yes it must displace something. **The budget is
-  measurable: 15 keys bound today** (~11 gameplay), Doom-to-Souls territory, and it stays
-  there. "It is realistic" justifies the derivation, never a new verb.
-- **Follow Angband logic, tune for accessibility.** Reproduce real Angband (4.2 core
-  + ZAngband wilderness/realms) *systems/mechanics* faithfully — but the *curve*,
-  *death model* (checkpoint respawn, not permadeath), and *class weight* are
-  deliberately friendlier (see **DESIGN §3a** — "Angband bones, friendly tuning").
-  Only names/lore are clean-room.
-- **Content is authored to its FULL design; build SYSTEMS to realize it — never nerf
-  content to fit a half-built engine.** A monster/item keeps its true mechanic (a floating
-  eye = 0 melee + a paralysing gaze; a Scroll of Teleport teleports) even if the system
-  that powers it isn't built yet — then build that system. Do NOT give the eye a stand-in
-  bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
-  *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
-- Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **105 files / 108 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
-  defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
-  safety/production/repair/standing/travel/idle-skip/mesh/world-texture/kernel/replay/
-  playthroughs/…). Keep it
-  **warning-clean**. ⚠ **WIRING IT IN IS THE STEP THAT GETS SKIPPED, and nothing complains** —
-  `tools/run_tests.sh` is the roster, not `src/`. Five tests sat on disk unwired until
-  2026-08-10 (`fig`/`gen`/`grid`/`mon`/`wall`) and `canopytest` was listed twice; a test the
-  gate never runs is not a gate. The check is one line:
+- **Clean-room IP.** Mechanics/formulas/data follow Angband faithfully, but **names are
+  original** — NEVER use Tolkien (Angband, Morgoth, Sauron, balrog, Nazgûl, ent; use "halfling"
+  not "hobbit") or Zelazny/Amber (Oberon, Amberites, Trumps) names.
+- **BOUNDED SIMULATION — depth in the derivation, shallow at the interface** (DESIGN §3a pillar
+  0, the authority over the others). Dwarf Fortress is hard to get into *not by design*; the trap
+  is entered one reasonable feature at a time. A derived system buys **coherence, not
+  mechanics**: derive as deep as you like, but ask of every one — *does this add something the
+  player must learn?* If yes it must displace something. **The budget is measurable: 15 keys
+  bound today** (~11 gameplay), Doom-to-Souls territory, and it stays there. "It is realistic"
+  justifies the derivation, never a new verb.
+- **Follow Angband logic, tune for accessibility.** Reproduce real Angband (4.2 core + ZAngband
+  wilderness/realms) *systems/mechanics* faithfully — but the *curve*, *death model* (checkpoint
+  respawn, not permadeath) and *class weight* are deliberately friendlier — **DESIGN §3a,
+  "Angband bones, friendly tuning"**.
+- **Content is authored to its FULL design; build SYSTEMS to realize it — never nerf content to
+  fit a half-built engine.** A monster/item keeps its true mechanic (a floating eye = 0 melee +
+  a paralysing gaze; a Scroll of Teleport teleports) even if the system that powers it isn't
+  built yet — then build that system. Do NOT give the eye a stand-in bite or make a scroll
+  inert. The ONLY allowed deviation is the §3a *tuning* (curve/death/class-weight), never
+  removing or substituting a mechanic.
+- **Every kernel feature gets a headless `src/<x>test.loft` wired into `make test`**, and kept
+  warning-clean. ⚠ **WIRING IT IN IS THE STEP THAT GETS SKIPPED, and nothing complains** —
+  `tools/run_tests.sh` is the roster, not `src/`; five tests sat on disk unwired for months. The
+  check is one line, and it should print only `src/selftest.loft`:
   `comm -23 <(ls src/*test*.loft|sort) <(grep -oE 'src/[a-z_0-9]+test\.loft' tools/run_tests.sh|sort -u)`
-  — it should print only `src/selftest.loft` (the kernel self-test, run before the tables).
-  Pixel-level render checks
-  live in **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7)
-  P0). ⚠ **`make probe` IS NOT IN `make test` and it rots — plan #16 `M4` found it three layers
-  deep**, each hiding the next: (1) three undischarged `float?` divides in `gpushot.loft` from a
-  tightened loft rule, which aborted step one; (2) the target globbed `src/*probe.loft`, which
-  swallows the **windowed** `reloadprobe.loft` (plan #6 K3) and **HUNG** — a hang reads as
-  progress; (3) `world_r4`/`world_r5` failing against goldens measured **2026-06-12**. 1 and 2
-  are fixed (`PROBE_SCENES` is now a NAMED list with a `timeout`; a scene joins it only if it is
-  headless and some `.probe` asserts its PNG). ⚠ **3 is OPEN and must not be re-pinned blind** —
-  the world moved (seed 777→1337, #17's wall gates), and adopting today's frame as golden
-  destroys the evidence. Plan #7's call. It takes **~10 min**, which is why it is not in the
-  gate. **Run it after render-side work**, and treat green as a fact with a date on it.
-  The games-kernel adoption track (@PLN18 engine_host): **plans/6-games-kernel/**.
-- **Headless rendering IS self-verifiable** (corrected 2026-06-15). `gl_screenshot` under
-  Xvfb reads the GL **framebuffer reliably** — it's exactly what `make probe` uses (plan #7
-  P0). **`xvfb-run` IS installed on this box.** The only *positionally-unreliable* capture is
-  `make shot`'s window-grab (`xdotool`/`import`) — not `gl_screenshot`. So render
-  **correctness can be gated headlessly** via golden-image diffs, two paths:
-  (1) **native GL** — `gl_screenshot` under `xvfb-run` + Mesa `llvmpipe` (deterministic
-  software GL), diffed vs a golden PNG (tolerance ~max-16/mean-2, the loft `crystal_editor_gold`
-  pattern); (2) **WebGL** — the `loft --html` build in headless Chrome via loft's
-  `tools/html_render_check.mjs` (CDP screenshot + canvas color-count gate). For plain 2D
-  diagnostics the `graphics` **`Canvas`** (`fill_triangle`/`draw_line`/`save_png`) needs no GL
-  or Xvfb at all — `../hexbody/src/houseshot.loft` is the worked example. The **user still judges
-  *aesthetics***, but the agent self-checks structure/regressions. Recipe + the
-  scene-`--smoke`-then-`gl_screenshot` idiom: **plans/7-render/**.
-- **2D sprites → `SPRITES.md`** (the `draw` skill + `tools/draw.py`; done-criterion,
-  perspective, palette, scale, QA, reference plates). The one thing to know from here: **the
-  view resolves sprites BY NAME, no code per sprite** — drop `<monster_key>.png` into
+- **Pixel-level render checks live in `make probe`** (Xvfb + `tools/probe.py` vs
+  `probes/*.probe`). ⚠ **It is NOT in `make test` and it rots** — plan #16 `M4` found it three
+  layers deep, each hiding the next, and *a hang read as progress*. Two layers are fixed
+  (`PROBE_SCENES` is a NAMED list with a `timeout`; a scene joins it only if it is headless and
+  some `.probe` asserts its PNG). ⚠ **The third is OPEN: `world_r4`/`world_r5` fail against
+  goldens measured 2026-06-12 — do not re-pin them blind.** The world moved under them, and
+  adopting today's frame as golden destroys the evidence; it is plan #7's call. Run `make probe`
+  after render-side work and treat green as a fact *with a date on it*. The record:
+  `plans/16-eight-statistics/README.md`.
+- **Headless rendering IS self-verifiable.** `gl_screenshot` reads the GL framebuffer reliably
+  under Xvfb (`xvfb-run` is installed) — it is what `make probe` uses. The only
+  positionally-unreliable capture is `make shot`'s window-grab. So render **correctness** gates
+  headlessly by golden-image diff, two paths: **native GL** (`gl_screenshot` under `xvfb-run` +
+  Mesa `llvmpipe`, tolerance ~max-16/mean-2) and **WebGL** (`loft --html` in headless Chrome via
+  loft's `tools/html_render_check.mjs`). For plain 2D diagnostics the `graphics` **`Canvas`**
+  needs no GL or Xvfb at all (`../hexbody/src/houseshot.loft` is the worked example). **The user
+  still judges *aesthetics***; the agent self-checks structure and regressions. Recipe:
+  `plans/7-render/`.
+- **Scale: one grid, two readings** — architecture is true-scale at **1.5 m per hex step**;
+  terrain is the *same* hex compressed 10× at **15 natural m per walked hex** (`OV_STEP`); and
+  **rise takes the compression run takes**, so one `OV_STEP` of natural rise across one walked
+  hex renders as exactly 45° and every angle in the world equals the real terrain's. The
+  contract is code (`src/scale.loft`) and gated (`scaletest`). ⚠ **State a new length in metres,
+  or add a row to that gate** — an unconverted threshold cannot be falsified. `SCALE.md`.
+- **The view resolves sprites BY NAME, no code per sprite** — drop `<monster_key>.png` into
   `assets/sprites/` and it is in the game; a missing file falls back to the glyph.
-- **Where things stand right now — `STATE.md`, and read ONLY its top block.** *THE SHORT
-  ANSWER* is ≤25 lines: branch, gate, live plan and phase, what is open to work on, and whose
-  call the open questions are. **Everything below it is RECORD** — the reasoning behind how we
-  got here, reached by grep for one question, never read top to bottom. Measured 2026-08-11:
-  the file is 900+ lines and its first 450 were a narrative of one phase that was already two
-  phases stale, sitting where a `/clear` is told to start. **The short block is the only part
-  that must be current, which is what keeps it short enough to stay current.**
-- **A SIGNATURE LOOKUP IS `LIBRARIES.md`, NOT THE PACKAGE** (generated; `make apidoc`,
-  verified by `make apidoc-check`). One line per public name in every declared dependency.
-  Measured: ~500 lines of library source were read in one session to recover ~20 signatures,
-  because there was nowhere to look them up. Open the package for its *reasoning* — that is
-  what its comments are for — never to find out what a function takes.
-- **The living settlement — `CRAFTING.md`.** A settlement's output is a function of the danger
-  around it, and the player moves that number: safety as a category, workers who refuse unsafe
-  ground, stock a workshop can run out of, incursions that arrive from a source you can end,
-  gear a town's smith mends only if the ore came down, and **standing** — earned locally,
-  spent on a militia that holds ground you are not standing on. Shipped end to end as plan #17
-  (closed 2026-08-10) at **zero new keys**. Start at *All of it shipped — the invariants, and
-  where each one lives*; the code is the authority, `sim.loft` mostly.
-- **Canopy-first trees — `TREES.md`; small detail with moving parts — `PROPS.md`.** The
-  canopy partitions and the tree is *derived* from it (`src/hexcanopy.loft`, 10 gate rows);
-  props are generators on a level with hinges, wheels and linkages (`src/hexprim.loft` and
-  friends, 36 gates). Plans #9/#10, both closed 2026-08-10. ⚠ `TREES.md` lived inside its
-  plan directory until that day — **a reference doc inside `plans/` is a doc nobody is
-  allowed to read**; check for that before closing anything.
-- **Scale: one grid, two readings — `SCALE.md`.** Architecture is true-scale at **1.5 m
-  per hex step** (1 world unit = 0.866 m); terrain is the *same* hex compressed 10× at
-  **15 natural m per walked hex** (`OV_STEP`, a gameplay-evaluated user ruling). The
-  contract is code (`src/scale.loft`) and gated (`src/scaletest.loft`), which converts every
-  plan threshold to metres and checks it against the real object. **State new lengths in
-  metres, or add a row to that gate** — an unconverted threshold cannot be falsified.
-  Known consequence: a *domestic* staircase (0.28 m going) is below one hex step and is an
-  **object**, not a field; plan #5's stair work describes monumental stepped work.
-  ⚠ **AND THE VERTICAL, added 2026-08-11** (plan #11 P6): **rise takes the compression run
-  takes**, so there is no second dial — `terrain_m_to_wu` is the inverse of the horizontal's
-  own conversion, and the contract is the identity `terrain_m_to_wu(OV_STEP) == HEX_LEN`: one
-  `OV_STEP` of natural rise across one walked hex renders as **exactly 45°**, which is why
-  every angle in the rendered world equals the real terrain's. Ground height per hex lives on
-  `Sim.theight` (world units, absolute — sea level 0); `src/ground.loft` makes the continuous
-  sheet the camera stands on and the floor is drawn from, one construction for both
-  (`src/horizontest.loft`).
-- **Docs-first knowledge capture (user rule, 2026-06-12): anything memory-worthy
-  goes into the appropriate repo doc** (RENDER/PLAN-*/EXTRACTION/BUNDLE/this file)
-  — agent memory holds only pointers. The repo is the shared brain; private notes
-  must not be the sole home of project knowledge.
+- **Docs-first knowledge capture** (user rule, 2026-06-12): anything memory-worthy goes into the
+  repo doc that owns it — agent memory holds only pointers. The repo is the shared brain.
+  ⚠ **And a reference doc inside `plans/` is a doc nobody is allowed to read** (`TREES.md` was
+  buried in its plan for months) — check for that before closing a plan.
 - **Read narrowly.** Prefer `grep` + an offset `Read` over pulling a whole doc; skip any doc a
   newer one declares superseded. ⚠ **Editing a file through ANY shell command re-injects the
   WHOLE file** — `sed`, a heredoc, *and a `python3 -` script*, which reads as the safe
@@ -268,18 +239,16 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   `Co-Authored-By: Claude Opus <N> (1M context) <noreply@anthropic.com>` — **naming the model
   that actually did the work**, not a version copied from this line.
 - **ALWAYS COMMIT AND PUSH — it is a SAFETY MEASURE, not a publication step** (user ruling,
-  2026-08-09). The remote is the backup; local-only work on a box that runs several agents is
-  fragile. ⚠ **Stage your own paths explicitly — `git add -A` is wrong here**, because another
-  agent's in-flight work is routinely sitting in the tree. Put the **finding** in the commit
-  message, not just the change. Still worth a word first: a PR, a published package, a
-  registry entry.
-  ⚠ **AND NEVER `git stash` TO COMPARE AGAINST HISTORY — use `git checkout <commit> -- <paths>`.**
-  Same reason, one step further: `git stash push -- <paths>` on files that are already committed
-  saves **nothing**, and the `git stash pop` that follows then pops **whatever stash was already
-  there** — someone else's. That happened in plan #16 `M4` (popped `WIP on main: e8c2cb4`,
-  conflicted `loft.lock`); it was restored and the stash left intact, but the shape is a silent
-  one — the pop looks like it worked, and the "pre-existing?" answer it produces is a lie,
-  because the code under test never actually changed.
+  2026-08-09). The remote is the backup; local-only work on a box running several agents is
+  fragile. Put the **finding** in the commit message, not just the change. Still worth a word
+  first: a PR, a published package, a registry entry.
+  ⚠ **Stage your own paths explicitly — `git add -A` is wrong here**, because another agent's
+  in-flight work is routinely sitting in the tree.
+  ⚠ **And NEVER `git stash` to compare against history — use `git checkout <commit> -- <paths>`.**
+  A stash of already-committed files saves nothing, so the `git stash pop` that follows pops
+  **whatever stash was already there** — someone else's. It looks like it worked, and the
+  "pre-existing?" answer it produces is a lie, because the code under test never changed.
+  (It happened: `plans/16-eight-statistics/README.md`.)
 
 ## loft — the traps that will bite you today
 
@@ -294,8 +263,7 @@ authorization needed), work around it, keep moving. Toolchain **2026.7.2**; `gra
 - **`text as integer|float|single` is a nullable parse** — settle with `?? 0` at the cast.
 - ~~`vec += [f(struct_temp)]` nulls every element but the first~~ (loft#496) and ~~a
   self-referential `??` default SIGSEGVs the compiler~~ — ✅ **BOTH FIXED, verified 2026-08-09
-  on 2026.8.0** by re-running LOFT-HANDOFF's own repros (H2 prints all four records; H1 prints
-  `key=rat lvl=1`). **The hoist-into-a-local and separate-fallback workarounds are obsolete —
+  on 2026.8.0.** **The hoist-into-a-local and separate-fallback workarounds are obsolete —
   stop writing them.** Existing ones are harmless; no sweep needed. ⚠ Do not re-add either
   from memory: both were true for months, so they read as folklore.
 - **A `fn(...) -> vector<single>` passed to a native FFI call silently ABORTS the program**
@@ -309,150 +277,94 @@ authorization needed), work around it, keep moving. Toolchain **2026.7.2**; `gra
 - `make bundles` is a **silent-corruption** surface (JSON `kind()` now splits `JInteger` out of
   `JNumber`). Round-trip check: the generated `src/*_gen.loft` must be byte-identical to HEAD.
 
-## Library extraction (the reusable-library goal made concrete)
-
-Routines that serve other games get PUSHED to the library layer — plan + tiers + per-package
-Definition of Done: **EXTRACTION.md** (hexgrid = the canonical moros-convention hex geometry,
-text-layout helpers → graphics, draw.py flow-back → the skill, a seeded `random` package;
-wallgeo/gen after one decoupling each; roguelike-kit + the bundle system deliberately gated).
-Where the siblings, toolchain and library stores live: **`LOFT-NOTES.md`**.
-
-**What crawler depends on moros FOR — `MOROS.md`.** The shared world (the 8 stats, races,
-powers and their names, seeded from `html/data.js` — the one place the clean-room rule is
-deliberately suspended), the hex convention, the scoped-identity decision crawler waits on,
-and moros being the library layer's second consumer. ⚠ **No libraries in it**: a library
-dependency is a **contract** (`api_compatible_with`/`loft.lock`), owned by nobody and
-changeable by anybody within it — listing one there would claim a veto crawler does not
-have. A dependency belongs there only if crawler would be *wrong* when it changed, and *no
-contract would catch it*.
-
-⚠ **OTHER PEOPLE'S TREES ARE READ-ONLY — `../moros` HAS ITS OWN AGENT RUNNING** (user
-instruction, 2026-08-09), and it moved through four commits during one crawler session.
-Read it freely and write down what you learn *here*; **do not edit that tree, and do not
-post to its tracker either** — an edit it did not make destroys its ability to tell its
-own work from yours. This is the mirror of moros' own rule about `../crawler` (*"raise
-findings instead"*), and the same holds for `../loft`, where the standing grant is **read
-plus FILE TICKETS, nothing else** (`LOFT-NOTES.md`). Cross-project findings become a
-document in crawler; **how one reaches the other project is the user's call**, not an
-action to take unasked — plan #13 `S1` is the worked example.
+## Libraries — the reusable-library goal made concrete
 
 **NO FIRST-CLASS PROJECT OWNS A LIBRARY** (user ruling, 2026-08-09) — not loft, not moros, not
-crawler, not lavition. A library must be useful to **everybody**, and **any project may add
-what it needs**; the only constraint is not breaking the others, which is what the library
-contract (`api_compatible_with` / `data_compatible_with`) makes checkable. So "we wrote it" is
-never a reason to keep a copy, "they wrote it" is never a reason to refuse a package, and
-*"the library doesn't have it"* is a reason to **extend the library**, not to grow a private
-module.
+crawler, not lavition. A library must be useful to **everybody**, and **any project may add what
+it needs**; the only constraint is not breaking the others, which is what the library contract
+(`api_compatible_with` / `data_compatible_with`) makes checkable. So "we wrote it" is never a
+reason to keep a copy, "they wrote it" is never a reason to refuse a package, and *"the library
+doesn't have it"* is a reason to **extend the library**, not to grow a private module.
 
 **AND ITS CONSTRUCTIVE HALF — a library design must be UNIVERSAL FOR THE CLASS**, not for one
 project's scope. The live case is **indexing of walls / items / ground**: a stored identity is
 an **index into a table owned by a SCOPE**, `0 = nothing` the only fixed one — the library owns
 the *indirection*, each project owns its *palette*, and the **scope is a parameter** (a region
 in moros, a bundle in crawler, a level elsewhere), never an enum of known scopes. crawler has
-solved half of this (bundles + `catalog.loft` merge, for open enumerations) and hard-codes the
-other half (**36** literal-tile sites; plus **24** dispatch-on-content-key sites in
-`itemfx`/`sim` that BUNDLE.md's standing check forbids). ⚠ **Do not close those privately** —
-that is the third implementation of one idea. **ADOPTION.md → "Universal for the class"**.
+solved half of this (bundles + `catalog.loft` merge) and hard-codes the other half — literal-tile
+sites, plus dispatch-on-content-key sites in `itemfx`/`sim` that BUNDLE.md's standing check
+forbids. ⚠ **Do not close those privately** — that is the third implementation of one idea.
+**ADOPTION.md → "Universal for the class"**; the plan is **#13**.
 
-**ONE RESOLUTION PATH — THE REGISTRY IS AUTHORITATIVE** (ADOPTION.md P3). A `--lib` sibling
-tree **outranks** the registry copy, so every one is a silent override: `random` was locked at
-0.1.0 while the build quietly took the working tree's 0.2.0 — and `sim.loft` uses 0.2.0's
+**ONE RESOLUTION PATH — THE REGISTRY IS AUTHORITATIVE** (ADOPTION.md P3). A `--lib` sibling tree
+**outranks** the registry copy, so every one is a silent override: `random` was locked at 0.1.0
+while the build quietly took the working tree's 0.2.0 — and `sim.loft` uses 0.2.0's
 `RandStream`, so **the lock described a build that could not compile**, unreported, for weeks.
 ⚠ **The only legal `--lib` in the Makefile is a package that is NOT published, and it must say
-why there** — today exactly one, `../loft/lib/` for `engine_host`. Testing against an
-unreleased sibling goes on the **command line for that run**. And ⚠ **`loft update` does not
-notice a newly declared dependency** (it walks the lock, not the manifest, and still reports
-"up-to-date" — LOFT-HANDOFF H9): after adding a dep, **compile once, then check `loft.lock`
-names it.**
+why there** — today exactly one, `../loft/lib/` for `engine_host`. Testing against an unreleased
+sibling goes on the **command line for that run**. And ⚠ **`loft update` does not notice a newly
+declared dependency** (it walks the lock, not the manifest, and still reports "up-to-date" —
+LOFT-HANDOFF H9): after adding a dep, **compile once, then check `loft.lock` names it.**
 
-The **pull** side is **ADOPTION.md**: what is already in the family and is still here as a
-copy. ✅ **The four known forks are gone** — `hexform`/`hexedge`/`hexway`/`hexroof` were the
-same construction as the published `hex_field`/`hex_edge`/`hex_way`/`hex_roof`, and all four
-are now **consumed from the registry** and deleted from `src/` (verified 2026-08-10; the rule
-that drove it stands — **a duplicate of a library module is a fork**). The rest of the family
-shares 0–1 function names with crawler, so switching costs a rewrite: those are **deferred on
-price, not refused on principle**, and they close by convergence in the library.
+✅ **The four known forks are gone** — `hexform`/`hexedge`/`hexway`/`hexroof` were the same
+construction as the published `hex_field`/`hex_edge`/`hex_way`/`hex_roof`, are consumed from the
+registry now, and the copies are deleted (2026-08-10). **A duplicate of a library module is a
+fork.** The rest of the family shares 0–1 function names with crawler, so switching costs a
+rewrite: those are **deferred on price, not refused on principle**. Push side: **EXTRACTION.md**.
+Pull side: **ADOPTION.md**.
+
+⚠ **OTHER PEOPLE'S TREES ARE READ-ONLY — `../moros` HAS ITS OWN AGENT RUNNING** (user
+instruction, 2026-08-09). Read it freely and write down what you learn *here*; **do not edit
+that tree, and do not post to its tracker either** — an edit it did not make destroys its
+ability to tell its own work from yours. This mirrors moros' own rule about `../crawler`, and
+the same holds for `../loft`, where the standing grant is **read plus FILE TICKETS, nothing
+else**. Cross-project findings become a document in crawler; **how one reaches the other project
+is the user's call**, not an action to take unasked (plan #13 `S1` is the worked example).
 
 ## Where things are
 
-- **`hex_field`** (LIB, `loft-libs-world`) — the exact-integer field core: `HexSet`,
-  `VecMap`, `trace`/`validate`, `Labels`, `Heights`, `EdgeSet`, `Stencil`. **Was
-  `src/hexform.loft`; extracted 2026-07-22 and the crawler copy DELETED** (46 files switched
-  `use hexform` → `use hex_field`; zero qualified call sites). Its gate travels with it (`loft
-  test` in the package); crawler keeps the golden-JSON diff vs the Python oracle as its
-  consumer check. The in-world editor is the second consumer — `EXTRACTION.md` → *The editor
-  as the second consumer*.
-- **The world is DERIVED, and `overland` owns the deriving.** It decides *where* a settlement
-  is, its size, its field ring (`ot_fld`), its roads and its ruins — scored from terrain. The
-  geometry stack (#5/#9/#10) is a **consumer** of that: it builds what the scorer placed, at
-  real measurements (`SCALE.md`). **We integrate with that system; we do not rewrite it** —
-  no settlement logic in the field model, no second scorer, and the seam runs one way only
-  (plan #11 P5).
-- `overland.loft` — the contract WILDERNESS (OVERLAND.md §12-13): the example world's
-  vertex/side/corner/edge contracts + zonation -> terrain kinds; the depth-0 surface is a
-  101×101 window of it (15 natural m per walked hex); `ovmap.loft` prints it as a ZAngband
-  character map.
-- `sim.loft` — world/player/enemies, combat (+`sim_bolt`), monster AI (awareness +
-  flow-field pathing), XP/level (race+class-scaled `xp_need`), HP/SP pools + natural
-  regen, statuses (paralysis/poison/ward), race+class apply (`apply_creation`, the
-  cached `rc_*` derivations), the shrine re-spec, unknown-item flavours, stairs/depth,
-  the clock. **The EIGHT statistics and what each one drives live here** (plan #16, closed
-  2026-08-11): the table is **CATALOG.md §0**, the values are the bundles, the gate is
-  `derivetest`. ⚠ Two invariants are enforced at one site each — **I-AXIS** (`NUM_STATS` is
-  the only thing that knows the axis count; every layer follows by LENGTH) and **I-POOL** (a
-  *stored* pool reads only the PERMANENT stat layers — `stat_perm`, never `stat_eff`).
-  ⚠ **Speed scales the clock** (`tick_span`, clamped `[0.5×, 2×]` — the clamp is what stops a
-  drained stat hanging a `while` loop), and the span is read at five sites through that one owner.
-- `gen.loft` — procedural dungeon (rooms+corridors), `world_key_seed`.
-- `catalog.loft` — the merges: `game_monsters`/`game_items`/`race_catalog`/`class_catalog`.
-- `castfx.loft` / `itemfx.loft` — the API layer above the kernel: cast + use-item verbs,
-  dispatching to BUNDLE routines via the generated `spell_defs_gen`/effect arms.
-- `worldmesh.loft` — the kernel-side terrain mesh (hexagon fans, stride 10, R4
-  tint bake pre-composed into vertex colors; the view only uploads/draws it). ⚠ It feeds
-  **`view.loft`, the 2D renderer**, so the R4 bake retires *with its only consumer* in plan
-  #11 P9 — it is not the 3D path's colour source.
-- `worldtex.loft` — the **world texture's CLASS raster** (plan #11 P3b, I-PAINT): one terrain
-  kind per texel over the level window, laid out on the lattice (`x = √3/2·k`, `y = m/2`, so a
-  hex corner is an exact texel corner). Kernel-side, so it emits **kinds, not colours** — the
-  palette is `view3d::kind_rgb3`, which is what lets `worldtextest` compare classes rather than
-  tones. ⚠ It **point-samples** (`px_to_hex` per texel) rather than tracing and filling: both
-  constructions were diffed over 488 032 texels of the shipped world at **0 mismatches**, and
-  the direct one is **13× cheaper native, 3.2× interpreted**. `trace` stays the test's
-  independent oracle, and stays load-bearing for geometry and silhouettes.
-- **The geometry-body work lives in the `hexbody` PROJECT** (`../hexbody`, a sibling split out
-  2026-07-23), not crawler: `housedraw` (buildings in the 12 orientations — `draw_floor`,
-  `draw_walls` thin/edge-based, `place_opening`, `draw_roof`), gated by its own `make test`
-  (`housetest`), with `houseshot` the 12-orientation contact sheet. It is the harness where
-  produced geometry stands in for meshes so a system can be tested before art exists — the
-  vehicle/body/proxy/destruction line this whole thread designed. crawler will consume it once
-  `stamp_house` becomes a caller; today crawler's game does not use it. Design + goals:
-  `../hexbody/{VISION,ARCHITECTURE}.md`; the detailed geometry spec is still `plans/11-3d-world/
-  BUILDING.md`.
-- **`hex_roof`** (LIB) — every roof form as one distance read through a profile (ridge/hip/
-  cone/dome/vaults) + the `roof_ponds` / `eave_spread` / `clear_height` gates. *Was
-  `src/hexroof.loft`; consumed from the registry and the copy deleted.*
-- `gameflow.loft` — the deterministic intent seam (K2): `flow_genesis`/`flow_move`/
-  `flow_action` + the S/T/A wire codec; the host applies AND broadcasts, a replica
-  replays — scene_key-identical worlds (replaytest). `observe.loft` = the live
-  spectator (connects to a running `story` on :18099, full renderer).
-- `story.loft` — the entry: the games-kernel HOST (`engine_host::run` — drift-free
-  60 Hz ticks, idle backoff, observers served the intent log; `game_tick` is the
-  frame; N = next world via `genbundles`). `framekey.loft` — the idle-skip scene
-  digest (the ONE chokepoint for stale-frame bugs).
-- `view.loft` — egocentric renderer; `Hud` + `build_hud` bake glyph/HUD textures AND the
-  sprites (by-name from `assets/sprites/`: `<monster_key>.png`, `player.png`, per-category
-  loot; glyph fallback); overlays: char page, inv hub, crystal page. `wallgeo.loft` —
-  wall outline (rounded; DP straightener parked in `patches/`).
-- `view3d.loft` — the first-person pass (plan #11 P3/P3b; `V` toggles until P9 deletes the 2D
-  view). Floor + wall triangles at **stride 8** = `pos(3) / colour(3) / uv(2)` — the graphics
-  library's own layout at exactly that stride. ⚠ **The uv IS the floor/wall discriminator**: a
-  floor uv is always inside `[0,1]`, so walls carry `(-1,-1)` and the fragment reads the world
-  texture only where the uv is real — one attribute, no second channel to keep in step.
-  `kind_rgb3` is the landcover palette; `build_world_texture3d` uploads (linear + mipmapped —
-  the raster is exact at texel *centres* and the blend spans ≤1 texel ≈ 0.19 m).
-  ⚠ **The floor STANDS ON `ground.loft` now** (P6) and carries a flat-per-triangle Lambert term
-  in its vertex tone — **without it the height field is invisible**, because an unlit floor is
-  its landcover colour whatever its slope. Two rules the heights changed: the floor follows the
-  **ground reading**, not passability (*rock is ground you cannot walk on, not an absence of
-  ground*), and a blocked edge whose blocker is terrain rock emits **no wall quad** (*a cliff is
-  not a wall* — the height already draws it, at its true size).
+**The world is DERIVED, and `overland` owns the deriving** — where a settlement is, its size,
+its field ring (`ot_fld`), its roads and its ruins, all scored from terrain. The geometry stack
+(#5/#9/#10) is a **consumer** of that. We integrate with that system; we do not rewrite it —
+no settlement logic in the field model, no second scorer, and the seam runs one way only.
+
+| Module | What it owns |
+|---|---|
+| **`hex_field`** (LIB) | the exact-integer field core — `HexSet`, `VecMap`, `trace`/`validate`, `Labels`, `Heights`, `EdgeSet`, `Stencil`. Its gate travels with it; crawler keeps the golden-JSON diff vs the Python oracle as its consumer check |
+| `overland.loft` | the contract WILDERNESS (OVERLAND.md §12-13) — vertex/side/corner/edge contracts, zonation → terrain kinds. The depth-0 surface is a 101×101 window of it. `ovmap.loft` prints it as a ZAngband character map |
+| `sim.loft` | world/player/enemies, combat (+`sim_bolt`), monster AI (awareness + flow-field pathing), XP/level (`xp_need`), HP/SP pools + regen, statuses, race+class apply (`apply_creation`, cached `rc_*`), the shrine re-spec, unknown-item flavours, stairs/depth, the clock — **and the eight statistics** (table: CATALOG.md §0; gate: `derivetest`) |
+| `gen.loft` | procedural dungeon (rooms+corridors), `world_key_seed` |
+| `catalog.loft` | the merges: `game_monsters` / `game_items` / `race_catalog` / `class_catalog` |
+| `castfx.loft` · `itemfx.loft` | the API layer above the kernel: cast + use-item verbs, dispatching to BUNDLE routines via the generated `spell_defs_gen` / effect arms |
+| `ground.loft` | the continuous height sheet the camera stands on and the floor is drawn from — **one construction for both** (`horizontest`). Per-hex ground height is `Sim.theight` (world units, absolute, sea level 0) |
+| `worldtex.loft` | the world texture's **CLASS raster** (I-PAINT) — one terrain kind per texel on the lattice, so a hex corner is an exact texel corner. Kernel-side, so it emits **kinds, not colours** |
+| `worldmesh.loft` | the kernel-side terrain mesh (hexagon fans, stride 10, R4 tint bake in vertex colours). ⚠ It feeds **`view.loft`, the 2D renderer**, and retires *with its only consumer* in plan #11 P9 |
+| `view3d.loft` | the first-person pass (`V` toggles until P9 deletes the 2D view). Floor + wall triangles at **stride 8** = pos(3)/colour(3)/uv(2) — the graphics library's own layout |
+| `view.loft` | the egocentric 2D renderer; `Hud` + `build_hud` bake glyphs, HUD and sprites; overlays: char page, inv hub, crystal page. `wallgeo.loft` = wall outline |
+| `gameflow.loft` | the deterministic intent seam (K2): `flow_genesis`/`flow_move`/`flow_action` + the S/T/A wire codec. Host applies AND broadcasts, a replica replays → scene_key-identical worlds (`replaytest`). `observe.loft` = the live spectator on :18099 |
+| `story.loft` | the entry: the games-kernel HOST (`engine_host::run` — drift-free 60 Hz, idle backoff, observers served the intent log; `game_tick` is the frame, `N` = next world via `genbundles`). `framekey.loft` = the idle-skip scene digest, the ONE chokepoint for stale-frame bugs |
+| `scale.loft` | the metres contract (`SCALE.md`), gated by `scaletest` |
+
+**Invariants enforced at one site each — do not add a second:**
+
+- **I-AXIS** — `NUM_STATS` is the only thing that knows the axis count; every layer follows by
+  LENGTH. **I-POOL** — a *stored* pool reads only the PERMANENT stat layers (`stat_perm`, never
+  `stat_eff`). ⚠ **Speed scales the clock** (`tick_span`, clamped `[0.5×, 2×]` — the clamp is
+  what stops a drained stat hanging a `while` loop), read at five sites through that one owner.
+- **Two the renderer turns on, and both are load-bearing where they are drawn**: the floor
+  follows the **ground reading, not passability** (*rock is ground you cannot walk on, not an
+  absence of ground*), so a blocked edge whose blocker is terrain rock emits **no wall quad** —
+  *a cliff is not a wall*, the height already draws it at its true size.
+  ⚠ **The renderer's own invariants are NOT repeated here** — the uv floor/wall discriminator,
+  the per-triangle Lambert term (without which a height field is invisible, because an unlit
+  floor is its landcover colour whatever its slope) and `worldtex`'s point-sampling all live in
+  the **file headers of `view3d.loft` and `worldtex.loft`**, which carry the measurements too.
+  The renderer surface is frozen (ADOPTION.md), so that is the least likely code you will touch
+  and the worst place to keep a second copy.
+
+**The geometry-body work lives in the `hexbody` PROJECT** (`../hexbody`, split out 2026-07-23),
+not crawler: `housedraw` (buildings in the 12 orientations), gated by its own `make test`, with
+`houseshot` the 12-orientation contact sheet. It is the harness where produced geometry stands
+in for meshes so a system can be tested before art exists. crawler will consume it once
+`stamp_house` becomes a caller; today crawler's game does not use it. Design:
+`../hexbody/{VISION,ARCHITECTURE}.md`; the geometry spec is `plans/11-3d-world/BUILDING.md`.

@@ -36,12 +36,7 @@ if [ -d ../loft/.git ]; then
     echo "              ../loft describe: ${gd:-?} (the installed binary is NOT that tree's build)"
   fi
 fi
-if [ -n "${GATE_NO_NATIVE:-}" ]; then
-  echo "  [mode] every test --interpret (GATE_NO_NATIVE=1)"
-else
-  echo "  [mode] 13 heavy tests + playtest run --native-release (·native rows); the rest --interpret."
-  echo "         First run after a kernel edit or a loft reinstall pays ~10 s rustc per affected row."
-fi
+# (the [mode] line prints below, where NATIVE_TESTS exists and can be COUNTED)
 
 # ── QUIET ON PASS, LOUD ON FAIL, AND ALWAYS SAY WHERE THE TIME WENT ─────────
 #
@@ -115,6 +110,19 @@ NATIVE_TESTS="questtest stocktest traveltest surfacetest replaytest safetytest
 # rows. Word-splitting collapses every run of whitespace, newlines included, to one space.
 # shellcheck disable=SC2086  # the word-splitting IS the normalisation
 NATIVE_TESTS=$(printf '%s ' $NATIVE_TESTS)
+
+# ⚠ COUNT THE LIST, NEVER TYPE THE COUNT. This line used to read "13 heavy tests"; the list
+# had grown to 19 and nobody noticed, because a hand-written number gives no signal when it
+# goes wrong. CLAUDE.md carried three more of the same kind (test files, rows, native rows —
+# 105/108/14 against 107/110/19 on 2026-08-11) and they had all rotted too. The gate KNOWS
+# these numbers, so the gate is where they are said, and no doc has to repeat them.
+if [ -n "${GATE_NO_NATIVE:-}" ]; then
+  echo "  [mode] every test --interpret (GATE_NO_NATIVE=1)"
+else
+  # shellcheck disable=SC2086  # word-splitting is how the list is counted
+  echo "  [mode] $(set -- $NATIVE_TESTS; echo $#) heavy tests run --native-release (·native rows); the rest --interpret."
+  echo "         First run after a kernel edit or a loft reinstall pays ~10 s rustc per affected row."
+fi
 
 # ── HOW MANY AT ONCE, AND WHY THE ROWS STILL PRINT IN ORDER ─────────────────
 #

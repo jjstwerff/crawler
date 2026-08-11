@@ -1303,3 +1303,48 @@ recompiling `loft_random` / `loft_graphics_native` cdylibs mid-suite ("loft-ffi'
 since it was built"). That churn plausibly widens the window, but it is not required for the
 failure: the `-P8` runs above reproduced it with no rebuild in progress.
 
+
+---
+
+## H11 — a library's public `fn` claims the CONSUMER's variable namespace: `use engine_host` makes `turn = 0` a compile error
+
+**Found 2026-08-11** on toolchain 2026.8.0. **Not filed yet — and the first question is whether
+it is a defect at all**, which is why it is written down before anything is renamed.
+
+**Repro — six lines, no crawler code involved:**
+
+```loft
+use engine_host;
+
+fn main() {
+  turn = 0;              // error: Cannot redefine function 'turn' as a variable
+  turn = turn + 1;
+  println("turn={turn}");
+}
+```
+
+`loft --interpret --path ../loft/ --lib ../loft/lib/ turn_repro.loft`. Drop the `use` line and
+it prints `turn=1`. The diagnostic is well-formed and points at the assignment, not at the
+library — the problem is the rule, not the message.
+
+**What happened here.** `engine_host` gained `pub fn turn(max_events: integer) -> Turn`
+(`../loft/lib/engine_host/src/engine_host.loft:313`) and crawler's gate went red at the compile
+prelude, on `src/story.loft:287`'s `turn = 0` — a local that reads the A/D keys and has been
+there for months. **No crawler file changed.** `engine_host` is the one legal `--lib` (it is
+unpublished), so crawler tracks `../loft`'s working tree directly and inherits every new public
+name in it. This is the failure mode ADOPTION.md P3 describes, arriving from the direction P3
+allowed for.
+
+**The question for the loft side:** should an *unqualified* `use` put a library's public
+function names into the consumer's **variable** namespace at all? Every short, general verb a
+library exports (`turn`, `step`, `run`, `wait`) then becomes a word no consumer may use as a
+local. A consumer cannot defend against it, and the break arrives on a commit the consumer did
+not make. `graphics::` is already called qualified in crawler; if qualified use were the rule
+for functions, the collision would not exist.
+
+**Crawler's options, none taken yet** (whose call: the user):
+1. Rename `story.loft`'s `turn` → `turn_dir`. One word, unblocks the gate today, and concedes
+   the namespace.
+2. Treat it as a loft defect and file it; keep the gate red or rename temporarily meanwhile.
+3. Pin `engine_host` (publish it, or stop tracking the working tree) so a sibling's edit cannot
+   reach crawler's compile — the structural fix, and the one ADOPTION.md P3 already argues for.
