@@ -476,10 +476,28 @@ the area — but if it continues, the label is wrong and should move.
   window simply *is* mean slope. It bought the gatherer (plan #17 needs scree/meadow, absent at
   sea level) and cost the onboarding curve; it also costs the terrain, invisibly, until P6
   makes height real. **Narrowest lever first: score `ov_home_town` on reachable high ground in a
-  walkable neighbourhood rather than raw height reach** — town 2 (655 m, 0.39) reads like the
-  intended shape and still carries a mine. That is **plan #1 / the overland's** area, and
-  `overland` owns placement — #11 records the number and does not reach for the dial.
+  walkable neighbourhood rather than raw height reach** — and that is now **DONE** (below).
   → `plans/11-3d-world/RESULTS.md` → *P6 opened*; instrument `src/horizonprobe.loft`.
+- ⚠ **THE LEVER WAS PULLED AND THE WORLD REFUSED IT (2026-08-11) — the user's call, now priced.**
+  `ov_home_town` now scores what its own comment always wanted: reach `ALPINE_MIN` (scree/meadow
+  can exist) **and** rock within a working day (a mine can exist), then **the most walkable
+  window wins**. *Height reach is a CONSTRAINT, not an OBJECTIVE* — maximising it was selecting
+  for unwalkability. `ALPINE_MIN` is now shared with `ov_kind_at` (one owner), and the rock test
+  **asks the classifier** rather than predicting K_FACE from slope: a slope proxy reported 50
+  face-like samples near town 2 where the real nearest face is **46 hexes out**.
+  **Dropping the walkability objective alone moves the start to town 2 and it is a far better
+  world** — mean walkable slope **1.02 → 0.403**, cliff steps **6303 → 36**, gentle-ramp steps
+  **3813 → 13451**, and 20 gentle alpine hexes against 0. ⚠ **But town 2 has no mine** (nearest
+  face 46 hexes, zero within `WORK_MAX_D` = 22) and `stocktest` caught it on the first run —
+  1 delivery in four peaceful days, herb chain healthy at 9. ⚠ **And deleting the edge-mine
+  fallback that `sim.loft`'s own comment argues for makes it WORSE**: `militiatest` fails too,
+  because plan #17 `S7`'s claim is literally about the ore face. **The mining economy is
+  load-bearing in two gates.** So the shipped rule is correct and *still picks town 3*, because
+  no town in the example world has both gentle ground and nearby rock. Three levers, all outside
+  plan #11: **(b) test whether a DISTANT mine now works** — #17 already moved the furnace beside
+  the mine and posted a guard, so the 90-tick leg flip may no longer bind at 46 hexes; **one
+  gate run answers it and nothing else changes — try this first**; (a) accept a mine-less valley
+  and re-derive #17's gates onto the herb chain; (c) give worldgen a town with both.
 - **The starting neighbourhood is now hostile at level 1** — a gnoll (mlvl 6) 8 hexes from the
   vantage, a level-1 hero dead on tick 13. The alpine anchor bought the gatherer and cost the
   onboarding curve. **DESIGN §3a pillar #8's business, and nobody owns it yet.** The user's call

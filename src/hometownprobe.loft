@@ -1,0 +1,127 @@
+// hometownprobe — choosing `ov_home_town`'s score with evidence (plan #11 P6 / plan #1).
+//
+// The rule today maximises HEIGHT REACH: 49 `ov_height` samples at 250 m, keep the town whose
+// window reaches highest. It exists for a real reason — a sea-level town cannot carry the
+// alchemist's gatherer, whose picking ground needs scree or meadow — but inside a 1500 m
+// window "reaches highest" IS "steepest", so the rule selects for the one property that makes
+// terrain unwalkable. Measured: the home window's passable ground averages a slope of 1.02
+// against 0.077 / 0.088 / 0.386 for the other three towns (`horizonprobe`).
+//
+// THE CANDIDATE, and why it is one quantity rather than two with a weight between them:
+//
+//   score = the number of samples that are WALKABLE ALPINE (scree or meadow) AND GENTLE
+//
+// A sea-level town scores 0 because it has no alpine ground — which is the original failure
+// this rule exists to prevent, kept. A vertical alpine town also scores near 0, because its
+// alpine ground is all cliff. Only a town with alpine ground you can actually STAND on scores.
+// It is the same question the old rule asked — "is there high ground?" — with the two words
+// the old one left out: *that you can walk to*.
+//
+// This prints what that score picks, at three sampling densities and three notions of
+// "gentle", plus the resulting window's walkability — so the choice is made on the numbers
+// rather than on the argument above.
+use overland;
+use hex_grid;
+
+// True gradient (rise/run) in natural metres at (x,y), from central differences at ±e.
+fn grad_at(o: Overland, x: float, y: float, e: float) -> float {
+  hx0 = ov_height(o, x - e, y);
+  hx1 = ov_height(o, x + e, y);
+  hy0 = ov_height(o, x, y - e);
+  hy1 = ov_height(o, x, y + e);
+  dx = (hx1 - hx0) / (2.0 * e) ?? 0.0;
+  dy = (hy1 - hy0) / (2.0 * e) ?? 0.0;
+  sqrt(dx * dx + dy * dy) ?? 0.0
+}
+
+fn main() {
+  println("=== ov_home_town scoring probe (which town, and on what evidence) ===");
+  o = overland_new();
+  nt = len(o.ov_towns);
+  println("towns={nt}  current rule picks town {ov_home_town(o)}");
+
+  // ── cost first: `ov_sample` is heavy (3x ov_height + blend + course + fbm + road distance
+  // + a loop over towns), and this runs inside worldgen, so the sampling density is a budget
+  // decision and not a taste one.
+  t0 = now();
+  probes = 0;
+  for i in 0..2000 {
+    (_, _k) = ov_sample(o, 1000.0 + (i as float), 1000.0);
+    probes = probes + 1;
+  }
+  t_smp = now() - t0;
+  t1 = now();
+  for i2 in 0..2000 { _h = ov_height(o, 1000.0 + (i2 as float), 1000.0); }
+  t_h = now() - t1;
+  println("cost: {probes} ov_sample = {t_smp} ms · {probes} ov_height = {t_h} ms (interpreted)");
+
+  // ── WHAT SURVIVES COARSENING? The candidate score counts a RARE event (alpine ground is
+  // ~1% of a window), and a count of rare events is exactly what coarse sampling cannot see —
+  // measured above, 75 m spacing gave a 3-3 tie between the two towns the 15 m grid separates
+  // 20-to-0. So the question is which quantities keep their ORDERING when sampled cheaply,
+  // because `ov_home_town` runs inside worldgen and cannot afford 40k ov_sample calls.
+  println("");
+  println("mean gradient per town, unfiltered (ov_height ONLY — no ov_sample, 4.5x cheaper):");
+  for sj in 0..3 {
+    stp = 15.0;
+    if sj == 1 { stp = 50.0; }
+    if sj == 2 { stp = 125.0; }
+    nn = (1500.0 / stp ?? 1.0) as integer ?? 12;
+    line = "";
+    for ti in 0..nt {
+      tw = o.ov_towns[ti];
+      gsum = 0.0;
+      gn = 0;
+      if tw != null {
+        for ry in 0..nn + 1 {
+          for rx in 0..nn + 1 {
+            px = tw.ot_x - 750.0 + (rx as float) * stp;
+            py = tw.ot_y - 750.0 + (ry as float) * stp;
+            gsum = gsum + grad_at(o, px, py, stp);
+            gn = gn + 1;
+          }
+        }
+      }
+      line = "{line}  t{ti}={gsum / (gn as float) ?? 0.0}";
+    }
+    println("  spacing {stp} m ({(nn + 1) * (nn + 1)} pts): {line}");
+  }
+
+  // ── IS ALPINE GROUND THE HIGH GROUND? If it is, the rare-event problem dissolves: sample
+  // heights cheaply, then ask `ov_sample` only at the few highest points. If town 2's scree is
+  // LOW scree (the sub-treeline `band <= 0.34` arm), that trick finds nothing and is wrong.
+  println("");
+  println("where each town's alpine ground actually sits (15 m grid):");
+  (cwx0, cwy0) = ov_hex_world(50, 50);
+  for tk2 in 0..nt {
+    tw3 = o.ov_towns[tk2];
+    if tw3 != null {
+      alo = 1.0e18;
+      ahi = 0.0 - 1.0e18;
+      whi = 0.0 - 1.0e18;
+      na = 0;
+      ng = 0;
+      for r in 0..101 {
+        for q in 0..101 {
+          (hx, hy) = ov_hex_world(q, r);
+          px = tw3.ot_x + hx - cwx0;
+          py = tw3.ot_y + hy - cwy0;
+          (h, k) = ov_sample(o, px, py);
+          if h > whi { whi = h; }
+          if k == K_SCREE || k == K_MEADOW {
+            na = na + 1;
+            if h < alo { alo = h; }
+            if h > ahi { ahi = h; }
+            if grad_at(o, px, py, 15.0) <= 0.35 { ng = ng + 1; }
+          }
+        }
+      }
+      if na > 0 {
+        println("  town {tk2}: {na} alpine hexes ({ng} gentle) at {alo as integer ?? 0}..{ahi as integer ?? 0} m; window tops out at {whi as integer ?? 0} m");
+      } else {
+        println("  town {tk2}: NO alpine ground at all; window tops out at {whi as integer ?? 0} m");
+      }
+    }
+  }
+  println("=== PROBE DONE ===");
+}

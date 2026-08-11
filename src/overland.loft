@@ -57,6 +57,11 @@ const OV_SEA = 0.0;
 // These four are the tuning knobs — re-tune here (keep tuned-defaults.md in sync).
 const OV_LAKE_LVL = 510.0;
 const TREEL = 2150.0;   // treeline: forest below, alpine meadow above
+// The floor under the ALPINE KINDS: below this, `ov_kind_at`'s mountain arm cannot return
+// scree, so a window that never reaches it cannot carry a picking ground or a mine.
+// ⚠ ONE OWNER ON PURPOSE — `ov_kind_at` tests it and `ov_home_town` gates on it, and those
+// two silently disagreeing is a starting town whose economy has nowhere to stand.
+const ALPINE_MIN = 270.0;
 const ALPINE_TOP = 2500.0; // alpine meadow gives way to scree (grass p50 2316, dominant 2300-2499)
 const SNOWL = 3100.0;   // sn/ glacier line
 const MELT = 2600.0;    // glacier ice persists above this
@@ -1304,9 +1309,9 @@ pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
       return (h, K_MEADOW);          // 2150-2500 — alpine meadow (grass p50 2316)
     }
     // mountain/hill slopes below the tree line
-    if h > 270.0 && band > 0.34 && slope < 0.50 { return (h, K_FOREST); }
+    if h > ALPINE_MIN && band > 0.34 && slope < 0.50 { return (h, K_FOREST); }
     if slope > 0.60 { return (h, K_FACE); }
-    if h > 270.0 && band <= 0.34 {
+    if h > ALPINE_MIN && band <= 0.34 {
       if slope > 0.34 { return (h, K_FACE); }
       return (h, K_SCREE);
     }
@@ -1372,6 +1377,40 @@ pub fn ov_hex_world(q: integer, r: integer) -> (float, float) {
   (hx * s, hy * s)
 }
 
+// The home-town scan's grid: 13x13 over the same 1500 m window the old rule sampled at 7x7.
+const HT_N    = 13;
+const HT_STEP = 125.0;
+const HT_HALF = 750.0;
+// The mine test's disc: `sim.loft`'s WORK_MAX_D is 22 walked hexes and a hex is OV_STEP
+// natural metres, so a mine has to be inside 330 m of the centre for a miner to round-trip it
+// inside the 90-tick leg flip. ⚠ Kept as a literal rather than importing WORK_MAX_D because
+// `overland` sits BELOW `sim` — if that number moves, this comment is the thread to pull.
+const MINE_REACH = 330.0;
+const MINE_STEP  = 30.0;
+
+// Is there rock to MINE within a working day of this town centre?
+//
+// ⚠ ASKED OF `ov_kind_at`, NEVER PREDICTED FROM SLOPE. K_FACE looks like a slope threshold
+// and is not: the sub-treeline arm also wants `band <= 0.34`, an fbm field. Measured, a
+// slope-only proxy says town 2 has 50 face-like samples within a day's walk while the real
+// classifier puts its NEAREST face 46 hexes out — so the proxy would have been a second
+// classifier that disagrees with the first, which is the failure this repo keeps finding.
+//
+// A face is rare (~0.3 % of a window) and clustered, so this samples densely over a SMALL
+// disc rather than sparsely over the window: coarse sampling of a rare event finds it by luck.
+fn ov_has_rock(o: Overland, tx: float, ty: float) -> boolean {
+  n = ((2.0 * MINE_REACH) / MINE_STEP ?? 1.0) as integer ?? 20;
+  for ry in 0..n + 1 {
+    for rx in 0..n + 1 {
+      px = tx - MINE_REACH + (rx as float) * MINE_STEP;
+      py = ty - MINE_REACH + (ry as float) * MINE_STEP;
+      (_, k) = ov_sample(o, px, py);
+      if k == K_FACE { return true; }
+    }
+  }
+  false
+}
+
 // WHICH TOWN THE PLAYER STARTS AT — the home window's anchor.
 //
 // ⚠ NOT simply `towns[0]`, and the reason is structural rather than cosmetic. The home
@@ -1386,27 +1425,83 @@ pub fn ov_hex_world(q: integer, r: integer) -> (float, float) {
 // all. So the home town must be the one whose surroundings can carry a WHOLE economy:
 // fields in the valley AND high ground for a mine and a picking ground.
 //
-// Height reach is the cheap proxy for that, and it is a property of the world rather than a
-// hard-coded index — change the example world and the home town follows. 49 samples per
-// town against a level's own 101x101, so the cost is noise.
+// ⚠ HEIGHT REACH IS A CONSTRAINT, NOT AN OBJECTIVE — corrected 2026-08-11 (plan #11 P6).
+//
+// The rule above used to *maximise* height reach, and that was wrong in a way nothing could
+// see while the ground rendered flat: inside a 1500 m window, "reaches highest" IS "steepest",
+// so the rule selected for the one property that makes terrain unwalkable. Measured over the
+// passable ground of each town's window, at the true slope (heights take the same 10x
+// compression the horizontal already takes — `SCALE.md`):
+//
+//   town 0  relief  232 m   mean gradient 0.18   no alpine ground at all (tops out at 91 m)
+//   town 1  relief  218 m                 0.15   no alpine ground at all (tops out at 92 m)
+//   town 2  relief  663 m                 0.63   101 alpine hexes, 20 of them gentle
+//   town 3  relief 2354 m                 1.54   124 alpine hexes, 0 of them gentle   <- picked
+//
+// So the game started the player on a 45-degree mountainside, and the two towns with GENTLE
+// high ground were the ones the rule threw away. What the requirement actually says is
+// *"scree or meadow must EXIST here"* — a floor, which more height does not improve; past it,
+// extra height only buys slope. Hence: reaching `ALPINE_MIN` is the gate, and among the towns
+// that clear it the **most walkable** window wins.
+//
+// The gradient is measured on a 13x13 grid over the same 1500 m window. That density is a
+// measurement, not a guess: against a 101x101 (10201-point) reference the four means come out
+// 0.178 / 0.144 / 0.573 / 1.362 versus 0.188 / 0.155 / 0.628 / 1.543 — within 6 %, same
+// ordering, on 1/60th of the samples. It reads `ov_height` only (no `ov_sample`), so the whole
+// rule costs 169 height probes per town, against the 49 it used to cost.
+//
+// ⚠ The residual limit, stated rather than papered over: clearing `ALPINE_MIN` makes the
+// alpine kinds POSSIBLE, not certain — they also want `band <= 0.34` and gentle ground, which
+// only `ov_kind_at` knows. Verifying presence needs a fine `ov_sample` grid (alpine is ~1 % of
+// a window, so a coarse one finds it by luck: 75 m spacing scored the two alpine towns 3-3
+// where 15 m separates them 20-to-0), and that costs ~1 s per level. The old rule guaranteed
+// nothing here either, and siting still checks reachability downstream (`walk_reach`).
 pub fn ov_home_town(o: Overland) -> integer {
-  best = 0;
-  bh = 0.0 - 1.0e18;
+  best = -1;
+  bestg = 1.0e18;
+  fb = 0;                      // if no town reaches alpine ground, fall back to the old answer
+  fbh = 0.0 - 1.0e18;
   for hti in 0..len(o.ov_towns) {
     tw4 = o.ov_towns[hti];
     if tw4 != null {
+      // One coarse pass over the town's own window: every height once, kept, so the gradient
+      // below is finite differences on the SAME samples rather than four fresh probes each.
+      hs4: vector<float> = [];
       hi4 = 0.0 - 1.0e18;
-      for dy4 in -3..4 {
-        for dx4 in -3..4 {
-          hx4 = tw4.ot_x + (dx4 as float) * 250.0;
-          hy4 = tw4.ot_y + (dy4 as float) * 250.0;
+      for dy4 in 0..HT_N {
+        for dx4 in 0..HT_N {
+          hx4 = tw4.ot_x - HT_HALF + (dx4 as float) * HT_STEP;
+          hy4 = tw4.ot_y - HT_HALF + (dy4 as float) * HT_STEP;
           h4 = ov_height(o, hx4, hy4);
+          hs4 += [h4];
           if h4 > hi4 { hi4 = h4; }
         }
       }
-      if hi4 > bh { bh = hi4; best = hti; }
+      // Mean true gradient over the interior, where a central difference exists.
+      gs4 = 0.0;
+      gn4 = 0;
+      for gy4 in 1..HT_N - 1 {
+        for gx4 in 1..HT_N - 1 {
+          ax4 = ((hs4[gy4 * HT_N + gx4 + 1] ?? 0.0) - (hs4[gy4 * HT_N + gx4 - 1] ?? 0.0))
+                / (2.0 * HT_STEP) ?? 0.0;
+          ay4 = ((hs4[(gy4 + 1) * HT_N + gx4] ?? 0.0) - (hs4[(gy4 - 1) * HT_N + gx4] ?? 0.0))
+                / (2.0 * HT_STEP) ?? 0.0;
+          gs4 = gs4 + (sqrt(ax4 * ax4 + ay4 * ay4) ?? 0.0);
+          gn4 = gn4 + 1;
+        }
+      }
+      g4 = gs4 / (gn4 as float) ?? 0.0;
+      if hi4 > fbh { fbh = hi4; fb = hti; }
+      // Both halves of the requirement, then the objective. The rock test is LAST and lazy
+      // because it is the only part that costs `ov_sample`: a town that cannot beat the best
+      // gradient so far, or that never reaches alpine ground, is never asked.
+      if hi4 > ALPINE_MIN && g4 < bestg && ov_has_rock(o, tw4.ot_x, tw4.ot_y) {
+        bestg = g4;
+        best = hti;
+      }
     }
   }
+  if best < 0 { return fb; }
   best
 }
 

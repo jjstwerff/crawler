@@ -648,6 +648,67 @@ so P6 records the number and does not reach for the dial.
 > the near field clamp what it draws. **(a) is the narrowest and is the one to try first**, and
 > it is squarely plan #1 / the overland's area, not plan #11's.
 
+### The lever was pulled, and the world refused it (2026-08-11)
+
+`ov_home_town` now scores what its own comment always said it wanted, and the correction is
+worth stating on its own: **height reach is a CONSTRAINT, not an OBJECTIVE.** Inside a 1500 m
+window "reaches highest" *is* "steepest", so maximising it selected for the one property that
+makes terrain unwalkable. The rule is now: reach `ALPINE_MIN` (so scree/meadow can exist) **and**
+have rock within a working day (so a mine can exist) — then among those, **the most walkable
+window wins**. Gradient is measured on a 13×13 grid of `ov_height`; against a 10201-point
+reference the four means come out within 6 % with the same ordering, on 1/60th of the samples.
+
+⚠ **`ALPINE_MIN` is now a named constant shared with `ov_kind_at`**, because a home-town rule
+and a classifier disagreeing about where alpine ground begins is a starting town whose economy
+has nowhere to stand.
+
+⚠ **And the rock test asks `ov_kind_at` rather than predicting K_FACE from slope.** It looks
+like a slope threshold and is not — the sub-treeline arm also wants `band <= 0.34`. Measured, a
+slope-only proxy reports **50** face-like samples within a day's walk of town 2 where the real
+classifier puts its **nearest face 46 hexes out**. That proxy would have been a second
+classifier that disagrees with the first.
+
+**Dropping the walkability objective alone gives a far better world** — the start moves from
+town 3 to town 2:
+
+| | town 3 (old) | town 2 |
+|---|---|---|
+| mean walkable slope | 1.02 | **0.403** |
+| cliff steps (> 2.0) | 6303 | **36** |
+| 45–63° steps | 16451 | **2079** |
+| gentle-ramp steps | 3813 | **13451** |
+| gentle alpine hexes | 0 | **20** |
+
+⚠ **But town 2 has no mine, and the gate said so on the first run.** Its window holds 33 K_FACE
+hexes and the nearest is **46 hexes from the centre — zero within `WORK_MAX_D` = 22**, so the
+mine falls through to the "no rock in this window" branch that puts the mouth at the window
+EDGE. `stocktest` went red exactly where it should: *"1 delivery in four peaceful days — the
+supply loop is dead, and the pressure arm below then proves nothing."* The herb chain measured
+9 deliveries and healthy, so the failure is the ore trade alone.
+
+⚠ **Removing that edge fallback — which `sim.loft`'s own comment argues for in writing (*"SO A
+VALLEY TOWN SIMPLY HAS NO MINE, and that is the honest answer"*) — makes it worse, and that is
+the finding.** With no mine at all, `stocktest` loses its pressed chain *and* **`militiatest`
+fails too**: plan #17 `S7`'s claim is literally about the ore face (*"the picket did not make
+the ore face safer"*). The mining economy is load-bearing in two gates, so a mine-less valley
+start is a plan #17 rewrite, not a side effect to absorb here.
+
+**So the rule shipped is the correct one, and in this example world it still selects town 3** —
+because no town has both gentle ground and rock within a day's walk. The four towns are: two
+sea-level (no alpine at all), one gentle valley with distant rock, one mountainside with rock.
+**The walkable start is not available in this world without a second decision**, and all three
+candidates are outside plan #11:
+
+> **OPEN, the user's call, now priced.**
+> **(a)** Accept a mine-less valley start and re-derive plan #17's gates onto the herb chain —
+> `stocktest` and `militiatest` both key on the ore face today. Biggest blast radius, and it
+> gives up the "protect the forge that mends your gear" loop `S6` closed on the player.
+> **(b)** Test whether a **distant** mine actually works: plan #17 already moved the furnace
+> beside the mine and posted a guard on the works, so the 90-tick leg flip may no longer bind
+> at 46 hexes. One gate run answers it, and if it passes, town 2 becomes eligible and nothing
+> else changes. **Cheapest, and the one to try first.**
+> **(c)** Give worldgen a town with both — the example world simply offers none.
+
 Until it resolves, P6 can still build the parts that do not depend on the answer: the boundary
 ring's geometry, the two-reading sampling seam, and the diff harness itself — all of which need
 a height *function*, not a particular one. The instrument is `src/horizonprobe.loft`, which is

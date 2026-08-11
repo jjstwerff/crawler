@@ -1,0 +1,69 @@
+// rockprobe — can a CHEAP test tell a town that can carry a mine from one that cannot?
+// (plan #11 P6 / plan #1)
+//
+// Making `ov_home_town` prefer walkable ground moved the start to town 2, and `stocktest` went
+// red on the ore chain alone. Measured on the real Sim: town 2's window holds 33 K_FACE hexes,
+// 17 of them walkable-adjacent, and the NEAREST is 46 hexes from the centre — zero within
+// WORK_MAX_D=22, zero within 40. So the mine falls back to "put the mouth at the window edge",
+// which is the 42-hex unreachable ore face plan #17 already fixed once.
+//
+// The tension is real and worth naming: K_FACE is assigned to STEEP ground, so selecting for a
+// gentle window selects against the cliffs a mine needs. A mining town wants gentle ground to
+// LIVE on and steep ground to DIG into — that is what a mountain valley is, and the old rule
+// got it by accident (by taking the steepest window) at the cost of making the whole thing
+// unwalkable.
+//
+// So `ov_home_town` needs both halves of its own stated requirement. This asks whether the
+// second half can be measured from HEIGHTS ALONE — `ov_kind_at` calls ground a face when its
+// slope term exceeds 0.34, and that term is the raw gradient over 3 — so the question is
+// whether a coarse max-gradient near the centre separates the towns the way the real K_FACE
+// map does.
+use overland;
+use hex_grid;
+
+fn grad_at(o: Overland, x: float, y: float, e: float) -> float {
+  hx0 = ov_height(o, x - e, y);
+  hx1 = ov_height(o, x + e, y);
+  hy0 = ov_height(o, x, y - e);
+  hy1 = ov_height(o, x, y + e);
+  dx = (hx1 - hx0) / (2.0 * e) ?? 0.0;
+  dy = (hy1 - hy0) / (2.0 * e) ?? 0.0;
+  sqrt(dx * dx + dy * dy) ?? 0.0
+}
+
+fn main() {
+  println("=== can heights alone see a mine? (ov_kind_at calls it a face at raw gradient > 1.02) ===");
+  o = overland_new();
+  nt = len(o.ov_towns);
+  // WORK_MAX_D = 22 walked hexes at OV_STEP = 15 natural m each.
+  reach = 22.0 * OV_STEP;
+  println("a day's walk = {reach} natural m from the town centre");
+  for si in 0..3 {
+    e = 60.0;
+    if si == 1 { e = 30.0; }
+    if si == 2 { e = 15.0; }
+    n = ((2.0 * reach) / e ?? 1.0) as integer ?? 10;
+    line = "";
+    for ti in 0..nt {
+      tw = o.ov_towns[ti];
+      mx = 0.0;
+      over = 0;
+      if tw != null {
+        for ry in 0..n + 1 {
+          for rx in 0..n + 1 {
+            px = tw.ot_x - reach + (rx as float) * e;
+            py = tw.ot_y - reach + (ry as float) * e;
+            g = grad_at(o, px, py, e);
+            if g > mx { mx = g; }
+            if g > 1.02 { over = over + 1; }
+          }
+        }
+      }
+      line = "{line}  t{ti}: max {mx} over={over};";
+    }
+    println("  spacing {e} m ({(n + 1) * (n + 1)} pts/town):{line}");
+  }
+  println("");
+  println("ground truth from the Sim: town 2 has NO walkable face-neighbour within 40 hexes.");
+  println("=== PROBE DONE ===");
+}
