@@ -1,8 +1,25 @@
 # STATE.md — where things stand (2026-08-11)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, **107 rows**
-in **2m32s**, 8-wide; 2026-08-11). ⚠ `militiatest` (84 s) and `stocktest` (84 s) are the long
-poles, `incursiontest` third at 52 s. Written as a handoff: read after a `/clear`.
+## THE SHORT ANSWER — read ONLY this to start work
+
+⚠ **Everything below this block is RECORD, not state.** It is the reasoning behind how we got
+here, and it is read on demand — by grep, for one question — not top to bottom. This block is
+the only part that must be current, which is why it is short enough to keep current.
+
+| | |
+|---|---|
+| **branch / tree** | `combat`, clean, pushed |
+| **gate** | green — `make test` PASS, **109 rows in 2m16s** 8-wide (2026-08-11). Long poles: `stocktest` 81 s, `militiatest` 81 s, `incursiontest` 52 s, `towertest` 42 s |
+| **live plan** | **#11 — 3D world** (`plans/11-3d-world/`). Done: P0–P4, P3b, P6, and **P5 steps A+B** (2026-08-11). Closed by ruling: P6b (layer cache declined) |
+| **⚠ THE RULING THAT OVERRIDES THE PLAN'S TAIL** | **crawler adopts the moros editor's rendering engine and never derives from the common base** (user, 2026-08-11). So the **renderer surface is FROZEN** — `ADOPTION.md` → *The rendering engine is the editor's*. Waiting on moros publishing the packages as part of its **lavition editor** work |
+| **what is open to work on** | anything **kernel-side** (the field, settlement simulation, bundles, world derivation). Plan #11's tail (P7 props, P8 sprites, P9's 2D retirement) is renderer-side and **waits** |
+| **whose call, not mine** | (1) P6d — its premise dissolved with P6b; re-scope or close. (2) whether P5 step B's curved wall stays running as a marked swap-site. (3) how any crawler finding reaches moros |
+
+**Then read:** `plans/11-3d-world/README.md`'s phase table for the plan, `ADOPTION.md`'s
+engine section before touching any renderer code, and `LIBRARIES.md` (generated) for any
+signature in the `hex_*` family — never the package source, which is where the reasoning is.
+
+---
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.

@@ -110,7 +110,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test
+.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test
 
 # Default target: print the overview above.
 help:
@@ -130,6 +130,22 @@ src/bundles.loft: $(wildcard bundles/*/bundle.json) src/genbundles.loft
 	@echo "  bundles: registries regenerated"
 
 bundles: src/bundles.loft
+
+# LIBRARIES.md — the signature index for every declared dependency, regenerated from the
+# registry copies the build actually resolves. Looking a signature up used to mean reading
+# the package (~500 lines of source for ~20 signatures, measured over one session).
+apidoc:
+	@tools/api_index.sh
+
+# ⚠ AND THE CHECK IS WHAT KEEPS IT HONEST. A generated file nobody verifies is a hand-kept
+# file with extra steps: it drifts the first time a dependency moves and reads exactly as
+# authoritative while it lies. Same shape as `make bundles`' round-trip.
+apidoc-check:
+	@tools/api_index.sh /tmp/story_apidoc.md >/dev/null
+	@diff -q LIBRARIES.md /tmp/story_apidoc.md >/dev/null || { \
+	    echo "    FAIL: LIBRARIES.md is stale — run 'make apidoc' and commit the result."; \
+	    diff LIBRARIES.md /tmp/story_apidoc.md | head -20; exit 1; }
+	@echo "  [apidoc] LIBRARIES.md matches the registry"
 
 play: src/bundles.loft
 	@echo "  [1/2] checking loft toolchain ..."

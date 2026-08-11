@@ -213,9 +213,18 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   perspective, palette, scale, QA, reference plates). The one thing to know from here: **the
   view resolves sprites BY NAME, no code per sprite** — drop `<monster_key>.png` into
   `assets/sprites/` and it is in the game; a missing file falls back to the glyph.
-- **Where things stand right now — `STATE.md`.** Plans #5/#9/#10, the decisions already
-  taken (scale, the library/content seam, props-as-objects, stencils), what is open and
-  whose call it is, and the three lessons worth carrying. **Read it first after a `/clear`.**
+- **Where things stand right now — `STATE.md`, and read ONLY its top block.** *THE SHORT
+  ANSWER* is ≤25 lines: branch, gate, live plan and phase, what is open to work on, and whose
+  call the open questions are. **Everything below it is RECORD** — the reasoning behind how we
+  got here, reached by grep for one question, never read top to bottom. Measured 2026-08-11:
+  the file is 900+ lines and its first 450 were a narrative of one phase that was already two
+  phases stale, sitting where a `/clear` is told to start. **The short block is the only part
+  that must be current, which is what keeps it short enough to stay current.**
+- **A SIGNATURE LOOKUP IS `LIBRARIES.md`, NOT THE PACKAGE** (generated; `make apidoc`,
+  verified by `make apidoc-check`). One line per public name in every declared dependency.
+  Measured: ~500 lines of library source were read in one session to recover ~20 signatures,
+  because there was nowhere to look them up. Open the package for its *reasoning* — that is
+  what its comments are for — never to find out what a function takes.
 - **The living settlement — `CRAFTING.md`.** A settlement's output is a function of the danger
   around it, and the player moves that number: safety as a category, workers who refuse unsafe
   ground, stock a workshop can run out of, incursions that arrive from a source you can end,
@@ -250,8 +259,11 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   — agent memory holds only pointers. The repo is the shared brain; private notes
   must not be the sole home of project knowledge.
 - **Read narrowly.** Prefer `grep` + an offset `Read` over pulling a whole doc; skip any doc a
-  newer one declares superseded. Editing a file with `sed`/heredoc makes the harness re-inject
-  the WHOLE file — use the Edit tool. (Plan #11 P5 lost ~17k tokens to exactly that.)
+  newer one declares superseded. ⚠ **Editing a file through ANY shell command re-injects the
+  WHOLE file** — `sed`, a heredoc, *and a `python3 -` script*, which reads as the safe
+  alternative and is not: plan #11 P5 lost ~17k tokens to `sed` and ~750 lines to python on the
+  same file. **Use the Edit tool for edits you make by hand**; a shell rewrite is only worth it
+  for a bulk mechanical change across many sites, and then expect to pay for the file once.
 - Commits: branch **`combat`** (not `main`); end messages with
   `Co-Authored-By: Claude Opus <N> (1M context) <noreply@anthropic.com>` — **naming the model
   that actually did the work**, not a version copied from this line.

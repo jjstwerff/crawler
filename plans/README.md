@@ -140,6 +140,30 @@ in two days and "quick" takes weeks; effort buckets stay stable, projections don
 **Length budget: 100–300 lines per plan README.** Longer means reference content is
 leaking in — extract it to the doc that owns it.
 
+## ⚠ STATE AT THE TOP, RECORD BELOW — and only the top must be current
+
+Measured 2026-08-11, in the session that wrote it down: answering *"what do I do next"* cost
+**~380 lines** of reading — a 221-line plan README plus excerpts of a 1300-line `RESULTS.md` —
+because the current position was scattered through the reasoning that produced it. `STATE.md`
+had the same shape and was worse: 450 lines of one phase's narrative, two phases stale, at the
+exact spot a `/clear` is told to start.
+
+The split is cheap and it is not a style preference:
+
+- **STATE** — *where we are, what is next, what is blocked, whose call.* A table, ≤25 lines,
+  at the top of the file. It is rewritten every time it changes, which is affordable **because
+  it is short**. A long state block is one that will not be updated, and a stale state block
+  is worse than none: it is read first and believed.
+- **RECORD** — *why we got here.* Findings, measurements, the controls that fired, the designs
+  that were refuted. Append-only, never read top to bottom, reached by grep for one question.
+  Give it a **phase index** at the top so a reader can jump instead of scan.
+
+**And the record's cost is the writer's to control.** Prefer a table of measurements to a
+narrative of them; state the finding once, in the sentence that carries the number. A record
+nobody can afford to read has failed at the only job it has — the sibling trees' habit of a
+*claim* as a heading (below) is the same instinct: it lets a reader skip on the strength of
+the heading alone.
+
 ## What a plan must carry (adopted from `../loft` and `../moros`, 2026-08-09)
 
 Both siblings write plans the same way, and the three habits below are what make theirs
