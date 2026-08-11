@@ -49,13 +49,33 @@ where crawler sits in the stack.
 > fields are first-come, and the loser falls back to greedy stepping. A picket now stands its
 > post and asks the cache for nothing.
 >
-> ### ⚠ THE LOOSE THREAD `S7` LEAVES: `FLOWD_MAX` IS SATURATED IN THE SHIPPED WORLD
+> ### ✅ AND THE LOOSE THREAD IT LEFT IS CLOSED (2026-08-10): the path-field cap was a silent cliff, and it was already over
 >
-> 24 of 24 fields, before anything this plan added. That means **some civilian, today, is
-> walking greedily and nobody knows which** — a silent capacity cliff, and the freeze it causes
-> is one this repo has already paid for once (*greedy is not pathing*). Raising the cap moves
-> every number `stocktest`/`incursiontest`/`militiatest` are gated on, so it is **its own change
-> with its own measurement**, not a line in `S7`. Recorded, not fixed.
+> The question `S7` recorded as *"some civilian is walking greedily and nobody knows which"* has
+> an answer: **nine of them, and it was their HOMES.** The shipped home window demands **38**
+> distinct (destination, class) fields against a flat `FLOWD_MAX = 24`, so 14 were never served
+> — and the losers were not random. Work is asked by day, home by night, day comes first, so
+> what lost was systematically the night leg: **nine townsfolk walked home in a straight line
+> every night**, freezing at the first concave obstacle, which is the exact failure the fields
+> were introduced to end.
+>
+> **I-FIELD: every destination an actor can descend toward has a field**, and the bound is a
+> property of the world rather than a constant. The derivation was already written in the old
+> comment and never used: an actor's `hq`/`wq2`/`aq2` are fixed when it spawns, so **it can ask
+> for at most three destinations**, and everything asked at runtime resolves to one of those or
+> the town seat. `flowd_cap = 3n + 16` is provably above the demand at any actor count. Fill
+> stays lazy, so memory tracks what is asked (~38 fields, ~3 MB), never the cap.
+>
+> ⚠ **NOTHING GATED MOVED, and that is the finding, not a relief.** `stocktest` still reads 7
+> against 3, `militiatest` still 775/1600 → 0 and 3 → 6 deliveries. The nine it repaired are
+> villagers, the smith, a fisher, a farmer and a merchant — **nobody in a measured supply
+> chain** — which is precisely why a defect this size lived in the starting town unnoticed:
+> *every gate watched the two chains that happened to win the race for a field.*
+>
+> Gated by `safetytest` row 5b, which counts FIELDS rather than paths — a destination with no
+> field is a cache failure, one with a field and no route is a worldgen fact (this town has
+> one, a ring guard's outer leg), and a row that tested the path would blame the cache for the
+> world. **Verified able to go red**: pinned back to 24 it reports `24 built / 38 declared`.
 >
 > **The roster is `#11` 3D world · `#13` scoped identity · `#17` safe supply** (decided
 > 2026-08-09 from evidence, `plans/README.md` → *The active roster*, cap of three). The work

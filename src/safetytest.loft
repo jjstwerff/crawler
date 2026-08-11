@@ -140,6 +140,74 @@ fn main() {
   if tsafe == 0 { println("FAIL: the town is entirely unsafe — no worker could ever leave"); ok = false; }
   if civs == 0 { println("FAIL: no civilians in the town — the predicate has nobody to govern"); ok = false; }
 
+  // ── 5b. I-FIELD: EVERY DESTINATION AN ACTOR CAN ASK FOR HAS A PATH FIELD ──────────
+  //
+  // Civilians descend cached flow fields keyed by (destination, movement class); without one
+  // they fall back to the straight-line step, which freezes at the first concave obstacle and
+  // stays frozen, because nothing about the situation ever changes. That fallback is SILENT.
+  //
+  // ⚠ AND IT WAS FIRING, on the world players boot into. The cache was capped at a flat 24
+  // while this window demands 38, so 14 destinations were never served — and not at random:
+  // work is asked by day, home by night, day comes first, so what lost was systematically the
+  // HOMES. **Nine townsfolk walked home in a straight line every night**, and the only reason
+  // anyone found out was that plan #17 `S7` put a picket where a miner needed to walk.
+  //
+  // The cap is derived from the actor count now (`flowd_cap` — an actor declares at most three
+  // destinations and they are fixed when it spawns), so this row asks the question that cap is
+  // supposed to answer, rather than trusting the arithmetic: **can every civilian reach every
+  // destination of its own, through the field?** A world that ever saturates again fails here
+  // instead of quietly walking into a rock.
+  // ⚠ IT ASKS ABOUT THE FIELD, NOT ABOUT THE PATH, and the difference is the whole row. A
+  // destination with no field is a cache failure; a destination with a field and no route is a
+  // worldgen fact (this town has one — a ring guard's outer leg stands on ground it cannot
+  // walk to, recorded in STATE.md). Both make `sim_npc_path_dist` answer `FLOW_BIG`, so a row
+  // that tested the path would blame the cache for the world. Counting FIELDS separates them.
+  dq5: vector<integer> = [];
+  dr5: vector<integer> = [];
+  dc5: vector<integer> = [];
+  for i in 0..sim_enemy_count(t) {
+    if sim_enemy_alive(t, i) && sim_enemy_role(t, i) > 0 {
+      rl5 = sim_enemy_role(t, i);
+      cls5 = 0;
+      if rl5 == 5 { cls5 = 5; }
+      if rl5 == 6 { cls5 = 6; }
+      (hq5, hr5) = sim_enemy_home(t, i);
+      (wq5, wr5) = sim_enemy_work(t, i);
+      (aq5, ar5) = sim_enemy_alt(t, i);
+      for k5 in 0..3 {
+        cq5 = hq5;
+        cr5 = hr5;
+        if k5 == 1 { cq5 = wq5; cr5 = wr5; }
+        if k5 == 2 { cq5 = aq5; cr5 = ar5; }
+        dup5 = false;
+        for j5 in 0..len(dq5) {
+          if (dq5[j5] ?? -1) == cq5 && (dr5[j5] ?? -1) == cr5 && (dc5[j5] ?? -1) == cls5 { dup5 = true; }
+        }
+        if !dup5 {
+          dq5 += [cq5];
+          dr5 += [cr5];
+          dc5 += [cls5];
+          sim_npc_path_dist(t, cq5, cr5, rl5, cq5, cr5);   // the ask that builds it
+        }
+      }
+    }
+  }
+  demand5 = len(dq5);
+  built5 = sim_flow_fields(t);
+  println("I-FIELD: the town declares {demand5} distinct (destination, class) fields; {built5} were built");
+  if built5 < demand5 {
+    println("FAIL: {demand5 - built5} declared destinations got NO field — everyone heading there walks it greedily and freezes at the first corner");
+    ok = false;
+  }
+  // ⚠ AND THE ROW MUST BE ABLE TO GO RED, which is not free here: it passes trivially if the
+  // town is small enough to fit under any cap. On the shipped world the demand is 38 against
+  // the flat 24 this cache used to carry, so the row DID fail before the cap was derived from
+  // the actor count — and it will fail again the day a town outgrows whatever replaces it.
+  if demand5 <= 24 {
+    println("FAIL: this town demands only {demand5} fields, so the row cannot distinguish a derived cap from the old flat 24 — it proves nothing");
+    ok = false;
+  }
+
   // ── 6. at least one PRODUCER works outside the ring the guards hold ───────────────
   // ⚠ The measurement this row exists to defend: the town's fields (68,50 / 68,52) and its
   // fishing spot sit inside the guarded ring, so they are safe BY CONSTRUCTION — making

@@ -39,7 +39,10 @@ REGEN_EVERY = 10;     // natural regeneration: +1 HP every N ticks (Angband: wou
 SP_REGEN_EVERY = 6;   // mana returns a little faster than wounds knit; poison does NOT block the mind
 COMBAT_DELTA_CAP = 8; // level gap beyond which raw level stops mattering in combat (§3a #2)
 COMBAT_STEP = 6;      // % damage per level of (capped) gap — at most ±48%: level alone can't win/lose a fight
-FLOW_BIG   = 1000000; // unreachable / unset distance in the flow field
+pub FLOW_BIG = 1000000; // unreachable / unset distance in the flow field. ⚠ Pub because
+                      //   `sim_npc_path_dist` RETURNS it, so every gate that asks "can this
+                      //   worker get there" has to name it — and two of them had written the
+                      //   literal out instead, which is one fact in three places.
 HERO_CON   = 16;      // starting Constitution (full stat block = H2; HP is class-uniform, not con-driven)
 NUM_STATS  = 6;       // STR, INT, WIS, DEX, CON, CHR
 ST_STR     = 0;       // STR's index in the stat vectors (feeds the melee skill)
@@ -3019,7 +3022,10 @@ pub fn sim_militia_petition(s: &Sim) -> integer {
 // spawns. So fields are built lazily and then kept, and every NPC walking to the same place
 // reads the same one. Recomputing per NPC per tick — the obvious implementation — would be a
 // 10,201-hex BFS per civilian per tick, which is why it is worth saying that it is not that.
-FLOWD_MAX = 24;      // distinct (destination, class) fields to keep; beyond it, greedy again
+// ⚠ HOW MANY IS NOT A CONSTANT — see `flowd_cap` below. A flat 24 sat *under* the shipped
+// world's own demand of 38 and quietly sent nine civilians home in a straight line every
+// night. The cap is derived from the actor count now, and the gate asserts the demand is met
+// rather than trusting that it is.
 
 // Which terrain a role can cross. Boats and ships live on water, everyone else off it — the
 // same three-way split `npc_passable` makes, named once so a field is shared by every role
@@ -3070,8 +3076,31 @@ fn compute_npc_flow(s: Sim, dq: integer, dr: integer, cls: integer) -> vector<in
   fl
 }
 
-// The slot base for this destination's field, building it on first ask. -1 when the cache is
-// full — the caller then falls back to the greedy step, which is what it always did.
+// How many fields this world may hold — **a property of the world, not a constant.**
+//
+// ⚠ THE CONSTANT WAS A SILENT CLIFF, AND IT WAS ALREADY OVER (measured 2026-08-10). The
+// shipped home window DEMANDS 38 distinct (destination, class) fields against a flat
+// `FLOWD_MAX = 24`, so 14 destinations were never served — and the losers were not random.
+// Work is asked by day and home by night, day comes first, so what lost was systematically
+// the HOMES: **nine townsfolk walked home on a straight line every night**, freezing at the
+// first concave obstacle, which is the exact failure the fields were introduced to end
+// (*greedy is not pathing*). Nothing reported it; the fallback is silent by construction.
+//
+// The bound is derivable, and the comment above already contains the derivation: an actor's
+// `hq`/`wq2`/`aq2` are fixed when it spawns, so **it can ask for at most three destinations**,
+// and everything asked at runtime resolves to one of those or to the town seat — a raid
+// objective is a worker's own work hex (`raid_objective`), a picket's stand is asked against
+// the work site's field (`militia_stand`), and a picket has no beat to walk. So `3n + slack`
+// is provably above the demand for any world, at any actor count, forever.
+//
+// ⚠ IT IS A RUNAWAY GUARD, NOT A BUDGET. Fill stays lazy, so memory tracks what is actually
+// asked (~38 fields, ~3 MB) and never the cap. Read live off `len(enemies)` rather than baked
+// at genesis, because raiders and pickets are appended after it.
+fn flowd_cap(s: Sim) -> integer { 3 * len(s.enemies) + 16 }
+
+// The slot base for this destination's field, building it on first ask. -1 only if a caller
+// ever exceeds `flowd_cap` — which no actor can, by the derivation above — and the caller then
+// falls back to the greedy step, which is what it always did.
 fn npc_flow_base(s: &Sim, dq: integer, dr: integer, role: integer) -> integer {
   cls = npc_move_class(role);
   n = s.lw * s.lh;
@@ -3081,7 +3110,7 @@ fn npc_flow_base(s: &Sim, dq: integer, dr: integer, role: integer) -> integer {
   for i in 0..len(kq) {
     if (kq[i] ?? -1) == dq && (kr[i] ?? -1) == dr && (kc[i] ?? -1) == cls { return i * n; }
   }
-  if len(kq) >= FLOWD_MAX { return -1; }
+  if len(kq) >= flowd_cap(s) { return -1; }
   fl = compute_npc_flow(s, dq, dr, cls);
   base = len(kq) * n;
   s.flowd_q += [dq];

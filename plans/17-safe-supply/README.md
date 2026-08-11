@@ -26,11 +26,14 @@
 > | the alpine bands, the meadow band and `SNOW_REACH`, the home window's anchor | `src/overland.loft` (`TREEL`/`ALPINE_TOP`/`SNOW_REACH`, `ov_kind_at`, `ov_home_window`) |
 > | real dimensions for every threshold named here | `SCALE.md` + `src/scaletest.loft` |
 >
-> **What this plan leaves behind, and it is the one thing NOT closed:** `FLOWD_MAX` is
-> **saturated at 24 of 24 in the shipped world** before anything #17 added, so some civilian is
-> walking greedily today and nobody knows which. Recorded in `STATE.md`; raising it moves every
-> number `stocktest`/`incursiontest`/`militiatest` are gated on, so it is **its own change with
-> its own measurement**, not a line here.
+> ✅ **AND THE ONE THING IT LEFT OPEN IS NOW CLOSED TOO** (2026-08-10, immediately after): the
+> path-field cap. #17 found it saturated at 24 of 24 and recorded *"some civilian is walking
+> greedily and nobody knows which"*; the answer turned out to be **nine of them, and it was
+> their homes** — the window demands **38** fields, work is asked by day and home by night, and
+> day came first. `flowd_cap` is derived from the actor count now (`3n + 16`, provably above a
+> demand of at most three destinations per actor), gated by `safetytest` row 5b. ⚠ **No gated
+> number moved**, which is the finding rather than a relief: the nine were villagers, a smith,
+> a fisher, a farmer and a merchant — *nobody in a measured supply chain*. → `STATE.md`.
 
 > ## ✅ `I-SAFE` IS CLOSED END TO END (2026-08-10)
 >

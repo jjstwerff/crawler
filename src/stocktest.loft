@@ -208,7 +208,7 @@ fn main() {
       (mwq, mwr) = sim_enemy_work(w, mi);
       pd = sim_npc_path_dist(w, wq, wr, 9, hq, hr);
       pdm = sim_npc_path_dist(w, mwq, mwr, 10, mhq, mhr);
-      if pd >= 1000000 || pdm >= 1000000 {
+      if pd >= FLOW_BIG || pdm >= FLOW_BIG {
         println("FAIL: a work site has NO PATH from its home (herb={pd} ore={pdm}) — the worker cannot ever work");
         ok = false;
       }
