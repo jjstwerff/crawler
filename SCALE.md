@@ -26,6 +26,35 @@ The 10× compression is the standard overland-game illusion — a town is a tile
 map and a full map when you enter it. It is a **user ruling evaluated by gameplay, not by
 theory** (OVERLAND.md §13a), and it is **one dial**, `OV_STEP`.
 
+### The vertical (added 2026-08-11, plan #11 P6)
+
+**Rise takes the compression run takes.** A height arrives from the overland in natural
+metres while the ground under it is walked at 1/10 of natural scale, so the *same* conversion
+serves both axes — `terrain_m_to_wu` is simply the inverse of `wu_to_terrain_m`, and there is
+no second dial to keep in step with the first.
+
+The whole contract is one identity, and `scaletest` checks it:
+
+```
+   terrain_m_to_wu(OV_STEP) == HEX_LEN
+```
+
+**One `OV_STEP` of natural rise across one walked hex renders as exactly 45°** — the slope
+reality has there. That is what makes the reading *correct* rather than chosen: because both
+axes take the same factor, every angle in the rendered world equals the angle in the real
+terrain it was sampled from.
+
+⚠ **This file pinned the horizontal twice over and said nothing about the vertical until
+something needed it**, and the silence was invisible because the ground was a flat plane —
+`sim` fetched each hex's height and discarded it, so no height ever reached a renderer.
+The alternative reading (leave heights natural) multiplies every slope by ten: measured over
+the home window's passable ground, a mean gradient of 0.40 becomes 4.0, i.e. walls. It is
+stated here rather than in the plan because it is a property of the world, not of one phase.
+
+The near reading lives on `Sim.theight` (world units, absolute — sea level is 0, so walking
+between windows puts no step in the ground), and `src/ground.loft` turns those samples into
+the continuous sheet the camera stands on. Gate: `src/horizontest.loft`.
+
 ## Every plan threshold, in metres
 
 Checked by the gate against what the real object measures:

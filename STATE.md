@@ -1,11 +1,66 @@
 # STATE.md — where things stand (2026-08-11)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, **106 rows**
-in **1m45s**, 8-wide; 2026-08-11). ⚠ `militiatest` (55.5 s) and `stocktest` (54.5 s) are the long
-poles, `worldtextest` third at 27 s. Written as a handoff: read after a `/clear`.
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, **107 rows**
+in **2m32s**, 8-wide; 2026-08-11). ⚠ `militiatest` (84 s) and `stocktest` (84 s) are the long
+poles, `incursiontest` third at 52 s. Written as a handoff: read after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
+
+> ## ✅ **plan #11 P6a IS BUILT (2026-08-11) — THE GROUND HAS HEIGHT, and the two readings agree at exactly 0.**
+>
+> **I-HORIZON's gate could not be run for the life of the project because there was only ONE
+> reading** — `sim`'s surface generator sampled each hex's height out of the overland and wrote
+> `(_, okind)`, so the number was dropped one character before it could be stored and the world
+> was a flat plane in both renderers. It is two readings now: over the window's **404-hex
+> boundary ring and its full diagonal the difference is exactly 0 wu**, with a negative control
+> (ask the far side about the hex next door) that disagrees on **101 of 101**. `horizontest`,
+> 6 rows.
+>
+> **THE VERTICAL IS NOW STATED, and it belongs to the world rather than to the plan** —
+> [`SCALE.md`](SCALE.md) → *The vertical*. Rise takes the compression run takes, so there is no
+> second dial, and the contract is one identity: `terrain_m_to_wu(OV_STEP) == HEX_LEN` — **one
+> `OV_STEP` of natural rise across one walked hex renders as exactly 45°**. Both axes take the
+> same factor, so every angle in the rendered world equals the real terrain's. The rejected
+> reading (heights left natural) multiplies every slope by ten: 0.40 → 4.0, i.e. walls.
+>
+> ⚠ **Two residues were removed BY CONSTRUCTION rather than tolerated**, and both were float
+> association order, not disagreement: near-vs-far read 9.2e-14 wu apart because the generator
+> computed `ax + hx - cwx` and the far side `(ax - cwx) + hx` (now **one expression**,
+> `window_hex_world` — one owner for where a level's lattice sits in the wilderness), and a
+> shared corner came out 1.4e-14 wu apart depending which of its three hexes asked (`a+b+c` vs
+> `b+c+a`; now summed in canonical order). Sub-picometre in metres — and *a tolerance would have
+> cost the gate its discriminating power*, since it could not then tell rounding from a real
+> frame error.
+>
+> **`src/ground.loft` is the surface**: a corner is the mean of the hexes meeting there (no
+> cracks), a point is barycentric inside **exactly one of the triangles the floor fan draws** —
+> so the camera stands on the surface it draws by identity, gated at 28 800 points against the
+> plane computed the other way (worst 7e-15 wu).
+>
+> ⚠ **AND THE FRAME FOUND WHAT NO NUMBER COULD, TWICE.** (1) **Without shading the height field
+> is invisible** — an unlit floor is its landcover colour whatever its slope, so a 40° hillside
+> rendered as the same flat green as a meadow and the phase's whole deliverable could not be
+> seen. (2) **Rock is ground you cannot walk on, not an absence of ground** — the floor was
+> drawn only where you may stand, so a mountain drew as a HOLE ringed by a 2.8 m fence
+> duplicating a cliff the height already describes.
+>
+> ⚠ **The picture was explained by an INSTRUMENT, not by reading the code** (`src/skyprobe.loft`).
+> The dark band across the first frame looked like the mountain; the window's **290 blocked
+> hexes are 33 rock and 257 BUILT** — it is **the town's own wall ring seen from its square**.
+> The same probe refuted the competing reading (a hole in the mesh: the horizon profile over all
+> ground and over only-drawn ground agree to 0.1° in every bearing) and confirmed the third: the
+> start **is** in a bowl, 32–44° above the eye in 8 of 12 bearings, open at 60–120° — which is
+> exactly where the camera looks. ⚠ That does **not** contradict *"mean walkable slope 0.403"*:
+> that statistic is about the steps you take, this one about what you see, and an alpine valley
+> town is both.
+>
+> **Height is a RENDERING property at this phase and nothing else** — passability is still the
+> edge field, so a slope neither blocks nor slows. Whether a gradient should cost the walker
+> anything is a gameplay question with its own keys.
+>
+> **Still owed by P6: the far field and the air box** — what `sim_window_frame` /
+> `window_hex_world` were exposed for. → `plans/11-3d-world/RESULTS.md` → *P6a*.
 
 > ## ✅ **plan #11 P3b IS BUILT (2026-08-11) — landcover is a texture derived from the field, and the design named the expensive way to make one.**
 >
@@ -595,7 +650,12 @@ Five unrelated problems, one decision.
 
 **2. Rendering finds what numeric gates pass.** Ten faults survived 36 green gates. Plan #11 P0
 extended it: **a first-person camera found a world too small for its own player** (1.51 m eaves,
-a 1.45 m door, a 1.75 m figure) which every raised camera had missed.
+a 1.45 m door, a 1.75 m figure) which every raised camera had missed. P6 extended it twice more
+— a mountain drawn as a **hole** (the floor followed passability, not the ground reading) and a
+2.8 m fence duplicating a cliff — neither of which any number in the gate is about. ⚠ **And its
+converse: the frame has to be able to SHOW the thing.** Unlit, a 40° hillside renders exactly
+like a meadow, so the phase's whole deliverable was invisible and "wrong" and "fine" produced
+the same picture. *Before reading a frame for a verdict, check the frame can carry one.*
 
 **3. The failure mode is never a check that fails — it is one that PASSES FOR THE WRONG
 REASON.** The single most productive rule in this repo. Fifteen instances, and they arrive by
@@ -712,6 +772,13 @@ genuinely different routes:
   times** in either arm of the week: it was not a supply path at all. The measurement existed
   (a stock number moved), the *attribution* did not. ⚠ *A diagnostic that reports the symptom
   but not its cause invites a plausible cause to be written down instead.*
+- a **difference small enough to wave through, in the one place it must not be** (2026-08-11)
+  — near-vs-far heights disagreed by 9.2e-14 wu and a shared corner by 1.4e-14, both pure float
+  association order (`ax + hx - cwx` against `(ax - cwx) + hx`; `a+b+c` against `b+c+a`). In
+  metres they are sub-picometre and a tolerance was the obvious answer. ⚠ *A tolerance would
+  have cost the row the only thing it is for* — it could no longer separate rounding from a real
+  frame error, which is exactly the class of bug it exists to catch. Both were removed **by
+  construction** (one expression; one canonical summation order) and the gate reads 0.
 - a **test the gate never runs** (2026-08-10, now fixed) — five test files sat in `src/` and
   appeared in no row of `tools/run_tests.sh`, plus one listed twice. They compiled, so nothing
   complained; they simply never executed. *Being written is not being wired* — and note the

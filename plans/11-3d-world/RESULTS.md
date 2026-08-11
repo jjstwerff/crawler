@@ -740,11 +740,102 @@ The onboarding-curve concern `STATE.md` records separately (a gnoll at mlvl 6, e
 the vantage) is a *placement* question and is untouched by this; it should be re-measured on the
 new window before it is assumed to have moved either way.
 
-Until it resolves, P6 can still build the parts that do not depend on the answer: the boundary
-ring's geometry, the two-reading sampling seam, and the diff harness itself — all of which need
-a height *function*, not a particular one. The instrument is `src/horizonprobe.loft`, which is
-deliberately **not** in `make test`: it measures a world rather than asserting an invariant,
-and the invariant it wants to assert (*the starting window is walkable*) would go red today.
+The instrument is `src/horizonprobe.loft`, deliberately **not** in `make test`: it measures a
+world rather than asserting an invariant.
+
+## ✅ P6a — the near reading EXISTS, and the two readings agree exactly (2026-08-11)
+
+**The gate P6 was written around can be run now, and it is green at 0.** `sim` stores a height
+per hex, the far reading is `ov_height` at the same world point, and over the window's 404-hex
+boundary ring and its full diagonal the difference is **exactly 0 wu** — with a negative
+control (ask the far side about the hex next door) that disagrees on **101 of 101**.
+
+### The vertical is a property of the world, so it went in `SCALE.md`
+
+Rise takes the compression run takes, which needs no second dial: `terrain_m_to_wu` is the
+inverse of the `wu_to_terrain_m` that already served the horizontal. The contract is one
+identity and `scaletest` checks it — `terrain_m_to_wu(OV_STEP) == HEX_LEN`, i.e. **one
+`OV_STEP` of natural rise across one walked hex renders as exactly 45°**. Both axes take the
+same factor, so every angle in the rendered world equals the angle of the terrain it was
+sampled from. The rejected reading (heights left natural) multiplies every slope by ten: the
+home window's mean walkable gradient 0.40 → 4.0.
+
+### Two residues removed BY CONSTRUCTION, and the reason it was worth the effort
+
+Both were float association order, not disagreement about the world:
+
+| | before | cause | after |
+|---|---|---|---|
+| near vs far | 9.2e-14 wu | the generator computed `ax + hx - cwx`, the far side `(ax - cwx) + hx` | **0** |
+| a shared corner, asked by its 3 hexes | 1.4e-14 wu | `a+b+c` vs `b+c+a` | **0** |
+
+The first is now one expression (`window_hex_world`, beside `window_anchor` — **one owner for
+where a level's lattice sits in the wilderness**, which the far field needs anyway); the second
+sums in canonical `(r,q)` order. In metres both were sub-picometre and could have been waved
+through with a tolerance. ⚠ **A tolerance would have cost the gate its discriminating power** —
+it could not then tell a rounding difference from a real frame error, which is the one class of
+bug this row exists to catch.
+
+### The surface: one construction, two consumers, gated as an identity
+
+`src/ground.loft` turns one sample per hex into a sheet. A corner is the mean of the (up to
+three) hexes meeting there — so the fan of one hex meets its neighbour's along a shared edge
+with shared endpoints, and the ground is continuous rather than terraced. A point is
+barycentric inside the `(centre, corner k, corner k+1)` triangle, **which is exactly one of the
+triangles the floor fan draws**. So the camera stands on the surface it draws by identity, not
+by agreement — gated at 28 800 interior points against the same plane computed the other way
+(a cross-product normal): worst **7e-15 wu**.
+
+### ⚠ THE FRAME FOUND WHAT THE NUMBERS COULD NOT, TWICE
+
+**1. Without shading the height field is INVISIBLE.** An unlit floor is its landcover colour
+whatever its slope, so a 40° hillside rendered as the same flat green as a meadow. *"The ground
+looks wrong"* and *"the ground looks fine"* produced the same picture — the phase's whole
+deliverable could not be seen, and no numeric gate can notice that. A flat-per-triangle
+Lambert term in the vertex tone (which I-PAINT already multiplies the texture by) is the fix;
+flat rather than smoothed on purpose, because a facet is the honest picture of a mesh whose
+vertices are hex samples.
+
+**2. Rock is ground you cannot walk on, not an absence of ground.** The floor was drawn only
+where the field says you may stand — correct while the world was flat, wrong the moment it is
+not: a mountain drew as a **hole** ringed by a 2.8 m fence duplicating a cliff the height
+already describes. The floor now follows the *reading*, and a blocked edge whose blocker is
+terrain rock emits no quad. Architecture keeps its quads (decision 6: a wall's THICKNESS
+decides its layer).
+
+### ⚠ And the picture was explained by an INSTRUMENT, not by reading the code
+
+The first frame showed a dark band across the middle distance. Two readings fitted it and they
+called for opposite work: *the start sits in a bowl*, or *the mesh has a hole where the rock
+is*. `src/skyprobe.loft` settled it:
+
+- the window's **290 blocked hexes are 33 rock and 257 BUILT** — the band is **the town's own
+  wall ring, seen from its square**, and the mountain reading was wrong. (The rock fix above is
+  therefore a small correction here, and says so in the source rather than claiming a number it
+  did not measure.)
+- the horizon profile over **all** ground and over **only the ground the renderer draws** agree
+  to 0.1° in every one of 12 bearings — so there is no hole worth seeing, and
+- the bowl is **real**: 32–44° above the eye in 8 of 12 bearings, open at 60–120°, which is
+  exactly where the camera looks. 663 m of relief over 1.5 km is Alpine and correct.
+
+⚠ **The bowl does not contradict "mean walkable slope 0.403".** That statistic is about the
+*steps you take*; this one is about *what you see*. A valley floor is walkable and still ringed
+by mountains — which is what an alpine valley town looks like.
+
+### What P6a deliberately did NOT do
+
+**Height is a rendering property at this phase and nothing else.** Passability is still the
+edge field, so a slope neither blocks nor slows. Whether a gradient should cost the walker
+anything is a gameplay question with its own keys, and inventing one here is the bounded-
+simulation trap (DESIGN §3a pillar 0) entered one reasonable feature at a time.
+
+**Still owed by P6:** the far field itself — the terrain beyond the window and the air box,
+which is what `sim_window_frame` / `window_hex_world` were exposed for. P6b (parallax layers)
+and P6d (the blend band) follow it.
+
+**Gate:** `src/horizontest.loft` (6 rows, in `NATIVE_TESTS` at 21 s interpreted). Full suite
+green, **107 rows in 2m32s**, and every plan #17 measurement reads what it read before — which
+is what the bit-identical sampling arithmetic buys.
 
 ## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
 

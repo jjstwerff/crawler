@@ -86,10 +86,10 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 102 (**106 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10/11,
-8-wide: **1m45s** / 1m29s / 1m47s / 2m29s / 2m40s warm, **2m43s–3m34s with a cold native cache**,
-3m15s at `GATE_JOBS=1`). ⚠ **`militiatest` and `stocktest` are the long poles** (55.5 s and
-54.5 s contended on 2026-08-11): each generates several 101×101 surfaces — two of them an A/B
+test` runs all 103 (**107 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10/11,
+8-wide: **1m45s** / 1m29s / 1m47s / 2m29s / 2m32s / 2m40s warm, **2m43s–3m34s with a cold native
+cache**, 3m15s at `GATE_JOBS=1`). ⚠ **`militiatest` and `stocktest` are the long poles** (84 s and
+84 s contended on 2026-08-11, 55.5 s and 54.5 s earlier the same day — box load moves them a lot): each generates several 101×101 surfaces — two of them an A/B
 that ticks four simulated days — because plan #17's claims are about what a settlement
 produces, and that cannot be asked of a sandbox. `worldtextest` is third at 27 s for the same
 kind of reason: its oracle traces and fills all nine landcover classes of a real world.
@@ -173,7 +173,7 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **102 files / 106 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
+  (currently **103 files / 107 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
   defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
   safety/production/repair/standing/travel/idle-skip/mesh/world-texture/kernel/replay/
   playthroughs/…). Keep it
@@ -237,6 +237,14 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   metres, or add a row to that gate** — an unconverted threshold cannot be falsified.
   Known consequence: a *domestic* staircase (0.28 m going) is below one hex step and is an
   **object**, not a field; plan #5's stair work describes monumental stepped work.
+  ⚠ **AND THE VERTICAL, added 2026-08-11** (plan #11 P6): **rise takes the compression run
+  takes**, so there is no second dial — `terrain_m_to_wu` is the inverse of the horizontal's
+  own conversion, and the contract is the identity `terrain_m_to_wu(OV_STEP) == HEX_LEN`: one
+  `OV_STEP` of natural rise across one walked hex renders as **exactly 45°**, which is why
+  every angle in the rendered world equals the real terrain's. Ground height per hex lives on
+  `Sim.theight` (world units, absolute — sea level 0); `src/ground.loft` makes the continuous
+  sheet the camera stands on and the floor is drawn from, one construction for both
+  (`src/horizontest.loft`).
 - **Docs-first knowledge capture (user rule, 2026-06-12): anything memory-worthy
   goes into the appropriate repo doc** (RENDER/PLAN-*/EXTRACTION/BUNDLE/this file)
   — agent memory holds only pointers. The repo is the shared brain; private notes
@@ -430,3 +438,9 @@ price, not refused on principle**, and they close by convergence in the library.
   texture only where the uv is real — one attribute, no second channel to keep in step.
   `kind_rgb3` is the landcover palette; `build_world_texture3d` uploads (linear + mipmapped —
   the raster is exact at texel *centres* and the blend spans ≤1 texel ≈ 0.19 m).
+  ⚠ **The floor STANDS ON `ground.loft` now** (P6) and carries a flat-per-triangle Lambert term
+  in its vertex tone — **without it the height field is invisible**, because an unlit floor is
+  its landcover colour whatever its slope. Two rules the heights changed: the floor follows the
+  **ground reading**, not passability (*rock is ground you cannot walk on, not an absence of
+  ground*), and a blocked edge whose blocker is terrain rock emits **no wall quad** (*a cliff is
+  not a wall* — the height already draws it, at its true size).
