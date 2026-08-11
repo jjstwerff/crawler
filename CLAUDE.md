@@ -86,7 +86,7 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 103 (**107 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10/11,
+test` runs all 105 (**108 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10/11,
 8-wide: **1m45s** / 1m29s / 1m47s / 2m29s / 2m32s / 2m40s warm, **2m43s–3m34s with a cold native
 cache**, 3m15s at `GATE_JOBS=1`). ⚠ **`militiatest` and `stocktest` are the long poles** (84 s and
 84 s contended on 2026-08-11, 55.5 s and 54.5 s earlier the same day — box load moves them a lot): each generates several 101×101 surfaces — two of them an A/B
@@ -173,7 +173,7 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **103 files / 107 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
+  (currently **105 files / 108 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
   defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
   safety/production/repair/standing/travel/idle-skip/mesh/world-texture/kernel/replay/
   playthroughs/…). Keep it

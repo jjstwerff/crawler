@@ -88,9 +88,34 @@ where crawler sits in the stack.
 > called itself a stand-in for the horizon P6 derives. Exponential extinction over a stated 25 km
 > visibility.
 >
-> **Next is P6b** (cache the far rings and re-project — I-PARALLAX). ⚠ One measured fact should
-> shape it: **nine of twelve bearings are fully occluded by the near rim**, so a cache keyed on
-> VISIBILITY saves more here than one keyed on distance.
+> ## ✅ **P6b's CRITERION IS BUILT (2026-08-11) — and priced with the compression in it, the parallax cache BUYS ONE LAYER.**
+>
+> I-PARALLAX is code (`src/parallax.loft`) and gated as pure camera math, no GL
+> (`parallaxtest`, 4 rows). The gate reads the **error in pixels**, not the boolean — *a
+> boolean that is always true and one that is correctly true look identical at the output.*
+>
+> ⚠ **THE COMPRESSION IS A TERM AND `DESIGN.md`'s TABLE OMITS IT.** That table prices a 2 km
+> layer at 0.6 s of walking, treating the camera's translation and the layer's distance as the
+> same kind of length. They are not: terrain is compressed 10× while the player walks at
+> **architecture** scale, so a layer 2 km away in natural metres stands **231 wu** from a camera
+> moving 1.73 wu/s. Cache life is **0.175 s, not 1.75** — and the gate asserts the ratio is
+> **exactly `TERRAIN_COMPRESS`**, so it is the compression and not something else.
+>
+> ⚠ **And the criterion's own answer is that the near layers are not cacheable at all.** Over a
+> 150 m walk, worst case:
+>
+> | layer | its nearest content | budget | over 100 frames |
+> |---|---|---|---|
+> | 0 | 1.0 km | **0.13 m walked** | under one hex step — **not cacheable** |
+> | 1 | 4.0 km | **0.52 m** | under one hex step — **not cacheable** |
+> | 2 | 15.9 km | 2.09 m | 100 renders — saves nothing |
+> | 3 | 63.7 km | 8.34 m | **20 renders — saves 80%** |
+>
+> A layer whose whole budget is under one step cannot be reused for even one frame. That is
+> I-PARALLAX *answering*, not failing: such a layer must be **geometry**, which is exactly what
+> P6's skirt is. **So the layer machinery is worth 1 of 4 layers — decide before building it.**
+> ⚠ Also measured: nine of twelve bearings are fully occluded by the near rim from the shipped
+> start, so a cache keyed on VISIBILITY would save more here than one keyed on distance.
 > → `plans/11-3d-world/RESULTS.md` → *P6a*, *P6b-far*.
 
 > ## ✅ **plan #11 P3b IS BUILT (2026-08-11) — landcover is a texture derived from the field, and the design named the expensive way to make one.**
