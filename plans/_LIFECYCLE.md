@@ -28,6 +28,20 @@ CLOSURE-RECORD (what shipped, when, what it cost) · HISTORICAL (superseded).
 The test: **a reader who never opens `plans/` must still find how the thing works.**
 If the only description of a shipped mechanism lives in a plan, the move is not done.
 
+⚠ **Look for whole DOCUMENTS, not just paragraphs** — the case that actually happened. Plan
+`#9` grew `TREES.md`, a full reference for a shipped subsystem, and it sat inside
+`plans/9-canopy-trees/` for months while the issue carried `status:finished`. *A plan that
+earns its own reference doc has done half of create-and-move; the half everyone forgets is
+the move.* One command:
+
+```sh
+find plans/<N>-<slug> -name '*.md' ! -name 'README.md'   # each hit: move it, or say why not
+```
+
+And two tells that a moved doc was never really re-read: a stale header (`TREES.md` still
+opened *"DESIGN ONLY. Nothing built."* after ten gated phases), and no pointer from the entry
+docs — if `CLAUDE.md` has never heard of it, neither has the reader.
+
 **3 — Trim the plan's section** to a lead status line + where the reference now lives:
 
 ```markdown
@@ -51,6 +65,21 @@ gh issue edit <N> -R jjstwerff/crawler --remove-label status:active --add-label 
 **A closed issue must carry `status:finished` or `status:declined` — never a live
 status.** Closing the issue by hand does not swap the label, so this drifts silently.
 When you touch a closed plan, verify the label matches the state.
+
+⚠ **AND THE MIRROR, which is the one that bites: a `status:finished` label on an OPEN issue.**
+`#9`/`#10` sat that way and nobody noticed, because *nothing forces the two to agree*. It is
+not cosmetic — the label says the checklist ran, and in `#9`'s case it had not: acting on it
+found a whole reference doc still buried in the plan. **A label is not a closure.** Both
+directions in one query:
+
+```sh
+gh issue list -R jjstwerff/crawler --label plan --state all \
+  --json number,state,labels --jq '.[] | select(
+    (.state=="OPEN"   and ([.labels[].name] | index("status:finished"))) or
+    (.state=="CLOSED" and (([.labels[].name] | index("status:finished")) | not)
+                      and (([.labels[].name] | index("status:declined")) | not))
+  ) | "DRIFT: #\(.number) \(.state)"'
+```
 
 **5 — Grep and rewrite incoming links. THE most-skipped step.**
 

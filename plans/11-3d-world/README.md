@@ -42,7 +42,7 @@ presentation seam that today emits camera-facing boards and later emits animated
 
 `SCALE.md` + `src/scale.loft` (one grid, two readings — the contract this plan leans on
 hardest) · `PROPS.md` · `plans/5-geometry/INTEGRATION.md` (the field's phases; **Track 2**
-there is the layer axis this plan's P5 inherits) · `plans/9-canopy-trees/TREES.md` ·
+there is the layer axis this plan's P5 inherits) · `TREES.md` ·
 `plans/2-chunked-lod-world/` (the far field: `src/viewer.loft` already renders overland
 terrain in 3D with LOD chunks) · `RENDER.md` + `plans/7-render/` (the GL substrate and the
 verification channels) · `EXTRACTION.md` (the package split, and **§ The editor as the second consumer** — the

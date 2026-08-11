@@ -5,8 +5,24 @@
 
 ## Status
 
-**All nine phases done.** P1–P8 gated; P9 scored 4/6 with both failures understood (see P9). The design is settled in **[PROPS.md](../../PROPS.md)** (parts
-1–4). This file is the implementation order.
+> # ✅ CLOSED — `status:finished`, 2026-08-10 (user)
+>
+> **All nine phases done: 36 gates, P1–P8 green.** P9 closes at **4/6 with both failures
+> understood and written down** — the props are present and correct but not yet well *shown*,
+> which is a framing fault, not a modelling one (see P9). ⚠ **That is a closure, not a fudge:**
+> the predicates were frozen in `build/INTENT-props.md` *before* the fixes and then scored, so
+> the two that fail are a recorded result rather than a moved bar.
+>
+> ## ⚠ THIS DOCUMENT IS A CLOSURE RECORD, NOT THE REFERENCE
+>
+> **How props work: [`PROPS.md`](../../PROPS.md)** (parts 1–4), at the repo root — already
+> outside `plans/`, so closing this one needed no move. This file is the implementation order
+> and what each phase cost.
+>
+> **The lesson worth carrying out of it:** *measure by material id at render time, never by
+> classifying output pixels.* The landscape exercise binned shaded maroon as ground and passed
+> a predicate on a number nobody should have trusted. A cheap channel that guesses is not a
+> cheap channel.
 
 ## The shape of the work
 

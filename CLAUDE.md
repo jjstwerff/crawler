@@ -211,6 +211,12 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   spent on a militia that holds ground you are not standing on. Shipped end to end as plan #17
   (closed 2026-08-10) at **zero new keys**. Start at *All of it shipped — the invariants, and
   where each one lives*; the code is the authority, `sim.loft` mostly.
+- **Canopy-first trees — `TREES.md`; small detail with moving parts — `PROPS.md`.** The
+  canopy partitions and the tree is *derived* from it (`src/hexcanopy.loft`, 10 gate rows);
+  props are generators on a level with hinges, wheels and linkages (`src/hexprim.loft` and
+  friends, 36 gates). Plans #9/#10, both closed 2026-08-10. ⚠ `TREES.md` lived inside its
+  plan directory until that day — **a reference doc inside `plans/` is a doc nobody is
+  allowed to read**; check for that before closing anything.
 - **Scale: one grid, two readings — `SCALE.md`.** Architecture is true-scale at **1.5 m
   per hex step** (1 world unit = 0.866 m); terrain is the *same* hex compressed 10× at
   **15 natural m per walked hex** (`OV_STEP`, a gameplay-evaluated user ruling). The

@@ -72,8 +72,12 @@ status.** This drifts silently; when you touch a closed plan, check the label ma
 ## The active roster — decided 2026-08-09
 
 **`#11` 3D world · `#13` scoped identity** — and **one slot is FREE**: `#17` safe supply was
-finished on 2026-08-10 (`status:finished`). Everything else is `status:future`; `#9`/`#10` are
-finished too.
+finished on 2026-08-10 (`status:finished`). Everything else is `status:future`.
+
+⚠ **`#9`/`#10` had carried `status:finished` on an OPEN issue** — pitfall #3 in the mirror, and
+it had gone unnoticed because nothing forces the two to agree. Both closed 2026-08-10, **and
+acting on the label found real work**: `TREES.md`, the reference for a shipped subsystem, was
+still sitting inside `plans/9-canopy-trees/`. *A label is not a closure* — the checklist is.
 
 *(`#17` took `#12`'s slot on 2026-08-09, the same day both were created — see below — and gave
 it back the next day, `S0`–`S7` shipped. ⚠ **That is the cap working, not a fluke**: the slot

@@ -5,8 +5,20 @@
 
 ## Status
 
-**Active — T1–T10 all done**, gated in `make test`. The design is settled enough to build against:
-**[TREES.md](TREES.md)** is the document; this README is the phase tracker.
+> # ✅ CLOSED — `status:finished`, 2026-08-10 (user)
+>
+> `T1`–`T10` all done and gated, 10 rows in `make test`.
+>
+> ## ⚠ THIS DOCUMENT IS A CLOSURE RECORD, NOT THE REFERENCE
+>
+> **How canopy-first trees work: [`TREES.md`](../../TREES.md)**, at the repo root, with the
+> module and the ten gate rows named in its header.
+>
+> ⚠ **`TREES.md` lived HERE, inside this plan directory, until the day this plan closed** —
+> so the only description of a shipped subsystem sat where readers are told not to look. That
+> is the lifecycle's pitfall #1 in its purest form, and it survived a `status:finished` label
+> for as long as the label was never acted on. Moved to the root on closing; the six incoming
+> links were rewritten to the new home rather than to this plan.
 
 ## Goal
 
@@ -60,7 +72,7 @@ mesh/card threshold without an artistic choice.
 
 ## Open questions
 
-Carried in [TREES.md §8](TREES.md). Case B has been **run and printed** (TREES.md §3) — it
+Carried in [TREES.md §8](../../TREES.md). Case B has been **run and printed** (TREES.md §3) — it
 contradicted the design's predicted crown ordering, and the numbers await confirmation. The
 relaxation question is **answered** (TREES.md §9): termination is detected, because exact
 arithmetic makes the state space finite. What remains open is species, card art, and how

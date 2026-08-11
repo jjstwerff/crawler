@@ -1,8 +1,21 @@
-# Canopy-first trees — design
+# Canopy-first trees — the canopy partitions, the tree is derived
 
-**Status: DESIGN ONLY. Nothing built.** Step 1 of the design protocol is a concrete
-plotted end-result, agreed before any code. §3 proposes one; it needs confirming or
-correcting before implementation starts.
+> ✅ **BUILT AND GATED.** `T1`–`T10` all shipped as [plan #9](plans/9-canopy-trees/), closed
+> `status:finished` 2026-08-10. **This document is the reference**; the plan is a closure
+> record of the phase order and what each cost.
+>
+> ⚠ **It lived inside `plans/9-canopy-trees/` until 2026-08-10**, which meant the only
+> description of a shipped subsystem sat in a directory readers are told to skip. Moved to the
+> root on closing — the lifecycle's *create-and-move*, finally completed.
+>
+> | | |
+> |---|---|
+> | **Implementation** | `src/hexcanopy.loft` (the derivation), `hex_field`'s `Labels`/`Heights` (the substrate) |
+> | **Gates** (10 rows in `make test`) | `canopytest` (T1 partition) · `canopyvoltest` (T2 crown) · `canopyleantest` (T3 lean) · `canopyskeltest` (T4 skeleton) · `canopypipetest` (T5 pipe radii) · `canopyrelaxtest` (T6 convergence) · `canopylighttest` (T7 levels) · `canopyfloortest` (T8 object/field floor) · `canopycardtest` (T9 cards) · `canopyopactest` (T10 `I-OPACITY`) |
+> | **The claim** | a normal mesh tree is one that never had neighbours to fight for sunlight with — every hex at the top of the canopy belongs to a trunk, and that assignment decides how the trunk grows, where its branches go, and how far it leans |
+>
+> ⚠ **Read the §§ below as the built design, not a proposal.** Where a section still argues
+> toward a decision, the decision was taken and the code is the authority.
 
 ---
 
