@@ -389,6 +389,60 @@ the world, not the renderer.
 - Actors are **flat colours**, not sprites — the texture atlas rides with P8.
 - A decorated window is still ~6.5% tall until `graphics` exposes the drawable (G3).
 
+## P3b — opened 2026-08-11: the exactness is real, and the first two attempts at it were not
+
+**The lattice IS world space, up to one scale per axis — measured, not assumed.** This is the
+fact the whole phase is cheap because of:
+
+```
+hex_to_px:  x = SQRT3*q + SQRT3/2*(r&1)      lattice_k = 2q + (r&1)
+            y = 1.5*r                        lattice_m = 3r
+  =>        x = (SQRT3/2) * k                y = 0.5 * m
+```
+
+Verified on real hexes: hex (3,4) has centre lattice (6,12) and its six corners land on
+**exactly** (6,14) (5,13) (5,11) (6,10) (7,11) (7,13). A hex is a lattice hexagon 2 wide and
+4 tall. So at an integer *S* texels per lattice unit, every `trace` boundary vertex is an
+exact integer texel corner and **no rounding enters the raster at all** — which is what lets
+`I-PAINT` claim *exact* rather than *within tolerance*.
+
+### The gate, and why it is deliberately RED and out of `make test`
+
+`src/painttest.loft` compares two independent paths that meet only at the field:
+
+| side | path |
+|---|---|
+| raster | labels → `trace` → integer polygon → scanline fill → texel |
+| truth | texel → its centre in world units → `px_to_hex` → `hexset_get` |
+
+Testing the fill against a point-in-polygon routine instead would compare one scanline rule
+with another and prove nothing. The blob under test **has a hole**, and that is not decoration.
+
+**It has already failed twice, with different causes, and that is the phase working:**
+
+| | mismatches | cause |
+|---|---|---|
+| first run | **912** (over=886) | ⚠ `fill_polygon` called **once per loop**. `trace` emits an enclosed region as a second loop wound the other way, and filling loops separately **paints the hole solid**. Even-odd is only even-odd if every contour lands in ONE crossing list. Fixed: `sprite_draw::fill_polygons` |
+| now | **54** (over=25, under=29) | **OPEN.** Balanced and boundary-shaped → a **tie**: lattice edges have slope 1, so at integer *S* a scanline crossing lands exactly on a texel centre, and `(x + 0.5) as integer` breaks that tie one way while `px_to_hex` breaks the same point the other way |
+
+⚠ **The fix for the residue must be a stated tie-break on ONE side, not a tolerance.** The
+claim is *exact*; a tolerance would retire the claim while leaving the words in place — and
+this plan has been punished three times for changes that gate green and look identical.
+**Localise before fixing**: dump the 54, confirm they lie on the boundary with crossings at
+exact half-integers. A plausible cause is not a measured one.
+
+### What this already changes for the rest of the plan
+
+- **A region with a hole is the NORMAL case** — a clearing in a wood, a lake in a field — so
+  the multi-contour fill is not a corner case handled early; it is the base case. Anything
+  downstream that rasterises a traced region (P6's layers at their own resolutions, the
+  editor) must use `fill_polygons`, never a per-loop call.
+- `fill_polygon`/`fill_polygons` are now `pub` in `sprite_draw`. ⚠ **Exported rather than
+  copied on purpose** — a second scanline fill for the world would be a fork of a gated one.
+- Untouched so far, and next after the residue: the actual texture (tiles + LOD — *one*
+  texture is impossible at ~23 gigatexels), the sampler in `view3d`, and retiring
+  `worldmesh.loft`'s R4 vertex-colour tint bake.
+
 ## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
 
 The section below stands, with **two corrections found by reading the source instead of the

@@ -5,7 +5,10 @@
 
 ## Status
 
-**ACTIVE — P0–P4 built; P3/P4 await a visual check.** The kernel now stands on the field: `sim.loft`
+**ACTIVE — P0–P4 built AND SEEN** (the frames were rendered headlessly and looked at once
+`xvfb` was installed — [`RESULTS.md`](RESULTS.md) → *VERIFIED*). **P3b is next**, and it is next
+by the order rule below rather than by preference: P6's layers each want the world texture at
+their own resolution, so building them against baked vertex colour builds them twice. The kernel now stands on the field: `sim.loft`
 imports `hex_field` and `hexedge`, and **passability is an edge query** (`Sim.field`, an
 `EdgeSet`) rather than a lookup in `Sim.tiles` — proved equal to the old model over ~135 000
 `(hex, direction)` answers with zero mismatches from any reachable position
@@ -94,9 +97,9 @@ check must go red.
 | **P1** — one passability predicate (pure refactor) | S | `make test` unchanged; the site table | **DONE** — `field_blocked(s,q,r,dir)` |
 | **P2** — the field under the kernel | M | `src/fieldtest.loft` differential: old ≡ new over every (hex,dir) | **DONE** — 0 mismatches, ~135k answers |
 | **P2b** — movement becomes a swept path, not a probe point | M | the same walk at 1/4/16× step length blocks on the same walls | **DONE** — bit-identical |
-| **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | **BUILT — awaiting your eyes** (`V` toggles) |
-| **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | Blocked on P3 |
-| **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | **BUILT — awaiting your eyes**; textures wait for P8's atlas |
+| **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | ✅ **DONE** — `V` toggles; frames seen |
+| **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | **→ IN FLIGHT** |
+| **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | ✅ **DONE** — the playable milestone; actors are flat colours until P8's atlas |
 | **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | **PART DONE** — metrics + purity gated; towers still hexagons, doors still gaps |
 | **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |
 | **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
@@ -161,9 +164,10 @@ deliverable and the boards are just its first implementation.
   The 3D game runs on the default/interpreted path until that clears, so **P3 measures frame
   cost rather than assuming it**. The design's defence is structural: static world VBOs
   uploaded once, actors as one instanced call, so per-frame CPU work in loft stays near zero.
-- **`xvfb` is not installed**, so `make probe` — the channel P4 and P6 want — cannot run yet.
-  `glbview.py` needs nothing, which is why P0 uses it. Installing is one line
-  (`sudo apt install xvfb`) and unblocks the GL pixel channel for the whole plan.
+- ~~**`xvfb` is not installed**~~ ✅ **it is** — `make probe` and `src/shot3d.loft` both run
+  headlessly, and P3/P4's frames were checked that way. ⚠ **But `make probe` itself rots** —
+  plan #16 `M4` found it red and hung; see `CLAUDE.md`'s entry before trusting a green from it,
+  and note `probes/world_r4`/`world_r5` are *currently failing* against 2026-06-12 goldens.
 - **Store pressure:** the field lands in `Sim`, already the biggest struct in the repo. Keep
   the survival guide's habits (one `Sim` live, index-write idiom for hot collections, no thin
   arity-reducing pub wrappers).

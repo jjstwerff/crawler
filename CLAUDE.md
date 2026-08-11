@@ -180,7 +180,10 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   2026-08-10 (`fig`/`gen`/`grid`/`mon`/`wall`) and `canopytest` was listed twice; a test the
   gate never runs is not a gate. The check is one line:
   `comm -23 <(ls src/*test*.loft|sort) <(grep -oE 'src/[a-z_0-9]+test\.loft' tools/run_tests.sh|sort -u)`
-  — it should print only `src/selftest.loft` (the kernel self-test, run before the tables).
+  — it should print only `src/selftest.loft` (the kernel self-test, run before the tables)
+  ⚠ **plus `src/painttest.loft`, which is RED ON PURPOSE** (plan #11 P3b — I-PAINT is at 54
+  mismatches from an unresolved boundary tie). It is unwired *because* it is red; wire it the
+  moment it goes green, and until then this check has two expected lines, not one.
   Pixel-level render checks
   live in **`make probe`** (Xvfb + `tools/probe.py` vs `probes/*.probe` — the render plan (#7)
   P0). ⚠ **`make probe` IS NOT IN `make test` and it rots — plan #16 `M4` found it three layers

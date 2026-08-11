@@ -1,0 +1,162 @@
+// painttest — I-PAINT, the exact half (plan #11 P3b).
+//
+// **I-PAINT: the world's appearance is a texture derived from the same field as its geometry,
+// so a boundary in the texture and the geometry under it cannot disagree.**
+//
+// The claim is EXACT, not approximate, and this is where that is earned. Both sides are
+// integer, and the reason is worth writing down because it is what makes the whole phase
+// cheap:
+//
+//   hex_to_px is  x = SQRT3*q + SQRT3/2*(r&1)  and  y = 1.5*r
+//   lattice   is  k = 2q + (r&1)               and  m = 3r
+//   therefore     x = (SQRT3/2) * k            and  y = 0.5 * m
+//
+// The lattice IS world space up to one scale per axis. `trace` emits boundary loops on
+// integer lattice corners, so at S texels per lattice unit every loop vertex lands on an
+// exact integer texel corner — no rounding enters the raster at all.
+//
+// ⚠ THE TWO SIDES ARE INDEPENDENT ON PURPOSE, or this test is circular. Testing the fill
+// against a point-in-polygon routine would compare one scanline rule with another. So:
+//   raster side:  labels -> trace -> integer polygon -> scanline fill -> texel
+//   truth side:   texel  -> its centre in world units -> px_to_hex -> hexset_get
+// They meet only at the field. That is the invariant as stated, rather than a proxy for it.
+//
+// ⚠ THIS GATE IS RED ON PURPOSE AND IS NOT IN `make test` YET. It has already earned its
+// keep by failing twice with different causes, and the SECOND is still open:
+//
+//   912 mismatches (over=886) — `fill_polygon` called once PER LOOP painted the hole solid.
+//                               Fixed: `sprite_draw::fill_polygons`, parity across all
+//                               contours at once. This is why the blob has a hole.
+//    54 mismatches (over=25, under=29) — OPEN. Balanced and boundary-shaped, which points at
+//                               a TIE: lattice edges have slope 1, so at an integer TEX_S a
+//                               scanline crossing lands exactly on a texel centre, and
+//                               `(x + 0.5) as integer` resolves that tie one way while
+//                               `px_to_hex` resolves the same point the other. If so the fix
+//                               is a stated tie-break rule on ONE side, not a tolerance —
+//                               "exact" is the claim, and a tolerance would quietly retire it.
+//
+// ⚠ Next step is to LOCALISE before fixing: dump the 54 and check they lie on the boundary
+// with crossings at exact half-integers. A cause that is merely plausible is not measured.
+use hex_field;
+use hex_grid;
+use sprite_draw;
+
+TEX_S = 4;          // texels per lattice unit
+SET_W = 24;         // HexSet window (cells)
+
+// An irregular blob WITH A HOLE. The hole is not decoration: `trace` gives an enclosed loop
+// the opposite orientation from the outer one, and a fill rule that ignores orientation
+// paints the hole solid. A convex blob would pass while hiding that.
+fn build_blob() -> HexSet {
+  s = hexset_new(SET_W);
+  for r in 3..15 {
+    for q in 3..15 {
+      dq = q - 9;
+      dr = r - 9;
+      d = dq * dq + dr * dr;
+      if d <= 20 && d >= 3 { hexset_set(s, q, r, true); }
+    }
+  }
+  s
+}
+
+// Rasterise every traced loop into a texel buffer. Loop vertices are integer lattice
+// corners; scaling by TEX_S keeps them integer, so the polygon handed to the fill is exact.
+// `off_k`/`off_m` shift the lattice origin into the buffer.
+fn raster_of(vm: VecMap, off_k: integer, off_m: integer, tw: integer, th: integer) -> vector<integer> {
+  buf: vector<integer> = [];
+  for _ in 0..tw * th { buf += [0]; }
+  // ⚠ ONE call with ALL contours, never one call per loop. `trace` gives an enclosed region
+  // its own loop wound the other way, and parity across the whole crossing list is what
+  // carves it out — filling loop by loop paints the hole solid (measured: 886 texels).
+  xs: vector<float> = [];
+  ys: vector<float> = [];
+  starts: vector<integer> = [];
+  for li in 0..vm.vm_loops {
+    st = vm.vm_start;
+    i0 = st[li] ?? 0;
+    i1 = if li + 1 < vm.vm_loops { st[li + 1] ?? 0 } else { len(vm.vm_k) };
+    starts += [len(xs)];
+    for i in i0..i1 {
+      kk = (vm.vm_k[i] ?? 0) + off_k;
+      mm = (vm.vm_m[i] ?? 0) + off_m;
+      xs += [((kk * TEX_S) as float)];
+      ys += [((mm * TEX_S) as float)];
+    }
+  }
+  sprite_draw::fill_polygons(buf, tw, th, xs, ys, starts, 1);
+  buf
+}
+
+fn main() {
+  println("=== story world-texture test (I-PAINT: the raster and the field agree, exactly) ===");
+
+  blob = build_blob();
+  vm = trace(blob);
+
+  // The lattice window the blob occupies, padded by one unit so the boundary is interior.
+  min_k = 0; max_k = 0; min_m = 0; max_m = 0;
+  first = true;
+  for i in 0..len(vm.vm_k) {
+    kk = vm.vm_k[i] ?? 0;
+    mm = vm.vm_m[i] ?? 0;
+    if first { min_k = kk; max_k = kk; min_m = mm; max_m = mm; first = false; }
+    if kk < min_k { min_k = kk; }
+    if kk > max_k { max_k = kk; }
+    if mm < min_m { min_m = mm; }
+    if mm > max_m { max_m = mm; }
+  }
+  off_k = 1 - min_k;
+  off_m = 1 - min_m;
+  tw = (max_k - min_k + 2) * TEX_S;
+  th = (max_m - min_m + 2) * TEX_S;
+
+  buf = raster_of(vm, off_k, off_m, tw, th);
+
+  // THE DIFF. For every texel: what the raster says, against what the FIELD says at that
+  // texel's own world position. Ambiguous texels — a centre landing exactly on a hex
+  // boundary — are counted separately rather than quietly forgiven, because a test that
+  // forgives what it cannot decide is how an "exact" claim rots into an approximate one.
+  mismatch = 0;
+  inside_n = 0;
+  over = 0;    // painted where the field says nothing — e.g. a hole filled in
+  under = 0;   // field says inside, raster missed it
+  for ty in 0..th {
+    for tx in 0..tw {
+      kf = ((tx as float) + 0.5) / (TEX_S as float) - (off_k as float) ?? 0.0;
+      mf = ((ty as float) + 0.5) / (TEX_S as float) - (off_m as float) ?? 0.0;
+      wx = SQRT3 / 2.0 * kf ?? 0.0;
+      wy = 0.5 * mf;
+      (hq, hr) = px_to_hex(wx, wy);
+      truth = hexset_get(blob, hq, hr);
+      painted = (buf[ty * tw + tx] ?? 0) == 1;
+      if truth { inside_n = inside_n + 1; }
+      if painted != truth { mismatch = mismatch + 1; }
+      if painted && !truth { over = over + 1; }
+      if truth && !painted { under = under + 1; }
+    }
+  }
+
+  // NEGATIVE CONTROL (the plan #10 P9 lesson — every phase carries one). Corrupt the field
+  // by ONE hex and the same comparison must go red. Without this, a raster of all-zeros
+  // against a field of all-false would read as a pass.
+  hexset_set(blob, 9, 4, !hexset_get(blob, 9, 4));
+  neg = 0;
+  for ty in 0..th {
+    for tx in 0..tw {
+      kf = ((tx as float) + 0.5) / (TEX_S as float) - (off_k as float) ?? 0.0;
+      mf = ((ty as float) + 0.5) / (TEX_S as float) - (off_m as float) ?? 0.0;
+      wx = SQRT3 / 2.0 * kf ?? 0.0;
+      wy = 0.5 * mf;
+      (hq, hr) = px_to_hex(wx, wy);
+      if ((buf[ty * tw + tx] ?? 0) == 1) != hexset_get(blob, hq, hr) { neg = neg + 1; }
+    }
+  }
+
+  println("loops={vm.vm_loops} texels={tw}x{th} inside={inside_n} mismatch={mismatch} (over={over} under={under})");
+  println("negative control (one hex flipped): mismatch={neg}");
+  exact = mismatch == 0 && inside_n > 0 && vm.vm_loops >= 2;
+  control = neg > 0;
+  println("exact={exact} control={control}");
+  if exact && control { println("=== PAINT OK ==="); } else { println("=== FAIL ==="); }
+}

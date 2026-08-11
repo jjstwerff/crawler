@@ -118,7 +118,11 @@ fn poly_yrange(ys: vector<float>) -> vector<integer> {
 // Even-odd scanline fill (implicitly closes last→first). Hard-edged; AA comes from the
 // supersample+downscale pass. Pixel x is inside when its centre (x+0.5) is in an odd span —
 // round(xa)..round(xb) exclusive, pixel-exact for axis-aligned integer rects.
-fn fill_polygon(buf: vector<integer>, w: integer, h: integer,
+// ⚠ `pub` FOR THE WORLD TEXTURE, not for sprites (plan #11 P3b, I-PAINT): the world's
+// landcover is rasterised from `hex_field::trace`'s exact integer boundary loops with THIS
+// fill, so the texture and the geometry are generated from one source and cannot disagree.
+// Exporting rather than copying is the point — a second scanline fill would be a fork.
+pub fn fill_polygon(buf: vector<integer>, w: integer, h: integer,
                 xs: vector<float>, ys: vector<float>, color: integer) {
   if len(xs) < 3 { return; }
   yr = poly_yrange(ys);
@@ -131,6 +135,48 @@ fn fill_polygon(buf: vector<integer>, w: integer, h: integer,
     while k + 1 < m {
       sx0 = ((sorted[k] ?? 0.0) + 0.5) as integer;       // round(xa)
       sxe = ((sorted[k + 1] ?? 0.0) + 0.5) as integer;   // round(xb), exclusive
+      if sxe > sx0 { span_set(buf, w, h, sx0, sxe, py, color); }
+      k = k + 2;
+    }
+  }
+}
+
+// Fill a MULTI-CONTOUR polygon — several closed loops, even-odd parity applied ONCE across
+// all of them, so an enclosed loop carves a hole instead of painting over it. `starts` holds
+// each contour's first index into xs/ys (contour i runs to starts[i+1], the last to the end).
+//
+// ⚠ THIS EXISTS BECAUSE `fill_polygon` PER LOOP IS WRONG, AND THE WORLD IS THE CASE THAT
+// SHOWS IT (plan #11 P3b, measured): `hex_field::trace` emits an enclosed region's boundary
+// as a SECOND loop wound the other way, and a region with a hole — a clearing in a wood, a
+// lake in a field — is the normal case, not an edge case. Filling each loop separately
+// painted 886 texels of hole solid. Parity is only parity if every contour is counted in
+// the same crossing list, which is what this does and a per-loop call cannot.
+pub fn fill_polygons(buf: vector<integer>, w: integer, h: integer,
+                     xs: vector<float>, ys: vector<float>,
+                     starts: vector<integer>, color: integer) {
+  nl = len(starts);
+  if nl == 0 or len(xs) < 3 { return; }
+  yr = poly_yrange(ys);
+  py0 = yr[0] ?? 0;
+  py1 = yr[1] ?? 0;
+  for py in py0..py1 {
+    yc = (py as float) + 0.5;
+    all: vector<float> = [];
+    for li in 0..nl {
+      i0 = starts[li] ?? 0;
+      i1 = if li + 1 < nl { starts[li + 1] ?? 0 } else { len(xs) };
+      cxs: vector<float> = [];
+      cys: vector<float> = [];
+      for i in i0..i1 { cxs += [xs[i] ?? 0.0]; cys += [ys[i] ?? 0.0]; }
+      cr = row_crossings(cxs, cys, yc);
+      for i in 0..len(cr) { all += [cr[i] ?? 0.0]; }
+    }
+    sorted = sort_floats(all);
+    m = len(sorted);
+    k = 0;
+    while k + 1 < m {
+      sx0 = ((sorted[k] ?? 0.0) + 0.5) as integer;
+      sxe = ((sorted[k + 1] ?? 0.0) + 0.5) as integer;
       if sxe > sx0 { span_set(buf, w, h, sx0, sxe, py, color); }
       k = k + 2;
     }
