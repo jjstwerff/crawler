@@ -21,27 +21,32 @@
 //   truth side:   texel  -> its centre in world units -> px_to_hex -> hexset_get
 // They meet only at the field. That is the invariant as stated, rather than a proxy for it.
 //
-// ⚠ THIS GATE IS RED ON PURPOSE AND IS NOT IN `make test` YET. It has already earned its
-// keep by failing twice with different causes, and the SECOND is still open:
+// ✅ EXACT: 0 mismatches over 20160 texels, 0 ambiguous. It got there by failing twice, with
+// different causes, and both are worth keeping because neither was guessable:
 //
 //   912 mismatches (over=886) — `fill_polygon` called once PER LOOP painted the hole solid.
-//                               Fixed: `sprite_draw::fill_polygons`, parity across all
-//                               contours at once. This is why the blob has a hole.
-//    54 mismatches (over=25, under=29) — OPEN. Balanced and boundary-shaped, which points at
-//                               a TIE: lattice edges have slope 1, so at an integer TEX_S a
-//                               scanline crossing lands exactly on a texel centre, and
-//                               `(x + 0.5) as integer` resolves that tie one way while
-//                               `px_to_hex` resolves the same point the other. If so the fix
-//                               is a stated tie-break rule on ONE side, not a tolerance —
-//                               "exact" is the claim, and a tolerance would quietly retire it.
-//
-// ⚠ Next step is to LOCALISE before fixing: dump the 54 and check they lie on the boundary
-// with crossings at exact half-integers. A cause that is merely plausible is not measured.
+//                               `trace` emits an enclosed region as a second loop wound the
+//                               other way, and even-odd is only even-odd if every contour
+//                               lands in ONE crossing list. Fixed: `sprite_draw::fill_polygons`.
+//                               This is why the blob under test has a hole.
+//    54 mismatches (over=25, under=29) — NOT a rasterisation error at all. Localising them
+//                               showed **every one lay exactly ON a boundary**, with 240 such
+//                               ties in the frame and the two sides agreeing on 186 by luck.
+//                               The invariant was simply under-specified at ties. Fixed by
+//                               making the tie class EMPTY — see TEX_SX/TEX_SY below.
 use hex_field;
 use hex_grid;
 use sprite_draw;
 
-TEX_S = 4;          // texels per lattice unit
+// ⚠ ANISOTROPIC, AND THAT IS THE FIX RATHER THAN A TUNING (see the localisation below).
+// Lattice edges are (dk,dm) in {(+-1,+-1), (0,+-2)}. With TEX_SX = 2*TEX_SY a slope-1 edge
+// crosses row y=py+0.5 at x = x1 +- (2py+1-2y1) — an INTEGER — and a vertical edge crosses at
+// an integer too, while texel centres are half-integers. So no texel centre can ever lie on a
+// lattice edge: the tie class is empty BY CONSTRUCTION, not by tolerance.
+// It is also the more world-square choice: 1 lattice k = SQRT3/2 world, 1 m = 1/2, so a 2:1
+// texel grid has aspect 0.866 where an isotropic one has 1.73.
+TEX_SX = 8;         // texels per lattice unit, k axis
+TEX_SY = 4;         // texels per lattice unit, m axis
 SET_W = 24;         // HexSet window (cells)
 
 // An irregular blob WITH A HOLE. The hole is not decoration: `trace` gives an enclosed loop
@@ -60,32 +65,33 @@ fn build_blob() -> HexSet {
   s
 }
 
-// Rasterise every traced loop into a texel buffer. Loop vertices are integer lattice
-// corners; scaling by TEX_S keeps them integer, so the polygon handed to the fill is exact.
-// `off_k`/`off_m` shift the lattice origin into the buffer.
-fn raster_of(vm: VecMap, off_k: integer, off_m: integer, tw: integer, th: integer) -> vector<integer> {
-  buf: vector<integer> = [];
-  for _ in 0..tw * th { buf += [0]; }
-  // ⚠ ONE call with ALL contours, never one call per loop. `trace` gives an enclosed region
-  // its own loop wound the other way, and parity across the whole crossing list is what
-  // carves it out — filling loop by loop paints the hole solid (measured: 886 texels).
-  xs: vector<float> = [];
-  ys: vector<float> = [];
-  starts: vector<integer> = [];
-  for li in 0..vm.vm_loops {
-    st = vm.vm_start;
-    i0 = st[li] ?? 0;
-    i1 = if li + 1 < vm.vm_loops { st[li + 1] ?? 0 } else { len(vm.vm_k) };
-    starts += [len(xs)];
+// Does any polygon edge cross row `yc` exactly at `xc`? That is the TIE this localisation
+// looks for: a texel centre lying exactly ON the boundary, where the raster's span rounding
+// and `px_to_hex` are each free to resolve it their own way.
+//
+// ⚠ Deliberately recomputes the crossing rather than reusing `sprite_draw`'s: the question is
+// a GEOMETRIC fact about the polygon, not what the fill does with it. Reusing the code under
+// test would make the answer true by construction.
+fn crossing_at(xs: vector<float>, ys: vector<float>, starts: vector<integer>,
+               yc: float, xc: float) -> boolean {
+  nl = len(starts);
+  for li in 0..nl {
+    i0 = starts[li] ?? 0;
+    i1 = if li + 1 < nl { starts[li + 1] ?? 0 } else { len(xs) };
+    j = i1 - 1;
     for i in i0..i1 {
-      kk = (vm.vm_k[i] ?? 0) + off_k;
-      mm = (vm.vm_m[i] ?? 0) + off_m;
-      xs += [((kk * TEX_S) as float)];
-      ys += [((mm * TEX_S) as float)];
+      ax = xs[i] ?? 0.0; ay = ys[i] ?? 0.0;
+      bx = xs[j] ?? 0.0; by = ys[j] ?? 0.0;
+      if (ay <= yc and by > yc) or (by <= yc and ay > yc) {
+        t = ((yc - ay) / (by - ay)) ?? 0.0;
+        x = ax + t * (bx - ax);
+        d = x - xc;
+        if d < 0.000000001 and d > -0.000000001 { return true; }
+      }
+      j = i;
     }
   }
-  sprite_draw::fill_polygons(buf, tw, th, xs, ys, starts, 1);
-  buf
+  false
 }
 
 fn main() {
@@ -108,44 +114,78 @@ fn main() {
   }
   off_k = 1 - min_k;
   off_m = 1 - min_m;
-  tw = (max_k - min_k + 2) * TEX_S;
-  th = (max_m - min_m + 2) * TEX_S;
+  tw = (max_k - min_k + 2) * TEX_SX;
+  th = (max_m - min_m + 2) * TEX_SY;
 
-  buf = raster_of(vm, off_k, off_m, tw, th);
+  // ⚠ ONE call with ALL contours, never one per loop. `trace` gives an enclosed region its
+  // own loop wound the other way, and parity across the whole crossing list is what carves
+  // it out — filling loop by loop paints the hole solid (measured: 886 texels).
+  xs: vector<float> = [];
+  ys: vector<float> = [];
+  starts: vector<integer> = [];
+  for li in 0..vm.vm_loops {
+    st = vm.vm_start;
+    i0 = st[li] ?? 0;
+    i1 = if li + 1 < vm.vm_loops { st[li + 1] ?? 0 } else { len(vm.vm_k) };
+    starts += [len(xs)];
+    for i in i0..i1 {
+      kk = (vm.vm_k[i] ?? 0) + off_k;
+      mm = (vm.vm_m[i] ?? 0) + off_m;
+      xs += [((kk * TEX_SX) as float)];
+      ys += [((mm * TEX_SY) as float)];
+    }
+  }
+  buf: vector<integer> = [];
+  for _ in 0..tw * th { buf += [0]; }
+  sprite_draw::fill_polygons(buf, tw, th, xs, ys, starts, 1);
 
-  // THE DIFF. For every texel: what the raster says, against what the FIELD says at that
-  // texel's own world position. Ambiguous texels — a centre landing exactly on a hex
-  // boundary — are counted separately rather than quietly forgiven, because a test that
-  // forgives what it cannot decide is how an "exact" claim rots into an approximate one.
+  // THE DIFF, plus the LOCALISATION. For every texel: what the raster says, against what the
+  // FIELD says at that texel's own world position — and, for each disagreement, whether the
+  // texel's centre lies exactly on a polygon edge.
+  //
+  // The prediction being tested: lattice edges are (dk,dm) in {(+-1,+-1), (0,+-2)}. On a
+  // slope-1 edge the crossing at y = py+0.5 is x = (an integer) + 0.5 — EXACTLY a texel
+  // centre — while a vertical edge crosses at an integer and cannot tie. So every mismatch
+  // should be a tie, and every tie should sit on a slope-1 edge.
   mismatch = 0;
   inside_n = 0;
-  over = 0;    // painted where the field says nothing — e.g. a hole filled in
-  under = 0;   // field says inside, raster missed it
+  over = 0;      // painted where the field says nothing
+  under = 0;     // field says inside, raster missed it
+  tied_mis = 0;  // mismatches whose centre is exactly on an edge
+  ties = 0;      // texels on an edge, whether or not they disagree
+  shown = 0;
   for ty in 0..th {
     for tx in 0..tw {
-      kf = ((tx as float) + 0.5) / (TEX_S as float) - (off_k as float) ?? 0.0;
-      mf = ((ty as float) + 0.5) / (TEX_S as float) - (off_m as float) ?? 0.0;
+      kf = ((tx as float) + 0.5) / (TEX_SX as float) - (off_k as float) ?? 0.0;
+      mf = ((ty as float) + 0.5) / (TEX_SY as float) - (off_m as float) ?? 0.0;
       wx = SQRT3 / 2.0 * kf ?? 0.0;
       wy = 0.5 * mf;
       (hq, hr) = px_to_hex(wx, wy);
       truth = hexset_get(blob, hq, hr);
       painted = (buf[ty * tw + tx] ?? 0) == 1;
+      tie = crossing_at(xs, ys, starts, (ty as float) + 0.5, (tx as float) + 0.5);
+      if tie { ties = ties + 1; }
       if truth { inside_n = inside_n + 1; }
-      if painted != truth { mismatch = mismatch + 1; }
-      if painted && !truth { over = over + 1; }
-      if truth && !painted { under = under + 1; }
+      if painted != truth {
+        mismatch = mismatch + 1;
+        if painted { over = over + 1; } else { under = under + 1; }
+        if tie { tied_mis = tied_mis + 1; }
+        if shown < 6 {
+          println("  mismatch tx={tx} ty={ty} painted={painted} truth={truth} on-edge={tie} hex=({hq},{hr})");
+          shown = shown + 1;
+        }
+      }
     }
   }
 
   // NEGATIVE CONTROL (the plan #10 P9 lesson — every phase carries one). Corrupt the field
-  // by ONE hex and the same comparison must go red. Without this, a raster of all-zeros
-  // against a field of all-false would read as a pass.
+  // by ONE hex and the same comparison must go red.
   hexset_set(blob, 9, 4, !hexset_get(blob, 9, 4));
   neg = 0;
   for ty in 0..th {
     for tx in 0..tw {
-      kf = ((tx as float) + 0.5) / (TEX_S as float) - (off_k as float) ?? 0.0;
-      mf = ((ty as float) + 0.5) / (TEX_S as float) - (off_m as float) ?? 0.0;
+      kf = ((tx as float) + 0.5) / (TEX_SX as float) - (off_k as float) ?? 0.0;
+      mf = ((ty as float) + 0.5) / (TEX_SY as float) - (off_m as float) ?? 0.0;
       wx = SQRT3 / 2.0 * kf ?? 0.0;
       wy = 0.5 * mf;
       (hq, hr) = px_to_hex(wx, wy);
@@ -154,6 +194,7 @@ fn main() {
   }
 
   println("loops={vm.vm_loops} texels={tw}x{th} inside={inside_n} mismatch={mismatch} (over={over} under={under})");
+  println("LOCALISED: on-edge ties total={ties}, of which disagree={tied_mis}; mismatches NOT on an edge={mismatch - tied_mis}");
   println("negative control (one hex flipped): mismatch={neg}");
   exact = mismatch == 0 && inside_n > 0 && vm.vm_loops >= 2;
   control = neg > 0;

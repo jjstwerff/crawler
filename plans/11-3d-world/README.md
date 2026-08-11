@@ -98,7 +98,7 @@ check must go red.
 | **P2** — the field under the kernel | M | `src/fieldtest.loft` differential: old ≡ new over every (hex,dir) | **DONE** — 0 mismatches, ~135k answers |
 | **P2b** — movement becomes a swept path, not a probe point | M | the same walk at 1/4/16× step length blocks on the same walls | **DONE** — bit-identical |
 | **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | ✅ **DONE** — `V` toggles; frames seen |
-| **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | **→ IN FLIGHT** |
+| **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | **→ IN FLIGHT** — ✅ the loop-vs-raster diff is EXACT and gated (`painttest`, row 105); the texture/LOD/sampler plumbing and retiring the vertex bake remain |
 | **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | ✅ **DONE** — the playable milestone; actors are flat colours until P8's atlas |
 | **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | **PART DONE** — metrics + purity gated; towers still hexagons, doors still gaps |
 | **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |

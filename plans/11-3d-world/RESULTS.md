@@ -423,13 +423,45 @@ with another and prove nothing. The blob under test **has a hole**, and that is 
 | | mismatches | cause |
 |---|---|---|
 | first run | **912** (over=886) | ⚠ `fill_polygon` called **once per loop**. `trace` emits an enclosed region as a second loop wound the other way, and filling loops separately **paints the hole solid**. Even-odd is only even-odd if every contour lands in ONE crossing list. Fixed: `sprite_draw::fill_polygons` |
-| now | **54** (over=25, under=29) | **OPEN.** Balanced and boundary-shaped → a **tie**: lattice edges have slope 1, so at integer *S* a scanline crossing lands exactly on a texel centre, and `(x + 0.5) as integer` breaks that tie one way while `px_to_hex` breaks the same point the other way |
+| second | **54** (over=25, under=29) | ⚠ **not a rasterisation error at all** — see the localisation below |
+| now | **0** over 20160 texels, 0 ties | ✅ **`PAINT OK`**, wired into `make test` (row 105) |
 
-⚠ **The fix for the residue must be a stated tie-break on ONE side, not a tolerance.** The
-claim is *exact*; a tolerance would retire the claim while leaving the words in place — and
-this plan has been punished three times for changes that gate green and look identical.
-**Localise before fixing**: dump the 54, confirm they lie on the boundary with crossings at
-exact half-integers. A plausible cause is not a measured one.
+### Localising the 54 — and why it was not a bug
+
+The instrument added one column: for each mismatch, does the texel's centre lie **exactly on a
+polygon edge**? (Computed independently of `sprite_draw` — reusing the code under test would
+have made the answer true by construction.) The result was unambiguous:
+
+```
+LOCALISED: on-edge ties total=240, of which disagree=54; mismatches NOT on an edge=0
+```
+
+**Every single mismatch was a texel centre sitting exactly on the boundary**, and 240 such ties
+existed — the two sides simply happened to agree on 186 of them. So the raster was never wrong.
+**I-PAINT was under-specified**: it says a boundary in the texture and the geometry under it
+cannot disagree, and says nothing about a sample lying *on* that boundary. Both sides then broke
+the tie by their own rule — the fill by `(x + 0.5) as integer`, the field by `px_to_hex`'s cube
+rounding — and disagreed a fifth of the time.
+
+### The fix: make the tie class EMPTY, rather than pick a winner
+
+A stated tie-break would have worked and would have been a rule to remember forever. The
+arithmetic offers better. Lattice edges are only ever `(dk,dm) ∈ {(±1,±1), (0,±2)}`, so with
+**`TEX_SX = 2·TEX_SY`**:
+
+- a slope-1 edge crosses row `y = py+0.5` at `x = x1 ± (2·py + 1 − 2·y1)` — an **integer**;
+- a vertical edge crosses at an integer too;
+- texel centres are **half-integers**.
+
+So no texel centre can lie on a lattice edge, ever. Ties went 240 → **0** and mismatches 54 → 0,
+by construction rather than by tolerance. ⚠ **And the tie-free scale is also the more
+world-square one**: 1 lattice `k` is `√3/2` world and 1 `m` is `1/2`, so a 2:1 texel grid has
+aspect **0.866** where an isotropic grid has 1.73. The constraint and the quality choice point
+the same way, which is the tell that it is the right frame rather than a trick.
+
+⚠ **This is a constraint on the whole texture stack, not a setting in one test.** Any layer that
+rasterises a traced region — P6's cached layers at their own resolutions, the editor — must keep
+the 2:1 ratio between its axis scales, or it re-admits the tie class at that resolution.
 
 ### What this already changes for the rest of the plan
 
@@ -439,9 +471,13 @@ exact half-integers. A plausible cause is not a measured one.
   editor) must use `fill_polygons`, never a per-loop call.
 - `fill_polygon`/`fill_polygons` are now `pub` in `sprite_draw`. ⚠ **Exported rather than
   copied on purpose** — a second scanline fill for the world would be a fork of a gated one.
-- Untouched so far, and next after the residue: the actual texture (tiles + LOD — *one*
-  texture is impossible at ~23 gigatexels), the sampler in `view3d`, and retiring
-  `worldmesh.loft`'s R4 vertex-colour tint bake.
+- **The exactness is settled and gated**; what remains for P3b is the plumbing: the actual
+  texture (tiles + LOD — *one* texture is impossible at ~23 gigatexels), the sampler in
+  `view3d`, and retiring `worldmesh.loft`'s R4 vertex-colour tint bake.
+- ⚠ **The blob is synthetic.** It was chosen to force the hard cases (a hole, both edge
+  orientations) and it did. Re-running the same diff against a **real traced landcover region**
+  from a generated world is worth doing when the texture lands — the arithmetic says it must
+  pass, and that is exactly the kind of claim this plan has learned to check rather than assume.
 
 ## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
 
