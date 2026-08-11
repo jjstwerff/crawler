@@ -48,10 +48,14 @@ fn main() {
         mr = if blk == 0 { pr - 1 + dr } else { wr - 1 + dr };
         mi = (mr - s.rmin) * s.lw + (mq - s.qmin);
         if mi >= 0 && mi < len(s.vis) {
-          vv = s.vis;
-          vv[mi] = 0;
-          sv = s.seen;
-          sv[mi] = 1;
+          // ⚠ WRITE THROUGH THE FIELD. This was `vv = s.vis; vv[mi] = 0;`, and a
+          // whole-value bind COPIES the heap value (loft C86), so all 18 writes
+          // landed in a copy: the scene rendered with 0 remembered cells and 10201
+          // visible ones, and both dim-path probes asserted a state it never built.
+          // loft flags it now — `warning[lost-write]` — but this file is not in
+          // `make test`, so nothing ever compiled it to see the warning.
+          s.vis[mi] = 0;
+          s.seen[mi] = 1;
         }
       }
     }

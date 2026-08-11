@@ -11,7 +11,17 @@
 
 image /tmp/probe_world.png
 
+# ── TWO PINS RE-AIMED 2026-08-11; THE OTHER TWO ARE THE ORIGINAL JUNE ONES ──────────────
+# `vis_grass` and `rem_grass` still pass at the coordinates measured 2026-06-12, at dmax=0.
+# That is what says the bake formula never moved — and `rem_grass` only came back when
+# src/worldprobe.loft's lost write was fixed (it bound `vv = s.vis` and mutated the COPY, so
+# the scene rendered 0 remembered cells and this probe had been asserting a state the scene
+# never built). `road` and `wall_untinted` moved because plan #17 cut gates in the town wall
+# and posted a guard on the works: a wall now stands where the road pin was, and open ground
+# where the wall pin was. ⚠ The expected colours are unchanged — only the sample positions,
+# each re-aimed at the most uniform pixel of its own feature (road 13x13, wall 11x11).
+
 probe vis_grass 400 420 165 175 114 tol 4
 probe rem_grass 106 360 74 79 51 tol 4
-probe road 20 592 173 156 121 tol 4
-probe wall_untinted 246 20 38 36 33 tol 4
+probe road 78 465 173 156 121 tol 4
+probe wall_untinted 791 273 38 36 33 tol 4

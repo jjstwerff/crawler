@@ -181,9 +181,31 @@ serve: game
 
 # ── Tests / gates ────────────────────────────────────────────────────────
 
+# ⚠ THE ENTRY POINTS ARE PLURAL, AND ONLY ONE OF THEM USED TO BE COMPILED. $(SRC) is the
+# game; the render scenes are separate `main`s that nothing else builds, so a fault in one
+# waited for a ten-minute `make probe` to surface — or never surfaced at all, because a
+# WARNING fails nothing. src/worldprobe.loft carried a lost write for two months exactly that
+# way: it bound `vv = s.vis` and mutated the COPY, so the scene rendered 0 remembered cells
+# and two probes in probes/ asserted a state it had stopped building. The evidence that it
+# was the SCENE and never the goldens: with the write fixed, `rem_grass` passes again at the
+# coordinate measured 2026-06-12, at dmax=0.
+#
+# So this gate now compiles every entry point, and it FAILS ON `lost-write`. That warning is
+# never intentional — the compiler is saying a mutation does nothing — which is what earns it
+# a hard failure, unlike `redundant-coalesce` (CLAUDE.md says leave those alone).
+CHECK_ENTRIES = $(SRC) src/gpushot.loft $(PROBE_SCENES)
+
 check: src/bundles.loft
 	@echo "  compiling (parse + bytecode gate) ..."
-	@$(LOFT) --interpret --check $(LOFTFLAGS) $(SRC) || { echo "    FAIL: compile"; exit 1; }
+	@fail=0; for e in $(CHECK_ENTRIES); do \
+	    out=$$($(LOFT) --interpret --check $(LOFTFLAGS) $$e 2>&1); \
+	    if [ $$? -ne 0 ]; then \
+	        echo "    FAIL: compile $$e"; echo "$$out" | grep -E '^error' | head -5; fail=1; \
+	    elif echo "$$out" | grep -q 'warning\[lost-write\]'; then \
+	        echo "    FAIL: $$e — a write that goes nowhere (loft C86: a whole-value bind COPIES)"; \
+	        echo "$$out" | grep -A4 'warning\[lost-write\]' | head -24; fail=1; \
+	    else echo "    ok  $$e"; fi; \
+	done; [ $$fail -eq 0 ] || exit 1
 
 # Native / wasm codegen gate.  Compiles the generated Rust with rustc, so it
 # needs the loft toolchain's prebuilt rlibs to match the system rustc.

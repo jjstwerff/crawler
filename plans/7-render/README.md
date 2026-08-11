@@ -5,6 +5,37 @@
 
 ## Status
 
+> ### ✅ P0's harness is GREEN again (2026-08-11) — and the stale goldens were never stale
+>
+> `make probe` had been red since 2026-06-12 and was written down as *"the world moved under
+> `world_r4`/`world_r5`; do not re-pin blind — plan #7's call."* It was two faults wearing one
+> coat, and only one of them was about the world.
+>
+> **1. A lost write in the SCENE, not a drifted golden.** `src/worldprobe.loft` manufactured its
+> remembered blocks with `vv = s.vis; vv[mi] = 0;` — and a whole-value bind **copies** the heap
+> value (loft C86), so all 18 writes landed in a copy. The scene rendered **0 remembered cells
+> and 10201 visible ones**; `rem_grass` and `rem_stroke` were asserting a state it had stopped
+> building. Every failing pixel read *exactly* lit grass `(165,175,114)` — which is the tell: a
+> world that had genuinely moved would give varied wrong colours, not one uniform right one.
+> Writing through the field (`s.vis[mi] = 0`) restores it, and **`rem_grass` then passes at the
+> coordinate measured 2026-06-12, at dmax=0.** The golden was correct the whole time.
+>
+> **2. The other pins were aimed at a wall plan #17 re-cut.** Gates were cut in the town wall
+> and a guard posted on the works, so `road`, `wall_untinted`, `stroke_interior`, `rem_stroke`
+> and the `stroke_edge` ramp sat on ground whose content legitimately changed. They are re-aimed
+> at the same features — **every expected colour byte-identical**, each new pin the most uniform
+> pixel of its feature (road 13×13, wall 11×11) so a sub-pixel nudge cannot flip it. ⚠ **Today's
+> frame was NOT adopted as golden**, which is what the standing instruction was protecting.
+>
+> **All 15 checks pass, every one at dmax=0.**
+>
+> **The source fix — this is the part that generalises.** Nothing fast compiled a render scene:
+> `make check` built `$(SRC)` = `story.loft` alone, so the four probe scenes were entry points
+> no gate ever parsed, and the compiler's `warning[lost-write]` naming this exact bug went
+> unread for two months. `make check` now compiles **every** entry point and **fails** on
+> `lost-write` (never an intentional warning — the compiler is saying a mutation does nothing).
+> +13 s on the compile gate, and it was verified by re-injecting the bug and watching it fail.
+
 **PARKED 2026-07-22 — superseded in part by plan #11.** The 2D view this plan polishes is
 being replaced by first-person 3D, so its 2D tiers (R7 instanced floor, R8 sprite batch)
 now target a renderer that retires in #11 P9. **What survives and should still be picked

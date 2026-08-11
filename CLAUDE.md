@@ -202,14 +202,17 @@ editor as the second consumer*).
   check is one line, and it should print only `src/selftest.loft`:
   `comm -23 <(ls src/*test*.loft|sort) <(grep -oE 'src/[a-z_0-9]+test\.loft' tools/run_tests.sh|sort -u)`
 - **Pixel-level render checks live in `make probe`** (Xvfb + `tools/probe.py` vs
-  `probes/*.probe`). ⚠ **It is NOT in `make test` and it rots** — plan #16 `M4` found it three
-  layers deep, each hiding the next, and *a hang read as progress*. Two layers are fixed
-  (`PROBE_SCENES` is a NAMED list with a `timeout`; a scene joins it only if it is headless and
-  some `.probe` asserts its PNG). ⚠ **The third is OPEN: `world_r4`/`world_r5` fail against
-  goldens measured 2026-06-12 — do not re-pin them blind.** The world moved under them, and
-  adopting today's frame as golden destroys the evidence; it is plan #7's call. Run `make probe`
-  after render-side work and treat green as a fact *with a date on it*. The record:
-  `plans/16-eight-statistics/README.md`.
+  `probes/*.probe`) — **green 2026-08-11, all 15 checks at dmax=0**, the first time since June.
+  ⚠ **It is not in `make test`** (~10 min), so run it after render-side work and treat green as
+  a fact *with a date on it*. The three-layer rot plan #16 `M4` found is closed, and the last
+  layer was not what it looked like: **the goldens were never stale.** `worldprobe.loft` held a
+  **lost write** — `vv = s.vis` mutates a COPY (loft C86) — so its scene built **0 remembered
+  cells** and two probes asserted a state it had stopped producing; with the write fixed,
+  `rem_grass` passes at its original June coordinate at dmax=0. The other pins had simply been
+  aimed at a town wall plan #17 re-cut, and were re-aimed at the same features with **every
+  expected colour byte-identical**. ⚠ **The source fix: `make check` now compiles EVERY entry
+  point and FAILS on `lost-write`** — nothing fast used to compile a render scene at all, which
+  is why a compiler warning naming the exact bug went unread for two months.
 - **Headless rendering IS self-verifiable.** `gl_screenshot` reads the GL framebuffer reliably
   under Xvfb (`xvfb-run` is installed) — it is what `make probe` uses. The only
   positionally-unreliable capture is `make shot`'s window-grab. So render **correctness** gates

@@ -6,9 +6,22 @@
 #   remembered stroke = x0.451 (the manufactured block on the nearest wall) -> (106,94,52)
 #   cross-stroke ramp: solid interior -> ~1px AA -> background, monotonic
 # Deterministic scene: pinned pixels are stable for THIS worldprobe code.
+#
+# ── RE-AIMED 2026-08-11, AND THE EXPECTED VALUES ARE UNTOUCHED ──────────────────────────
+# The three pins above were measured on the June town wall. Plan #17 then CUT GATES in that
+# wall and posted a guard on the works, so the wall moved and the old coordinates sat on
+# open ground — every one of them read lit grass (165,175,114).
+#
+# ⚠ THE FRAME WAS NOT ADOPTED AS GOLDEN. Each colour below is still the blueprint's number,
+# byte for byte; only WHERE the feature is has changed, which is the one thing a re-cut wall
+# is entitled to change. The proof that the contract itself never moved is in world_r4:
+# `rem_grass` passes at its ORIGINAL June coordinate at dmax=0 once the scene bug is fixed.
+# Each new pin is the most uniform pixel of its feature in the frame (stroke_interior: 5x5
+# uniform; rem_stroke: 3x3, which is as thick as a dimmed one-hex stroke gets), so a
+# sub-pixel camera nudge cannot flip it.
 
 image /tmp/probe_world.png
 
-probe stroke_interior 271 15 235 209 115 tol 4
-probe rem_stroke 396 597 106 94 52 tol 4
-ramp stroke_edge 271 16 271 22 dec samples 7 tol 2
+probe stroke_interior 785 169 235 209 115 tol 4
+probe rem_stroke 633 581 106 94 52 tol 4
+ramp stroke_edge 761 200 761 206 dec samples 7 tol 2
