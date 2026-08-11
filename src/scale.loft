@@ -31,6 +31,25 @@ pub fn m_to_wu(m: float) -> float { m / M_PER_WU ?? 0.0 }
 // The same length as the terrain reads it.
 pub fn wu_to_terrain_m(w: float) -> float { w * M_PER_WU * TERRAIN_COMPRESS }
 
+// ── THE VERTICAL ────────────────────────────────────────────────────────────────────────
+// This file pinned the horizontal twice over and said NOTHING about the vertical until plan
+// #11 P6 asked for it, because until then the ground was a flat plane and no height ever
+// reached the renderer.
+//
+// A height arrives from the overland in NATURAL metres while the ground under it is walked
+// at 1/10 of natural scale, so RISE takes exactly the compression RUN already takes — which
+// is the whole of the contract, and it needs no second function: `wu_to_terrain_m` converts
+// a vertical world unit as correctly as a horizontal one, and this is its inverse.
+//
+// The identity that makes it checkable, and states the reading in one line:
+//
+//     terrain_m_to_wu(OV_STEP) == HEX_LEN
+//
+// One OV_STEP of natural rise across one walked hex renders as exactly 45 degrees — the
+// slope reality has. Leaving heights natural multiplies every slope by ten instead: measured
+// over the home window's passable ground, a mean gradient of 0.40 becomes 4.0, i.e. walls.
+pub fn terrain_m_to_wu(m: float) -> float { m / (M_PER_WU * TERRAIN_COMPRESS) ?? 0.0 }
+
 // Is a feature of this size worth representing as a FIELD at architecture scale?  The
 // grid's finest usable length is one hex step; anything whose defining dimension is under
 // it cannot be resolved and belongs on the object side of the boundary (plan #5 section 12,

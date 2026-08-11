@@ -1,0 +1,80 @@
+// skyprobe — what the first-person frame is actually showing, in numbers (plan #11 P6).
+//
+// The first rendered frame with real heights in it shows a dark mass across the middle
+// distance and green ground climbing both edges to the top corners. Two readings fit that
+// picture and they call for opposite work, so it is measured rather than argued:
+//
+//   (a) the start really does sit in a bowl — the terrain rises above eye level all round;
+//   (b) the mesh has a HOLE where the rock is — `build_scene3d` skips the floor of any hex
+//       the field calls blocked, and on the surface the blocked hexes are K_FACE, which is
+//       exactly the highest ground in the window. A mountain would then draw as nothing,
+//       ringed by the 3.2 wu wall quads its open neighbours emit.
+//
+// So: for each bearing, the horizon angle computed over ALL ground, and again over only the
+// ground the renderer emits a floor for. If (b) is what is happening, the two profiles differ
+// and the difference is the mountain.
+use sim;
+use ground;
+use hex_grid;
+use scale;
+
+fn main() {
+  s = sim_new_gen(1337, 0);
+  ez = ground_eye_z(s, s.px, s.py, 1.847);
+  (pq, pr) = sim_player_hex(s);
+  println("spawn hex ({pq},{pr}) ground {ground_at(s, s.px, s.py)} wu, eye {ez} wu");
+
+  // how much of the window is blocked, and how high it stands
+  nb = 0;
+  no = 0;
+  hb = 0.0;
+  ho = 0.0;
+  peak = 0.0;
+  pkq = 0;
+  pkr = 0;
+  for r in 0..s.lh {
+    for q in 0..s.lw {
+      z = sim_ground_z(s, q, r);
+      if z > peak { peak = z; pkq = q; pkr = r; }
+      if field_blocked(s, q, r, DIR_HEX) { nb = nb + 1; hb = hb + z; } else { no = no + 1; ho = ho + z; }
+    }
+  }
+  println("blocked hexes {nb} (mean height {hb / (nb as float) ?? 0.0} wu), open {no} (mean {ho / (no as float) ?? 0.0} wu)");
+
+  // ⚠ WHICH blocked hexes? "The mountain draws as a hole" and "the town wall is dark" are
+  // different findings needing different work, and the count above cannot tell them apart.
+  nrock = 0;
+  nbuilt = 0;
+  for r2 in 0..s.lh {
+    for q2 in 0..s.lw {
+      if field_blocked(s, q2, r2, DIR_HEX) {
+        if sim_terrain_at(s, q2, r2) == K_FACE + 1 { nrock = nrock + 1; } else { nbuilt = nbuilt + 1; }
+      }
+    }
+  }
+  println("   of those: {nrock} are terrain rock (K_FACE), {nbuilt} are built");
+  println("the window's peak is {peak} wu = {wu_to_terrain_m(peak)} m at ({pkq},{pkr}), blocked={field_blocked(s, pkq, pkr, DIR_HEX)}");
+
+  // the horizon, twice: all ground, and only ground the renderer draws a floor for
+  println("");
+  println("bearing   horizon(all)  horizon(drawn)   <- degrees above the eye, + is above");
+  for b in 0..12 {
+    ang = (b as float) * 0.5235987755982988;
+    dx = cos(ang);
+    dy = sin(ang);
+    besta = 0.0 - 90.0;
+    bestd = 0.0 - 90.0;
+    for i in 1..70 {
+      d = (i as float) * HEX_LEN;
+      x = s.px + dx * d;
+      y = s.py + dy * d;
+      (hq, hr) = px_to_hex(x, y);
+      if sim_has_ground(s, hq, hr) {
+        el = atan((ground_at(s, x, y) - ez) / d ?? 0.0) * 57.29577951308232;
+        if el > besta { besta = el; }
+        if !field_blocked(s, hq, hr, DIR_HEX) && el > bestd { bestd = el; }
+      }
+    }
+    println("  {b * 30} deg      {besta}        {bestd}");
+  }
+}

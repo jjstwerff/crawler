@@ -1,0 +1,138 @@
+// ground — the near field's SURFACE: one number per hex made into a continuous sheet that a
+// camera can stand on and a renderer can draw (plan #11 P6, the near half of I-HORIZON).
+//
+// `sim` stores the height of each hex — the far reading of that point, compressed by the one
+// vertical dial in `scale`. That is a set of samples, not a surface, and turning samples into
+// a surface is a choice with two consumers who MUST NOT choose differently:
+//
+//   * the renderer, which needs a height at every vertex it emits, and
+//   * the camera and the actors, which need a height at a CONTINUOUS position.
+//
+// If those two constructions differ at all, the player floats or sinks — the eye reads one
+// surface while the eye sees another, and the error is largest exactly where the ground is
+// most interesting. So both come out of this file, and the gate (`horizontest`) asserts the
+// agreement rather than trusting it.
+//
+// THE CONSTRUCTION, in two lines:
+//
+//   corner height = the mean of the (up to three) hexes that meet at that corner. A corner
+//                   has ONE value whoever asks for it, so the sheet has no cracks.
+//   height at P   = barycentric interpolation inside the (centre, corner k, corner k+1)
+//                   triangle containing P — which is exactly one of the six triangles the
+//                   floor fan draws. Standing and drawing read the same plane, by identity
+//                   rather than by agreement.
+//
+// EXTRACTION: this is generic hex-field work with nothing crawler-specific in it except the
+// name of the accessor it reads through, and it belongs beside the camera in `hexscene`
+// (EXTRACTION.md -> "The runtime half"). It stays here until the far field has a second
+// consumer for it, because a library with one caller is a guess about the second.
+use hex_grid;
+use sim;
+
+// The two edge directions that meet at corner `k`. Derived from `hex_edge_corners` rather
+// than written out, so the corner/edge convention lives in exactly one place — the library's.
+// A wrong table here would tilt every corner of the world by one neighbour and still look
+// like terrain.
+fn corner_dirs(k: integer) -> (integer, integer) {
+  a = -1;
+  b = -1;
+  for d in 0..6 {
+    (e0, e1) = hex_edge_corners(d);
+    if e0 == k || e1 == k {
+      if a < 0 { a = d; } else { b = d; }
+    }
+  }
+  (a, b)
+}
+
+// The height at corner `k` of hex (q,r): the mean of the hexes that meet there and HAVE a
+// reading. Off the window edge a neighbour is skipped rather than counted as zero — averaging
+// in a missing sample would drag the whole border ring down toward sea level and put a
+// permanent cliff around the window that no world contains.
+//
+// ⚠ THE THREE HEIGHTS ARE SUMMED IN A CANONICAL ORDER — sorted by (r,q), not in the order the
+// asking hex happens to meet them. Float addition does not associate, so `a+b+c` from one
+// hex and `b+c+a` from its neighbour differ in the last bits; measured before this sort, the
+// same corner came out 1.4e-14 wu apart depending on who asked. That is invisible in metres
+// and it is still worth removing, because the invariant this function exists to provide is
+// *a corner has ONE value*, and an invariant that holds to a tolerance is a tolerance. With
+// the order fixed the three hexes see the identical sum and the crack is exactly 0.
+pub fn ground_corner_z(s: Sim, q: integer, r: integer, k: integer) -> float {
+  // the (up to) three hexes meeting at this corner, as sortable keys
+  hq: vector<integer> = [];
+  hr: vector<integer> = [];
+  if sim_has_ground(s, q, r) { hq += [q]; hr += [r]; }
+  (d1, d2) = corner_dirs(k);
+  for i in 0..2 {
+    d = d1;
+    if i == 1 { d = d2; }
+    if d >= 0 {
+      (nq, nr) = hex_neighbor(q, r, d);
+      if sim_has_ground(s, nq, nr) { hq += [nq]; hr += [nr]; }
+    }
+  }
+  n = len(hq);
+  if n == 0 { return 0.0; }
+  // insertion sort on (r, q) — three elements, and the comparison is on integers, so the
+  // order is the same for every hex that shares this corner
+  for a in 1..n {
+    b = a;
+    while b > 0 {
+      pr = hr[b - 1] ?? 0;
+      pq = hq[b - 1] ?? 0;
+      cr = hr[b] ?? 0;
+      cq = hq[b] ?? 0;
+      if cr < pr || (cr == pr && cq < pq) {
+        hr[b - 1] = cr; hr[b] = pr;
+        hq[b - 1] = cq; hq[b] = pq;
+        b = b - 1;
+      } else {
+        b = 0;
+      }
+    }
+  }
+  sum = 0.0;
+  for j in 0..n { sum = sum + sim_ground_z(s, hq[j] ?? 0, hr[j] ?? 0); }
+  sum / (n as float) ?? 0.0
+}
+
+// The height of the drawn surface at any point in the plane.
+//
+// `px_to_hex` gives the hex whose hexagon contains the point (the hexagon IS that hex's
+// Voronoi cell), and the six fan triangles tile that hexagon exactly, so the point lies in
+// one of them — the loop is a search, not a test that can fail. The fallback is the hex's own
+// centre height, which is what a point exactly at the centre gets anyway.
+pub fn ground_at(s: Sim, x: float, y: float) -> float {
+  (q, r) = px_to_hex(x, y);
+  cz = sim_ground_z(s, q, r);
+  if !sim_has_ground(s, q, r) { return 0.0; }
+  (cx, cy) = hex_to_px(q, r);
+  for k in 0..6 {
+    k2 = (k + 1) % 6 ?? 0;
+    (bx, by) = hex_corner_px(q, r, k);
+    (dx, dy) = hex_corner_px(q, r, k2);
+    // Barycentric coordinates of (x,y) in the triangle (centre, corner k, corner k+1).
+    // The determinant is twice the triangle's signed area and is a constant of the lattice
+    // (never zero), but the divide is still discharged — a float divide is fallible in loft
+    // and a silent null here would read as sea level.
+    det = (by - dy) * (cx - dx) + (dx - bx) * (cy - dy);
+    if det != 0.0 {
+      l1 = (((by - dy) * (x - dx) + (dx - bx) * (y - dy)) / det) ?? 0.0;
+      l2 = (((dy - cy) * (x - dx) + (cx - dx) * (y - dy)) / det) ?? 0.0;
+      l3 = 1.0 - l1 - l2;
+      // The epsilon admits the shared edges: a point exactly on the seam between two fan
+      // triangles belongs to both, and both give the same answer because they share the two
+      // vertices that edge is built from.
+      if l1 >= -0.000001 && l2 >= -0.000001 && l3 >= -0.000001 {
+        return l1 * cz + l2 * ground_corner_z(s, q, r, k) + l3 * ground_corner_z(s, q, r, k2);
+      }
+    }
+  }
+  cz
+}
+
+// The eye height a camera stands at over that surface. One place, so the renderer and any
+// probe that asks "what can be seen from here" cannot disagree about how tall the player is.
+pub fn ground_eye_z(s: Sim, x: float, y: float, eye: float) -> float {
+  ground_at(s, x, y) + eye
+}

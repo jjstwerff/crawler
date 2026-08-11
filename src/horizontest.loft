@@ -1,0 +1,211 @@
+// horizontest — plan #11 P6, the NEAR half of I-HORIZON.
+//
+// **I-HORIZON: near and far are one world at two readings — the same point has the same
+// height from either.** The plan's gate was written as "the boundary ring sampled from both
+// readings, heights diffed", and it could not be run for the life of the project because
+// there was only ONE reading: the surface generator fetched each hex's height out of the
+// overland and wrote `(_, okind)`, so the near field was a flat plane at z = 0.
+//
+// It is two readings now, and this is the diff. Five claims, each able to go red:
+//
+//   1. the near reading EXISTS and has relief          — or every row below passes vacuously
+//   2. near == far, exactly, on the window's boundary ring and across its middle
+//   3. the same comparison one hex off the frame DISAGREES   (the negative control)
+//   4. the drawn surface has no cracks: a corner has one height whichever hex asks
+//   5. standing == drawing: `ground_at` is the plane of the triangle it lands in
+//   6. a dungeon is flat, and says so rather than inheriting the surface
+//
+// ⚠ Row 2 is NOT a tautology even though both sides run through `ov_height`. What it compares
+// is the FRAME: the near side reads a stored array by lattice index, the far side asks the
+// wilderness where that hex is in natural metres and samples the terrain function there. An
+// off-by-one in the window anchoring, a transposed index, or a vertical dial applied twice
+// all show up here — and row 3 proves the comparison can see exactly that class of error, by
+// making it on purpose.
+use sim;
+use overland;
+use hex_grid;
+use scale;
+use ground;
+
+fn absf(v: float) -> float { if v < 0.0 { return 0.0 - v; } v }
+
+fn main() {
+  println("=== story horizon test (plan #11 P6 — I-HORIZON, the near reading) ===");
+  ok = true;
+
+  s = sim_new_gen(1337, 0);          // the SHIPPED world's surface window
+  o = overland_new();
+  (ax, ay, cwx, cwy) = sim_window_frame(s);
+  (ox, oy) = window_hex_world(ax, ay, cwx, cwy, 0, 0);
+  println("window {s.lw}x{s.lh}, hex (0,0) at ({ox}, {oy}) natural m");
+
+  // ── 1. the near reading exists, and it is not a flat plane ───────────────
+  // The vacuity guard. Every row below compares two numbers that are zero if the height
+  // never got stored, and zero equals zero — which is the "subject that walked away from the
+  // assertion" failure this repo has hit six times (STATE.md, lesson 3).
+  lo = 1.0e18;
+  hi = 0.0 - 1.0e18;
+  for r1 in 0..s.lh {
+    for q1 in 0..s.lw {
+      z1 = sim_ground_z(s, q1, r1);
+      if z1 < lo { lo = z1; }
+      if z1 > hi { hi = z1; }
+    }
+  }
+  relief_wu = hi - lo;
+  println("1. relief {relief_wu} wu = {wu_to_terrain_m(relief_wu)} natural m (low {lo} wu, high {hi} wu)");
+  if relief_wu < 1.0 { ok = false; println("   FAIL: the near field is flat — the height is not being stored"); }
+  if !sim_has_ground(s, 50, 50) { ok = false; println("   FAIL: the centre hex has no reading"); }
+
+  // ── 2. I-HORIZON: near == far, on the boundary ring and across the middle ─
+  // The ring is where the two readings MEET — everything past it is the far field's, and a
+  // frame that is one hex out puts the horizon a hex away from the ground it continues.
+  worst = 0.0;
+  worstq = 0;
+  worstr = 0;
+  nring = 0;
+  for i2 in 0..s.lw {
+    for e2 in 0..4 {
+      q2 = i2;
+      r2 = 0;
+      if e2 == 1 { q2 = i2; r2 = s.lh - 1; }
+      if e2 == 2 { q2 = 0; r2 = i2; }
+      if e2 == 3 { q2 = s.lw - 1; r2 = i2; }
+      if q2 < s.lw && r2 < s.lh {
+        (wx2, wy2) = window_hex_world(ax, ay, cwx, cwy, q2, r2);
+        far = terrain_m_to_wu(ov_height(o, wx2, wy2));
+        d2 = absf(sim_ground_z(s, q2, r2) - far);
+        if d2 > worst { worst = d2; worstq = q2; worstr = r2; }
+        nring = nring + 1;
+      }
+    }
+  }
+  println("2. boundary ring: {nring} hexes, worst near-vs-far difference {worst} wu (at ({worstq},{worstr}))");
+  if worst > 0.0 { ok = false; println("   FAIL: the two readings disagree on the ring"); }
+
+  // and the middle, so the claim is about the window rather than about its edge
+  wmid = 0.0;
+  for i3 in 0..s.lw {
+    (wx3, wy3) = window_hex_world(ax, ay, cwx, cwy, i3, i3);
+    far3 = terrain_m_to_wu(ov_height(o, wx3, wy3));
+    d3 = absf(sim_ground_z(s, i3, i3) - far3);
+    if d3 > wmid { wmid = d3; }
+  }
+  println("   diagonal across the middle: worst {wmid} wu");
+  if wmid > 0.0 { ok = false; println("   FAIL: the two readings disagree inside the window"); }
+
+  // ── 3. the NEGATIVE CONTROL, and it is the whole reason row 2 is worth running ─
+  // Ask the far reading about the hex NEXT DOOR and the same comparison must break. If this
+  // stays green, row 2 is comparing something to itself and proves nothing.
+  offby = 0;
+  same = 0;
+  for i4 in 0..s.lw {
+    (wx4, wy4) = window_hex_world(ax, ay, cwx, cwy, i4 + 1, 0);
+    far4 = terrain_m_to_wu(ov_height(o, wx4, wy4));
+    if absf(sim_ground_z(s, i4, 0) - far4) > 0.0 { offby = offby + 1; } else { same = same + 1; }
+  }
+  println("3. negative control (the frame shifted one hex): {offby} of {offby + same} disagree");
+  if offby < s.lw - 5 { ok = false; println("   FAIL: a one-hex frame error is invisible to row 2"); }
+
+  // ── 4. the surface has no cracks ─────────────────────────────────────────
+  // A corner belongs to three hexes. `ground_corner_z` must return the same height to all
+  // three, or the floor tears along every hex boundary — the classic seam in a per-cell
+  // terrain mesh. The shared corner is identified BY POSITION, not by a corner-index table:
+  // a table is the thing most likely to be wrong, so the test must not use the same one.
+  crack = 0.0;
+  ncorner = 0;
+  for r5 in 20..80 {
+    for q5 in 20..80 {
+      for k5 in 0..6 {
+        (px5, py5) = hex_corner_px(q5, r5, k5);
+        z5 = ground_corner_z(s, q5, r5, k5);
+        for d5 in 0..6 {
+          (nq5, nr5) = hex_neighbor(q5, r5, d5);
+          for k6 in 0..6 {
+            (px6, py6) = hex_corner_px(nq5, nr5, k6);
+            if absf(px6 - px5) < 0.0001 && absf(py6 - py5) < 0.0001 {
+              dz = absf(ground_corner_z(s, nq5, nr5, k6) - z5);
+              if dz > crack { crack = dz; }
+              ncorner = ncorner + 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  println("4. shared corners: {ncorner} pairs checked, worst disagreement {crack} wu");
+  if ncorner < 1000 { ok = false; println("   FAIL: the corner search found nothing to compare"); }
+  if crack > 0.0000001 { ok = false; println("   FAIL: the drawn surface tears at hex boundaries"); }
+
+  // ── 5. standing == drawing ───────────────────────────────────────────────
+  // `ground_at` interpolates barycentrically; the renderer emits the triangle's three
+  // vertices and the rasteriser interpolates linearly between them, which is the PLANE
+  // through those vertices. This computes that plane the other way — from the normal of the
+  // cross product — and asserts they are the same number. A point that reads differently
+  // from the two constructions is a player floating above, or buried in, the ground drawn.
+  wplane = 0.0;
+  npt = 0;
+  for r7 in 30..70 {
+    for q7 in 30..70 {
+      (cx7, cy7) = hex_to_px(q7, r7);
+      cz7 = sim_ground_z(s, q7, r7);
+      for k7 in 0..6 {
+        k8 = (k7 + 1) % 6 ?? 0;
+        (ax7, ay7) = hex_corner_px(q7, r7, k7);
+        (bx7, by7) = hex_corner_px(q7, r7, k8);
+        az7 = ground_corner_z(s, q7, r7, k7);
+        bz7 = ground_corner_z(s, q7, r7, k8);
+        // a point strictly inside this fan triangle: the centroid, and a point pulled
+        // toward each vertex in turn, so the check is not only about the middle
+        for t7 in 0..3 {
+          wc = 0.34;
+          wa = 0.33;
+          wb = 0.33;
+          if t7 == 1 { wc = 0.7; wa = 0.2; wb = 0.1; }
+          if t7 == 2 { wc = 0.1; wa = 0.2; wb = 0.7; }
+          px7 = wc * cx7 + wa * ax7 + wb * bx7;
+          py7 = wc * cy7 + wa * ay7 + wb * by7;
+          // the plane through (centre, a, b), from its normal — an independent construction
+          ux = ax7 - cx7; uy = ay7 - cy7; uz = az7 - cz7;
+          vx = bx7 - cx7; vy = by7 - cy7; vz = bz7 - cz7;
+          nx = uy * vz - uz * vy;
+          ny = uz * vx - ux * vz;
+          nz = ux * vy - uy * vx;
+          if absf(nz) > 0.000001 {
+            zplane = cz7 - ((nx * (px7 - cx7) + ny * (py7 - cy7)) / nz ?? 0.0);
+            dz7 = absf(ground_at(s, px7, py7) - zplane);
+            if dz7 > wplane { wplane = dz7; }
+            npt = npt + 1;
+          }
+        }
+      }
+    }
+  }
+  println("5. stand-vs-draw: {npt} interior points, worst difference {wplane} wu ({wu_to_terrain_m(wplane)} natural m)");
+  if npt < 1000 { ok = false; println("   FAIL: no interior points were sampled"); }
+  if wplane > 0.000001 { ok = false; println("   FAIL: the camera does not stand on the surface it draws"); }
+
+  // ── 6. a dungeon is flat, and knows it ───────────────────────────────────
+  // Not decoration: the surface arrays are the same fields, and a level that inherited a
+  // stale height would put the player's eye a hundred metres under the floor.
+  d = sim_new_gen(1337, 1);
+  dmax = 0.0;
+  for r9 in 0..d.lh {
+    for q9 in 0..d.lw {
+      z9 = absf(sim_ground_z(d, q9, r9));
+      if z9 > dmax { dmax = z9; }
+      if sim_has_ground(d, q9, r9) { ok = false; }
+    }
+  }
+  println("6. dungeon depth 1: worst |z| {dmax} wu, ground_at(player) {ground_at(d, d.px, d.py)}");
+  if dmax > 0.0 { ok = false; println("   FAIL: a dungeon level carries heights"); }
+  if absf(ground_at(d, d.px, d.py)) > 0.0 { ok = false; println("   FAIL: ground_at is not flat in a dungeon"); }
+
+  // What the player will actually walk, reported rather than asserted — a number to read the
+  // rendered frame against, and the one plan #11 P6 opened on.
+  (spx, spy) = (s.px, s.py);
+  println("");
+  println("the spawn stands at z {ground_at(s, spx, spy)} wu = {wu_to_terrain_m(ground_at(s, spx, spy))} natural m");
+
+  if ok { println("=== HORIZON OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -16,6 +16,7 @@ use classes;          // ClassDef + class_find (the chosen class applies: stats/
 use random;           // RandStream (loft-libs-core): owned deterministic streams — combat rolls,
                       //   monster placement, flavour shuffles (EXTRACTION.md item 4 adoption)
 use overland;         // the contract wilderness: the surface samples ov_sample (OVERLAND.md 12)
+use scale;            // terrain_m_to_wu — THE vertical reading (SCALE.md; plan #11 P6)
 use worldtypes;       // RoomStencil / Placement — the world-bundle vocabulary
 use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
@@ -185,6 +186,14 @@ pub struct Player {
 
 pub struct Sim {
   tkind: vector<integer> not null,   // surface terrain kind + 1 (0 = dungeon/none)
+  // GROUND HEIGHT per hex, in WORLD UNITS above sea level (plan #11 P6, I-HORIZON). The
+  // depth-0 generator already sampled this out of the overland and threw it away — the
+  // ground was a flat plane in both renderers and `SCALE.md` had never fixed the vertical.
+  // It is stored COMPRESSED (scale::terrain_m_to_wu), because rise takes the compression run
+  // takes, and ABSOLUTE (sea level = 0) rather than per-window: a datum per window would put
+  // a step in the ground at every window seam a traveller crosses.
+  // Empty on a dungeon level, which is flat by construction.
+  theight: vector<float> not null,
   lw:      integer not null,
   lh:      integer not null,
   qmin:    integer not null,
@@ -4244,6 +4253,80 @@ pub fn sim_terrain_at(s: Sim, q: integer, r: integer) -> integer {
   0
 }
 
+// THE WINDOW FRAME — where a level's hex lattice sits in the wilderness. ONE OWNER, because
+// two answers to "which world point is hex (q,r)" is a near field standing somewhere the far
+// field is not, and that seam is exactly what I-HORIZON is about (plan #11 P6).
+//
+// Returns the anchor (ax, ay) — the window's centre in natural metres — and (cwx, cwy), the
+// lattice offset of the centre hex, so a caller converts either way:
+//
+//     hex (q,r)  ->  world:  ax + hx - cwx        where (hx,hy) = ov_hex_world(q, r)
+//     world      ->  hex:    (x - ax + cwx) / step
+//
+// Both directions are used in this file; before P6 the forward one was written out inline in
+// the generator, which is why nothing outside it could ask where the window stands.
+fn window_anchor(ovw: Overland, wwx: integer, wwy: integer, w: integer, h: integer)
+    -> (float, float, float, float) {
+  ax = 7500.0;
+  ay = 5800.0;
+  t0 = ovw.ov_towns[ov_home_town(ovw)];
+  if t0 != null { ax = t0.ot_x; ay = t0.ot_y; }
+  // MULTI-WINDOW: (wwx, wwy) picks WHICH 1.5 km window of the wilderness this Sim is.
+  // (0,0) anchors at the home town; neighbours overlap by a few hexes so walking off an
+  // edge crosses into continuous terrain.
+  (spanx, _) = ov_hex_world(w - 4, 0);
+  (_, spany) = ov_hex_world(0, h - 4);
+  ax = ax + (wwx as float) * spanx;
+  ay = ay + (wwy as float) * spany;
+  (cwx, cwy) = ov_hex_world(w / 2, h / 2);
+  (ax, ay, cwx, cwy)
+}
+
+// GROUND HEIGHT at (q,r) in world units above sea level — the near reading of I-HORIZON
+// (plan #11 P6). A dungeon level, and anything off the window, is flat at 0.
+//
+// ⚠ Height is a RENDERING property at this phase and nothing else: passability is still the
+// edge field, so a slope neither blocks nor slows. Whether a gradient should cost the walker
+// anything is a gameplay question with its own keys, and inventing one here would be exactly
+// the bounded-simulation trap (DESIGN §3a pillar 0).
+pub fn sim_ground_z(s: Sim, q: integer, r: integer) -> float {
+  if q < 0 || r < 0 || q >= s.lw || r >= s.lh { return 0.0; }
+  ti = r * s.lw + q;
+  if ti < len(s.theight) { return s.theight[ti] ?? 0.0; }
+  0.0
+}
+
+// Does this level HAVE a height reading at (q,r)? The averaging that makes the drawn surface
+// continuous has to tell "flat here" from "no sample here" — off the window edge it must skip
+// the neighbour rather than average a zero in, which would pull every border hex to sea level.
+pub fn sim_has_ground(s: Sim, q: integer, r: integer) -> boolean {
+  if q < 0 || r < 0 || q >= s.lw || r >= s.lh { return false; }
+  r * s.lw + q < len(s.theight)
+}
+
+// THE FRAME, EXPOSED — so the far field and any gate can ask where a near hex stands in the
+// wilderness instead of rebuilding the anchoring. Costs one `overland_new`, so a caller takes
+// it ONCE and maps with `window_hex_world` below.
+pub fn sim_window_frame(s: Sim) -> (float, float, float, float) {
+  ovw = overland_new();
+  window_anchor(ovw, s.win_x, s.win_y, s.lw, s.lh)
+}
+
+// Hex (q,r) of that window, in natural metres. THE mapping — the generator samples the
+// terrain through this function and so does everyone else.
+//
+// ⚠ It exists as a function for a reason that looks like pedantry and is not: written out at
+// the call site as `ax + hx - cwx`, an equally correct caller writing `(ax - cwx) + hx` gets
+// a DIFFERENT number — float addition does not associate — and the near and far readings then
+// disagree by ~1e-13 wu everywhere. Measured, before this was one expression. That residue is
+// harmless in metres and fatal to the gate, because a bound of "close enough" cannot then
+// tell a rounding difference from a real frame error. One expression, and the diff is 0.
+pub fn window_hex_world(ax: float, ay: float, cwx: float, cwy: float,
+                        q: integer, r: integer) -> (float, float) {
+  (hx, hy) = ov_hex_world(q, r);
+  (ax + hx - cwx, ay + hy - cwy)
+}
+
 // The SECOND end of a two-ended route — the stall a farmer carries to, the furnace a miner
 // delivers ore to, patrol leg B. Roles with one destination repeat their work hex here.
 // ⚠ A route is only walkable if BOTH ends are, and the delivery end is the one a supply
@@ -4645,6 +4728,7 @@ pub fn sim_new() -> Sim {
   ffield = build_field(fsolid, walls, w, h);  //   call into a literal (survival guide)
   s = Sim {
     tkind: zeros(w * h),
+    theight: [],                              // the sandbox level is flat, like a dungeon
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     solid: fsolid, field: ffield,
     seen: zeros(w * h), vis: zeros(w * h),
@@ -4868,33 +4952,29 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
   }
   tiles = lvl.g_tiles;
   tk = zeros(w * h);
+  th: vector<float> = [];
   if depth == 0 {
     // The CONTRACT WILDERNESS (OVERLAND.md 12): the window anchors at the
     // biggest town of the example world; each walked hex samples the pure
-    // terrain function at OV_STEP natural meters per step.
-    ovw = overland_new();
-    ax = 7500.0;
-    ay = 5800.0;
-    t0 = ovw.ov_towns[ov_home_town(ovw)];
-    if t0 != null { ax = t0.ot_x; ay = t0.ot_y; }
-    // MULTI-WINDOW: (wwx, wwy) picks WHICH 1.5 km window of the wilderness this
-    // Sim is. (0,0) anchors at the home town; neighbours overlap by a few hexes
-    // so walking off an edge crosses into continuous terrain. Town life (houses,
+    // terrain function at OV_STEP natural meters per step. Town life (houses,
     // people, harbor, industry) belongs to the home window only; the land's own
     // features (ruins, forts, caves, towers, wilds) place by WORLD coordinates
     // and appear in whichever window holds them.
-    (spanx, _) = ov_hex_world(w - 4, 0);
-    (_, spany) = ov_hex_world(0, h - 4);
-    ax = ax + (wwx as float) * spanx;
-    ay = ay + (wwy as float) * spany;
+    ovw = overland_new();
+    (ax, ay, cwx, cwy) = window_anchor(ovw, wwx, wwy, w, h);
+    t0 = ovw.ov_towns[ov_home_town(ovw)];   // the home town's own record (its size builds the village)
     intown = wwx == 0 && wwy == 0;
-    (cwx, cwy) = ov_hex_world(w / 2, h / 2);
+    for _ in 0..w * h { th += [0.0]; }
     for sr3 in 0..h {
       for sq3 in 0..w {
-        (hx3, hy3) = ov_hex_world(sq3, sr3);
-        (_, okind) = ov_sample(ovw, ax + hx3 - cwx, ay + hy3 - cwy);
+        (wx3, wy3) = window_hex_world(ax, ay, cwx, cwy, sq3, sr3);
+        // THE HEIGHT IS KEPT NOW (plan #11 P6). This line read `(_, okind)` for the life of
+        // the project, which is why the near field was a flat plane: the number was fetched
+        // and dropped one character before it could be stored.
+        (oh3, okind) = ov_sample(ovw, wx3, wy3);
         ti3 = sr3 * w + sq3;
         if ti3 < len(tk) { tk[ti3] = okind + 1; }
+        if ti3 < len(th) { th[ti3] = terrain_m_to_wu(oh3); }
         sv = 0;
         if okind == K_FACE { sv = 1; }
         if ti3 < len(tiles) { tiles[ti3] = sv; }
@@ -6211,6 +6291,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
   gfield = build_field(gsolid, walls, w, h);
   s = Sim {
     tkind: tk,
+    theight: th,
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
     solid: gsolid, field: gfield,
     seen: zeros(w * h), vis: zeros(w * h),

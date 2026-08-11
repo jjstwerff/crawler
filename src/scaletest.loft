@@ -117,5 +117,22 @@ fn main() {
     prev_rad = rad_m2;
   }
 
+  // ── the VERTICAL, which this contract did not state until plan #11 P6 ────
+  // Rise takes the compression run takes. Checked as the identity that IS the reading:
+  // one OV_STEP of natural rise across one walked hex is exactly 45 degrees.
+  rise = terrain_m_to_wu(M_PER_HEX_STEP * TERRAIN_COMPRESS);
+  ev = rise - HEX_LEN; if ev < 0.0 { ev = 0.0 - ev; }
+  println("VERTICAL: {M_PER_HEX_STEP * TERRAIN_COMPRESS} natural m of rise = {rise} wu against a run of HEX_LEN {HEX_LEN} wu");
+  println("   -> slope {rise / HEX_LEN ?? 0.0} (45 degrees, the slope reality has there)");
+  if ev > 0.0000001 { ok = false; }
+  // and the round trip, because a height is read back out to be reported in metres
+  rt = wu_to_terrain_m(terrain_m_to_wu(742.0)) - 742.0; if rt < 0.0 { rt = 0.0 - rt; }
+  if rt > 0.000001 { ok = false; }
+  // ⚠ The NEGATIVE CONTROL for the reading itself: heights left NATURAL (the reading this
+  // rejects) put the same rise ten times higher, which is what makes the world walls. If
+  // this ever stops differing, the compression has silently left the vertical.
+  println("   uncompressed, the same rise would be {M_PER_HEX_STEP * TERRAIN_COMPRESS / M_PER_WU ?? 0.0} wu -> slope {M_PER_HEX_STEP * TERRAIN_COMPRESS / M_PER_WU / HEX_LEN ?? 0.0}");
+  if (M_PER_HEX_STEP * TERRAIN_COMPRESS / M_PER_WU / HEX_LEN ?? 0.0) < 9.0 { ok = false; }
+
   if ok { println("=== SCALE OK ==="); } else { println("=== FAIL ==="); }
 }

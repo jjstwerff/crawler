@@ -20,6 +20,7 @@ use hex_grid;
 use hexscene;
 use worldtex;
 use overland;
+use ground;        // the near field's SURFACE — one construction for standing and drawing (P6)
 
 WALL3D_H = 3.2;          // world units ~ 2.77 m: a room you can stand up in (SCALE.md)
 EYE3D_Z  = 1.847;        // 1.6 m eye height at 0.866 m per world unit
@@ -127,6 +128,31 @@ pub fn build_world_texture3d(s: Sim) -> integer {
   tex
 }
 
+// How much light reaches one floor triangle: a Lambert term against a fixed sun, flat per
+// triangle. Flat rather than smoothed on purpose — a facet is the honest picture of a mesh
+// whose vertices are hex samples, and a smoothed normal would claim a curvature the field
+// does not carry. On level ground every triangle takes the same value, so a flat world stays
+// flat-looking and only relief shows.
+//
+// The sun sits high and to the north-west (the direction the 2D view has always lit from) so
+// slopes facing it read bright and the ones away read dark; the ambient floor is 0.55, which
+// keeps a shadowed hillside readable rather than black — this is legibility, not a lighting
+// model, and there is no shadow term at all.
+fn tri_shade(cx: float, cy: float, cz: float, ax: float, ay: float, az: float,
+             bx: float, by: float, bz: float) -> float {
+  ux = ax - cx; uy = ay - cy; uz = az - cz;
+  vx = bx - cx; vy = by - cy; vz = bz - cz;
+  nx = uy * vz - uz * vy;
+  ny = uz * vx - ux * vz;
+  nz = ux * vy - uy * vx;
+  if nz < 0.0 { nx = 0.0 - nx; ny = 0.0 - ny; nz = 0.0 - nz; }   // normals point up
+  ln = sqrt(nx * nx + ny * ny + nz * nz) ?? 0.0;
+  if ln <= 0.0 { return 1.0; }
+  d = ((nx * (0.0 - 0.40) + ny * 0.30 + nz * 0.866) / ln) ?? 0.0;
+  if d < 0.0 { d = 0.0; }
+  0.55 + 0.45 * d
+}
+
 // Build the level's 3D scene and upload it. Returns (vao, vertex count).
 //
 // The buffer is built INLINE here and handed straight to gl_upload_vertices — never
@@ -149,29 +175,69 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
     for gq in 0..s.lw {
       q = s.qmin + gq;
       r = s.rmin + gr;
-      if !field_blocked(s, q, r, DIR_HEX) {
-        // FLOOR — a hexagon fan at z = 0. Landcover rides the world texture (I-PAINT), so
-        // the vertex tone is white and only modulates it.
+      // ⚠ ROCK IS GROUND YOU CANNOT WALK ON, NOT AN ABSENCE OF GROUND (plan #11 P6).
+      // The floor used to be drawn only where the field says you may stand, which was right
+      // while the world was flat — a K_FACE hex was rendered by the 3.2 wu wall quads its
+      // open neighbours emit, and there was nothing else it could have been. With heights it
+      // is wrong twice over: the mountain draws as a HOLE ringed by a 2.8 m fence, and the
+      // fence duplicates a cliff the height already describes. So the floor follows the
+      // READING, not the passability.
+      //
+      // ⚠ It is a small correction on the shipped window and the frame barely moves — of its
+      // 290 blocked hexes only **33 are rock**; the other 257 are BUILT, and they are what the
+      // dark band across the first-person frame from the town square actually is. Written down
+      // because the obvious reading of that band was "the mountain", and `skyprobe` had to be
+      // asked before the change could be described. It is a valley town: the rock is elsewhere.
+      drawfloor = !field_blocked(s, q, r, DIR_HEX) || sim_has_ground(s, q, r);
+      if drawfloor {
+        // FLOOR — a hexagon fan standing on the near field's own height (plan #11 P6). The
+        // centre takes the hex's reading and each corner the mean of the hexes meeting there,
+        // so the fan of one hex meets its neighbour's along a shared edge with shared
+        // endpoints: the ground is a continuous sheet, not a field of terraces. Landcover
+        // rides the world texture (I-PAINT), so the vertex tone is white and only modulates.
         (cx, cy) = hex_to_px(q, r);
         cxs = cx as single;
         cys = cy as single;
+        czs = sim_ground_z(s, q, r) as single;
         (cu, cv) = world_tex_uv(wt, cx, cy);
         cus = cu as single;
         cvs = cv as single;
         for kc in 0..6 {
+          kc2 = (kc + 1) % 6 ?? 0;
           (kax, kay) = hex_corner_px(q, r, kc);
-          (kbx, kby) = hex_corner_px(q, r, (kc + 1) % 6 ?? 0);
+          (kbx, kby) = hex_corner_px(q, r, kc2);
+          kazf = ground_corner_z(s, q, r, kc);
+          kbzf = ground_corner_z(s, q, r, kc2);
+          kaz = kazf as single;
+          kbz = kbzf as single;
           (au, av) = world_tex_uv(wt, kax, kay);
           (bu, bv) = world_tex_uv(wt, kbx, kby);
-          buf += [cxs, cys, zf, one, one, one, cus, cvs];
-          buf += [kax as single, kay as single, zf, one, one, one, au as single, av as single];
-          buf += [kbx as single, kby as single, zf, one, one, one, bu as single, bv as single];
+          // ⚠ WITHOUT THIS THE HEIGHT FIELD IS INVISIBLE. An unlit floor is its landcover
+          // colour whatever its slope, so a 40-degree hillside renders as the same flat green
+          // as a meadow — the frame cannot show the one thing this phase built, and "the
+          // ground looks wrong" and "the ground looks fine" produce the same picture.
+          // A per-triangle Lambert term against a fixed sun is the whole of it, carried in
+          // the vertex tone the shader already multiplies the texture by (I-PAINT keeps the
+          // COLOUR in the texture; this only says how much light reaches it).
+          sl = tri_shade(cx, cy, sim_ground_z(s, q, r), kax, kay, kazf, kbx, kby, kbzf) as single;
+          buf += [cxs, cys, czs, sl, sl, sl, cus, cvs];
+          buf += [kax as single, kay as single, kaz, sl, sl, sl, au as single, av as single];
+          buf += [kbx as single, kby as single, kbz, sl, sl, sl, bu as single, bv as single];
           n += 3;
         }
         // WALLS — one quad per blocked edge, raised from the floor. Emitted from the
         // OPEN side only, so each face is built once and faces the cell you can stand in.
+        //
+        // ⚠ A CLIFF IS NOT A WALL. Where the blocker is terrain rock the height field already
+        // draws the face — at its true size, which is tens of metres, not 2.8 — so a quad
+        // there is a second, shorter mountain standing inside the first. Architecture keeps
+        // its quads: a house wall is 2.8 m of built thing ON the ground (decision 6, a wall's
+        // THICKNESS decides its layer), and nothing in the height field describes it.
         for d in 0..6 {
           if field_blocked(s, q, r, d) {
+            (bnq, bnr) = hex_neighbor(q, r, d);
+            isrock = sim_terrain_at(s, bnq, bnr) == K_FACE + 1;
+            if !isrock {
             (e0, e1) = hex_edge_corners(d);
             (w0x, w0y) = hex_corner_px(q, r, e0);
             (w1x, w1y) = hex_corner_px(q, r, e1);
@@ -185,13 +251,24 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
             ay = w0y as single;
             bx = w1x as single;
             by = w1y as single;
-            buf += [ax, ay, zf, wr, wg, wb, neg, neg];
-            buf += [bx, by, zf, wr, wg, wb, neg, neg];
-            buf += [bx, by, hf, wr, wg, wb, neg, neg];
-            buf += [ax, ay, zf, wr, wg, wb, neg, neg];
-            buf += [bx, by, hf, wr, wg, wb, neg, neg];
-            buf += [ax, ay, hf, wr, wg, wb, neg, neg];
+            // The wall's FOOT follows the ground it stands on — the same two corner heights
+            // the floor triangles use, so a wall meets the floor along one line rather than
+            // hovering over a slope or sinking into it. Its top rides parallel: a wall is a
+            // constant height ABOVE its own ground, not a constant height above sea level.
+            az0 = ground_corner_z(s, q, r, e0);
+            bz0 = ground_corner_z(s, q, r, e1);
+            azs = az0 as single;
+            bzs = bz0 as single;
+            azh = (az0 + WALL3D_H) as single;
+            bzh = (bz0 + WALL3D_H) as single;
+            buf += [ax, ay, azs, wr, wg, wb, neg, neg];
+            buf += [bx, by, bzs, wr, wg, wb, neg, neg];
+            buf += [bx, by, bzh, wr, wg, wb, neg, neg];
+            buf += [ax, ay, azs, wr, wg, wb, neg, neg];
+            buf += [bx, by, bzh, wr, wg, wb, neg, neg];
+            buf += [ax, ay, azh, wr, wg, wb, neg, neg];
             n += 6;
+            }
           }
         }
       }
@@ -216,7 +293,10 @@ pub fn actors_collect(s: Sim, tex_of: vector<integer>) -> vector<ActorView> {
       // A humanoid is 1.75 m tall = 2.02 world units (SCALE.md, 0.866 m per unit). One
       // size for now: per-monster metric sizes are content, and belong in the bundle.
       (er, eg, eb) = sim_enemy_color(s, i);
-      av = ActorView { av_x: ax, av_y: ay, av_z: 0.0, av_w: 1.15, av_h: 2.02,
+      // FEET ON THE GROUND (plan #11 P6): a board's base sits at the surface height under it,
+      // read through the same function the camera stands on and the floor is drawn from.
+      az = ground_at(s, ax, ay);
+      av = ActorView { av_x: ax, av_y: ay, av_z: az, av_w: 1.15, av_h: 2.02,
                        av_yaw: 0.0,
                        av_r: (er as float) / 255.0 ?? 0.5,
                        av_g: (eg as float) / 255.0 ?? 0.5,
@@ -230,8 +310,13 @@ pub fn actors_collect(s: Sim, tex_of: vector<integer>) -> vector<ActorView> {
 
 // The camera for this frame — a pure function of kernel state, which is I-STAND: the
 // renderer holds no position of its own, it reads the one the kernel moved.
+//
+// The eye is EYE3D_Z above THE GROUND, not above sea level (plan #11 P6). `ground_eye_z`
+// interpolates inside the same triangle the floor fan draws, so the horizon rises and falls
+// with the ground the player walks instead of the player wading through a hillside.
 pub fn view3d_camera(s: Sim, vw: float, vh: float) -> hexscene::SceneCamera {
-  camera_new(s.px, s.py, EYE3D_Z, s.heading, 0.0, 1.0471975511965976, vw, vh)
+  camera_new(s.px, s.py, ground_eye_z(s, s.px, s.py, EYE3D_Z), s.heading, 0.0,
+             1.0471975511965976, vw, vh)
 }
 
 // Actors, through the seam, in ONE draw call. The frame loop never learns that a board
