@@ -1,0 +1,70 @@
+// parallax — when a cached far-field layer is still valid (plan #11 P6b, I-PARALLAX).
+//
+// **I-PARALLAX: a cached air-box layer is valid exactly while its parallax error is
+// sub-pixel.** The far field is drawn as layers at increasing distance, each rendered once
+// into its own texture and RE-PROJECTED rather than re-rendered. A layer at distance `d`
+// shifts by `t_perp / d` radians when the camera translates `t_perp` across the view, so:
+//
+//     reuse layer  <=>  t_perp / d  <  fov / screen_width
+//
+// It is a computed threshold, not a tuning knob, which is what makes it checkable — and it is
+// the idle-skip digest (`framekey.loft`) one level out: don't redraw what could not have
+// changed. Rotation costs NOTHING at any distance, which matters here specifically because
+// A/D turning is the most common input in the game and is exactly the motion with zero
+// parallax.
+//
+// ⚠ THE COMPRESSION IS A TERM IN THIS AND THE DESIGN'S TABLE OMITS IT. DESIGN.md prices a
+// 2 km layer at 0.6 s of walking. That treats the camera's translation and the layer's
+// distance as the same kind of length, and in this world they are not: terrain is compressed
+// 10x (`SCALE.md`) while the player walks at architecture scale, so a layer 2 km away in
+// NATURAL metres stands only 231 world units from a camera moving 1.73 world units per
+// second. Every cache lifetime in that table is therefore 10x too long. Gated as an exact
+// identity in `parallaxtest`, because a factor of ten in a caching budget is the difference
+// between "the sky redraws twice a minute" and "twice a second".
+use scale;
+use hex_grid;
+
+// The skirt's innermost radius (`farfield`'s ring 0 measured at 114.6 wu on the shipped
+// window) rounded up: the first layer cannot begin nearer than the geometry it caches.
+pub const PARALLAX_NEAR_WU = 115.0;
+
+// Each layer spans a factor of 4 in distance, so 4 layers cover the skirt's 115..5537 wu.
+// Bands rather than a layer per ring because a layer's cost is a render target, and its
+// VALIDITY is set by its NEAREST content — the worst case inside the band.
+pub const PARALLAX_BASE   = 4.0;
+pub const PARALLAX_LAYERS = 4;
+
+// Radians per pixel — the design's own `fov / screen_width`. Written as one function so the
+// criterion and any gate cannot disagree about what "one pixel" means.
+pub fn pixel_angle(fov: float, screen_w: float) -> float { fov / screen_w ?? 0.0 }
+
+// The nearest content in layer `j`, in world units. Nearest, because that is what invalidates
+// first: a layer is only as cacheable as its closest pixel.
+pub fn layer_near_wu(j: integer) -> float {
+  PARALLAX_NEAR_WU * (pow(PARALLAX_BASE, j as float) ?? 1.0)
+}
+
+// How far the camera may translate ACROSS the view before layer `j` must be re-rendered.
+// This is the whole invariant, solved for the translation instead of the angle.
+pub fn layer_budget_wu(j: integer, fov: float, screen_w: float) -> float {
+  layer_near_wu(j) * pixel_angle(fov, screen_w)
+}
+
+// The same budget as a time, at a given speed — the form DESIGN.md's table is in.
+pub fn layer_budget_s(j: integer, fov: float, screen_w: float, speed_wu_s: float) -> float {
+  layer_budget_wu(j, fov, screen_w) / speed_wu_s ?? 0.0
+}
+
+// The parallax error, in PIXELS, of a layer at distance `d` reused after translating
+// `t_perp` across the view. The gate reads this rather than the boolean, because a boolean
+// that is always true and a boolean that is correctly true look identical at the output.
+pub fn parallax_px(d: float, t_perp: float, fov: float, screen_w: float) -> float {
+  pa = pixel_angle(fov, screen_w);
+  if pa <= 0.0 { return 0.0; }
+  ((t_perp / d ?? 0.0) / pa) ?? 0.0
+}
+
+// May this layer be reused? The criterion itself, in one place.
+pub fn layer_reuse(j: integer, t_perp: float, fov: float, screen_w: float) -> boolean {
+  t_perp < layer_budget_wu(j, fov, screen_w)
+}

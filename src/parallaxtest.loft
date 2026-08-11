@@ -1,0 +1,106 @@
+// parallaxtest — plan #11 P6b, I-PARALLAX.
+//
+// The plan's gate: *"for a walk of known length: which layers re-rendered, and the worst
+// parallax error each frame"*. Pure camera math, so it needs no GL and no world.
+//
+//   1. the criterion is the design's formula, solved for the translation
+//   2. a walk of known length: re-render counts per layer, worst error <= 1 px
+//   3. NEGATIVE CONTROL — the same walk with caching never invalidated must blow past 1 px
+//   4. THE COMPRESSION IS A TERM, and DESIGN.md's table omits it: every cache lifetime there
+//      is exactly TERRAIN_COMPRESS times too long
+use scale;
+use hex_grid;
+use parallax;
+
+fn absf(v: float) -> float { if v < 0.0 { return 0.0 - v; } v }
+
+fn main() {
+  println("=== story parallax test (plan #11 P6b — I-PARALLAX) ===");
+  ok = true;
+  fov = 1.0471975511965976;        // the view3d camera's own field of view
+  sw  = 800.0;                     // and the frame width the shots are taken at
+  pa = pixel_angle(fov, sw);
+  println("one pixel is {pa} rad ({pa * 57.29577951308232} degrees) at fov {fov} over {sw} px");
+
+  // ── 1. the criterion, solved both ways ───────────────────────────────────
+  // A layer at its budget must read EXACTLY one pixel of error: the two functions are one
+  // equation rearranged, and if they ever disagree the caching decision and the error report
+  // are describing different worlds.
+  for j1 in 0..PARALLAX_LAYERS {
+    d1 = layer_near_wu(j1);
+    b1 = layer_budget_wu(j1, fov, sw);
+    e1 = parallax_px(d1, b1, fov, sw);
+    println("  layer {j1}: nearest {d1} wu = {wu_to_terrain_m(d1) / 1000.0 ?? 0.0} km, budget {b1} wu = {wu_to_m(b1)} m walked -> error {e1} px");
+    if absf(e1 - 1.0) > 0.000001 { ok = false; println("   FAIL: budget and error disagree"); }
+    if layer_reuse(j1, b1 * 1.001, fov, sw) { ok = false; println("   FAIL: a layer over budget is still reused"); }
+    if !layer_reuse(j1, b1 * 0.999, fov, sw) { ok = false; println("   FAIL: a layer inside budget is refused"); }
+  }
+
+  // ── 2. a walk of known length ────────────────────────────────────────────
+  // 100 hex steps of straight walking, worst case: every layer abeam, so the whole
+  // translation is across the view. The check is made BEFORE the frame is drawn — a layer
+  // that would exceed one pixel re-renders instead — so the worst error can never exceed 1.
+  steps = 100;
+  step = HEX_LEN;
+  walked = (steps as float) * step;
+  println("");
+  println("a walk of {steps} hex steps = {wu_to_m(walked)} m, every layer abeam (the worst case):");
+  worst = 0.0;
+  total = 0;
+  ncache = 0;
+  for j2 in 0..PARALLAX_LAYERS {
+    bud = layer_budget_wu(j2, fov, sw);
+    acc = 0.0;
+    renders = 1;                   // the first frame always renders
+    lworst = 0.0;
+    for _ in 0..steps {
+      if acc + step > bud { renders = renders + 1; acc = 0.0; }
+      acc = acc + step;
+      e2 = parallax_px(layer_near_wu(j2), acc, fov, sw);
+      if e2 > lworst { lworst = e2; }
+    }
+    // ⚠ ONLY A CACHEABLE LAYER IS BOUND BY THE ERROR. A layer whose whole budget is smaller
+    // than one step of walking cannot be reused even for a single frame — re-rendering every
+    // frame still overshoots inside the step — and that is I-PARALLAX's own answer, not a
+    // failure of it: such a layer must be GEOMETRY, which is exactly what the P6 skirt is.
+    // Binding the bound to it would be asserting that a cache works where the criterion says
+    // there is no cache.
+    if bud >= step && lworst > worst { worst = lworst; }
+    if bud >= step { ncache = ncache + 1; }
+    total = total + renders;
+    println("  layer {j2}: {renders} renders over the walk, worst error {lworst} px");
+    // ⚠ A LAYER WHOSE BUDGET IS SHORTER THAN ONE STEP CANNOT BE CACHED AT ALL, and it must
+    // say so rather than silently reporting one render per frame as if that were a policy.
+    if bud < step { println("     (budget {bud} wu is under one hex step — this layer is not cacheable at this speed)"); }
+  }
+  println("  total {total} renders against {steps} frames — caching saves {steps * PARALLAX_LAYERS - total} of {steps * PARALLAX_LAYERS}");
+  println("2. worst parallax error across the walk, over the {ncache} CACHEABLE layers: {worst} px");
+  if worst > 1.0 { ok = false; println("   FAIL: a reused layer exceeded one pixel"); }
+  if ncache < 1 { ok = false; println("   FAIL: no layer is cacheable, so there is nothing to gate"); }
+  if ncache >= PARALLAX_LAYERS { ok = false; println("   FAIL: every layer cacheable — the near-layer limit has silently gone away"); }
+
+  // ── 3. THE NEGATIVE CONTROL ──────────────────────────────────────────────
+  // The same walk with the criterion switched off — render once, never again. If this does
+  // not blow past a pixel, row 2 is not measuring anything.
+  nc = parallax_px(layer_near_wu(PARALLAX_LAYERS - 1), walked, fov, sw);
+  println("3. negative control (cache never invalidated, farthest layer): {nc} px of error");
+  if nc <= 1.0 { ok = false; println("   FAIL: the walk cannot produce a visible error, so row 2 proves nothing"); }
+
+  // ── 4. THE COMPRESSION IS A TERM, and the design's table omits it ────────
+  // DESIGN.md prices a 2 km layer at 0.6 s of walking. That treats the camera's translation
+  // and the layer's distance as the same kind of length, and here they are not: terrain is
+  // compressed 10x while the player walks at architecture scale. Checked as an exact identity
+  // rather than an opinion — the two readings must differ by TERRAIN_COMPRESS precisely.
+  speed_wu = m_to_wu(1.5);                       // 1.5 m/s of walking, in world units
+  d_nat_m = 2000.0;                              // "a 2 km layer", as the table names it
+  d_wu = terrain_m_to_wu(d_nat_m);               // where that actually stands from the camera
+  t_true = (d_wu * pa / speed_wu ?? 0.0);        // seconds of cache life, correctly
+  t_table = (d_nat_m * pa / 1.5 ?? 0.0);         // seconds the table's arithmetic gives
+  ratio = t_table / t_true ?? 0.0;
+  println("");
+  println("4. a \"2 km\" layer stands {d_wu} wu from the eye; cache life {t_true} s");
+  println("   the design's table computes {t_table} s — a ratio of {ratio} (TERRAIN_COMPRESS is {TERRAIN_COMPRESS})");
+  if absf(ratio - TERRAIN_COMPRESS) > 0.000001 { ok = false; println("   FAIL: the discrepancy is not the compression, so it is something else"); }
+
+  if ok { println("=== PARALLAX OK ==="); } else { println("=== FAIL ==="); }
+}
