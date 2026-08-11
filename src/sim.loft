@@ -7,6 +7,7 @@
 use hex_grid;
 use hex_field;        // HexSet — the solid cell set the edge field is sealed from (plan #11 P2)
 use hex_edge;          // EdgeSet + passable() — THE crossing predicate (plan #5's edge model)
+use hextower;         // the round towers' exact arcs — recorded by the builder (plan #11 P5)
 use gen;
 use monsters;
 use items;
@@ -207,6 +208,14 @@ pub struct Sim {
   // until fences move onto an EdgeSet of their own.
   solid:   HexSet,                     //   cell occupancy — what fills a hex
   field:   EdgeSet,                    //   the crossing layer — what a path may not cross
+  // THE GEOMETRY BEHIND THE EDGES (plan #11 P5). An edge of the field records WHICH surface
+  // blocks it; these are the surfaces. Cell-authored walls carry SURF_NONE and have no
+  // recoverable normal — a round tower now carries its own arc, so `collide` returns an
+  // exact radial normal and the renderer can draw a curve instead of six facets. `feats`
+  // records the openings in those surfaces (a door's span and its head height), which is
+  // what lets a doorway be an opening in a wall rather than a missing piece of one.
+  surfs:   Surfaces,
+  feats:   Features,
   seen:    vector<integer> not null,   // FOV memory: 1 = hex ever seen (revealed map; lost on death)
   vis:     vector<integer> not null,   // FOV current: 1 = hex visible this frame (recomputed)
   px:      float not null,
@@ -478,8 +487,14 @@ fn build_solid(tiles: vector<integer>, w: integer, h: integer) -> HexSet {
 // the old predicate asked only about the DESTINATION, so a step *out of* a wall was
 // permitted. That difference is only reachable from inside a wall, which I-CROSS makes
 // unreachable — and `fieldtest` reports the count rather than hiding it.
-fn build_field(solid: HexSet, walls: vector<integer>, w: integer, h: integer) -> EdgeSet {
+fn build_field(solid: HexSet, walls: vector<integer>, w: integer, h: integer,
+               tw: Towers, sf: Surfaces, ft: Features) -> EdgeSet {
   e = edgeset_new(0, 0, w, h);
+  // THE TOWERS FIRST, and the order is load-bearing (plan #11 P5). Every pass below is
+  // first-writer-wins, so a surface claimed here survives the generic pass; the reverse
+  // order would let SURF_NONE claim the ring and the arcs would win only by the accident
+  // that an out-of-range id measures as infinitely far away.
+  tower_tag(tw, sf, ft, e, w, h);
   for r in 0..h {
     for q in 0..w {
       here = hexset_get(solid, q, r);
@@ -4735,12 +4750,15 @@ pub fn sim_new() -> Sim {
   enemies: vector<Enemy> = [e0];
 
   fsolid = build_solid(tiles, w, h);          // hoisted: never inline a struct-returning
-  ffield = build_field(fsolid, walls, w, h);  //   call into a literal (survival guide)
+  fsurfs = surfaces_new();                    //   call into a literal (survival guide)
+  ffeats = features_new();
+  ftw = towers_new();                         // the sandbox stamps no towers
+  ffield = build_field(fsolid, walls, w, h, ftw, fsurfs, ffeats);
   s = Sim {
     tkind: zeros(w * h),
     theight: [],                              // the sandbox level is flat, like a dungeon
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
-    solid: fsolid, field: ffield,
+    solid: fsolid, field: ffield, surfs: fsurfs, feats: ffeats,
     seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,
@@ -4926,10 +4944,60 @@ fn stamp_house(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integ
   }
 }
 
-// a ROUND TOWER: a hex-distance ring of wall with a cleared interior + a door
+// a ROUND TOWER: a hex-distance ring of wall with a cleared interior + a door.
+//
+// The CELLS are exactly what they always were — and that is the finding, not an omission
+// (`src/hextower.loft` opens with the measurements). What is new is that the tower now
+// RECORDS the arc it was cut from and the cell it left open, so `build_field` can put a
+// real surface on the ring's edges and a real opening in it. Those parameters exist here
+// and nowhere else: at 1.5 m per hex a 6 m tower has twelve boundary cells, and a circle
+// and a hexagon are the same twelve cells, so nothing downstream can fit them back out.
 fn stamp_round_tower(tiles: vector<integer>, tk: vector<integer>, w: integer, h: integer,
-                     cx: integer, cy: integer, rad: integer) {
-  doored = false;
+                     tw: Towers, cx: integer, cy: integer, rad: integer,
+                     fq: integer, fr: integer) {
+  // ⚠ THE DOOR FACES WHERE THE TOWER IS ENTERED FROM — (fq,fr) — and that is not a detail
+  // (plan #11 P5, found by `towertest`). It used to face +y unconditionally, which is fine
+  // for a tower standing on its own and wrong for one built into a town wall: the southern
+  // lookout tower's door opened straight into the wall's outer face, so its only way in was
+  // an 8-cell pocket. A tower nobody can enter gates green on every check that asks about
+  // its shape. The door cell is the ring cell furthest along the direction of (fq,fr) —
+  // exact, and it degenerates to the old +y when the caller points that way.
+  // ⚠ AND IT MUST OPEN ONTO SOMETHING. Facing alone is not enough: the east lookout tower
+  // stands in the town wall, so its inward-facing door landed inside a house of the ring and
+  // the tower was sealed by a cell that was already there. So the facing is a PREFERENCE and
+  // the constraint is that the door's outward neighbour is open ground at stamp time —
+  // whichever eligible ring cell lies furthest along the facing wins, and a tower with no
+  // eligible cell at all still records its best guess rather than none.
+  (fcx, fcy) = hex_to_px(cx, cy);
+  (ffx, ffy) = hex_to_px(fq, fr);
+  wx = ffx - fcx;
+  wy = ffy - fcy;
+  dq = -1;
+  dr = -1;
+  bestd = -1000000.0;
+  aq = -1;
+  ar = -1;
+  bestany = -1000000.0;
+  for rr in 0..(rad * 2 + 1) {
+    for qq in 0..(rad * 2 + 1) {
+      tq = cx + qq - rad;
+      tr = cy + rr - rad;
+      if hex_distance(tq, tr, cx, cy) == rad {
+        (tpx, tpy) = hex_to_px(tq, tr);
+        dd = (tpx - fcx) * wx + (tpy - fcy) * wy;
+        if dd > bestany { bestany = dd; aq = tq; ar = tr; }
+        opens = false;
+        for od in 0..6 {
+          (oq, orr) = hex_neighbor(tq, tr, od);
+          if hex_distance(oq, orr, cx, cy) > rad && oq >= 0 && orr >= 0 && oq < w && orr < h {
+            if !tile_solid(tiles, w, h, oq, orr) { opens = true; }
+          }
+        }
+        if opens && dd > bestd { bestd = dd; dq = tq; dr = tr; }
+      }
+    }
+  }
+  if dq < 0 { dq = aq; dr = ar; }
   for rr in 0..(rad * 2 + 1) {
     for qq in 0..(rad * 2 + 1) {
       tq = cx + qq - rad;
@@ -4938,9 +5006,67 @@ fn stamp_round_tower(tiles: vector<integer>, tk: vector<integer>, w: integer, h:
       if d < rad { st_set(tiles, tk, w, h, tq, tr, 0, K_GRASS); }
       if d == rad {
         v = 4;                       // ROUND wall: detectable later as a circle
-        if !doored && tr > cy && tq == cx { v = 0; doored = true; }   // the door
+        if tq == dq && tr == dr { v = 0; }   // the door
         st_set(tiles, tk, w, h, tq, tr, v, K_GRASS);
       }
+    }
+  }
+  tower_add(tw, cx, cy, rad, dq, dr);
+}
+
+// Settle every recorded tower's door against the FINISHED tiles.
+//
+// The rule is the same one `stamp_round_tower` applies, now with the whole world visible:
+// among the ring cells that are open and whose outward neighbour is open, take the one
+// furthest along the tower's recorded facing. If a later pass closed them all, the recorded
+// door is cut back open — a tower's way in outranks what was laid across it.
+fn tower_doors_final(tw: Towers, tiles: vector<integer>, tk: vector<integer>,
+                     w: integer, h: integer) {
+  for i in 0..tw.tw_n {
+    cq = tw.tw_q[i] ?? 0;
+    cr = tw.tw_r[i] ?? 0;
+    rad = tw.tw_rad[i] ?? 0;
+    fq0 = tw.tw_dq[i] ?? -1;
+    fr0 = tw.tw_dr[i] ?? -1;
+    if fq0 >= 0 {
+      (fcx, fcy) = hex_to_px(cq, cr);
+      (ffx, ffy) = hex_to_px(fq0, fr0);
+      wx = ffx - fcx;
+      wy = ffy - fcy;
+      bq = -1;
+      br = -1;
+      best = -1000000.0;
+      for rr in 0..(rad * 2 + 1) {
+        for qq in 0..(rad * 2 + 1) {
+          tq = cq + qq - rad;
+          tr = cr + rr - rad;
+          if hex_distance(tq, tr, cq, cr) == rad && tq >= 0 && tr >= 0 && tq < w && tr < h {
+            if !tile_solid(tiles, w, h, tq, tr) {
+              opens = false;
+              for od in 0..6 {
+                (oq, orr) = hex_neighbor(tq, tr, od);
+                if hex_distance(oq, orr, cq, cr) > rad && oq >= 0 && orr >= 0
+                   && oq < w && orr < h {
+                  if !tile_solid(tiles, w, h, oq, orr) { opens = true; }
+                }
+              }
+              if opens {
+                (tpx, tpy) = hex_to_px(tq, tr);
+                dd = (tpx - fcx) * wx + (tpy - fcy) * wy;
+                if dd > best { best = dd; bq = tq; br = tr; }
+              }
+            }
+          }
+        }
+      }
+      if bq < 0 {
+        // every opening was built over: cut the recorded one back open
+        st_set(tiles, tk, w, h, fq0, fr0, 0, K_GRASS);
+        bq = fq0;
+        br = fr0;
+      }
+      tw.tw_dq[i] = bq;
+      tw.tw_dr[i] = br;
     }
   }
 }
@@ -4951,6 +5077,10 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
 
 pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: integer,
                      wwx: integer, wwy: integer) -> Sim {
+  // What the builder stamps, kept as the builder knew it (plan #11 P5): every round tower
+  // records its centre, its radius and the cell it left open for a door, so `build_field`
+  // can put the arc on the ring's edges instead of a bare blocker.
+  gtw = towers_new();
   w = 41;
   h = 41;
   if depth == 0 { w = 101; h = 101; }   // the surface: a wilderness WINDOW (1.5 km across)
@@ -5041,14 +5171,22 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
       if hy0 < h / 2 { ds = 2; }                       // door faces the square
       stamp_house(tiles, tk, w, h, hx0, hy0, 5, 4, ds);
     }
-    if tsize >= 2 {
+    // ⚠ ONLY WHILE THE TOWN IS UNWALLED (plan #11 P5, found by `towertest`). These sit at
+    // `hring + 2.5` and are 2 hexes across, so they reach `hring + 4.5` — and the town wall
+    // below is a ring at `round(hring) + 4`, stamped AFTERWARDS, straight through them. On
+    // the shipped world that left one of the pair with a 5-cell interior and the other
+    // filled solid: two towers that were not towers, and nothing measured them until the
+    // arc gate asked whether a tower holds its own inside. A walled town has six lookout
+    // towers ON the wall, which is what watches its approaches; this pair is what a town
+    // without a wall has instead.
+    if tsize == 2 {
       // Just outside the house ring, on the diagonal, so they scale with the town instead of
       // sitting at two hardcoded offsets that land inside the houses once the ring grows.
       trad = hring + 2.5;
       tqo = round(trad * 0.7071) as integer;
       tro = round(trad * 0.7071 * 1.1547) as integer;
-      stamp_round_tower(tiles, tk, w, h, w / 2 + tqo, h / 2 - tro, 2);
-      stamp_round_tower(tiles, tk, w, h, w / 2 - tqo, h / 2 + tro, 2);
+      stamp_round_tower(tiles, tk, w, h, gtw, w / 2 + tqo, h / 2 - tro, 2, w / 2, h / 2);
+      stamp_round_tower(tiles, tk, w, h, gtw, w / 2 - tqo, h / 2 + tro, 2, w / 2, h / 2);
     }
     if tsize >= 3 {
       // the town WALL: a hex-distance ring, roads make the gates. Derived too — it has to
@@ -5070,7 +5208,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         lang = (lt as float) * 1.0471976 + 0.5236;
         lq = w / 2 + round((wrad as float) * cos(lang)) as integer;
         lr = h / 2 + round((wrad as float) * sin(lang) * 0.866) as integer;
-        stamp_round_tower(tiles, tk, w, h, lq, lr, 2);
+        stamp_round_tower(tiles, tk, w, h, gtw, lq, lr, 2, w / 2, h / 2);
       }
       // ⚠ AND THEN THE GATES ARE CUT, BECAUSE "ROADS MAKE THE GATES" MADE NONE.
       //
@@ -5116,10 +5254,10 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           ds2 = 0;
           if fr < h / 2 { ds2 = 2; }                   // the gate faces the town
           stamp_house(tiles, tk, w, h, fq - 5, fr - 4, 11, 9, ds2);
-          stamp_round_tower(tiles, tk, w, h, fq - 5, fr - 4, 2);
-          stamp_round_tower(tiles, tk, w, h, fq + 5, fr - 4, 2);
-          stamp_round_tower(tiles, tk, w, h, fq - 5, fr + 4, 2);
-          stamp_round_tower(tiles, tk, w, h, fq + 5, fr + 4, 2);
+          stamp_round_tower(tiles, tk, w, h, gtw, fq - 5, fr - 4, 2, fq, fr);
+          stamp_round_tower(tiles, tk, w, h, gtw, fq + 5, fr - 4, 2, fq, fr);
+          stamp_round_tower(tiles, tk, w, h, gtw, fq - 5, fr + 4, 2, fq, fr);
+          stamp_round_tower(tiles, tk, w, h, gtw, fq + 5, fr + 4, 2, fq, fr);
         }
       }
     }
@@ -5484,7 +5622,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
               stamp_house(tiles, tk, w, h, rhx, rhy, 5, 4, 2);
             }
             if ru2.ru_size >= 2 {
-              stamp_round_tower(tiles, tk, w, h, ruq + 6, rur - 4, 2);
+              stamp_round_tower(tiles, tk, w, h, gtw, ruq + 6, rur - 4, 2, ruq, rur);
             }
             if ru2.ru_size >= 3 {
               for wr3 in 0..h {
@@ -5591,7 +5729,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           wzy = ((wz2.wz_y - ay + cwy) / sstep) ?? 0.0;
           (wzq, wzr) = px_to_hex(wzx, wzy);
           if wzq >= 6 && wzq < w - 6 && wzr >= 5 && wzr < h - 5 {
-            stamp_round_tower(tiles, tk, w, h, wzq, wzr, 3);
+            stamp_round_tower(tiles, tk, w, h, gtw, wzq, wzr, 3, wzq, wzr + 1);
             if wz2.wz_dead == 1 {
               for br4 in 0..9 {
                 for bq4 in 0..9 {
@@ -5892,7 +6030,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           fuy2 = ((fdy / fdl) ?? 0.0) * fdist;
           fnq = w / 2 + round(fux2) as integer;
           fnr = h / 2 + round(fuy2) as integer;
-          stamp_round_tower(tiles, tk, w, h, fnq, fnr, 3);   // the BIG furnace
+          stamp_round_tower(tiles, tk, w, h, gtw, fnq, fnr, 3, fnq, fnr + 1);   // the BIG furnace
           for d7 in 0..6 {                                   // its slag ground
             (sq7, sr7) = hex_neighbor(fnq, fnr, d7);
             ti7b = sr7 * w + sq7;
@@ -5994,7 +6132,7 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
         mlq = w / 2 + 14;
         mlr = h / 2 - 10;
       }
-      stamp_round_tower(tiles, tk, w, h, mlq, mlr, 2);
+      stamp_round_tower(tiles, tk, w, h, gtw, mlq, mlr, 2, mlq, mlr + 1);
       }
 
       // THE ALCHEMIST'S GATHERER: a rugged traveler fetching the special
@@ -6297,13 +6435,22 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
     }
   }
 
+  // ⚠ A TOWER'S DOOR IS OLDER THAN WHATEVER WAS BUILT ACROSS IT (plan #11 P5, found by
+  // `towertest`). The builder's passes run in an order nobody coordinates, and on the
+  // shipped world one of them filled the east lookout tower's door cell after the tower had
+  // cleared it — leaving a tower with no way in, which every check that asks about its SHAPE
+  // passes. So the doors are settled once, here, after every stamp and before the field is
+  // sealed: keep an opening that survived, and cut one if the world closed them all.
+  tower_doors_final(gtw, tiles, tk, w, h);
   gsolid = build_solid(tiles, w, h);
-  gfield = build_field(gsolid, walls, w, h);
+  gsurfs = surfaces_new();                    // hoisted: never inline a struct-returning
+  gfeats = features_new();                    //   call into a literal (survival guide)
+  gfield = build_field(gsolid, walls, w, h, gtw, gsurfs, gfeats);
   s = Sim {
     tkind: tk,
     theight: th,
     lw: w, lh: h, qmin: 0, rmin: 0, tiles: tiles, walls: walls,
-    solid: gsolid, field: gfield,
+    solid: gsolid, field: gfield, surfs: gsurfs, feats: gfeats,
     seen: zeros(w * h), vis: zeros(w * h),
     px: spx, py: spy, heading: PI / 2.0,
     accrued: 0.0, ticks: 0, enemies: enemies,

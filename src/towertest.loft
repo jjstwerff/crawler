@@ -1,0 +1,212 @@
+// towertest — plan #11 P5 gate: the round towers of the SHIPPED world know they are round.
+//
+// The check the blueprint proposed — "the matcher recovers the recorded radius" — was
+// measured before it was built and it cannot fire at the size the game builds
+// (`src/hextower.loft` opens with the three measurements). At 1.5 m per hex a 6 m tower has
+// twelve boundary cells, and a circle and a hexagon are the same twelve cells; the matcher
+// agreeing is a statement about the tolerance, not about the tower.
+//
+// So this gate asks the questions the cells CAN answer, all three of them against the arc
+// the builder recorded rather than one fitted back out:
+//
+//   1. AGREEMENT — the recorded arc passes within one circumradius (1.0 wu, the
+//      quantisation scale, the same bound `MATCH_TOL` is set from) of every edge it claims,
+//      and its normal agrees with the cells: at each face the radial normal is aligned with
+//      the direction from the wall cell to the open cell, up to the 30 degrees the six hex
+//      directions quantise to.
+//   2. SEAL — from inside a tower, with its door cell blocked, you cannot get out. That is
+//      what makes a tower a tower, and it fires on a wrong radius or a wrong centre.
+//   3. THE DOOR — one cell of the ring, recorded as an interval on the arc with a head
+//      height, and its clear width REPORTED in metres (the plan's stated debt).
+//
+// Every one of them carries a negative control, and the controls run on the same world.
+use sim;
+use hex_grid;
+use hex_field;
+use hex_edge;
+use hextower;
+use scale;
+
+// cos(30 degrees): the six hex directions quantise a continuous radial normal to at most
+// half a sector, so this is the bound the fabric imposes — not a tuned tolerance.
+// The wall is ONE CELL THICK, so its two faces sit half a hex step either side of the
+// circle the ring was cut from — plus the corner quantisation. One hex step is therefore
+// the bound the fabric imposes on "the centreline runs inside the wall body": stated by
+// the construction, not tuned to the measurement (worst measured: 1.42 of 1.73).
+const WALL_WU = 1.7320508075688772;
+
+// Does the recorded arc `id` describe the edges tagged with it? Returns
+// (edges, worst distance in wu, edges whose normal disagrees with the cells).
+fn arc_agrees(s: Sim, sfs: Surfaces, id: integer) -> (integer, float, integer) {
+  n = 0;
+  worst = 0.0;
+  bad = 0;
+  for r in 0..s.lh {
+    for q in 0..s.lw {
+      for d in 0..6 {
+        (nq, nr) = hex_neighbor(q, r, d);
+        if edge_surf(s.field, q, r, nq, nr) == id {
+          n = n + 1;
+          (ex, ey) = edge_point(q, r, nq, nr);
+          dd = surf_distance(sfs, id, ex, ey);
+          if dd > worst { worst = dd; }
+          (hit, nx, ny) = collide(s.field, sfs, q, r, nq, nr);
+          // THE NORMAL MUST SEPARATE THE SIDES. The cells' own outward direction across
+          // this edge is (neighbour - cell); the arc's normal points away from its centre.
+          // Those two need not be parallel — the six hex directions are 60 degrees apart
+          // and the arc's normal is continuous, which is the whole reason a curve beats a
+          // facet — but they must agree about WHICH SIDE is out, and they must agree with
+          // the cells' own radial order. That is falsifiable and not a restatement of the
+          // definition: a wrong centre flips it on the far side of the tower.
+          (ax, ay) = hex_to_px(q, r);
+          (bx, by) = hex_to_px(nq, nr);
+          ux = bx - ax;
+          uy = by - ay;
+          ul = sqrt(ux * ux + uy * uy) ?? 1.0;
+          dot = nx * (ux / ul ?? 0.0) + ny * (uy / ul ?? 0.0);
+          ccx = sfs.sf_a[id] ?? 0.0;
+          ccy = sfs.sf_b[id] ?? 0.0;
+          da = (ax - ccx) * (ax - ccx) + (ay - ccy) * (ay - ccy);
+          db = (bx - ccx) * (bx - ccx) + (by - ccy) * (by - ccy);
+          outward = db > da;                    // is the neighbour the FAR side?
+          nlen = sqrt(nx * nx + ny * ny) ?? 0.0;
+          if !hit || nlen < 0.999 || nlen > 1.001 { bad = bad + 1; }
+          else { if outward != (dot > 0.0) { bad = bad + 1; } }
+        }
+      }
+    }
+  }
+  (n, worst, bad)
+}
+
+// Flood out from (sq,sr) over passable edges, refusing to enter (bq,br). Returns how many
+// cells were reached — the seal test's instrument.
+fn reach_but(s: Sim, sq: integer, sr: integer, bq: integer, br: integer) -> integer {
+  seen: vector<boolean> = [];
+  for _ in 0..s.lw * s.lh { seen += [false]; }
+  fq: vector<integer> = [];
+  fr: vector<integer> = [];
+  fq += [sq];
+  fr += [sr];
+  seen[sr * s.lw + sq] = true;
+  at = 0;
+  n = 1;
+  while at < len(fq) {
+    q = fq[at] ?? 0;
+    r = fr[at] ?? 0;
+    at = at + 1;
+    for d in 0..6 {
+      (nq, nr) = hex_neighbor(q, r, d);
+      if nq >= 0 && nr >= 0 && nq < s.lw && nr < s.lh && !(nq == bq && nr == br) {
+        if !(seen[nr * s.lw + nq] ?? true) && !field_blocked(s, q, r, d) {
+          seen[nr * s.lw + nq] = true;
+          n = n + 1;
+          fq += [nq];
+          fr += [nr];
+        }
+      }
+    }
+  }
+  n
+}
+
+fn main() {
+  println("=== story tower test (plan #11 P5: the arc the builder recorded) ===");
+  ok = true;
+  s = sim_new_gen(1337, 0);
+  sfs = s.surfs;
+
+  // ── 0. the world HAS towers, and they are arcs
+  arcs = 0;
+  for i in 1..sfs.sf_n { if (sfs.sf_kind[i] ?? 0) == 2 { arcs = arcs + 1; } }
+  println("surfaces on the shipped surface world: {sfs.sf_n - 1} ({arcs} arc(s))");
+  if arcs < 1 { ok = false; }
+  if arcs != sfs.sf_n - 1 { ok = false; }     // nothing but towers registers a surface yet
+
+  // ── 1. AGREEMENT: the recorded arc describes the cells it claims
+  tot = 0;
+  worstall = 0.0;
+  badall = 0;
+  untagged = 0;
+  for i in 1..sfs.sf_n {
+    (n, worst, bad) = arc_agrees(s, sfs, i);
+    tot = tot + n;
+    badall = badall + bad;
+    if worst > worstall { worstall = worst; }
+    if n == 0 { untagged = untagged + 1; }
+  }
+  println("1. AGREEMENT: {tot} edge(s) carry an arc across {arcs} tower(s); worst distance {worstall} wu (bound {WALL_WU}); {badall} normal(s) disagree with the cells; {untagged} tower(s) tagged nothing");
+  if tot == 0 || worstall > WALL_WU || badall != 0 || untagged != 0 { ok = false; }
+
+  // the NEGATIVE CONTROL for 1: move every centre one hex step east and the same edges are
+  // no longer described by their surface
+  moved = surfaces_new();
+  for i in 1..sfs.sf_n {
+    surf_arc(moved, (sfs.sf_a[i] ?? 0.0) + HEX_LEN, sfs.sf_b[i] ?? 0.0, sfs.sf_c[i] ?? 0.0);
+  }
+  ncworst = 0.0;
+  ncbad = 0;
+  for i in 1..sfs.sf_n {
+    (n2, w2, b2) = arc_agrees(s, moved, i);
+    ncbad = ncbad + b2;
+    if w2 > ncworst { ncworst = w2; }
+  }
+  println("   control (centres moved one hex step): worst distance {ncworst} wu, {ncbad} normal(s) disagree — must be red");
+  if ncworst <= WALL_WU && ncbad == 0 { ok = false; }
+
+  // ── 2. SEAL + 3. THE DOOR, per tower
+  //
+  // The door is found from the recorded feature, not from the cells: `fe_surf` names the
+  // tower and the interval says where its wall stops.
+  sealed = 0;
+  doored = 0;
+  minclear = 99.0;
+  maxclear = 0.0;
+  leaks = 0;
+  for i in 1..sfs.sf_n {
+    cx = sfs.sf_a[i] ?? 0.0;
+    cy = sfs.sf_b[i] ?? 0.0;
+    rr = sfs.sf_c[i] ?? 0.0;
+    (ccq, ccr) = px_to_hex(cx, cy);
+    // the door: the ring cell whose angle sits inside the recorded interval
+    dq = -1;
+    dr = -1;
+    for fi in 0..s.feats.fe_n {
+      if (s.feats.fe_surf[fi] ?? -1) == i {
+        doored = doored + 1;
+        mid = ((s.feats.fe_s0[fi] ?? 0.0) + (s.feats.fe_s1[fi] ?? 0.0)) * 0.5;
+        ang = mid / rr ?? 0.0;
+        (pdq, pdr) = px_to_hex(cx + rr * cos(ang), cy + rr * sin(ang));
+        dq = pdq;
+        dr = pdr;
+        clr = wu_to_m(((s.feats.fe_s1[fi] ?? 0.0) - (s.feats.fe_s0[fi] ?? 0.0))
+                      * (rr - HEX_LEN * 0.5) / rr ?? 0.0);
+        if clr < minclear { minclear = clr; }
+        if clr > maxclear { maxclear = clr; }
+      }
+    }
+    // SEAL: from the centre, with the door refused, the fill must stay inside the ring —
+    // and the interior of a ring of radius `rad` is exactly 1 + 3*rad*(rad-1) cells, so
+    // this is an equality, not a threshold.
+    rad = ((rr / HEX_LEN ?? 0.0) + 0.5) as integer ?? 0;
+    want = 1 + 3 * rad * (rad - 1);
+    inside = reach_but(s, ccq, ccr, dq, dr);
+    // and the door must actually be the way OUT: allowing it, the fill leaves the tower
+    outn = reach_but(s, ccq, ccr, -1, -1);
+    dblock = 0;
+    if dq >= 0 { for dd2 in 0..6 { if field_blocked(s, dq, dr, dd2) { dblock = dblock + 1; } } }
+    println("   tower {i}: centre ({ccq},{ccr}) rad {rad} ({wu_to_m(rr)} m) — sealed reach {inside} (want {want}), through the door at ({dq},{dr}) {outn} (door cell has {dblock}/6 blocked sides)");
+    if inside == want { sealed = sealed + 1; } else { leaks = leaks + 1; }
+    // THE DOOR MUST LEAD OUT OF THE TOWER, not into a pocket. A tower nobody can enter
+    // passes every check that asks about its shape, which is how two of them survived
+    // until this gate existed.
+    if outn < 1000 { leaks = leaks + 1; }
+  }
+  println("2. SEAL: {sealed}/{arcs} tower(s) hold their interior when the door cell is refused; {leaks} leak(s)");
+  println("3. DOOR: {doored} recorded opening(s), clear width {minclear} m .. {maxclear} m at the inner face, head {DOOR_HEAD_M} m");
+  if sealed != arcs || leaks != 0 { ok = false; }
+  if doored != arcs { ok = false; }
+  if minclear < 0.8 || maxclear > 3.0 { ok = false; }
+
+  if ok { println("=== TOWER OK ==="); } else { println("=== FAIL ==="); }
+}

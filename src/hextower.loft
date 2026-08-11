@@ -1,0 +1,156 @@
+// hextower — plan #11 P5: a round tower KNOWS it is round.
+//
+// The cells do not change. That is the finding this module is built on, and it is worth
+// stating before the code, because it inverts what the phase looked like from the outside.
+//
+// `src/towerprobe.loft` measured what a stamped tower can carry:
+//
+//   * a hex-distance disk and a Euclidean disk of the SAME radius are the same cell set at
+//     every radius the game builds (rad 2..8), so "stamp a circle instead of a hex ring"
+//     was a no-op — the roundness never came from the cell test;
+//   * the matcher recovers ONE arc from a rad-2 footprint, but with a standing radius error
+//     of 0.52 wu, larger than the 10 % perturbation the blueprint's negative control was to
+//     use — so the "recorded r == fitted r" gate cannot fire at the size the game builds;
+//   * at rad >= 5 the same construction fits as six STRAIGHTS, because a hex-distance disk
+//     IS a hexagon and at 9 m the tolerance can no longer hide it.
+//
+// So at 1.5 m per hex a 6 m tower has twelve boundary cells, and a circle and a hexagon are
+// the same twelve cells. Inference cannot recover the arc because the cells never carried
+// it. The exact parameters exist in exactly one place — the builder — and this module's job
+// is to carry them from there to the edge layer, where a normal, a silhouette and a door
+// can be read off them.
+//
+// What the tower gains: every edge of its ring is tagged with an ARC surface, so `collide`
+// returns an exact radial normal where it used to return nothing, and the renderer can draw
+// a curve where it used to extrude a facet. The door stops being an accident of a cleared
+// cell and becomes an interval ON that surface, with a head height and a clear width in
+// metres.
+use hex_grid;
+use hex_field;
+use hex_edge;
+use scale;
+
+// A door's head, in metres: the opening runs from the ground to here, and the wall carries
+// on above it. 2.2 m is a real doorway head — high enough to walk through in a helmet.
+pub const DOOR_HEAD_M = 2.2;
+
+// The towers a level's builder stamped, with the exact parameters it stamped them from.
+// Flat vectors rather than a vector of structs: the same shape as `Surfaces` next door, and
+// it survives loft's struct-in-vector traps.
+pub struct Towers {
+  tw_q:    vector<integer>,    // centre hex
+  tw_r:    vector<integer>,
+  tw_rad:  vector<integer>,    // ring radius in HEX STEPS — the builder's own unit
+  tw_dq:   vector<integer>,    // the door cell (the one ring cell left open), -1 = sealed
+  tw_dr:   vector<integer>,
+  tw_surf: vector<integer>,    // the arc surface, filled in by tower_tag
+  tw_n:    integer,
+}
+
+pub fn towers_new() -> Towers {
+  a: vector<integer> = []; b: vector<integer> = []; c: vector<integer> = [];
+  d: vector<integer> = []; e: vector<integer> = []; f: vector<integer> = [];
+  Towers { tw_q: a, tw_r: b, tw_rad: c, tw_dq: d, tw_dr: e, tw_surf: f, tw_n: 0 }
+}
+
+pub fn tower_add(t: Towers, cq: integer, cr: integer, rad: integer,
+                 dq: integer, dr: integer) -> integer {
+  t.tw_q += [cq]; t.tw_r += [cr]; t.tw_rad += [rad];
+  t.tw_dq += [dq]; t.tw_dr += [dr]; t.tw_surf += [0];
+  t.tw_n = t.tw_n + 1;
+  t.tw_n - 1
+}
+
+// The centreline radius, in world units. The ring is `hex_dist == rad`, whose cells sit at
+// Euclidean distances in [rad*HEX_LEN*sqrt(3)/2, rad*HEX_LEN] from the centre — so
+// rad*HEX_LEN is the circle those cells were cut from, and the one an arc surface records.
+pub fn tower_radius(t: Towers, i: integer) -> float {
+  ((t.tw_rad[i] ?? 0) as float) * HEX_LEN
+}
+
+// Is (q,r) a cell of tower i's WALL RING?
+pub fn tower_ring(t: Towers, i: integer, q: integer, r: integer) -> boolean {
+  hex_dist(t.tw_q[i] ?? 0, t.tw_r[i] ?? 0, q, r) == (t.tw_rad[i] ?? 0)
+}
+
+// The door's interval on its tower's arc, in the surface parameter (arc length).
+//
+// It is DERIVED, not authored. On a hex fabric the smallest opening a wall can have is one
+// of its own cells: the passage runs interior -> door cell -> outside, and that needs an
+// aligned pair of faces, which only a whole cell provides. So the wall ends where the door
+// cell meets its two ring neighbours, and the interval between those two points IS the
+// opening. Nothing is chosen; the fabric's quantisation states the width, and
+// `tower_door_clear_m` reports it.
+pub fn tower_door_span(t: Towers, i: integer) -> (float, float) {
+  rr = tower_radius(t, i);
+  (cx, cy) = hex_to_px(t.tw_q[i] ?? 0, t.tw_r[i] ?? 0);
+  (dx, dy) = hex_to_px(t.tw_dq[i] ?? 0, t.tw_dr[i] ?? 0);
+  ang = atan2(dy - cy, dx - cx);
+  // The ring has 6*rad cells, so one cell subtends 2*pi/(6*rad) — exact, because the ring
+  // is a closed hex ring and every one of its cells subtends the same angle.
+  half = 3.141592653589793 / (6.0 * ((t.tw_rad[i] ?? 1) as float)) ?? 0.0;
+  ((ang - half) * rr, (ang + half) * rr)
+}
+
+// Register each tower's arc and tag the edges of its ring with it.
+//
+// ⚠ CALL THIS BEFORE THE GENERIC EDGE PASS. `edge_block` is first-writer-wins, so a tower
+// tagged first keeps its surface and the generic pass leaves it alone; the other order
+// would let SURF_NONE claim the ring and the arcs would win only by the accident that
+// `surf_distance` returns 1e6 for an out-of-range id. Correct by construction beats
+// correct by accident.
+//
+// Arbitration is `edge_block_arb` — nearest surface wins, ties to the lower id — so two
+// towers that touch (the four keep towers do) settle their shared edges on geometry rather
+// than on which one was stamped first.
+pub fn tower_tag(t: Towers, sf: Surfaces, ft: Features, e: EdgeSet,
+                 w: integer, h: integer) {
+  for i in 0..t.tw_n {
+    (cx, cy) = hex_to_px(t.tw_q[i] ?? 0, t.tw_r[i] ?? 0);
+    t.tw_surf[i] = surf_arc(sf, cx, cy, tower_radius(t, i));
+  }
+  for i in 0..t.tw_n {
+    cq = t.tw_q[i] ?? 0;
+    cr = t.tw_r[i] ?? 0;
+    rad = t.tw_rad[i] ?? 0;
+    sid = t.tw_surf[i] ?? 0;
+    for r in cr - rad..cr + rad + 1 {
+      for q in cq - rad..cq + rad + 1 {
+        if q >= 0 && r >= 0 && q < w && r < h && hex_dist(cq, cr, q, r) == rad {
+          // The door cell is not wall — it is the opening, and its faces stay whatever the
+          // generic pass makes of them (its neighbours are open, so they stay passable).
+          if q != (t.tw_dq[i] ?? -1) || r != (t.tw_dr[i] ?? -1) {
+            for d in 0..6 {
+              nq = nb_q(q, r, d);
+              nr = nb_r(q, r, d);
+              // Only the two FACES: an edge shared with another cell of the same ring is
+              // inside the wall body, and nothing can stand there to hit it.
+              if hex_dist(cq, cr, nq, nr) != rad {
+                edge_block_arb(e, sf, q, r, nq, nr, sid, 0);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  for i in 0..t.tw_n {
+    if (t.tw_dq[i] ?? -1) >= 0 {
+      (s0, s1) = tower_door_span(t, i);
+      feature_add(ft, t.tw_surf[i] ?? 0, s0, s1,
+                  0.0, DOOR_HEAD_M / M_PER_WU ?? 0.0, FEAT_DOOR, 0);
+    }
+  }
+}
+
+// The door's clear width in METRES, at the narrowest cross-section of the opening.
+//
+// The opening is a wedge, so it is narrowest on the INNER face. The inner face of a ring of
+// radius `rad` sits half a hex step inside the centreline, which is where a wall cell's
+// boundary with the interior falls.
+pub fn tower_door_clear_m(t: Towers, i: integer) -> float {
+  (s0, s1) = tower_door_span(t, i);
+  rr = tower_radius(t, i);
+  ang = (s1 - s0) / rr ?? 0.0;
+  wu_to_m(ang * (rr - HEX_LEN * 0.5))
+}

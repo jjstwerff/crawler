@@ -935,6 +935,98 @@ keyed on what is *visible* saves more here than one keyed on distance.
 green, **107 rows in 2m32s**, and every plan #17 measurement reads what it read before — which
 is what the bit-identical sampling arithmetic buys.
 
+## ✅ P5a — the tower records its arc, and the gate found three towers that were not towers (2026-08-11)
+
+**Step A of the P5 blueprint below is built and green** (`src/hextower.loft`, `src/towertest.loft`,
+44.9 s, wired into `make test` — 109 rows, all green). The phase went differently from its
+blueprint in one important way, and the difference was found by measuring first.
+
+### The blueprint's own gate cannot fire at the size the game builds
+
+A1/A2 proposed: the builder records the arc, the matcher fits one back out of the cells, and
+the gate is *recorded r == fitted r* with a **10 % radius perturbation** as the negative
+control. A throwaway probe (`src/towerprobe.loft`, deleted; its numbers live in
+`hextower.loft`'s header) measured that before any of it was written:
+
+| tower | cells | what `match_loop` recovers | fitted r vs recorded |
+|---|---|---|---|
+| rad 2 (**3.0 m** — the size the game builds) | 19 | 1 run, **1 arc** | 3.99 vs 3.46 — **err 0.52** |
+| rad 3 (4.5 m) | 37 | 1 run, 1 arc | 5.55 vs 5.20 — err 0.36 |
+| rad 4 (6 m) | 61 | 2 runs, 1 arc | 7.13 vs 6.93 — err 0.20 |
+| rad 5 (7.5 m) | 91 | 5 runs, 3 arcs | 6.74 vs 8.66 — err **1.92** |
+| rad 6–8 (9–12 m) | 127–217 | 6 runs, **6 straights, 0 arcs** | no arc at all |
+
+Three things fall out, and each one kills a piece of the plan as written:
+
+1. **The standing error is bigger than the control.** At rad 2 the fit misses by 0.52 wu
+   because the traced boundary is the *corner* polygon, outside the cell centres. A 10 %
+   perturbation of a 3.46 wu radius is 0.35 wu — **smaller than the error the correct answer
+   already carries**, so the control could not have gone red.
+2. **A hex-distance disk and a Euclidean disk of the same radius are the SAME cell set** at
+   every radius the game builds (2..8 — identical counts, identical fits). So the imagined
+   sub-task "stamp a circle instead of a hex ring" was a no-op: the roundness never came from
+   the cell test.
+3. **Bigger is worse, not better.** At rad ≥ 5 the same construction fits as six straights —
+   correctly, because a hex-distance disk *is* a hexagon and at 9 m no tolerance can hide it.
+   `matchtest`'s success at r = 8.4 is not the trend it looks like: 8.4 excludes the six
+   corner cells that 8.66 includes, and those six corners are the whole difference.
+
+So at 1.5 m per hex **a 6 m tower has twelve boundary cells, and a circle and a hexagon are
+the same twelve cells**. Inference cannot recover the arc because the cells never carried it.
+The blueprint's instinct — RECORD, do not infer — was right for a stronger reason than it
+gave: at this size inference is impossible in principle, and the matcher agreeing is a
+statement about the tolerance, not about the tower.
+
+### What the gate asks instead
+
+Three properties the cells CAN answer, all against the recorded arc, all on the **shipped**
+world (`sim_new_gen(1337, 0)`), each with a control:
+
+| | property | measured |
+|---|---|---|
+| 1 | **AGREEMENT** — the recorded arc runs inside the wall body it claims, and its normal separates the sides | **752 edges** across 8 towers, worst distance **1.42 wu** against a bound of one hex step (1.73 — the wall is one cell thick, so its faces sit half a step either side); **0** normals disagree |
+| | *control*: every centre moved one hex step east | worst **2.90 wu**, 14 normals disagree — **red** |
+| 2 | **SEAL** — with its door cell refused, a tower holds exactly its own interior, `1 + 3·rad·(rad−1)` cells | **8/8**: seven for rad 2, nineteen for rad 3 — an equality, not a threshold |
+| 3 | **THE DOOR** — recorded as an interval on the arc, with a head height | 8 openings, clear width **1.18–1.31 m** at the inner face, head 2.2 m, and each one reaches the 9 924-cell level beyond |
+
+The bound in row 1 is not tuned: the wall is one cell thick, so one hex step is what the
+fabric imposes. The measurement came in at 1.42 of 1.73.
+
+### The door's width is DERIVED, which is what makes it exact
+
+The plan owed "a measured clear width in metres". It is not chosen: on a hex fabric the
+smallest opening a wall can have is **one of its own cells** — the passage runs interior →
+door cell → outside, and that needs an aligned pair of faces, which only a whole cell
+provides. So the wall ends where the door cell meets its two ring neighbours, and the
+interval between those two points *is* the opening: `2π/(6·rad)` of arc, **1.18–1.31 m** at
+the inner face. (A `Features` interval that merely retargets an edge's *material* was the
+other candidate and is the wrong tool here: `passable`/`sweep_path` are material-blind, so a
+door recorded that way would not open for movement. `matchtest`'s own idiom — a door is an
+edge with no surface — is the one the library actually uses.)
+
+### ⚠ THE GATE'S REAL FIND: three of the ten towers were not towers
+
+The arc work is a pure addition — **the cells did not change** — so everything below was
+already true and had never been asked about. All three are one class: *the builder's passes
+run in an order nobody coordinates.*
+
+| | what the gate said | the cause, read from the code and a tile dump |
+|---|---|---|
+| **a** | tower at (40,61): interior **1 cell**; tower at (60,39): interior **5** (want 7) | the two `tsize >= 2` diagonal towers sit at `hring + 2.5` and are 2 hexes across, so they reach `hring + 4.5` — and the `tsize >= 3` town wall is a ring at `round(hring) + 4`, stamped **afterwards, straight through them**. Fixed: that pair is what an **unwalled** town has; a walled one has six lookout towers on the wall |
+| **b** | south lookout tower: interior correct, but its door led into an **8-cell pocket** | the door faced `+y` unconditionally, and for the southern tower `+y` is straight into the town wall's outer face. Fixed: a door faces **where the tower is entered from**, passed by each call site |
+| **c** | east lookout tower: door cell **solid**, whole ring closed | facing alone is not enough — the inward door landed inside a house of the ring, and a later pass filled the cell the tower had cleared. Fixed at a chokepoint: `tower_doors_final` settles every door against the **finished** tiles, keeping an opening that survived and cutting one if the world closed them all |
+
+A tower nobody can enter passes every check that asks about its **shape**. That is why the
+seal and the reach are in the gate and the fitted radius is not.
+
+### What step A did NOT do
+
+The renderer still extrudes a flat quad per blocked edge, so **the frame is unchanged** —
+this is the checkable midpoint the blueprint said existed, not a visible one. Step B (an
+arc-tagged edge draws as a curve) is what makes it visible, and the B control is already
+specified below: the frame must contain a straight wall too, and the straight must stay
+straight.
+
 ## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
 
 The section below stands, with **two corrections found by reading the source instead of the
