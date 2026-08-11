@@ -284,11 +284,15 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
   w.qs_was = qdn;
 
   fwd = 0;
-  turn = 0;
+  // ⚠ NOT `turn`: `use engine_host` exports `pub fn turn()`, and an unqualified library
+  // function claims the CONSUMER's variable namespace — `turn = 0` is then a compile error
+  // ("Cannot redefine function 'turn' as a variable"). The wire format is unchanged; only
+  // this local is renamed. LOFT-HANDOFF.md H11 carries the repro and the open question.
+  turn_dir = 0;
   if graphics::gl_key_pressed(KEY_W) { fwd = 1; }
   if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
-  if graphics::gl_key_pressed(KEY_A) { turn = 1; }   // left  = CCW (heading up)
-  if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
+  if graphics::gl_key_pressed(KEY_A) { turn_dir = 1; }   // left  = CCW (heading up)
+  if graphics::gl_key_pressed(KEY_D) { turn_dir = -1; }  // right = CW
 
   // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
   w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
@@ -300,11 +304,11 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
   if g_down && !w.g_was { emit(w, "A 2 0 0"); _r2 = flow_action(w.s, 2, 0, 0); }
   w.g_was = g_down;
 
-  if fwd != 0 || turn != 0 {
+  if fwd != 0 || turn_dir != 0 {
     // the distance-driven clock: an idle tick mutates nothing, so only REAL
     // movement intents hit the wire (an idle host = zero traffic)
-    emit(w, "T {fwd} {turn}");
-    (s2, nsq, nsr, chg) = flow_move(w.s, fwd, turn, FIXED_DT, w.sq, w.sr);
+    emit(w, "T {fwd} {turn_dir}");
+    (s2, nsq, nsr, chg) = flow_move(w.s, fwd, turn_dir, FIXED_DT, w.sq, w.sr);
     w.s = s2;
     w.sq = nsq;
     w.sr = nsr;

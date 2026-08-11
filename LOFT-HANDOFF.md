@@ -1342,9 +1342,14 @@ local. A consumer cannot defend against it, and the break arrives on a commit th
 not make. `graphics::` is already called qualified in crawler; if qualified use were the rule
 for functions, the collision would not exist.
 
-**Crawler's options, none taken yet** (whose call: the user):
-1. Rename `story.loft`'s `turn` → `turn_dir`. One word, unblocks the gate today, and concedes
-   the namespace.
-2. Treat it as a loft defect and file it; keep the gate red or rename temporarily meanwhile.
-3. Pin `engine_host` (publish it, or stop tracking the working tree) so a sibling's edit cannot
-   reach crawler's compile — the structural fix, and the one ADOPTION.md P3 already argues for.
+**Crawler's options:**
+1. ✅ **TAKEN, to unblock the gate** (2026-08-11): `story.loft`'s `turn` → `turn_dir`, with the
+   reason written at the site. The wire format is unchanged — only a local was renamed — and
+   `make test` is green again at 109 rows. ⚠ **This concedes the namespace and answers nothing**;
+   it buys back the gate, which was the urgent part, not the interesting one.
+2. **Still open — file it, or decide it is not a defect.** Nobody has ruled on the question
+   above. Doing nothing means the next short verb `engine_host` exports breaks crawler again,
+   somewhere else, on a commit crawler did not make.
+3. **The structural fix, and the one ADOPTION.md P3 already argues for:** publish `engine_host`
+   so it resolves from the registry at a locked version, and crawler stops compiling against a
+   sibling's working tree. Then a name it adds arrives when crawler chooses to take it.

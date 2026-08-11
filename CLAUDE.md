@@ -14,9 +14,11 @@ with it.)*
 > the script that owns it, named on the rule — read that one when the rule is what you are
 > about to break.
 >
-> ⚠ **A number a command will print is not written here.** All three that were had rotted
+> ⚠ **A number a command will print is not written here.** Every one that was had rotted
 > silently: on 2026-08-11 this file said 105 test files / 108 rows / 14 native rows against
-> **107 / 110 / 19** on disk, and `run_tests.sh` printed a fourth figure. Ask the gate.
+> **107 / 109 / 19** on disk, and `run_tests.sh` announced a fifth figure of its own. ⚠ **The
+> audit that caught them miscounted too** — 110 rows, because a `grep -c '^collect_one'` also
+> matches that function's *definition*. Ask the gate; it counts.
 
 ## Where to look it up — open ONE, and only when the task needs it
 

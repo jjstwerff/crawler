@@ -113,9 +113,14 @@ NATIVE_TESTS=$(printf '%s ' $NATIVE_TESTS)
 
 # ⚠ COUNT THE LIST, NEVER TYPE THE COUNT. This line used to read "13 heavy tests"; the list
 # had grown to 19 and nobody noticed, because a hand-written number gives no signal when it
-# goes wrong. CLAUDE.md carried three more of the same kind (test files, rows, native rows —
-# 105/108/14 against 107/110/19 on 2026-08-11) and they had all rotted too. The gate KNOWS
-# these numbers, so the gate is where they are said, and no doc has to repeat them.
+# goes wrong. CLAUDE.md carried two more of the same kind (test files and native rows —
+# 105 and 14 against 107 and 19 on 2026-08-11) and both had rotted too.
+#
+# ⚠ AND THE HAND COUNT THAT FOUND THEM WAS ITSELF WRONG. Auditing this file by grep gave 110
+# rows (104 heredoc + `grep -c '^collect_one'`) — but one of those six matches is the function
+# DEFINITION on line 198, so the roster is 109, exactly what STATE.md already said. The count
+# was wrong in the act of writing down that hand counts go wrong. The gate KNOWS these
+# numbers; the gate is where they are said, and no doc repeats them.
 if [ -n "${GATE_NO_NATIVE:-}" ]; then
   echo "  [mode] every test --interpret (GATE_NO_NATIVE=1)"
 else
