@@ -829,9 +829,45 @@ edge field, so a slope neither blocks nor slows. Whether a gradient should cost 
 anything is a gameplay question with its own keys, and inventing one here is the bounded-
 simulation trap (DESIGN §3a pillar 0) entered one reasonable feature at a time.
 
-**Still owed by P6:** the far field itself — the terrain beyond the window and the air box,
-which is what `sim_window_frame` / `window_hex_world` were exposed for. P6b (parallax layers)
-and P6d (the blend band) follow it.
+### Still owed by P6 — and the far field's job is NOT the one it looks like
+
+The terrain beyond the window and the air box, which is what `sim_window_frame` /
+`window_hex_world` were exposed for. **The concrete plotted end-result for it was measured
+rather than assumed**, and the assumption was wrong:
+
+*Expected:* the world ends at the window edge, so the frame shows a **void below the horizon**.
+*Measured on the rendered frame:* in **80 of 80 sampled columns the lowest sky pixel is above
+the horizon line** — there is no void anywhere, because the start sits in a bowl and the near
+window's own rim IS the horizon.
+
+So the far field's job here is the opposite one: the terrain that should rise **above** that
+rim and is missing. Per bearing, the horizon from the near window alone against the horizon of
+the whole wilderness out to 40 km (`skyprobe`):
+
+| bearing | near-only | whole world | **missing sky** |
+|---|---|---|---|
+| 300° | 32.09° | 39.43° | **7.35°** |
+| **90°** | −3.55° | −0.04° | **3.51°** |
+| 0° | 32.05° | 33.83° | **1.78°** |
+| the other nine | — | — | **0.00°** |
+
+**Nine of twelve bearings need no far field at all** — the bowl occludes everything beyond
+them, and drawing it would be work no pixel shows. The three that do include **90°, which is
+exactly where the camera looks**: down the open valley the horizon should sit at the eye rather
+than 3.5° below it. At a 60° vertical field of view a degree is 10 pixels of a 600-tall frame,
+so 300°'s 7.35° is a 73-pixel band of mountain the frame is not drawing.
+
+⚠ **That is also the gate, and it comes with its negative control for free:** once the far
+field is drawn, the frame's horizon per bearing must equal the whole-world horizon — and
+switching the far field off must put these three numbers back. It measures the far field
+against the *world*, not against a screenshot of itself.
+
+⚠ **And it says how much LOD is needed before any is built.** A representation that costs
+vertices in nine bearings where nothing is visible is the wrong one; occlusion by the near rim
+is doing most of the work already, which is the same shape as I-PARALLAX's argument (*don't
+redraw what could not have changed*) applied to space instead of time.
+
+P6b (parallax layers) and P6d (the blend band) follow it.
 
 **Gate:** `src/horizontest.loft` (6 rows, in `NATIVE_TESTS` at 21 s interpreted). Full suite
 green, **107 rows in 2m32s**, and every plan #17 measurement reads what it read before — which

@@ -17,6 +17,7 @@ use sim;
 use ground;
 use hex_grid;
 use scale;
+use overland;
 
 fn main() {
   s = sim_new_gen(1337, 0);
@@ -77,4 +78,48 @@ fn main() {
     }
     println("  {b * 30} deg      {besta}        {bestd}");
   }
+
+  // ── HOW MUCH SKY IS WRONG — what the FAR field is actually for here ──────────────────
+  //
+  // The obvious expectation is that the world ends at the window edge and shows a void below
+  // the horizon. Measured on the rendered frame, it does not: at the spawn the near window's
+  // own rim fills the horizon in every one of 80 sampled columns, because the start sits in a
+  // bowl. So the far field's job here is the opposite one — the terrain that should rise
+  // ABOVE that rim and is missing.
+  //
+  // Per bearing: the horizon angle from the near window alone, against the horizon angle of
+  // the whole wilderness out to 40 km. The difference is the height of the mountain the frame
+  // is not drawing, in degrees of sky.
+  o = overland_new();
+  (wax, way, wcx, wcy) = sim_window_frame(s);
+  ms = OV_STEP / HEX_LEN ?? 0.0;                 // world units -> natural metres
+  wx0 = wax + s.px * ms - wcx;
+  wy0 = way + s.py * ms - wcy;
+  println("");
+  println("bearing   near-only   whole world (40 km)   MISSING sky");
+  wtot = 0.0;
+  for b2 in 0..12 {
+    ang2 = (b2 as float) * 0.5235987755982988;
+    dx2 = cos(ang2);
+    dy2 = sin(ang2);
+    nearh = 0.0 - 90.0;
+    farh = 0.0 - 90.0;
+    for i2 in 1..400 {
+      // logarithmic-ish stepping: dense close in, coarse far out, so 40 km costs 400 samples
+      d2 = (i2 as float) * HEX_LEN * (1.0 + (i2 as float) * 0.15);
+      x2 = s.px + dx2 * d2;
+      y2 = s.py + dy2 * d2;
+      hz = terrain_m_to_wu(ov_height(o, wx0 + dx2 * d2 * ms, wy0 + dy2 * d2 * ms));
+      el2 = atan((hz - ez) / d2 ?? 0.0) * 57.29577951308232;
+      if el2 > farh { farh = el2; }
+      (nq2, nr2) = px_to_hex(x2, y2);
+      if sim_has_ground(s, nq2, nr2) && el2 > nearh { nearh = el2; }
+    }
+    miss = farh - nearh;
+    if miss < 0.0 { miss = 0.0; }
+    wtot = wtot + miss;
+    println("  {b2 * 30} deg    {nearh}    {farh}    {miss}");
+  }
+  println("mean missing sky across 12 bearings: {wtot / 12.0 ?? 0.0} degrees");
+  println("  (the vertical field of view is 60 degrees, so a degree here is 10 pixels of a 600-tall frame)");
 }
