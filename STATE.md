@@ -505,10 +505,37 @@ the area — but if it continues, the label is wrong and should move.
   speed nobody had a baseline for. Full gate green, 106 rows.
   → `plans/11-3d-world/RESULTS.md` → *P6 opened*; probes `horizonprobe` / `hometownprobe` /
   `rockprobe`.
-- **The starting neighbourhood is now hostile at level 1** — a gnoll (mlvl 6) 8 hexes from the
-  vantage, a level-1 hero dead on tick 13. The alpine anchor bought the gatherer and cost the
-  onboarding curve. **DESIGN §3a pillar #8's business, and nobody owns it yet.** The user's call
-  whether the answer is placement, the curve, or a starting-window guarantee.
+- ✅ **THE OPENING CURVE IS RE-MEASURED ON THE NEW WINDOW (2026-08-11), AND THE CONCERN IS
+  RESOLVED — but the measurement that raised it was pointed at the wrong ground.** The recorded
+  worry was *"a gnoll (mlvl 6) 8 hexes from the vantage, a level-1 hero dead on tick 13"*. On
+  the valley window (`src/onboardprobe.loft`, seed 1337):
+  | | alpine window | valley window |
+  |---|---|---|
+  | nearest role-0 actor to the **vantage** | giant rat, 28 hexes | **jackal, 34 hexes** |
+  | role-0 actors within 30 of the vantage | 8 | **0** |
+  | hero standing still at the vantage, 400 ticks | survives | **survives** |
+  The gnoll-at-8-hexes is gone; the vantage is now quieter than the pre-alpine baseline
+  (jackal at 43) on the metric that matters, which is *what can reach you*.
+  ⚠ **AND THE PROBE FOUND THE REAL OPENING, WHICH NOBODY HAD EVER MEASURED: the SPAWN.** The
+  vantage is derived to *maximise clearance* — it is the quietest hex in the window, chosen so a
+  town-watching test is not secretly a combat test. A new game does not start there. At the
+  actual spawn the hero stands beside **the spawning crystal (25 hp) plus a giant rat, two
+  jackals and a giant bat — 3 to 4 hp each**. That is a normal roguelike opening, not a curve
+  defect: each dies in a hit.
+  ⚠ **"Dead at tick 12 standing still" is an artefact of the instrument, not a finding.** The hp
+  trace is `38 38 38 38 37 33 26 22 15 11 5 1 -6` — four attackers on a hero who never swings,
+  because `sim_wait` is the probe's idea of a player, not a player. Reported so the number is
+  not re-discovered later and mistaken for a regression.
+  ⚠ **AND IT IS IDENTICAL IN THE OLD WINDOW** — verified by checking out the pre-P6
+  `overland`/`sim` and re-running: same four creatures, same tick 12. **The spawn hazard is a
+  property of the level GENERATOR, not of the window**: `gen_dungeon`'s seed does not depend on
+  which town is home, so moving the home window moves the *terrain-derived* vantage and leaves
+  the *seed-derived* spawn exactly where it was.
+  ⚠ **One trap recorded: `role == 0` is not "hostile", it is "not a townsperson"**, and the
+  **spawning crystal is role 0** — so any count of role-0 neighbours includes the shrine, which
+  at the spawn is always adjacent by design. `surfacetest`'s vantage scan has the same
+  conflation; it is harmless there (it only makes the chosen vantage more conservative) but it
+  is the kind of thing that reads as a hostile in a log.
 - **The sea economy no longer spawns** in the starting town (roles 5 boat / 6 ship / 8 merchant
   ship, and the harbour with them), so *"goods from BEYOND the map"* (`OVERLAND.md` §584) is not
   reachable from the start. A fisher remains on the river. Accepted as a cost, not yet answered.

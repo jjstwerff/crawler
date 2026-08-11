@@ -1,0 +1,139 @@
+// onboardprobe — the opening curve, measured where the player actually STANDS.
+//
+// `STATE.md` carries an open concern from the day the home window moved to the alpine town:
+// *"the nearest hostile at surfacetest's vantage went from a jackal (mlvl 1) 43 hexes out to a
+// gnoll (mlvl 6) 8 hexes out, and a level-1 hero standing there died on tick 13"*. The window
+// moved again on 2026-08-11 (plan #11 P6 — `ov_home_town` now prefers walkable ground), so that
+// number describes a world nobody plays any more. This re-measures it.
+//
+// ⚠ AND IT MEASURES A DIFFERENT PLACE ON PURPOSE. The old note is about `surfacetest`'s
+// VANTAGE, which is derived to MAXIMISE clearance — the quietest ground in the window, chosen
+// so a town-watching test is not really a combat test. That is the right ground for that test
+// and the wrong ground for this question: a new game does not start at the quietest hex, it
+// starts where `sim_new_gen` puts the player. So this reports both, and the spawn is the one
+// the opening curve is actually about.
+//
+// DESIGN §3a pillar #8 (a gentle curve) owns the verdict; this only supplies the numbers.
+use sim;
+use overland;
+use hex_grid;
+
+// How long a level-1 hero lives standing still here, capped at `cap` ticks. Standing still is
+// the floor, not the experience — it measures what comes TO you, which is the part of the
+// opening a new player has no answer to.
+fn survives(seed: integer, q: integer, r: integer, cap: integer) -> integer {
+  s = sim_new_gen(seed, 0);
+  sim_teleport(s, q, r);
+  t = 0;
+  while t < cap && !sim_over(s) {
+    sim_wait(s);
+    t = t + 1;
+  }
+  if sim_over(s) { return t; }
+  -1                                      // survived the whole window
+}
+
+fn report(s: Sim, label: text, q: integer, r: integer) {
+  near = 9999;
+  nname = "(none)";
+  w10 = 0;
+  w20 = 0;
+  w30 = 0;
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_role(s, i) == 0 {
+      (eq, er) = sim_enemy_hex(s, i);
+      d = hex_distance(eq, er, q, r);
+      if d < near { near = d; nname = sim_enemy_name(s, i); }
+      if d <= 10 { w10 = w10 + 1; }
+      if d <= 20 { w20 = w20 + 1; }
+      if d <= 30 { w30 = w30 + 1; }
+    }
+  }
+  // ⚠ "role 0" IS NOT "HOSTILE" — it is "not a townsperson", and the SPAWNING CRYSTAL is a
+  // role-0 entity too (MF_SHRINE, bumped to interact, never meleed). So these counts include
+  // the shrine when it is near, which at the spawn it always is, by design. The named list
+  // below is the honest reading; the count is a headline that needs its caveat carried.
+  println("  {label} at ({q},{r}): nearest role-0 actor {near} hexes — {nname}");
+  println("    role-0 actors within 10 / 20 / 30 hexes: {w10} / {w20} / {w30}  (the shrine is one of them near spawn)");
+}
+
+fn main() {
+  println("=== the opening curve on the world players start in (seed 1337, depth 0) ===");
+  s = sim_new_gen(1337, 0);
+  (pq, pr) = sim_player_hex(s);
+  println("hero: {sim_player_race(s)} {sim_player_class(s)} · hp {sim_player_hp(s)}/{sim_player_hp_max(s)} · {sim_enemy_count(s)} actors, {sim_npc_count(s)} of them townsfolk");
+  println("");
+
+  // 1. THE SPAWN — where a new game actually begins.
+  report(s, "SPAWN", pq, pr);
+
+  // 2. `surfacetest`'s vantage, for continuity with the number STATE.md records. Derived the
+  //    same way that test derives it: open ground, 20+ from the town seat, maximum clearance.
+  vq = -1;
+  vr = -1;
+  vclear = -1;
+  for cr in 20..85 {
+    for cq in 20..85 {
+      if tile_at(s, cq, cr) == 0 && hex_distance(cq, cr, 50, 50) >= 20 {
+        nearest = 9999;
+        for hi in 0..sim_enemy_count(s) {
+          if sim_enemy_alive(s, hi) && sim_enemy_role(s, hi) == 0 {
+            (ehq, ehr) = sim_enemy_hex(s, hi);
+            dh = hex_distance(ehq, ehr, cq, cr);
+            if dh < nearest { nearest = dh; }
+          }
+        }
+        if nearest > vclear { vclear = nearest; vq = cq; vr = cr; }
+      }
+    }
+  }
+  report(s, "VANTAGE", vq, vr);
+
+  // 3. THE TOWN SEAT — the ground the player is meant to be safest on, and the one every
+  //    settlement mechanism (guards, standing, the market) is arranged around.
+  report(s, "TOWN SEAT", 50, 50);
+
+  // 4. SURVIVAL. A day is 400 ticks; 60 is what `surfacetest` asks for.
+  println("");
+  println("a level-1 hero standing still (-1 = survived the whole window):");
+  println("  at the spawn, 400 ticks (one day): died at tick {survives(1337, pq, pr, 400)}");
+  println("  at the vantage, 400 ticks:         died at tick {survives(1337, vq, vr, 400)}");
+  println("  at the town seat, 400 ticks:       died at tick {survives(1337, 50, 50, 400)}");
+
+  // 5. WHAT IS ACTUALLY KILLING HIM. "Dead at tick 12" is a number, not a cause — a swarm and
+  // one heavy hitter read the same at the output. Name the neighbours and watch the HP fall.
+  println("");
+  println("the role-0 actors the spawn is standing in (names, so the shrine is visible):");
+  for i in 0..sim_enemy_count(s) {
+    if sim_enemy_alive(s, i) && sim_enemy_role(s, i) == 0 {
+      (eq, er) = sim_enemy_hex(s, i);
+      d = hex_distance(eq, er, pq, pr);
+      if d <= 12 {
+        println("  {sim_enemy_name(s, i)} at {d} hexes, hp {sim_enemy_hp(s, i)}/{sim_enemy_maxhp(s, i)}");
+      }
+    }
+  }
+  println("");
+  println("hp per tick, standing still at the spawn:");
+  s2 = sim_new_gen(1337, 0);
+  line = "";
+  for t2 in 0..16 {
+    line = "{line} {sim_player_hp(s2)}";
+    sim_wait(s2);
+  }
+  println(" {line}");
+  // And with the guards doing their job: how many hostiles are left near the seat after a day
+  // if the hero is NOT standing in the middle of it (teleported to the vantage instead).
+  s3 = sim_new_gen(1337, 0);
+  sim_teleport(s3, vq, vr);
+  for _ in 0..400 { sim_wait(s3); }
+  left = 0;
+  for i3 in 0..sim_enemy_count(s3) {
+    if sim_enemy_alive(s3, i3) && sim_enemy_role(s3, i3) == 0 {
+      (e3q, e3r) = sim_enemy_hex(s3, i3);
+      if hex_distance(e3q, e3r, 50, 50) <= 10 { left = left + 1; }
+    }
+  }
+  println("hostiles within 10 of the seat after one day, hero elsewhere: {left} (was 5)");
+  println("=== PROBE DONE ===");
+}
