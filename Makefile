@@ -110,7 +110,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe ovshot viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin hydro-test trimesh-test rivers-test
+.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe ovshot viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin near-test hydro-test trimesh-test rivers-test phony-check
 
 # Default target: print the overview above.
 help:
@@ -254,6 +254,21 @@ loft-doctor:
 	@printf "  smoke     : "; loft --interpret --check $(BUNDLE_LIBS) $(KTEST) </dev/null >/dev/null 2>&1 \
 	    && echo "OK — installed loft runs the kernel headlessly (no --path/--lib; bundle libs only)" \
 	    || echo "FAIL — installed loft errors (usually a stale stdlib; run the refresh above)"
+
+# ⚠ A .PHONY NAME WITH NO RECIPE IS A SILENT NO-OP — `make` prints "Nothing to be done" and
+# exits 0, so a gate passes by not running. That happened on 2026-08-11: an edit adding `ovshot`
+# REPLACED this target instead of landing beside it, and the break survived a commit because the
+# session had already run the gate before the edit. `phony-check` asserts every .PHONY name is
+# really defined; the gate runs it first, so the gate can no longer be deleted quietly.
+phony-check:
+	@mk=$(firstword $(MAKEFILE_LIST)); \
+	  phony=$$(grep -h '^\.PHONY:' $$mk | sed 's/^\.PHONY://'); \
+	  miss=""; for t in $$phony; do grep -qE "^$$t:" $$mk || miss="$$miss $$t"; done; \
+	  [ -z "$$miss" ] || { echo "  FAIL: .PHONY names with no target:$$miss"; exit 1; }; \
+	  echo "  ok  every .PHONY name resolves to a real target"
+
+test: phony-check
+	@tools/run_tests.sh "$(LOFT)" "$(LOFTFLAGS)" "$(KTEST)" "$(CHECK_ENTRIES)"
 
 # ── README's world maps ──────────────────────────────────────────────────
 # `make ovshot` re-draws doc/world_loft.png (the flat map) and doc/world_ortho.png (the
@@ -470,6 +485,21 @@ region:
 # Standalone hydrology smoke: pit-fill + flow + acc + I-FLOW validation on
 # the active region. The viewer will fold the same call into its startup once
 # wired (design doc §11 step 5).
+# @PLN48 consumer validation: crawler stores enemies as a flat vector<Enemy>, so every
+# proximity query is a linear scan. This asks whether `spatial<Mob[q,r]>` answers the same
+# question by walking only the Morton interval — against a brute-force oracle, on 2000 mobs
+# and 500 queries. It is crawler's evidence FOR loft, not a crawler feature, which is why it
+# is a named target rather than a gate row.
+#
+# ⚠ It had never compiled. It was written against the upstream PLAN's spelling — `spacial`,
+# which is how plans/48-spacial-index/ is named — and the feature shipped as `spatial`, which
+# the parser rejects the other way round. One word, sixteen cascading errors, and no target
+# and no gate ever built it, so the validation simply never ran. Its own header promised
+# `make near-test`; that target did not exist either. It does now.
+near-test:
+	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  near-test: loft not found ($(LOFT))"; exit 1; }
+	@$(LOFT) --interpret $(LOFTFLAGS) near_mobs_test.loft
+
 hydro-test:
 	@command -v $(LOFT) >/dev/null 2>&1 || { echo "  hydro-test: loft not found ($(LOFT))"; exit 1; }
 	@LOFT_REGION=$(REGION) $(LOFT) --interpret --lib src/realworld/ --lib src/regions/ $(LOFTFLAGS) hydro_test.loft

@@ -330,10 +330,25 @@ grep -q "ALL CHECKS PASS" /tmp/story_selftest.log || {
   grep -vE '^advice|^note:|^warning|^ *[0-9]+ \||^ *\||^ *-->|^ *\^|^$' /tmp/story_selftest.log | tail -12 | sed 's/^/       /'
   exit 1; }
 
+# ⚠ $SRC IS A LIST, AND IT USED TO BE ONE FILE. The Makefile passes $(CHECK_ENTRIES) — the game
+# plus every entry point a gate or a committed asset depends on (the four `make probe` scenes,
+# ovshot). One file was the whole coverage before, which is how src/worldprobe.loft carried a
+# `warning[lost-write]` for two months: nothing compiled it, so nobody read the warning that
+# named the bug. There is ONE list and it lives in the Makefile; this loops over whatever it is
+# handed, so the two cannot drift.
 echo "  [prelude 2/4] compile gate (parse + bytecode) ..."
-# shellcheck disable=SC2086
-"$LOFT" --interpret --check $FLAGS "$SRC" >/dev/null 2>&1 || {
-  echo "    FAIL: compile"; exit 1; }
+for entry in $SRC; do
+  # shellcheck disable=SC2086
+  out=$("$LOFT" --interpret --check $FLAGS "$entry" 2>&1) || {
+    echo "    FAIL: compile $entry"; echo "$out" | grep -E '^error' | head -5 | sed 's/^/      /'; exit 1; }
+  # ⚠ lost-write is never intentional: the compiler is saying a mutation does nothing (C86 —
+  # a whole-value bind COPIES). Unlike redundant-coalesce, it earns a hard failure.
+  if printf '%s' "$out" | grep -q 'warning\[lost-write\]'; then
+    echo "    FAIL: $entry — a write that goes nowhere (loft C86: a whole-value bind COPIES)"
+    printf '%s' "$out" | grep -A4 'warning\[lost-write\]' | head -24 | sed 's/^/      /'
+    exit 1
+  fi
+done
 
 echo "  [prelude 3/4] regenerate bundle registries (before any row reads them) ..."
 "$LOFT" --interpret src/genbundles.loft >/dev/null 2>&1

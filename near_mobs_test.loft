@@ -3,18 +3,19 @@
 // "Near mobs from a mob's perspective": crawler stores enemies as a flat
 // `vector<Enemy>` (src/sim.loft), so every proximity query (aggro, threat,
 // interest management) is a LINEAR SCAN — `sim_enemy_dist` walks all enemies.
-// A `spacial<Mob[q,r]>` keyed on the hex axial coords answers the same query
+// A `spatial<Mob[q,r]>` keyed on the hex axial coords answers the same query
 // by walking only the Morton interval around the query point.
 //
-// This validates that the spacial near-set is IDENTICAL to the brute-force
+// This validates that the spatial near-set is IDENTICAL to the brute-force
 // scan on every query (correctness vs oracle), both backends, and reports the
 // candidate-count reduction (the locality win).  No new keywords / methods —
 // just the range-slice syntax over the collection.
 //
-// REQUIRES a loft with `spacial<T[…]>` (loft-lang/plans #48).  Until that ships
-// in the installed toolchain, run against the in-progress loft:
-//     LOFT_REPO=../loft2 make near-test
-// (or invoke loft directly with `--lib ../loft-libs-world/` for hex_grid).
+// `make near-test`.  ⚠ SHIPPED, and this file did not notice for months: it was written
+// against the upstream PLAN's spelling — `spacial`, as in plans/48-spacial-index/ — and the
+// feature landed as `spatial`, which is the spelling the parser accepts.  One word, sixteen
+// cascading errors, and nothing compiled this file, so the validation never ran.  First green
+// run 2026-08-11 on toolchain 2026.8.0: 22x fewer candidates, 344 ms -> 39 ms, 500/500 match.
 use hex_grid;   // hex_distance(q1,r1,q2,r2) — steps in odd-r offset coords
 
 struct Mob { q: integer, r: integer, id: integer }
@@ -33,12 +34,12 @@ fn scatter(i: integer, salt: integer) -> integer {
 }
 
 fn main() {
-  println("=== near_mobs_test — spacial<Mob[q,r]> vs brute-force scan ===");
+  println("=== near_mobs_test — spatial<Mob[q,r]> vs brute-force scan ===");
 
   // Build the SAME mob set two ways: a flat vector (crawler's vector<Enemy>,
-  // the brute-force baseline) and a spacial index keyed on the hex coords.
+  // the brute-force baseline) and a spatial index keyed on the hex coords.
   flat: vector<Mob> = [];
-  idx: spacial<Mob[q, r]> = [];
+  idx: spatial<Mob[q, r]> = [];
   for i in 0..NMOB {
     q = scatter(i, 1);
     r = scatter(i, 2);
@@ -53,7 +54,7 @@ fn main() {
   // two loops are timed independently (no ticks() calls in the hot inner loop).
   bfp: vector<integer> = [];
   sfp: vector<integer> = [];
-  spac_cand: integer = 0;   // records the spacial slices yield (candidates to filter)
+  spac_cand: integer = 0;   // records the spatial slices yield (candidates to filter)
 
   // Pass 1 — brute force: scan EVERY mob per query (crawler's sim_enemy_dist shape).
   t0 = ticks();
@@ -73,7 +74,7 @@ fn main() {
   }
   brute_us = ticks() - t0;
 
-  // Pass 2 — spacial: the Morton bounding-box slice is a SUPERSET of the geometric
+  // Pass 2 — spatial: the Morton bounding-box slice is a SUPERSET of the geometric
   // box (Z-order threads outside it), and a box of half-width RADIUS contains the
   // whole hex disk (one hex step moves q,r by <=1).  Filter the candidates by the
   // exact hex distance — the result equals brute force, from far fewer records.
@@ -109,7 +110,7 @@ fn main() {
   }
   println("  brute time: {brute_us / 1000} ms");
   println("  spac time : {spac_us / 1000} ms");
-  assert(mism == 0, "spacial near-set matches brute force on every query");
+  assert(mism == 0, "spatial near-set matches brute force on every query");
   println("  correct   : all {QUERIES} near-sets match brute force");
 
   // The outward Morton walk the plan calls the "interest list" — walk from the

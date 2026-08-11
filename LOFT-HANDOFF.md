@@ -759,6 +759,7 @@ entry is worth more beside its siblings than in a list. They keep their place an
 |---|---|---|
 | **H10** — auto-native cdylib fails to wire intermittently under concurrent `loft` | [loft#831](https://github.com/loft-lang/loft/issues/831) | ✅ fixed upstream 2026-08-10, confirmed back |
 | **H11** — a library package's public `fn` claims the consumer's variable namespace | [loft#852](https://github.com/loft-lang/loft/issues/852) | open — `needs-design` |
+| **H12** — vector-literal parsing is O(n²) in element count | [loft#854](https://github.com/loft-lang/loft/issues/854) | open |
 
 ---
 
@@ -1375,3 +1376,41 @@ for functions, the collision would not exist.
 3. **The structural fix, and the one ADOPTION.md P3 already argues for:** publish `engine_host`
    so it resolves from the registry at a locked version, and crawler stops compiling against a
    sibling's working tree. Then a name it adds arrives when crawler chooses to take it.
+
+---
+
+## H12 — vector-literal parsing is O(n²) in element count: a generated 86 400-element literal takes >13 min at 99 % CPU
+
+**Status:** ✅ **FILED as [loft#854](https://github.com/loft-lang/loft/issues/854)** (2026-08-11,
+`bug` · `sev:medium` · `wa:partial` · `area:parser` · `both-backends`) · **Repo:** `loft-lang/loft`
+
+**Found 2026-08-11** on toolchain 2026.8.0, by compile-checking every `.loft` in the tree.
+
+**The measurement.** One vector literal of `n` elements, cold compile each time
+(⚠ a re-run of the *same* file returns in ~90 ms off the compile cache — that is how it hides):
+
+| elements | run 1 | run 2 | vs previous |
+|---:|---:|---:|---:|
+| 2 000 | 0.65 s | 0.68 s | — |
+| 4 000 | 2.41 s | 6.63 s (box load) | ~3.7× |
+| 8 000 | 9.47 s | 9.14 s | ~3.9× |
+| 16 000 | 37.5 s | 36.8 s | **4.0×** |
+
+The 8 000 and 16 000 rows are stable to ~3 % across runs and are the evidence: **a doubling
+costs 4×.** The 4 000 point in run 2 is contention, not signal.
+
+**What it costs crawler.** `src/regions/ortler.loft` is generated region data — 1.29 MB in 43
+lines, the largest a single **86 400**-element `vector<integer>`. Extrapolating from the 16 000
+point puts that one literal near 18 minutes. **Five make targets import it** — `viewer`,
+`hydro-test`, `rivers-test`, `trimesh-test`, `region` — so all five are unusable in practice,
+which is why none of them are run, and how `near_mobs_test.loft` sat uncompilable in the same
+family for months without anyone noticing.
+
+⚠ **It is not a hang, and that is the problem.** The process holds 99 % CPU the whole way with
+no output, so it presents exactly as one — no diagnostic, nothing to search for, and a `timeout`
+in a sweep script reports it identically to a deadlock.
+
+**Workaround, not applied.** A generator can emit many small literals and append them instead of
+one long one. That changes the generated shape and requires regenerating committed data to work
+around a complexity bug, so it is **the user's call, not taken** — nothing is corrupted, and the
+file does compile if you wait.
