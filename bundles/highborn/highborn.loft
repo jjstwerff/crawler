@@ -5,9 +5,15 @@ use races;
 
 pub fn highborn_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
-  t += [RaceDef { r_key: "highborn", r_name: "Highborn", r_str: 1, r_int: 2, r_wis: 2,
-    r_dex: 1, r_con: 2, r_chr: 2, r_hd: 1, r_xp: 145, r_melee: 4, r_bow: 2,
-    r_device: 5, r_disarm: 3, r_stealth: 1, r_save: 5, r_infra: 0, r_flags: RF_SUST_CON,
-    r_desc: "Long-lived nobility; well-rounded but slow to advance." }];
+  // ON THE EIGHT (plan #16 `M3`): the roster's top CHARISMA (+4) — under the eight that axis is
+  // leadership and calling (§5b), not a shop discount, so it is a real playstyle and the one
+  // this race owns. Solid everywhere else, and pointedly BAD with its hands (-1): a noble has
+  // never repaired anything in their life. That negative is the step's argument in miniature —
+  // an axis earns its place by letting a race be bad at something it could not be bad at before.
+  t += [RaceDef { r_key: "highborn", r_name: "Highborn",
+    r_might: 2, r_endu: 2, r_dex: 1, r_perc: 0, r_speed: -1, r_will: 2, r_char: 4, r_hand: -1,
+    r_hd: 1, r_xp: 145, r_melee: 4, r_bow: 2,
+    r_device: 5, r_disarm: 3, r_stealth: 1, r_save: 5, r_infra: 0, r_flags: RF_SUST_ENDU,
+    r_desc: "Long-lived nobility; born to lead, useless with a tool." }];
   t
 }

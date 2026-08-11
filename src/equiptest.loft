@@ -48,7 +48,7 @@ fn main() {
   inv0 = sim_inv_count(ps);
   pl.give_item(ps, "potion_cure_light");      // -> inventory
   pl.equip(ps, "everbright_torch");           // -> equipment (light slot)
-  pl.grant_stat(ps, "con", 2);                // -> statistic
+  pl.grant_stat(ps, "endu", 2);               // -> statistic
   pl.grant_skill(ps, "stealth", 1);           // stub today — must not crash
   pl.equip(ps, "soft_leather_armor");         // armour -> AC -> raises the saving throw
   pl.grant_gold(ps, 25);
@@ -56,7 +56,7 @@ fn main() {
   pl.teleport(ps, 5, 5);
   pl.face(ps, 6, 6);
   inv1 = sim_inv_count(ps);
-  // Saving throws + damage reduction (functional): equipment + CON raise the save; magic
+  // Saving throws + damage reduction (functional): equipment + Endurance raise the save; magic
   // (fire) is resisted by it, never to 0; physical is soaked by AC; heal clamps to max.
   sv = sim_player_save(ps);
   hp_b = sim_player_hp(ps);
@@ -67,14 +67,14 @@ fn main() {
   // Three-layer stats (player.loft): permanent drain lowers current (restorable), and a temp
   // potion modifies it for a while then expires (last-wins override). Use a tickable world.
   ts = sim_new_gen(99, 1);
-  con0 = sim_stat_max(ts, "con");
-  pl.drain_stat(ts, "con", 3);    con_dr = sim_stat(ts, "con");   // permanent drain (restorable)
-  pl.restore_stat(ts, "con");     con_rs = sim_stat(ts, "con");   // restored to innate
-  pl.buff_stat(ts, "con", 4, 2);  con_bf = sim_stat(ts, "con");   // good potion: +4 for 2 ticks
+  en0 = sim_stat_max(ts, "endu");
+  pl.drain_stat(ts, "endu", 3);   en_dr = sim_stat(ts, "endu");   // permanent drain (restorable)
+  pl.restore_stat(ts, "endu");    en_rs = sim_stat(ts, "endu");   // restored to innate
+  pl.buff_stat(ts, "endu", 4, 2); en_bf = sim_stat(ts, "endu");   // good potion: +4 for 2 ticks
   sim_tick(ts); sim_tick(ts); sim_tick(ts);                       // 3 ticks > 2 -> buff expired
-  con_af = sim_stat(ts, "con");
-  println("stats(con): innate={con0} drained={con_dr} restored={con_rs} buffed={con_bf} expired={con_af}");
-  stat_ok = con_dr == con0 - 3 && con_rs == con0 && con_bf == con0 + 4 && con_af == con0;
+  en_af = sim_stat(ts, "endu");
+  println("stats(endu): innate={en0} drained={en_dr} restored={en_rs} buffed={en_bf} expired={en_af}");
+  stat_ok = en_dr == en0 - 3 && en_rs == en0 && en_bf == en0 + 4 && en_af == en0;
   player_api_ok = inv1 > inv0 && sim_equipped(ps, SLOT_LIGHT) >= 0 && sim_light_radius(ps) >= 12 && save_ok && stat_ok;
 
   println("loadout: dam={dam_eq} ac={ac_eq} hp={hp_eq} mit20={mit_armored}");

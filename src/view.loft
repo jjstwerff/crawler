@@ -61,7 +61,7 @@ pub struct Hud {
   stair_dn: integer not null,         // '>' down-stair sprite (stepped, narrower+dark)
   panel:  integer not null,           // dark backdrop for the character page overlay
   itex:   vector<integer> not null,   // item display name per def index (quick-slot + inventory)
-  statlbl: vector<integer> not null,  // the 6 stat labels "STR".."CHR" (sidebar)
+  statlbl: vector<integer> not null,  // one baked sidebar label per axis — see stat_abbrevs()
   hplbl:  integer not null,           // "HP" sidebar label
   splbl:  integer not null,           // "SP" sidebar label (live bar for casters; dim otherwise)
   castlbl: integer not null,          // dim "cast" hint on an unbound E slot for casters
@@ -244,7 +244,7 @@ pub fn build_hud(s: Sim) -> Hud {
   catex: vector<integer> = [for _ in 0..14 { 0 }];
   etex: vector<integer> = [];
   itex: vector<integer> = [];
-  statlbl: vector<integer> = [for _ in 0..6 { 0 }];
+  statlbl: vector<integer> = [for _ in 0..NUM_STATS { 0 }];
   hplbl = 0;
   splbl = 0;
   castlbl = 0;
@@ -309,8 +309,8 @@ pub fn build_hud(s: Sim) -> Hud {
     stat_para = graphics::create_text_texture(font, "PARALYSED", SB_SIZE, graphics::rgba(235, 80, 70, 255));
     stat_pois = graphics::create_text_texture(font, "POISONED", SB_SIZE, graphics::rgba(120, 215, 90, 255));
     stat_ward = graphics::create_text_texture(font, "WARDED", SB_SIZE, graphics::rgba(120, 200, 235, 255));
-    snames = ["STR", "INT", "WIS", "DEX", "CON", "CHR"];
-    for si in 0..6 {
+    snames = stat_abbrevs();
+    for si in 0..len(snames) {
       statlbl[si] = graphics::create_text_texture(font, snames[si] ?? "", SB_SIZE, graphics::rgba(190, 195, 175, 255));
     }
     itex = bake_itex(font, s);
@@ -637,6 +637,18 @@ pub fn build_vis_texture(s: Sim) -> integer {
 }
 
 // Draw a baked text texture at its NATURAL size (measure width + text height) so it stays crisp.
+// The sidebar's stat abbreviations, in `stat_name`'s order — ONE owner, because the labels are
+// BAKED in build_hud and DRAWN in draw_sidebar, and those two sites disagreeing is not a crash.
+//
+// ⚠ THEY DID DISAGREE, and that is why this function exists (found in plan #16 `M3`): `M2` grew
+// the draw loop to eight and left the bake at `for si in 0..6` over ["STR","INT","WIS","DEX",
+// "CON","CHR"], so the shipped sidebar drew six labels naming axes the engine no longer had,
+// against eight values, with two blank rows under them. I-AXIS was asserted at the draw site and
+// never re-asserted at the bake site — the one place a length-driven invariant can still rot.
+fn stat_abbrevs() -> vector<text> {
+  ["MIG", "END", "DEX", "PER", "SPD", "WIL", "CHA", "HAN"]
+}
+
 fn sb_text(painter: graphics::Painter2D, hud: Hud, tex: integer, str: text, x: float, y: float) {
   if tex == 0 { return; }
   w = graphics::gl_measure_text(hud.font, str, SB_SIZE);
@@ -644,7 +656,7 @@ fn sb_text(painter: graphics::Painter2D, hud: Hud, tex: integer, str: text, x: f
   graphics::draw_texture_at(painter, tex, x, y, w, h);
 }
 
-// The left character bar (Angband's known spot): HP (with the SP row reserved beneath it), the 6
+// The left character bar (Angband's known spot): HP (with the SP row reserved beneath it), the 8
 // base stats, then the 11 quick-slots (1-9 then Q/E). Drawn every frame from pre-baked textures +
 // draw_number — no per-frame baking — so it tracks HP/ammo/slots live. Q shows the bow + arrows-left.
 fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
@@ -702,7 +714,7 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   // The EIGHT base stats (label + value) — CATALOG.md §0 order, plan #16 `M2`.
   // ⚠ Driven by the ARRAY's length, not a literal count, so the sidebar follows the axis set
   // (I-AXIS). Whether eight rows still FIT here is `M4`'s judgement, in `make play`.
-  snames = ["MIG", "END", "DEX", "PER", "SPD", "WIL", "CHA", "HAN"];
+  snames = stat_abbrevs();
   skeys  = ["might", "endu", "dex", "perc", "speed", "will", "char", "hand"];
   slbl = hud.statlbl;
   sy = 84.0;
@@ -965,10 +977,11 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
 // Lines are baked once (build_charpage, on open/spend), then drawn (draw_charpage) — no per-frame
 // texture churn. The line strings are derived from the Sim, so the same `s` gives the same layout.
 fn charpage_lines(s: Sim) -> vector<text> {
-  // THE EIGHT (CATALOG.md §0, plan #16 `M2`). ⚠ The three that say *(later)* are honest, not
-  // placeholders left by accident: Perception, Speed and Handiness have no consumer until `M4`
-  // re-keys the derived stats, and no race has authored a value for them until `M3`. Saying so
-  // beats showing a number the game does not use.
+  // THE EIGHT (CATALOG.md §0). ⚠ The rows that say *(later)* are honest, not placeholders left
+  // by accident — but what they mean CHANGED with plan #16 `M3`: every race and class now
+  // authors a real value on all eight, so the numbers here are content, and only the CONSUMER
+  // is missing (Perception, Speed, Charisma and Handiness are re-keyed to derived stats in
+  // `M4`). Saying so beats showing a number the game reads nowhere.
   mg = sim_stat(s, "might"); en = sim_stat(s, "endu"); dx = sim_stat(s, "dex");
   pe = sim_stat(s, "perc"); sp = sim_stat(s, "speed"); wl = sim_stat(s, "will");
   ch = sim_stat(s, "char"); hn = sim_stat(s, "hand");

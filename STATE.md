@@ -8,18 +8,35 @@ Written as a handoff: read after a `/clear`.
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
 
-> ## ✅ **plan #17 is CLOSED** (`status:finished`, 2026-08-10) — `S0`–`S7` shipped and gated, and **a roster slot is free**.
+> ## ✅ **plan #16 `M3` SHIPPED (2026-08-11) — the game's CONTENT is on the eight statistics, and the old six are gone from the tree.**
 >
-> **How the shipped system works is [`CRAFTING.md`](CRAFTING.md)** → *All of it shipped — the
-> invariants, and where each one lives*. The plan is now a closure record: what it cost, not
-> how it works. `#16` (eight statistics) was queued explicitly behind #17 and is **unblocked** —
-> its `M3` re-authors 18 race blocks with a `Handiness` value, and what Handiness is *for* was
-> the question #17 had to answer first (repairs and improvised gear, never crafting; a degree,
-> never a key).
+> All 18 race/class bundles were re-authored **as a set**: `RaceDef`/`ClassDef` carry eight
+> named fields (`r_might…r_hand`), every caster declares `c_spell_stat: "will"`, and both of
+> `M2`'s one-step shims are deleted — `stat_index("str")` now returns `-1` like any other typo.
+> Full gate green, 103 rows. **The roster tables are in
+> [`plans/16-eight-statistics/`](plans/16-eight-statistics/)** and they want a read.
 >
-> **→ NEXT is a roster call, not a step.** The free slot, the two live plans (`#11` 3D world,
-> `#13` scoped identity), `#16` now unblocked, and the loose thread #17 left (`FLOWD_MAX`
-> saturated, below) are the candidates.
+> ⚠ **The finding: adopting the eight RE-RANKS the roster, toward the races the six left flat.**
+> Dwarf went Σ -2 → +5 and gnome +2 → +7, same cause — Angband taxed them on Intelligence and
+> Charisma, two axes a miner and a tinkerer never used, and **Handiness** is the axis that
+> repays them. Rogue passes paladin because *both* new axes land on it. This is what "it is not
+> a rename" costs and buys, arriving as a measurement.
+>
+> ⚠ **And it found a live rendering defect `M2` shipped**: the sidebar baked six labels reading
+> `STR INT WIS DEX CON CHR` against eight values, two rows blank. `M2` asserted the
+> length-driven invariant at the DRAW site and never at the BAKE site — which is the general
+> lesson, since a build site can satisfy a different length and nothing compares them. One
+> chokepoint (`view::stat_abbrevs`) now owns the names. **103 gate rows could not see it**, and
+> still cannot; whether the sidebar earns a `make probe` row is `M4`'s call.
+>
+> **→ NEXT is `M4`** — re-key the derived stats (Might→damage, Endu→mitigation, Dex→crit,
+> Perc→perception, Speed→the clock, Will→Tension-resist) and judge the numbers in `make play`.
+> Perception, Speed, Charisma and Handiness are **authored but unread** until it lands.
+>
+> *(Previously: plan #17 closed `status:finished` 2026-08-10, `S0`–`S7` shipped — how that
+> system works is [`CRAFTING.md`](CRAFTING.md) → *All of it shipped*. It answered what
+> Handiness is *for*, which is what unblocked `M3`. The roster is `#11` 3D world · `#13`
+> scoped identity · `#16`; the loose thread #17 left is `FLOWD_MAX` saturated, below.)*
 >
 > ✅ **`S7` SHIPPED (2026-08-10): standing, and the militia it raises.** The player's push out,
 > where `S5` is the world's push in — and they meet in one predicate, because `hex_safe`'s
@@ -77,10 +94,9 @@ where crawler sits in the stack.
 > one, a ring guard's outer leg), and a row that tested the path would blame the cache for the
 > world. **Verified able to go red**: pinned back to 24 it reports `24 built / 38 declared`.
 >
-> **The roster is `#11` 3D world · `#13` scoped identity · `#17` safe supply** (decided
-> 2026-08-09 from evidence, `plans/README.md` → *The active roster*, cap of three). The work
-> is in **`#17`**, and `#16` queues explicitly behind it — #16's `M3` re-authors 18 race
-> blocks with a Handiness value, and what Handiness is *for* is decided in #17.
+> **The roster is `#11` 3D world · `#13` scoped identity · `#16` eight statistics** (cap of
+> three; `#16` took the slot `#17` freed by finishing, 2026-08-10). ⚠ *Historical below this
+> line — it reads as if #17 were still live; the state is at the top of this file.*
 >
 > ✅ **`S4` SHIPPED TOO — and `F6` is measured on the world players actually start in.**
 > *I-SAY: what a worker says about its work is read from the **same term** that decides

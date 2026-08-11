@@ -27,11 +27,11 @@ fn main() {
   // Player-chosen stat growth: leveling BANKS one point per level (never forced); the player
   // spends them, capped once per STAT_COOLDOWN levels per stat (so no dumping one stat).
   pts0 = sim_stat_points(s);       // 3 banked from leveling 1->4
-  str_b = sim_stat_max(s, "str");
-  r1 = sim_raise_stat(s, "str");   // banked + off cooldown -> applies
-  r2 = sim_raise_stat(s, "str");   // just rose this level -> on cooldown, refused
+  mig_b = sim_stat_max(s, "might");
+  r1 = sim_raise_stat(s, "might");   // banked + off cooldown -> applies
+  r2 = sim_raise_stat(s, "might");   // just rose this level -> on cooldown, refused
   r3 = sim_raise_stat(s, "dex");   // a different stat -> applies
-  ok_choice = pts0 == 3 && r1 && !r2 && r3 && sim_stat_max(s, "str") == str_b + 1 && sim_stat_points(s) == 1;
+  ok_choice = pts0 == 3 && r1 && !r2 && r3 && sim_stat_max(s, "might") == mig_b + 1 && sim_stat_points(s) == 1;
 
   // Combat awards XP: charge and kill the trivial-map enemy (re-aim each frame so the
   // charge homes in on the moving enemy — coordinate-agnostic, like combattest).
@@ -49,7 +49,7 @@ fn main() {
 
   println("level {cl0}->{cl1}  maxhp {hp0max}->{hp1max}  hp {before_hp}->{hp1}  xp {xp0}->{xp1}");
   println("combat-xp: enemy-dead={dead} xp={killxp}");
-  println("banked-pts={pts0} raise(str,str,dex)={r1}/{r2}/{r3} -> pts-left={sim_stat_points(s)}");
+  println("banked-pts={pts0} raise(might,might,dex)={r1}/{r2}/{r3} -> pts-left={sim_stat_points(s)}");
   println("leveled={ok_levels} hp-grew={ok_hpgrow} hp-up={ok_hpup} stat-choice={ok_choice} xp-tracked={ok_xp} kill-awards-xp={ok_killxp}");
   if ok_levels && ok_hpgrow && ok_hpup && ok_choice && ok_xp && ok_killxp {
     println("=== HERO OK ===");

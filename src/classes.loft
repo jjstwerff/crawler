@@ -1,27 +1,33 @@
 // classes.loft — clean-room character-class database (renderer-agnostic data).
 //
-// Generic fantasy class names (no IP). Stat modifiers use the six core stats
-// STR/INT/WIS/DEX/CON/CHR. Skill aptitudes are forward-looking placeholders
-// (the skill *system* is still TBD); the sim will read hit-die/xp/realm, the
-// character sheet reads the rest. c_hd = HP per level bonus; c_xp = % of
-// normal experience needed (100 = normal, higher = slower).
+// Generic fantasy class names (no IP). Stat modifiers use the EIGHT statistics
+// (CATALOG.md §0). Skill aptitudes are forward-looking placeholders (the skill
+// *system* is still TBD); the sim will read hit-die/xp/realm, the character
+// sheet reads the rest. c_hd = HP per level bonus; c_xp = % of normal
+// experience needed (100 = normal, higher = slower).
 
 pub struct ClassDef {
   c_key: text, c_name: text,
   c_hd: integer not null,    // hit-die bonus
   c_xp: integer not null,    // % experience factor
-  c_str: integer not null, c_int: integer not null, c_wis: integer not null,
-  c_dex: integer not null, c_con: integer not null, c_chr: integer not null,
+  // The EIGHT, in `stat_name`'s order — the field name IS the stat key (see RaceDef).
+  c_might: integer not null, c_endu: integer not null, c_dex: integer not null,
+  c_perc: integer not null,  c_speed: integer not null, c_will: integer not null,
+  c_char: integer not null,  c_hand: integer not null,
   c_melee: integer not null, c_bow: integer not null, c_device: integer not null,
   c_disarm: integer not null, c_stealth: integer not null, c_save: integer not null,
   c_realm: text,             // "none" / "arcane" / "divine" / "nature"
-  c_spell_stat: text,        // "none" / "int" / "wis"
+  // Which AXIS this class casts on — a stat key, resolved through `stat_index`. Under the
+  // eight there is one casting axis, so every caster in the tree says "will"; the field stays
+  // a DECLARATION rather than becoming `c_realm != "none"` so a bundle can author a class that
+  // casts off another axis (a seer off Perception) without touching the engine.
+  c_spell_stat: text,        // "none" / a stat key
   c_desc: text,
 }
 
 fn class_none() -> ClassDef {
   ClassDef { c_key: "", c_name: "", c_hd: 0, c_xp: 100,
-    c_str: 0, c_int: 0, c_wis: 0, c_dex: 0, c_con: 0, c_chr: 0,
+    c_might: 0, c_endu: 0, c_dex: 0, c_perc: 0, c_speed: 0, c_will: 0, c_char: 0, c_hand: 0,
     c_melee: 0, c_bow: 0, c_device: 0, c_disarm: 0, c_stealth: 0, c_save: 0,
     c_realm: "none", c_spell_stat: "none", c_desc: "" }
 }

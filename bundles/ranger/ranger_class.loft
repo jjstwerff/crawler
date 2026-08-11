@@ -3,10 +3,14 @@ use classes;
 
 pub fn ranger_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
+  // ON THE EIGHT (plan #16 `M3`): PERCEPTION is the ranger's axis (+4, the roster's top) — §0
+  // gives it ranged accuracy AND reading the field, which is exactly what bow 32 was already
+  // claiming without an axis to claim it on. Its Might drops to -1: this class shoots, it does
+  // not brawl, and it is alone out there (Char -1).
   t += [ClassDef { c_key: "ranger", c_name: "Ranger", c_hd: 4, c_xp: 130,
-    c_str: 2, c_int: 2, c_wis: 0, c_dex: 1, c_con: 1, c_chr: 1,
+    c_might: -1, c_endu: 1, c_dex: 2, c_perc: 4, c_speed: 2, c_will: 2, c_char: -1, c_hand: 0,
     c_melee: 18, c_bow: 32, c_device: 22, c_disarm: 30, c_stealth: 4, c_save: 28,
-    c_realm: "nature", c_spell_stat: "int",
+    c_realm: "nature", c_spell_stat: "will",
     c_desc: "Bow-master of the wilds; calls on nature's lore." }];
   t
 }

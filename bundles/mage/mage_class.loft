@@ -5,10 +5,14 @@ use classes;
 
 pub fn mage_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
+  // ON THE EIGHT (plan #16 `M3`): the deepest WILL in the roster (+4) — and under the eight
+  // that one axis now carries casting, saves AND Tension-resistance, so it is not raised past
+  // its old c_int 3 by much: a wider job for the same number. Frail, slow in robes, no talent
+  // for people. Might softened -5 -> -4 (§3a friendlier curve), not re-designed.
   t += [ClassDef { c_key: "mage", c_name: "Mage", c_hd: 0, c_xp: 130,
-    c_str: -5, c_int: 3, c_wis: -2, c_dex: 1, c_con: -2, c_chr: -1,
+    c_might: -4, c_endu: -2, c_dex: 1, c_perc: 1, c_speed: -1, c_will: 4, c_char: -1, c_hand: 0,
     c_melee: 5, c_bow: 5, c_device: 36, c_disarm: 30, c_stealth: 2, c_save: 30,
-    c_realm: "arcane", c_spell_stat: "int",
+    c_realm: "arcane", c_spell_stat: "will",
     c_desc: "Arcane spellcaster. Fragile, but commands the deepest magic." }];
   t
 }

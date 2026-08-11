@@ -1,20 +1,20 @@
 // skilltest — Tier-1 passive skills. First skill: MELEE, a flat to-damage bonus derived from
-// character level + effective STR, folded into the player's damage (wdam). It is 0 at the baseline
-// (level 1, starting STR) — so early combat is unchanged — and grows BOTH as you level AND as you
-// spend banked stat points on STR, so the level/stat systems feed combat (the stat-choice payoff).
+// character level + effective MIGHT, folded into the player's damage (wdam). It is 0 at the baseline
+// (level 1, starting Might) — so early combat is unchanged — and grows BOTH as you level AND as you
+// spend banked stat points on Might, so the level/stat systems feed combat (the stat-choice payoff).
 use sim;
 
 fn main() {
-  println("=== story skill test (passive melee: level + STR -> damage) ===");
+  println("=== story skill test (passive melee: level + Might -> damage) ===");
   s = sim_new_gen(5, 1);
-  base_skill = sim_skill_melee(s);       // level 1, starting STR -> 0
+  base_skill = sim_skill_melee(s);       // level 1, starting Might -> 0
   base_dam = sim_player_dam(s);
 
   sim_award_xp(s, 200);                  // -> ~level 5 (also banks stat points)
   lvl_skill = sim_skill_melee(s);
   lvl_dam = sim_player_dam(s);
 
-  sim_raise_stat(s, "str");              // spend a banked point on STR -> melee sharpens further
+  sim_raise_stat(s, "might");            // spend a banked point on Might -> melee sharpens further
   str_skill = sim_skill_melee(s);
   str_dam = sim_player_dam(s);
 
@@ -34,8 +34,8 @@ fn main() {
   woke_hi = sim_enemy_awake(hi, 0);           // wake range shrunk to ~adjacent -> stays asleep
   stealth_ok = st_lo == 0 && st_hi > 0 && woke_lo && !woke_hi;
 
-  println("melee skill: base={base_skill} after-levels={lvl_skill} after-+STR={str_skill}");
-  println("player dam:  base={base_dam} after-levels={lvl_dam} after-+STR={str_dam}");
+  println("melee skill: base={base_skill} after-levels={lvl_skill} after-+Might={str_skill}");
+  println("player dam:  base={base_dam} after-levels={lvl_dam} after-+Might={str_dam}");
   println("stealth:     base={st_lo} leveled={st_hi}  woke(lo/hi)={woke_lo}/{woke_hi}");
   ok = base_skill == 0
     && lvl_skill > base_skill && lvl_dam > base_dam

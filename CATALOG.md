@@ -23,15 +23,19 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 > in this table's order, and the character page lists and spends all eight. **It cost zero new
 > keys** — the front-end already read 1–9 and merely gated at six.
 >
-> ⚠ **The CONTENT is still on six.** The 18 race/class bundles carry `r_str…r_chr` and are
-> re-authored as a set in `M3`; until then a placeholder places the six authored values on
-> their axes and **Perception, Speed and Handiness are unauthored** (the character page says
-> *(later)* rather than showing a number the game does not use). So read the powers below as
-> the target for the *values*, and as the state for the *axes*.
+> ✅ **And the CONTENT is on the eight too** (plan #16 `M3`, 2026-08-11): all 18 race/class
+> bundles were re-authored as a set, so every race and class states a real value on all eight
+> — the roster tables are in the plan. The old six-stat vocabulary is **gone from the tree**:
+> no `r_str`/`c_int`, no `stat_index` alias arm, no `RF_SUST_STR`. What is still missing is the
+> **consumer**: Perception, Speed, Charisma and Handiness are authored but not yet read by a
+> derived stat, which `M4` re-keys — the character page says *(later)* on exactly those rows.
 >
-> ⚠ **And `r_int` has nowhere to land**, which is the finding worth carrying: under the eight
-> there is exactly ONE casting axis, so arcane and divine both key off **Will** — *which races
-> cast well* stopped being a data migration and became a judgement about the roster.
+> ⚠ **`r_int` had nowhere to land**, which is the finding worth carrying: under the eight there
+> is exactly ONE casting axis, so arcane and divine both key off **Will** — *which races cast
+> well* stopped being a data migration and became a judgement about the roster. `M3` made it,
+> and it re-ranked the roster: **the races the six left flat (dwarf, gnome) are precisely the
+> ones the new axes repay**, because Angband taxed them on Intelligence and Charisma, two axes
+> their playstyle never used. That is what "adopting the eight is not a rename" costs and buys.
 >
 > *(Historical, measured 2026-08-09: decided 2026-06-27 and never executed — six weeks in which
 > three documents specified a game against eight axes while the code offered six, and nothing
@@ -41,9 +45,9 @@ concern (clean-room targets Tolkien/Zelazny/Angband proper nouns only; animal-fo
 > to write for it (`MOROS.md`): the stat set was *seeded* here in June and the mapping
 > below is crawler's document about crawler's game. Executing it, or reversing it, is a
 > crawler call — and it was made on 2026-08-09: **adopt the eight**, tracked as
-> [plan #16](plans/16-eight-statistics/) (`status:future` — decided, not scheduled).
-> Until it lands, §12a's derived stats, the powers below and `RESOLUTION.md` §5a all
-> describe eight axes the engine does not have. Read them as the target, not the state.
+> [plan #16](plans/16-eight-statistics/), `status:active`, `M0`–`M3` shipped.
+> The axes and the values below are now the **state**; §12a's derived stats and
+> `RESOLUTION.md` §5a are still the **target** until `M4` re-keys them.
 
 **Decided: crawler adopts moros's 8 statistics**, replacing Angband's 6 (§12a's
 STR/INT/WIS/DEX/CON/CHR). The powers are authored against the 8, and they map onto
@@ -774,5 +778,8 @@ written**, and it will earn `status:future` at least.
    resources. Crafting that costs gold-and-time is a *second* economy beside it, and §3a's
    bounded-simulation pillar asks whether that adds something the player must learn.
 4. Does `Handiness` gate it, and is that enough for an axis to earn its place among eight?
-   ⚠ This one couples back to [plan #16](plans/16-eight-statistics/) `M3`: the roster is
-   re-authored there, and Handiness's value per race is exactly a bet on this system.
+   ⚠ **The coupling to [plan #16](plans/16-eight-statistics/) `M3` is now resolved, and in the
+   direction that frees this question**: the roster shipped 2026-08-11 and **no value in it is
+   a bet on crafting** — the dwarf's +3 and the gnome's +4 are backed by the `r_device` /
+   `r_disarm` already authored, and by repairs-and-improvising (`CRAFTING.md`). So crafting can
+   be designed, deferred or declined without re-opening 18 bundles.

@@ -3,10 +3,13 @@ use classes;
 
 pub fn priest_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
+  // ON THE EIGHT (plan #16 `M3`): the CALLING class — Will +3 to cast and Charisma +3, which
+  // under the eight is leadership and the party's calling axis (§5b), so the priest's healing
+  // and its social weight sit on two axes instead of one blurred stat.
   t += [ClassDef { c_key: "priest", c_name: "Priest", c_hd: 2, c_xp: 120,
-    c_str: -1, c_int: -3, c_wis: 3, c_dex: -1, c_con: 0, c_chr: 2,
+    c_might: -1, c_endu: 0, c_dex: -1, c_perc: 1, c_speed: -1, c_will: 3, c_char: 3, c_hand: 0,
     c_melee: 12, c_bow: 10, c_device: 20, c_disarm: 25, c_stealth: 2, c_save: 32,
-    c_realm: "divine", c_spell_stat: "wis",
+    c_realm: "divine", c_spell_stat: "will",
     c_desc: "Divine caster. Healing and protection; prefers blunt weapons." }];
   t
 }

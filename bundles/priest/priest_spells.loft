@@ -29,7 +29,7 @@ pub fn fx_mend_wounds(s: &Sim, p: Player, power: integer) -> boolean {
 }
 
 pub fn fx_blessing(s: &Sim, p: Player, power: integer) -> boolean {
-  p.buff_stat(s, "con", 2, power);   // CON ward: save + endurance, expiring on the clock
+  p.buff_stat(s, "endu", 2, power);   // Endurance ward: save + soak, expiring on the clock
   true
 }
 

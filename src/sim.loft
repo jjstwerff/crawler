@@ -1140,18 +1140,11 @@ pub fn stat_index(stat: text) -> integer {
   if stat == "will"  { return 5; }
   if stat == "char"  { return 6; }
   if stat == "hand"  { return 7; }
-  // ⚠ THE LEGACY ARM, AND IT IS `M3`'s TO DELETE (plan #16). Six class bundles say
-  // `c_spell_stat: "int"` / `"wis"` and the restore-all-stats effect names the old six, so
-  // without this the tree goes red for a reason that has nothing to do with axes. It is a
-  // one-step shim, not a compatibility policy: `M3` re-authors those bundles and this goes.
-  //
-  // ⚠ `"int"` AND `"wis"` BOTH ANSWER WILL, which is the design's own consequence rather than
-  // a collapse chosen here — under the eight there is exactly ONE casting axis (§0: *Will —
-  // focus / Tension-resistance / caster realms*), so arcane and divine key off the same one.
-  if stat == "str" { return 0; }               // -> Might
-  if stat == "con" { return 1; }               // -> Endurance
-  if stat == "int" || stat == "wis" { return 5; }  // -> Will
-  if stat == "chr" { return 6; }               // -> Charisma
+  // ✅ THE LEGACY ARM IS GONE (plan #16 `M3`, 2026-08-11). It aliased `str/con/int/wis/chr`
+  // onto the eight for exactly one step, while the 18 bundles still carried the old six named
+  // fields. They now carry `r_might…r_hand` / `c_might…c_hand` and every caster declares
+  // `c_spell_stat: "will"`, so the old keys resolve to -1 like any other typo — which is the
+  // point: an unknown stat key must be an ERROR, not a quiet redirect to whatever it used to be.
   -1
 }
 
@@ -1180,11 +1173,12 @@ fn xp_need(s: Sim, lvl: integer) -> integer {
 }
 
 // A stat is SUSTAINED when the race carries its RF_SUST_* flag — drain simply fails (Angband
-// sustains). Only STR/DEX/CON have sustain flags in the vocabulary.
+// sustains). Only the three PHYSICAL axes have sustain flags in the vocabulary (plan #16 `M3`
+// renamed them off the old six: RF_SUST_STR/CON -> RF_SUST_MIGHT/ENDU).
 fn stat_sustained(s: Sim, i: integer) -> boolean {
-  if i == ST_MIGHT { return (s.rc_flags & RF_SUST_STR) != 0; }
+  if i == ST_MIGHT { return (s.rc_flags & RF_SUST_MIGHT) != 0; }
   if i == ST_DEX { return (s.rc_flags & RF_SUST_DEX) != 0; }
-  if i == ST_ENDU { return (s.rc_flags & RF_SUST_CON) != 0; }
+  if i == ST_ENDU { return (s.rc_flags & RF_SUST_ENDU) != 0; }
   false
 }
 
@@ -1201,28 +1195,12 @@ fn apply_creation(s: &Sim) {
   rd = race_find(race_catalog(), s.race);
   cd = class_find(class_catalog(), s.pclass);
   base = start_stats();
-  // ⚠ A PLACEHOLDER, AND IT IS `M3`'s TO DELETE (plan #16 `M2`). `RaceDef`/`ClassDef` still
-  // carry the old SIX named fields, because the field rename and the re-authoring are the same
-  // edit and both belong to `M3` — adding eight fields beside the six would compile, pass the
-  // gate, and score every race 0 on every new axis, which is the exact silent flattening `M0`
-  // warned about. So the six authored values are placed on their axes here and **Perception,
-  // Speed and Handiness stay unauthored**, which is the truth: nobody has written them yet.
-  //
-  // ⚠ `r_int`/`c_int` GO NOWHERE, on purpose. Under the eight there is one casting axis, so
-  // *which races and classes cast well* is a judgement about the whole roster — `M3`'s, by
-  // construction. A fudge here (max of the two, or their sum) would be an unauthored content
-  // decision wearing a migration's clothes, and it would be invisible afterwards.
-  // ⚠ A CLASS DECLARES WHICH AXIS IT CASTS ON, so its casting mod follows the declaration
-  // rather than the field name. `c_spell_stat` already says `"int"` or `"wis"`, and under the
-  // eight there is exactly ONE casting axis — so whichever of the two a class named IS its
-  // Will. That is not a fudge to keep a number alive: dropping it would leave every arcane
-  // caster without a casting-stat bonus for a whole step, a real regression with no design
-  // behind it. A RACE makes no such declaration, so its Will is `r_wis` and `r_int` goes
-  // nowhere — which race casts well is a judgement about the roster, and that is `M3`'s.
-  c_wl = cd.c_wis;
-  if cd.c_spell_stat == "int" { c_wl = cd.c_int; }
-  rmods = [rd.r_str, rd.r_con, rd.r_dex, 0, 0, rd.r_wis, rd.r_chr, 0];
-  cmods = [cd.c_str, cd.c_con, cd.c_dex, 0, 0, c_wl, cd.c_chr, 0];
+  // ✅ THE PLACEHOLDER IS GONE (plan #16 `M3`): race and class each state all EIGHT axes, so
+  // the two lists below are a straight read of authored content — no axis is derived from
+  // another and none is left at a manufactured zero. The order is `stat_name`'s, and the field
+  // name is the stat key, so a mis-ordered row is a compile error rather than a silent swap.
+  rmods = [rd.r_might, rd.r_endu, rd.r_dex, rd.r_perc, rd.r_speed, rd.r_will, rd.r_char, rd.r_hand];
+  cmods = [cd.c_might, cd.c_endu, cd.c_dex, cd.c_perc, cd.c_speed, cd.c_will, cd.c_char, cd.c_hand];
   sm = s.stat_max;
   sc = s.stat_cur;
   for i in 0..NUM_STATS {

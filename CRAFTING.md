@@ -343,13 +343,14 @@ forge turns out better work than another. Not a permission anywhere.
    time since the player cleared something — and it must be **derivable and cheap**, since it
    runs per NPC per day.
 4. ✅ **RESOLVED 2026-08-09 — `Handiness` gates repairs and improvised gear, not crafting**
-   (see the section above). [Plan #16](plans/16-eight-statistics/) `M3` is unblocked: a
-   race's Handiness is a bet on *keeping gear working and making do*, which is a statable
-   thing. ⚠ **One sub-decision remains**: improvisation is free (it is already the
-   `Ingenuity` card), **repairs need a durability mechanic that does not exist** and that
-   charges the interface budget. Decide that before `M3` writes 18 values, or the numbers
-   are again a bet on something undesigned. ⚠ Note the axis is a **degree, never a key**
-   (above), so `M3` can proceed on the *meaning* even while the durability call is open.
+   (see the section above), and ✅ **[plan #16](plans/16-eight-statistics/) `M3` shipped on it
+   2026-08-11**: 18 bundles authored a Handiness value each, spanning -3 (half-troll, which
+   breaks tools) to +4 (gnome). ⚠ **The durability sub-decision is still open and the roster
+   does not depend on it** — improvisation is already real (the `Ingenuity` card), and every
+   authored value is backed by the `r_device`/`r_disarm` a race already had, so declining
+   durability makes Handiness read narrower without making a single number wrong. That the
+   axis is a **degree, never a key** (above) is what let the meaning be authored ahead of the
+   mechanic; it is the worked example of that rule, not an exception to it.
 
 ## See also
 

@@ -5,8 +5,11 @@ use races;
 
 pub fn human_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
-  t += [RaceDef { r_key: "human", r_name: "Human", r_str: 0, r_int: 0, r_wis: 0,
-    r_dex: 0, r_con: 0, r_chr: 0, r_hd: 0, r_xp: 100, r_melee: 0, r_bow: 0,
+  // THE BASELINE, and it is zero on all EIGHT by construction (plan #16 `M3`) — every other
+  // race is read against this row, so it states nothing and pays nothing (r_xp 100).
+  t += [RaceDef { r_key: "human", r_name: "Human",
+    r_might: 0, r_endu: 0, r_dex: 0, r_perc: 0, r_speed: 0, r_will: 0, r_char: 0, r_hand: 0,
+    r_hd: 0, r_xp: 100, r_melee: 0, r_bow: 0,
     r_device: 0, r_disarm: 0, r_stealth: 0, r_save: 0, r_infra: 0, r_flags: RF_NONE,
     r_desc: "Balanced and adaptable; the fastest to gain levels." }];
   t

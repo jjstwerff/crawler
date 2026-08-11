@@ -34,18 +34,21 @@ fn hp_regen(key: text, ticks: integer, pois: integer) -> integer {
 fn main() {
   println("=== story race-apply test (stat block / hit-die HP / skills / save / free-action) ===");
 
-  // 1) STAT BLOCK bakes onto the base, ON THE EIGHT (plan #16 `M2`): dwarf = +2 Might /
-  //    -3 Charisma off the uniform 16, and its Will carries the old `r_wis` (+2).
+  // 1) STAT BLOCK bakes onto the base, ON THE EIGHT AND RE-AUTHORED (plan #16 `M3`): the dwarf
+  //    states all eight itself now, so this reads +2 Might / -3 Charisma / +2 Will off the
+  //    uniform 16 — and, the reason the row grew a fourth axis, **+3 HANDINESS**.
   //
-  // ⚠ THE ROW USED TO ASSERT `int == 13`, AND THAT IS THE WHOLE POINT OF THE STEP: there is no
-  // Intelligence axis any more. It is not a rename either — under the eight, arcane and divine
-  // both key off **Will** (CATALOG.md §0), so a race's `r_int` has nowhere to land and *which
-  // races cast well* becomes a judgement about the roster. `M3` authors that; until then Will
-  // reads `r_wis`, which is why this row states Will explicitly rather than leaving it implied.
+  // ⚠ THE ROW USED TO ASSERT `int == 13`, AND THAT IS THE WHOLE POINT OF THE PLAN: there is no
+  // Intelligence axis any more, and it was never a rename. The dwarf is the case that proves
+  // it — under the six it paid -3 Intelligence and -3 Charisma, taxes on axes a miner has no
+  // use for, and read as a weak race; Handiness is the axis that repays it (CRAFTING.md — the
+  // stat that gates repairs and improvised gear). Asserting `hand` here is what stops a future
+  // edit from quietly flattening the new axes back to zero, which is `M0`'s named failure.
   d = sim_new(); sim_set_race(d, "dwarf");
-  dmig = sim_stat(d, "might"); dcha = sim_stat(d, "char"); dwil = sim_stat(d, "will");
-  statblock = dmig == 18 && dcha == 13 && dwil == 18;
-  if !statblock { println("  stat block on the eight: might={dmig} char={dcha} will={dwil} (want 18/13/18)"); }
+  dmig = sim_stat(d, "might"); dcha = sim_stat(d, "char");
+  dwil = sim_stat(d, "will");  dhnd = sim_stat(d, "hand");
+  statblock = dmig == 18 && dcha == 13 && dwil == 18 && dhnd == 19;
+  if !statblock { println("  stat block on the eight: might={dmig} char={dcha} will={dwil} hand={dhnd} (want 18/13/18/19)"); }
 
   // 2) HIT-DIE shifts max HP: half_troll (r_hd +4) > human (0) > elf (-2).
   ht = maxhp_of("half_troll"); hu = maxhp_of("human"); el = maxhp_of("elf");
@@ -75,12 +78,12 @@ fn main() {
          && level_after("half_troll", 10) == 1
          && level_after("half_troll", 13) == 2;
 
-  // 7) SUSTAIN: the halfling's DEX (RF_SUST_DEX, 19) shrugs the drain; its unsustained STR (14) drops.
-  // ⚠ Keyed on the EIGHT: the halfling's Dexterity is sustained (RF_SUST_DEX) and its Might is
-  //    not, so the drain bounces off one and lands on the other. The flags still name the old
-  //    axes (RF_SUST_STR/DEX/CON) because they are a RACE vocabulary, not a stat index — `M3`
-  //    is where that naming is judged against the eight.
-  sustain = stat_after_drain("halfling", "dex") == 19 && stat_after_drain("halfling", "might") == 11;
+  // 7) SUSTAIN: the halfling's Dexterity (RF_SUST_DEX, 20) shrugs the drain; its unsustained
+  //    Might (14) drops to 11. ⚠ The flags name the EIGHT now (plan #16 `M3` renamed
+  //    RF_SUST_STR/CON -> RF_SUST_MIGHT/ENDU): they are a RACE vocabulary rather than a stat
+  //    index, so nothing forced the rename — but a flag still spelling STR would have been the
+  //    last thing in the tree claiming six.
+  sustain = stat_after_drain("halfling", "dex") == 20 && stat_after_drain("halfling", "might") == 11;
 
   // 8) REGENERATION: resting 20 ticks from 5 HP — human +2 (every 10), half_troll +4 (RF_REGEN
   //    halves the interval), poisoned human +0 (poison blocks the knitting).

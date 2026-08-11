@@ -5,8 +5,12 @@ use races;
 
 pub fn gnome_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
-  t += [RaceDef { r_key: "gnome", r_name: "Gnome", r_str: -1, r_int: 2, r_wis: 0,
-    r_dex: 2, r_con: 1, r_chr: -2, r_hd: -1, r_xp: 115, r_melee: 0, r_bow: 2,
+  // ON THE EIGHT (plan #16 `M3`): the roster's top HANDINESS (+4). That is not a new claim —
+  // this race was already authored with the tree's best disarm (10) and second-best device (8),
+  // so the axis finally names what the skills already said. The second race the eight repay.
+  t += [RaceDef { r_key: "gnome", r_name: "Gnome",
+    r_might: -1, r_endu: 0, r_dex: 2, r_perc: 2, r_speed: 1, r_will: 1, r_char: -2, r_hand: 4,
+    r_hd: -1, r_xp: 115, r_melee: 0, r_bow: 2,
     r_device: 8, r_disarm: 10, r_stealth: 3, r_save: 3, r_infra: 4, r_flags: RF_FREE_ACTION,
     r_desc: "Inquisitive tinkerers; never paralysed, masters of devices." }];
   t

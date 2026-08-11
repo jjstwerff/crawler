@@ -3,10 +3,14 @@ use classes;
 
 pub fn necromancer_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
+  // ON THE EIGHT (plan #16 `M3`): the roster's weakest sheet, as it was under the six. Its
+  // depth is not in Will (+3, under the mage) but in what it sees — Perception +2, the scholar
+  // who reads what others miss — and it pays for that on every physical axis plus the worst
+  // Speed in the roster. Feared, so Charisma stays -3.
   t += [ClassDef { c_key: "necromancer", c_name: "Necromancer", c_hd: 0, c_xp: 135,
-    c_str: -4, c_int: 3, c_wis: -3, c_dex: 1, c_con: -1, c_chr: -3,
+    c_might: -4, c_endu: -2, c_dex: 1, c_perc: 2, c_speed: -2, c_will: 3, c_char: -3, c_hand: 1,
     c_melee: 6, c_bow: 4, c_device: 30, c_disarm: 28, c_stealth: 3, c_save: 26,
-    c_realm: "arcane", c_spell_stat: "int",
+    c_realm: "arcane", c_spell_stat: "will",
     c_desc: "Scholar of the grave; frail, feared, arcane to the bone." }];
   t
 }

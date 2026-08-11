@@ -5,10 +5,15 @@ use races;
 
 pub fn dwarf_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
-  t += [RaceDef { r_key: "dwarf", r_name: "Dwarf", r_str: 2, r_int: -3, r_wis: 2,
-    r_dex: -2, r_con: 2, r_chr: -3, r_hd: 2, r_xp: 120, r_melee: 3, r_bow: 0,
+  // ON THE EIGHT (plan #16 `M3`), and this race is the clearest case that the axis change is
+  // NOT a rename: under the six the dwarf paid -3 Intelligence and -3 Charisma, two taxes on
+  // axes it had no use for, and it read as a weak race. HANDINESS (+3) is the axis that repays
+  // it — miners and smiths, the people who FIX things (CRAFTING.md) — and "resolute" is Will.
+  t += [RaceDef { r_key: "dwarf", r_name: "Dwarf",
+    r_might: 2, r_endu: 3, r_dex: -2, r_perc: 1, r_speed: -1, r_will: 2, r_char: -3, r_hand: 3,
+    r_hd: 2, r_xp: 120, r_melee: 3, r_bow: 0,
     r_device: 5, r_disarm: 0, r_stealth: -1, r_save: 6, r_infra: 5,
-    r_flags: RF_RES_BLIND | RF_SUST_CON,
+    r_flags: RF_RES_BLIND | RF_SUST_ENDU,
     r_desc: "Stout miners; cannot be blinded, hardy and resolute." }];
   t
 }

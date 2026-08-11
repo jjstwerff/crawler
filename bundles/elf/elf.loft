@@ -5,8 +5,12 @@ use races;
 
 pub fn elf_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
-  t += [RaceDef { r_key: "elf", r_name: "Elf", r_str: -1, r_int: 2, r_wis: 1,
-    r_dex: 1, r_con: -2, r_chr: 1, r_hd: -2, r_xp: 120, r_melee: 0, r_bow: 5,
+  // ON THE EIGHT (plan #16 `M3`): "keen-eyed" was a description with nowhere to land under the
+  // six — it is PERCEPTION now, and it is this race's signature (+3, behind only the high-elf),
+  // backed by the bow 5 / infra 3 it was already authored with. Frailty stays the cost.
+  t += [RaceDef { r_key: "elf", r_name: "Elf",
+    r_might: -1, r_endu: -2, r_dex: 2, r_perc: 3, r_speed: 1, r_will: 2, r_char: 1, r_hand: 0,
+    r_hd: -2, r_xp: 120, r_melee: 0, r_bow: 5,
     r_device: 6, r_disarm: 4, r_stealth: 1, r_save: 6, r_infra: 3, r_flags: RF_RES_LIGHT,
     r_desc: "Graceful and keen-eyed; frail but gifted with magic." }];
   t

@@ -5,8 +5,13 @@ use races;
 
 pub fn half_elf_race_defs() -> vector<RaceDef> {
   t: vector<RaceDef> = [];
-  t += [RaceDef { r_key: "half_elf", r_name: "Half-Elf", r_str: -1, r_int: 1, r_wis: 0,
-    r_dex: 1, r_con: -1, r_chr: 1, r_hd: -1, r_xp: 110, r_melee: 0, r_bow: 2,
+  // ON THE EIGHT (plan #16 `M3`): a little of everything elven and none of it deeply, and its
+  // one real edge is SOCIAL — at home in two peoples, which is what Charisma reads under the
+  // eight (leadership / calling). Not "a worse elf": the elf out-perceives it, it out-talks
+  // the elf.
+  t += [RaceDef { r_key: "half_elf", r_name: "Half-Elf",
+    r_might: -1, r_endu: -1, r_dex: 1, r_perc: 1, r_speed: 0, r_will: 1, r_char: 2, r_hand: 0,
+    r_hd: -1, r_xp: 110, r_melee: 0, r_bow: 2,
     r_device: 3, r_disarm: 2, r_stealth: 1, r_save: 3, r_infra: 2, r_flags: RF_NONE,
     r_desc: "Versatile, with a touch of elven grace." }];
   t

@@ -52,7 +52,7 @@ fn main() {
   script += ["A 2 0 0"];                        // grab (no-op or pickup — same both sides)
   for _i in 0..40 { script += ["T 1 0"]; }     // glide again
   script += ["A 3 0 0"];                        // use quick-slot 0
-  script += ["A 4 0 0"];                        // raise STR (no banked point = no-op)
+  script += ["A 4 0 0"];                        // raise Might (no banked point = no-op)
 
   same = true;
   diverged_at = -1;

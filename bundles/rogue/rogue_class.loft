@@ -3,10 +3,14 @@ use classes;
 
 pub fn rogue_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
+  // ON THE EIGHT (plan #16 `M3`): the class the axis change most favours, and it is worth
+  // saying out loud — BOTH new axes land on it (Perception to read the room, Speed to leave
+  // it), on top of the Dexterity and Handiness it already lived on. It pays with the softest
+  // Endurance of the martial classes.
   t += [ClassDef { c_key: "rogue", c_name: "Rogue", c_hd: 6, c_xp: 125,
-    c_str: 2, c_int: 1, c_wis: -2, c_dex: 3, c_con: 1, c_chr: -1,
+    c_might: 1, c_endu: -1, c_dex: 3, c_perc: 2, c_speed: 1, c_will: 1, c_char: -1, c_hand: 2,
     c_melee: 23, c_bow: 22, c_device: 24, c_disarm: 45, c_stealth: 7, c_save: 25,
-    c_realm: "arcane", c_spell_stat: "int",
+    c_realm: "arcane", c_spell_stat: "will",
     c_desc: "Shadow and knife. Stealthy, deft with locks; dabbles in arcane tricks." }];
   t
 }

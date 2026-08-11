@@ -30,12 +30,12 @@ fn main() {
 
   // Potion of Restoration -> a drained stat returns to its max
   rs = sim_new();
-  str_orig = sim_stat(rs, "str");
-  sim_drain_stat(rs, "str", 3);
-  drained = sim_stat(rs, "str") < str_orig;
+  mig_orig = sim_stat(rs, "might");
+  sim_drain_stat(rs, "might", 3);
+  drained = sim_stat(rs, "might") < mig_orig;
   sim_give_item(rs, "potion_restore");
   use_item(rs, sim_find_item(rs, "potion_restore"));
-  restored = sim_stat(rs, "str") == str_orig;
+  restored = sim_stat(rs, "might") == mig_orig;
 
   // Scroll of Magic Mapping -> a far, unseen tile becomes remembered
   m = sim_new_gen(7, 1);

@@ -29,7 +29,7 @@ pub fn equip(self: Player, s: &Sim, key: text) {
   sim_equip_by_key(s, key);
 }
 
-// Permanently RAISE a statistic (STR/INT/WIS/DEX/CON/CHR) — innate max and current both rise.
+// Permanently RAISE a statistic (one of the EIGHT, CATALOG.md §0) — innate max and current both rise.
 pub fn grant_stat(self: Player, s: &Sim, stat: text, n: integer) {
   sim_grant_stat(s, stat, n);
 }

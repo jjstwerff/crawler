@@ -3,10 +3,13 @@ use classes;
 
 pub fn paladin_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];
+  // ON THE EIGHT (plan #16 `M3`): heavy arms and a calling — Might +3 with Charisma +3, and
+  // the plate is the cost, spelled out across THREE axes the six could not separate: clumsy
+  // (Dex -1), blind to the wider field (Perc -1) and slow to reposition (Speed -1).
   t += [ClassDef { c_key: "paladin", c_name: "Paladin", c_hd: 6, c_xp: 135,
-    c_str: 3, c_int: -3, c_wis: 1, c_dex: 0, c_con: 2, c_chr: 2,
+    c_might: 3, c_endu: 2, c_dex: -1, c_perc: -1, c_speed: -1, c_will: 2, c_char: 3, c_hand: 0,
     c_melee: 26, c_bow: 12, c_device: 14, c_disarm: 12, c_stealth: 0, c_save: 30,
-    c_realm: "divine", c_spell_stat: "wis",
+    c_realm: "divine", c_spell_stat: "will",
     c_desc: "Holy knight. Heavy arms under a sworn oath; divine backing." }];
   t
 }
