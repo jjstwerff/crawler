@@ -521,6 +521,79 @@ Not this plan's work, and named so it is not lost:
 3. **Close the leak either way.** The `itemfx` / `sim` dispatch-on-key sites are crawler's own
    defect and do not wait on any library.
 
+## ⚠ THE RENDERING ENGINE IS THE EDITOR'S, AND CRAWLER HAS BEEN BUILDING A SECOND ONE
+
+**User ruling, 2026-08-11, and it is the strongest form of this file's governing rule:**
+
+> *We adopt exactly the same rendering engine as the moros editor currently is building. We
+> extend it with more, but we NEVER derive from the common base.*
+>
+> *Assets and buildings and world parts will be exactly the same so they can move freely
+> between projects. Their houses are ours. Their towers are ours.*
+
+So the engine is not a thing to be inspired by and re-derive — it is the base crawler stands
+on, and anything crawler needs that it lacks is an **extension of the base**, landed there,
+never a crawler-side variant. Plan #11 P3 already said this in its own words ("a
+crawler-private renderer would be written twice and diverge") and crawler built `view3d` +
+`hexscene` locally anyway. This section records what the base actually is, and what it costs
+to stand on it.
+
+### What the engine IS, measured 2026-08-11 by reading `../moros` (read-only)
+
+| where | what it holds |
+|---|---|
+| **`lib/moros_render`** (1384 lines) | the geometry emitters — `emit_hex_surface`, `emit_wall_quad`, `emit_slope_face`, `emit_box`, `emit_thick_flat_wall`, **`emit_thick_curved_wall`**, `emit_linear_stair` / `emit_spiral_stair` / `emit_grand_arc_stair`, `emit_cylinder_post`, `material_swatch` — **and the camera**: `RenderCamera`, `camera_view_matrix`, `camera_projection_matrix`, `camera_orbit`, `camera_zoom`, `camera_pan`, **`camera_follow`**, `camera_overview` |
+| **`lib/hex_editor`** (`gesture.loft`) | the over-the-shoulder collapse algebra, tested in `tests/boom.loft`: `CAM_SKIN` (0.533 = half a wall band + margin), `CAM_SHOULDER` (0.55), `BODY_HIDE`/`BODY_SHOW` (0.75/1.10), `boom_take`, `boom_collapse`, `shoulder_reach`, `shoulder_take`, `body_shown`, `auto_snug`; plus `Shelter`/`shelter_at` (the inscribed radius `sh_room` that drives AUTO) |
+| **`lib/hex_mesh`**, **`lib/hex_voxel`**, **`lib/hex_proj`**, **`lib/moros_map`** | the mesher, the voxel world, the projection, the map |
+| **`src/editor_client.loft`** (1880 lines) | the RENDERER as a loft client — `loft --html` gives a browser page, `--interpret` the same source on the desktop (their plan #16 S1) |
+| **`src/editor_server.loft`** (9147) | the model, the camera SOLVE (27 `CAM_*` constants and `cam_*` functions — the occlusion marches, the rotation lookahead, the pitch assist, the perpendicular clearance, the rates, the mode table), and the text wire the client draws from |
+
+### What crawler has been re-deriving, and it is not a small list
+
+| crawler | the base already has |
+|---|---|
+| `view3d`'s arc wall (plan #11 P5 step B — **written today**) | `moros_render::emit_thick_curved_wall` |
+| `view3d`'s floor fan + wall quads (`build_scene3d`) | `emit_hex_surface`, `emit_wall_quad`, `emit_slope_face` |
+| `hexscene::SceneCamera` + `view3d_camera` | `RenderCamera` + `camera_view_matrix` / `camera_projection_matrix` |
+| the "owed inspection camera" P5b asks for | `camera_orbit` / `camera_overview` |
+| a follow camera, when crawler builds one | `camera_follow` + the whole `hex_editor` boom algebra |
+| plan #5/#10's stair and post geometry | `emit_linear_stair` / `emit_spiral_stair` / `emit_grand_arc_stair` / `emit_cylinder_post` |
+
+### THE BLOCKER, and it is one word: **unpublished**
+
+The registry carries the `hex_*` family crawler already consumes — `hex_field`, `hex_edge`,
+`hex_way`, `hex_roof`, `hex_grid`, `hex_body`, `hex_draw`, `hex_fit`, `hex_form`, `hex_place`,
+`hex_recover`, `hex_shape`, `hex_terrain`, `hex_world`. It carries **none** of the engine:
+no `moros_render`, `hex_editor`, `hex_mesh`, `hex_voxel`, `hex_proj`, `moros_map`, `moros_sim`.
+
+So crawler cannot declare a dependency on any of it today, and the only route that exists is
+`--lib ../moros/lib/…`, which **P3 above forbids for exactly this reason**: a sibling working
+tree silently outranks the registry, which is how `random` stayed locked at 0.1.0 while the
+build took 0.2.0. A tree another agent edits is the worst possible case of it.
+
+**The publish chains are short, and that is the encouraging part** (deps read off the
+manifests):
+
+- `hex_editor` → `hex_draw`, `hex_form`, `hex_field`, `hex_way` — **all four are already
+  published**. It is publishable as it stands, and it is the camera algebra.
+- `moros_render` → `moros_map` (→ `hex_field` only), `hex_proj` (→ `hex_grid`, `graphics`),
+  `graphics`, `hex_grid`. So **three small packages** and none of them needs the voxel world.
+
+⚠ **Publishing is moros' to do — that tree is read-only and has its own agent** (CLAUDE.md).
+This document is the crawler-side record; **how the finding reaches them is the user's call**,
+the same shape as plan #13 `S1`.
+
+### What crawler does until then
+
+1. **Stop growing the derived surface.** Every renderer-side addition made now is work that
+   is thrown away at adoption, and worse, it is a second implementation of a thing the family
+   already tested.
+2. **Anything genuinely new goes toward the base's shape**, so adoption is a switch and not a
+   rewrite — same names, same units, same conventions.
+3. **What is already derived is listed above**, so the swap is a checklist rather than an
+   archaeology exercise. Plan #11 P5 step B is the newest entry and the clearest one: it hand
+   -rolled a curved wall on the same day `emit_thick_curved_wall` sat unused in the family.
+
 ## What this does *not* do
 
 - It does not touch the push direction. `hexcanopy` (canopy-first trees), the `SCALE.md`
