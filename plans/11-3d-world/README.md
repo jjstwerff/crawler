@@ -78,7 +78,7 @@ an earlier one is false.
 | **P3** | a hex centre projected to a pixel, unprojected back to the same hex | I-STAND | pure-math headless test — **no GL needed** |
 | **P3b** | one field/wood boundary drawn into the world texture, beside the traced loop it came from and the geometry under it | I-PAINT | rasterise the traced loop, diff against the loop — **exact, both sides are integer**. Done twice: a synthetic blob with a hole (`painttest`) and then the shipped world's 9 real landcover classes (`worldtextest`) |
 | **P4** | a board of height *h* m and a wall of height *h* m at the same distance, side by side | I-STAND (metric parity) | a GL frame + pixel span assertion (`make probe`) |
-| **P6** | the boundary ring sampled from both readings, heights diffed | I-HORIZON | headless numeric test + a rendered horizon |
+| **P6** | the boundary ring sampled from both readings, heights diffed | I-HORIZON | headless numeric test + a rendered horizon. ⚠ **Measured 2026-08-11: there is only one reading** — the near field is flat and `SCALE.md` never fixed the vertical, so the gate's premise has to be built before the gate |
 | **P6b** | for a walk of known length: which layers re-rendered, and the worst parallax error each frame | I-PARALLAX | headless numeric test (pure camera math) + a pop-free walk |
 | **P6d** | the same structure crossing the near/sky-box switch, frame by frame | I-AGREE | silhouette diff + a walk-through with no pop and no ghost |
 
@@ -103,7 +103,7 @@ check must go red.
 | **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | ✅ **DONE** — exact on the SHIPPED world (`worldtextest`, 0/488032), texture + sampler live in `view3d`; the `worldmesh` bake retires with its only consumer in **P9** |
 | **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | ✅ **DONE** — the playable milestone; actors are flat colours until P8's atlas |
 | **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | **PART DONE** — metrics + purity gated; towers still hexagons, doors still gaps |
-| **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |
+| **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | **OPENED, and PART-BLOCKED on a gameplay call** — there is only ONE reading: `sim` fetches the height and discards it, so the near field is flat. Switching it on makes the *starting* window a 42°-average mountainside (the other three towns measure 0.08/0.09/0.39). [`RESULTS.md`](RESULTS.md) → *P6 opened* |
 | **P6b** — parallax layers: cache the air box, re-project it | M | re-render counts + worst per-frame parallax error; a pop-free walk | Blocked on P6 |
 | **P6d** — the blend band where near geometry meets the sky-box | M | silhouette agreement at the switch distance; no pop, no ghost | Blocked on P6 |
 | **P7** — props + trees in the live world | M | existing plan #9/#10 gates, now on generated worlds | Blocked on P5 |

@@ -562,6 +562,98 @@ blocks underfoot. The blend is the better picture and the bound is stated rather
 only consumer*, and plumbing a world texture into a renderer that is about to be removed would
 be work done to be thrown away. Recorded as a decision, not an oversight.
 
+## P6 opened (2026-08-11): the near reading does not exist, and switching it on is a gameplay decision
+
+I-HORIZON says *near and far are one world at two readings — the same point has the same height
+from either*. P6's gate is "the boundary ring sampled from both readings, heights diffed". You
+cannot diff two readings when there is only one, and there is only one.
+
+**Measured, not read off the docs** (`src/horizonprobe.loft`): `sim.loft`'s surface generator
+already fetches the height and **throws it away** —
+
+```loft
+(_, okind) = ov_sample(ovw, ax + hx3 - cwx, ay + hy3 - cwy);   // sim.loft:4896
+```
+
+— and `Sim` carries no height field at all. The near field is a flat plane at `z = 0` in both
+renderers. The far reading (`ov_height`, in natural metres) is the only one implemented. So
+P6's first step is not the diff; it is deciding what the near reading's vertical *means*, and
+`SCALE.md` — which pins the horizontal twice over — **is silent on the vertical**.
+
+### The vertical reading follows from SCALE.md, and it is not the interesting part
+
+One walked hex is 1.5 m of architecture and stands for 15 natural m of terrain, so the walked
+world is 1/10 of natural scale. To keep a hillside's *true* slope, heights divide by 10 as well
+— rise and run take the same compression. Call that **reading B**; leaving heights natural
+(reading A) multiplies every slope by ten and gives a mean gradient of 10.5 across the home
+window, i.e. walls. Reading B is simply correct, and its numbers *are* the real terrain's.
+
+### What the measurement actually found: the rule that picks the starting town selects for unwalkable ground
+
+At reading B, over the 55 018 hex-to-hex steps of **passable** ground in the home window
+(K_FACE / lake / sea excluded, since those are already impassable and a cliff there costs
+nothing):
+
+| slope band | steps |
+|---|---|
+| < 0.125 (a gentle ramp) | 3 813 |
+| 0.125–0.25 (a steep road) | 4 286 |
+| 0.25–0.5 (a hard climb) | 8 618 |
+| 0.5–1.0 (up to 45°) | 15 547 |
+| 1.0–2.0 (45–63°) | 16 451 |
+| > 2.0 (a cliff) | 6 303 |
+
+**Mean 1.02 — 45.6° on average, with 7 % of steps gentler than a wheelchair ramp.**
+
+⚠ **And the control is what makes it a finding rather than a panic.** `ov_home_town` picks the
+town with the **greatest height reach**, so the window measured above is the steepest in the
+world *by construction*; a claim drawn from it alone would be a claim about the outlier. Every
+town, same method:
+
+| town | relief over 1500 m | mean walkable slope |
+|---|---|---|
+| 0 | 232 m | **0.077** |
+| 1 | 218 m | **0.088** |
+| 2 | 655 m | **0.386** |
+| **3 — the home window** | **2320 m** | **0.903** |
+
+**The world at large is walkable country. The starting window is a mountainside, and it is the
+starting window *because* of it.** Height reach within a 1500 m window is not a proxy for "can
+carry a whole economy" — at that footprint it *is* mean slope, so the selection rule and
+"steepest possible start" are the same rule. For scale: 2320 m of relief over 1500 m is a mean
+gradient of 1.55, steeper than the Ortler north face (~1400 m over ~1.5 km ≈ 0.9) across an
+entire window.
+
+⚠ **This is the SAME trade already on the record, arriving on a second axis.** `STATE.md`
+records that the alpine anchor bought the gatherer (picking grounds need scree or meadow, which
+do not occur at sea level — plan #17) and cost the onboarding curve (a gnoll at mlvl 6 eight
+hexes from the vantage). It also costs the *terrain*, and that third cost was invisible only
+because the ground renders flat.
+
+### Why this stops P6 rather than being worked around inside it
+
+The moment the near field gets its height, the town the game starts in becomes a 42°-average
+mountainside — and no vertical reading fixes that, because reading B is already the true one.
+The levers are all outside this plan: the home-town rule (`overland.loft`), the height field's
+horizontal scale, `OV_STEP`, or a walkability constraint on the site scorer. **`overland` owns
+settlement placement and this plan integrates with it rather than rewriting it** (`CLAUDE.md`),
+so P6 records the number and does not reach for the dial.
+
+> **OPEN, and the user's call** — it is a gameplay question, not an engineering one:
+> **should the starting window be walkable, and which lever pays for it?** Candidates, in
+> ascending order of blast radius: (a) `ov_home_town` scores *reachable high ground within a
+> walkable neighbourhood* instead of raw height reach — town 2 (655 m, slope 0.39) reads like
+> the intended shape and still carries a mine; (b) the height field's horizontal scale, or
+> `OV_STEP`, so 2320 m of relief gets the ~5 km it needs; (c) accept a mountain town and let
+> the near field clamp what it draws. **(a) is the narrowest and is the one to try first**, and
+> it is squarely plan #1 / the overland's area, not plan #11's.
+
+Until it resolves, P6 can still build the parts that do not depend on the answer: the boundary
+ring's geometry, the two-reading sampling seam, and the diff harness itself — all of which need
+a height *function*, not a particular one. The instrument is `src/horizonprobe.loft`, which is
+deliberately **not** in `make test`: it measures a world rather than asserting an invariant,
+and the invariant it wants to assert (*the starting window is walkable*) would go red today.
+
 ## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
 
 The section below stands, with **two corrections found by reading the source instead of the

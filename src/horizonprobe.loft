@@ -1,0 +1,218 @@
+// horizonprobe — the measurement that opens plan #11 P6 (I-HORIZON).
+//
+// **I-HORIZON: near and far are one world at two readings — the same point has the same
+// height from either.** Before that can be diffed at the boundary ring, both readings have to
+// EXIST. They do not: `sim.loft`'s surface generator calls `ov_sample` and writes
+// `(_, okind)` — the height is fetched and thrown away, and `Sim` carries no height at all.
+// So the near field is a flat plane at z=0 and P6's first question is not "do they agree" but
+// "what does the near reading's vertical even mean".
+//
+// That is a genuine fork, because SCALE.md fixes the HORIZONTAL twice over (1.5 m per hex for
+// architecture, 15 natural m per walked hex for terrain) and says nothing about the vertical.
+// A height is in NATURAL metres while the ground under it is walked at 1/10 of natural scale,
+// so rendering heights unchanged makes the world ten times too steep — and compressing them
+// 10x makes it exactly as steep as reality. This prints the numbers that decide it, from the
+// world players start in.
+use sim;
+use overland;
+use hex_grid;
+
+fn main() {
+  println("=== P6 horizon probe: what the two readings actually measure (seed 1337) ===");
+  o = overland_new();
+
+  // The home window's own frame, copied from sim.loft's surface generator so the samples
+  // land on the SAME points the game's hexes do — a probe on a different grid would answer
+  // a question nobody asked.
+  w = 101;
+  h = 101;
+  ht = ov_home_town(o);
+  tw = o.ov_towns[ht];
+  ax = 0.0;
+  ay = 0.0;
+  if tw != null { ax = tw.ot_x; ay = tw.ot_y; }
+  (cwx, cwy) = ov_hex_world(w / 2, h / 2);
+
+  hs: vector<float> = [];
+  lo = 1.0e18;
+  hi = 0.0 - 1.0e18;
+  for r in 0..h {
+    for q in 0..w {
+      (hx, hy) = ov_hex_world(q, r);
+      (hh, _) = ov_sample(o, ax + hx - cwx, ay + hy - cwy);
+      hs += [hh];
+      if hh < lo { lo = hh; }
+      if hh > hi { hi = hh; }
+    }
+  }
+  println("window {w}x{h} at the home town: height {lo} .. {hi} natural m (relief {hi - lo} m)");
+
+  // The window's own extent, both ways. HEX_LEN is one walked hex in world units; OV_STEP is
+  // what that step means in natural terrain.
+  (spanx, _) = ov_hex_world(w - 1, 0);
+  println("window spans {spanx} natural m walked as {(w - 1) as float * HEX_LEN * 0.866} m of architecture");
+
+  // THE STEEPEST STEP, which is what decides whether the near field is walkable. For each hex,
+  // the largest height difference to a neighbour — in natural m, then as the slope you would
+  // actually climb at each candidate vertical reading.
+  worst = 0.0;
+  worst_q = 0;
+  worst_r = 0;
+  sum = 0.0;
+  n = 0;
+  for r in 1..h - 1 {
+    for q in 1..w - 1 {
+      a = hs[r * w + q] ?? 0.0;
+      for d in 0..6 {
+        (nq, nr) = hex_neighbor(q, r, d);
+        if nq >= 0 && nq < w && nr >= 0 && nr < h {
+          b = hs[nr * w + nq] ?? 0.0;
+          dh = if a > b { a - b } else { b - a };
+          sum = sum + dh;
+          n = n + 1;
+          if dh > worst { worst = dh; worst_q = q; worst_r = r; }
+        }
+      }
+    }
+  }
+  mean = sum / (n as float) ?? 0.0;
+  println("step-to-step height change: mean {mean} m, worst {worst} m (at hex ({worst_q},{worst_r}))");
+
+  // The fork, priced. One walked hex = 1.5 m of architecture = 15 natural m of terrain.
+  // Reading A: heights stay natural  -> the run is 1.5 m, so the slope is dh/1.5.
+  // Reading B: heights compress 10x  -> the run is 1.5 m and the rise dh/10: reality's slope.
+  println("");
+  println("  reading A (heights unchanged, run = 1.5 m/hex):");
+  println("    mean slope {mean / 1.5 ?? 0.0}  worst slope {worst / 1.5 ?? 0.0}   <- rise/run");
+  println("  reading B (heights /10, the same 10x the HORIZONTAL already takes):");
+  println("    mean slope {mean / 15.0 ?? 0.0}  worst slope {worst / 15.0 ?? 0.0}   <- == the real terrain's slope");
+  println("");
+  println("  for scale: a 1-in-8 ramp is 0.125, a steep road 0.20, a black ski run 0.40,");
+  println("  and 1.0 is 45 degrees. The eye is 1.847 world units = 1.6 m above the floor.");
+
+  // ⚠ IS IT TERRAIN OR IS IT NOISE? A mean neighbour step of that size is either an alpine
+  // wall or a height field with detail FINER than the 15 m the game samples it at, and the
+  // two are indistinguishable from a mean. A transect tells them apart: terrain TRENDS,
+  // noise alternates. Printed as a profile across the middle of the window.
+  println("");
+  println("transect across row {h / 2}, every hex (15 natural m apart):");
+  line = "";
+  for q in 0..40 {
+    v = (hs[(h / 2) * w + q + 30] ?? 0.0) as integer ?? 0;
+    line = "{line} {v}";
+  }
+  println(" {line}");
+  // The same transect resampled every 10 hexes (150 m) — if the 15 m samples are noise on a
+  // smooth field, the coarse one is smooth while the fine one is not.
+  line2 = "";
+  for q2 in 0..10 {
+    v2 = (hs[(h / 2) * w + q2 * 10] ?? 0.0) as integer ?? 0;
+    line2 = "{line2} {v2}";
+  }
+  println("every 10 hexes (150 m):{line2}");
+
+  // And the SIGN pattern: on real terrain consecutive differences keep their sign for a while
+  // (you walk up a hill, then down). Pure noise flips about half the time.
+  flips = 0;
+  steps = 0;
+  prev_up = true;
+  for q3 in 1..w {
+    a3 = hs[(h / 2) * w + q3 - 1] ?? 0.0;
+    b3 = hs[(h / 2) * w + q3] ?? 0.0;
+    up = b3 > a3;
+    if q3 > 1 && up != prev_up { flips = flips + 1; }
+    prev_up = up;
+    steps = steps + 1;
+  }
+  println("direction reversals along that row: {flips} of {steps - 1} steps (noise ~= half)");
+
+  // ⚠ THE MEAN IS OVER THE WHOLE WINDOW, INCLUDING THE MOUNTAIN THE PLAYER CANNOT ENTER.
+  // K_FACE is already impassable, so a cliff there costs nothing. The question that decides
+  // P6 is the slope of the ground you actually WALK — measured over passable hexes only, at
+  // reading B (heights /10, the same compression the horizontal already takes).
+  bands: vector<integer> = [];
+  for _ in 0..6 { bands += [0]; }
+  wn = 0;
+  wsum = 0.0;
+  wworst = 0.0;
+  for r6 in 1..h - 1 {
+    for q6 in 1..w - 1 {
+      (hx6, hy6) = ov_hex_world(q6, r6);
+      (_, k6) = ov_sample(o, ax + hx6 - cwx, ay + hy6 - cwy);
+      if k6 != K_FACE && k6 != K_LAKE && k6 != K_SEA {
+        a6 = hs[r6 * w + q6] ?? 0.0;
+        for d6 in 0..6 {
+          (nq6, nr6) = hex_neighbor(q6, r6, d6);
+          if nq6 >= 0 && nq6 < w && nr6 >= 0 && nr6 < h {
+            (hx7, hy7) = ov_hex_world(nq6, nr6);
+            (_, k7) = ov_sample(o, ax + hx7 - cwx, ay + hy7 - cwy);
+            if k7 != K_FACE && k7 != K_LAKE && k7 != K_SEA {
+              b6 = hs[nr6 * w + nq6] ?? 0.0;
+              dh6 = if a6 > b6 { a6 - b6 } else { b6 - a6 };
+              sl = dh6 / 15.0 ?? 0.0;          // reading B: rise/run on the walked ground
+              wsum = wsum + sl;
+              wn = wn + 1;
+              if sl > wworst { wworst = sl; }
+              bi = 0;
+              if sl >= 0.125 { bi = 1; }
+              if sl >= 0.25 { bi = 2; }
+              if sl >= 0.5 { bi = 3; }
+              if sl >= 1.0 { bi = 4; }
+              if sl >= 2.0 { bi = 5; }
+              bands[bi] = (bands[bi] ?? 0) + 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  println("");
+  println("PASSABLE ground only ({wn} hex-to-hex steps), reading B:");
+  println("  mean slope {wsum / (wn as float) ?? 0.0}  worst {wworst}");
+  println("  <0.125 (a gentle ramp)      {bands[0] ?? 0}");
+  println("  0.125-0.25 (steep road)     {bands[1] ?? 0}");
+  println("  0.25-0.5 (a hard climb)     {bands[2] ?? 0}");
+  println("  0.5-1.0 (up to 45 degrees)  {bands[3] ?? 0}");
+  println("  1.0-2.0 (45-63 degrees)     {bands[4] ?? 0}");
+  println("  >2.0 (a cliff)              {bands[5] ?? 0}");
+
+  // ⚠ THE CONTROL, AND IT IS NOT OPTIONAL. `ov_home_town` picks the town with the GREATEST
+  // HEIGHT REACH (it had to — a sea-level town cannot carry a mine or a picking ground), so
+  // the window measured above is the steepest one in the world BY CONSTRUCTION. A claim about
+  // the world drawn from it alone would be a claim about the outlier. Every town, same method.
+  println("");
+  println("every town, passable ground, reading B:");
+  for ti in 0..len(o.ov_towns) {
+    tw2 = o.ov_towns[ti];
+    if tw2 != null {
+      bx = tw2.ot_x;
+      by = tw2.ot_y;
+      tlo = 1.0e18;
+      thi = 0.0 - 1.0e18;
+      tsum = 0.0;
+      tn = 0;
+      for r8 in 1..h - 1 {
+        for q8 in 1..w - 1 {
+          (hx8, hy8) = ov_hex_world(q8, r8);
+          (a8, k8) = ov_sample(o, bx + hx8 - cwx, by + hy8 - cwy);
+          if a8 < tlo { tlo = a8; }
+          if a8 > thi { thi = a8; }
+          if k8 != K_FACE && k8 != K_LAKE && k8 != K_SEA {
+            (nq8, nr8) = hex_neighbor(q8, r8, 0);
+            (hx9, hy9) = ov_hex_world(nq8, nr8);
+            (b8, k9) = ov_sample(o, bx + hx9 - cwx, by + hy9 - cwy);
+            if k9 != K_FACE && k9 != K_LAKE && k9 != K_SEA {
+              d8 = if a8 > b8 { a8 - b8 } else { b8 - a8 };
+              tsum = tsum + (d8 / 15.0 ?? 0.0);
+              tn = tn + 1;
+            }
+          }
+        }
+      }
+      mark = "";
+      if ti == ht { mark = "   <- the HOME window (the one the game starts in)"; }
+      println("  town {ti}: relief {(thi - tlo) as integer ?? 0} m over 1500 m, mean walkable slope {tsum / (tn as float) ?? 0.0}{mark}");
+    }
+  }
+  println("=== PROBE DONE ===");
+}

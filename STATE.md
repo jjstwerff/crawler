@@ -48,8 +48,10 @@ where crawler sits in the stack.
 > plumbing a texture into a renderer about to be removed is work done to be thrown away. A
 > decision, not an oversight. → `plans/11-3d-world/RESULTS.md` → *P3b plumbing*.
 >
-> **Next in plan #11 is P6** (the horizon: far field + air box from the hex world), which is
-> exactly what P3b was sequenced ahead of.
+> **P6 is OPENED and part-blocked on a gameplay call** — the horizon needs two readings and the
+> world has one, and switching the second on makes the starting town a 42°-average mountainside.
+> The measurement, the control that makes it a finding, and the lever are in *Open, and whose
+> call it is* below.
 
 > ## ✅ **plan #16 is BUILT END TO END (2026-08-11) — `M0`–`M4`. The eight statistics are the engine's, the content's, and six of them drive a number.**
 >
@@ -461,6 +463,23 @@ the area — but if it continues, the label is wrong and should move.
   workable site 4710 → **6000 of 6800** (the rest is the mine). ⚠ **The ring lost nothing** —
   legs are `gd2 * 120°` and its opposite over `gd2 in 0..ngd`, so guard 3 already walked guard
   0's leg; a **duplicate** is what it spent. → `plans/17-safe-supply/`
+- ⚠ **NEW (2026-08-11) — THE STARTING WINDOW IS A MOUNTAINSIDE, AND THE RULE THAT PICKED IT
+  SELECTS FOR EXACTLY THAT. The user's call.** Opening plan #11 P6 measured the world's heights
+  and found the near field has **none** — `sim.loft:4896` fetches the height from `ov_sample`
+  and writes `(_, okind)`, so the ground is a flat plane at z=0 in both renderers, and
+  `SCALE.md` (which pins the horizontal twice) is **silent on the vertical**. At the correct
+  reading (heights take the same 10× compression the horizontal already takes, which preserves
+  the true slope), the home window's **passable** ground averages a slope of **1.02 — 45.6°**,
+  with only 7 % of steps gentler than a ramp. **The control is the finding**: towns 0/1/2
+  measure **0.077 / 0.088 / 0.386**, so the world at large is walkable country and the *start*
+  is the outlier — because `ov_home_town` maximises **height reach**, which inside a 1500 m
+  window simply *is* mean slope. It bought the gatherer (plan #17 needs scree/meadow, absent at
+  sea level) and cost the onboarding curve; it also costs the terrain, invisibly, until P6
+  makes height real. **Narrowest lever first: score `ov_home_town` on reachable high ground in a
+  walkable neighbourhood rather than raw height reach** — town 2 (655 m, 0.39) reads like the
+  intended shape and still carries a mine. That is **plan #1 / the overland's** area, and
+  `overland` owns placement — #11 records the number and does not reach for the dial.
+  → `plans/11-3d-world/RESULTS.md` → *P6 opened*; instrument `src/horizonprobe.loft`.
 - **The starting neighbourhood is now hostile at level 1** — a gnoll (mlvl 6) 8 hexes from the
   vantage, a level-1 hero dead on tick 13. The alpine anchor bought the gatherer and cost the
   onboarding curve. **DESIGN §3a pillar #8's business, and nobody owns it yet.** The user's call
