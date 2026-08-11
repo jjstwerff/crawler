@@ -86,15 +86,16 @@ Direct: `loft --interpret --path ../loft/ --lib ../loft/lib/ src/<f>.loft`
 (needs the loft toolchain at `../loft`; `make play LOFT_REPO=…` to override).
 
 **Iterate on ONE test, not the whole gate.** A single `src/<x>test.loft` runs in ~3 s; `make
-test` runs all 100 (**103 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10,
-8-wide: 1m29s / 1m47s / 2m29s / **2m40s** warm, **2m43s–3m34s with a cold native cache**, 3m15s
-at `GATE_JOBS=1`). ⚠ **`militiatest` is the long pole now** (111 s contended, ahead of
-`stocktest`'s 99 s): it generates five 101×101 surfaces — two of them an A/B that ticks four
-simulated days each — because plan #17 `S7`'s claim is about what a settlement produces, and
-that cannot be asked of a sandbox.
-⚠ Box load moves that as much as cache state does — the pool absorbs the cold penalty (14
-compiles ≈ 140 s of rustc cost only +56 s of wall clock). It used to be
-**10–13 min**, closed by two changes: the 14 tests that held most of the wall clock now compile
+test` runs all 102 (**106 rows** — `playtest` runs 5×) in **~1.5–3 min** (measured 2026-08-10/11,
+8-wide: **1m45s** / 1m29s / 1m47s / 2m29s / 2m40s warm, **2m43s–3m34s with a cold native cache**,
+3m15s at `GATE_JOBS=1`). ⚠ **`militiatest` and `stocktest` are the long poles** (55.5 s and
+54.5 s contended on 2026-08-11): each generates several 101×101 surfaces — two of them an A/B
+that ticks four simulated days — because plan #17's claims are about what a settlement
+produces, and that cannot be asked of a sandbox. `worldtextest` is third at 27 s for the same
+kind of reason: its oracle traces and fills all nine landcover classes of a real world.
+⚠ Box load moves that as much as cache state does — the pool absorbs the cold penalty (15
+compiles ≈ 150 s of rustc cost only +56 s of wall clock). It used to be
+**10–13 min**, closed by two changes: the 15 tests that held most of the wall clock now compile
 via `--native-release` while the rest interpret (`tools/run_tests.sh` → `NATIVE_TESTS` carries
 the measurement and the ≥10 s rule for joining), and rows now run **`min(8, nproc-2)` at a
 time** (8 here — the cap is measured flat past 8, the `nproc-2` is headroom for the rest of the
@@ -172,9 +173,10 @@ P3; `EXTRACTION.md` → *The editor as the second consumer*).
   bite or make a scroll inert to match the engine. The ONLY allowed deviation is the §3a
   *tuning* (numbers: curve/death/class-weight), not removing or substituting a mechanic.
 - Every kernel feature gets a headless **`src/<x>test.loft`** wired into `make test`
-  (currently **100 files / 103 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
+  (currently **102 files / 106 rows** — combat/AI/placement/levels/hero/items/equip/bundles/
   defs/quests/msg/inv-hub/effects/specials/unknown-items/races/classes/crystal/overland/
-  safety/production/repair/standing/travel/idle-skip/mesh/kernel/replay/playthroughs/…). Keep it
+  safety/production/repair/standing/travel/idle-skip/mesh/world-texture/kernel/replay/
+  playthroughs/…). Keep it
   **warning-clean**. ⚠ **WIRING IT IN IS THE STEP THAT GETS SKIPPED, and nothing complains** —
   `tools/run_tests.sh` is the roster, not `src/`. Five tests sat on disk unwired until
   2026-08-10 (`fig`/`gen`/`grid`/`mon`/`wall`) and `canopytest` was listed twice; a test the
@@ -386,7 +388,17 @@ price, not refused on principle**, and they close by convergence in the library.
 - `castfx.loft` / `itemfx.loft` — the API layer above the kernel: cast + use-item verbs,
   dispatching to BUNDLE routines via the generated `spell_defs_gen`/effect arms.
 - `worldmesh.loft` — the kernel-side terrain mesh (hexagon fans, stride 10, R4
-  tint bake pre-composed into vertex colors; the view only uploads/draws it).
+  tint bake pre-composed into vertex colors; the view only uploads/draws it). ⚠ It feeds
+  **`view.loft`, the 2D renderer**, so the R4 bake retires *with its only consumer* in plan
+  #11 P9 — it is not the 3D path's colour source.
+- `worldtex.loft` — the **world texture's CLASS raster** (plan #11 P3b, I-PAINT): one terrain
+  kind per texel over the level window, laid out on the lattice (`x = √3/2·k`, `y = m/2`, so a
+  hex corner is an exact texel corner). Kernel-side, so it emits **kinds, not colours** — the
+  palette is `view3d::kind_rgb3`, which is what lets `worldtextest` compare classes rather than
+  tones. ⚠ It **point-samples** (`px_to_hex` per texel) rather than tracing and filling: both
+  constructions were diffed over 488 032 texels of the shipped world at **0 mismatches**, and
+  the direct one is **13× cheaper native, 3.2× interpreted**. `trace` stays the test's
+  independent oracle, and stays load-bearing for geometry and silhouettes.
 - **The geometry-body work lives in the `hexbody` PROJECT** (`../hexbody`, a sibling split out
   2026-07-23), not crawler: `housedraw` (buildings in the 12 orientations — `draw_floor`,
   `draw_walls` thin/edge-based, `place_opening`, `draw_roof`), gated by its own `make test`
@@ -411,3 +423,10 @@ price, not refused on principle**, and they close by convergence in the library.
   sprites (by-name from `assets/sprites/`: `<monster_key>.png`, `player.png`, per-category
   loot; glyph fallback); overlays: char page, inv hub, crystal page. `wallgeo.loft` —
   wall outline (rounded; DP straightener parked in `patches/`).
+- `view3d.loft` — the first-person pass (plan #11 P3/P3b; `V` toggles until P9 deletes the 2D
+  view). Floor + wall triangles at **stride 8** = `pos(3) / colour(3) / uv(2)` — the graphics
+  library's own layout at exactly that stride. ⚠ **The uv IS the floor/wall discriminator**: a
+  floor uv is always inside `[0,1]`, so walls carry `(-1,-1)` and the fragment reads the world
+  texture only where the uv is real — one attribute, no second channel to keep in step.
+  `kind_rgb3` is the landcover palette; `build_world_texture3d` uploads (linear + mipmapped —
+  the raster is exact at texel *centres* and the blend spans ≤1 texel ≈ 0.19 m).

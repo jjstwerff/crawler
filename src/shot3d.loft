@@ -18,12 +18,20 @@ use view3d;
 fn shot_at(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float) {
   (pq, pr) = sim_player_hex(s);
   (svao, sn) = build_scene3d(s);
-  view3d_frame(s, prog, svao, sn, vw, vh);
+  wtex = build_world_texture3d(s);      // plan #11 P3b: landcover rides the world texture
+  view3d_frame(s, prog, svao, sn, wtex, vw, vh);
   na = view3d_actors(s, prog, avbo, vw, vh);
   ok = graphics::gl_screenshot(vw as integer, vh as integer, "/tmp/{name}.png");
   hz = horizon_y(view3d_camera(s, vw, vh));
   println("{name}: hex=({pq},{pr}) scene_verts={sn} actor_verts={na} horizon_y={hz} png={ok}");
+  // ⚠ THE ONE LINK NO HEADLESS GATE REACHES: `worldtextest` proves the CPU mapping, but the
+  // upload convention and the sampler are GL's. A vertically flipped texture satisfies every
+  // CPU check and still puts the wrong landcover under your feet. So print what the ground at
+  // the camera's own hex must be — the frame's bottom-centre pixel is that ground, and
+  // tools/ can compare the two. (plan #11 P3b)
+  println("  {name}: ground kind at ({pq},{pr}) = {sim_tile_kind(s, pq, pr)}");
   graphics::gl_delete_vao(svao);
+  graphics::gl_delete_texture(wtex);
 }
 
 fn main() {

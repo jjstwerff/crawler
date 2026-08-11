@@ -1,0 +1,163 @@
+// worldtextest — I-PAINT on the world players actually start in (plan #11 P3b).
+//
+// **I-PAINT: the world's appearance is a texture derived from the same field as its geometry,
+// so a boundary in the texture and the geometry under it cannot disagree.**
+//
+// `painttest` earned that claim on a SYNTHETIC blob, chosen to force a hole and both edge
+// orientations. RESULTS.md left the follow-up open in writing: *"Re-run the same diff against
+// a real traced landcover region when the texture lands — the arithmetic says it must pass,
+// which is exactly the kind of claim this plan has learned to check rather than assume."*
+// This is that run, and it is the shipped seed (1337) rather than a constructed window.
+//
+// ⚠ THE ORACLE IS THE ONE THE PRODUCER IS NOT. `build_world_tex` point-samples; this test
+// rasterises the SAME field the other way — `trace` each landcover class into exact integer
+// loops, then `fill_polygons` them — and diffs. Re-running the producer's own construction
+// would be an identity, and the two paths meet only at the field, which is the property that
+// makes the comparison mean anything.
+//
+//   row 1  the two constructions agree on every in-window texel
+//   row 2  the mapping the SHADER uses round-trips: texel centre -> world -> uv -> texel
+//   row 3  standing on a hex, the ground under you is that hex's landcover
+//   row 4  negative controls: one flipped texel is seen; a frame off by one lattice unit is seen
+use sim;
+use worldtex;
+use hex_field;
+use hex_grid;
+use overland;
+use sprite_draw;
+
+fn main() {
+  println("=== story world-texture test (I-PAINT on the shipped world, seed 1337) ===");
+  s = sim_new_gen(1337, 0);
+  t = build_world_tex(s);
+  println("window {s.lw}x{s.lh} at ({s.qmin},{s.rmin}) -> texture {t.wt_w}x{t.wt_h} from lattice ({t.wt_k0},{t.wt_m0})");
+
+  // ── ROW 1. The independent raster: trace every class, fill its loops, diff.
+  fil: vector<integer> = [];
+  for _ in 0..t.wt_w * t.wt_h { fil += [0]; }
+  classes = 0;
+  loops = 0;
+  for kt in 0..14 {
+    hs = hexset_chunk(s.qmin, s.rmin, s.lw, s.lh);
+    any = false;
+    for gr in 0..s.lh {
+      for gq in 0..s.lw {
+        if sim_tile_kind(s, s.qmin + gq, s.rmin + gr) == kt {
+          hexset_set(hs, s.qmin + gq, s.rmin + gr, true);
+          any = true;
+        }
+      }
+    }
+    if any {
+      classes = classes + 1;
+      vm = trace(hs);
+      loops = loops + vm.vm_loops;
+      xs: vector<float> = [];
+      ys: vector<float> = [];
+      starts: vector<integer> = [];
+      for li in 0..vm.vm_loops {
+        st = vm.vm_start;
+        i0 = st[li] ?? 0;
+        i1 = if li + 1 < vm.vm_loops { st[li + 1] ?? 0 } else { len(vm.vm_k) };
+        starts += [len(xs)];
+        for i in i0..i1 {
+          xs += [(((vm.vm_k[i] ?? 0) - t.wt_k0) * TEX_SX) as float];
+          ys += [(((vm.vm_m[i] ?? 0) - t.wt_m0) * TEX_SY) as float];
+        }
+      }
+      // ⚠ ONE call carrying ALL contours. `trace` gives an enclosed region its own loop
+      // wound the other way, and even-odd is only even-odd if every contour lands in one
+      // crossing list — filling loop by loop paints the hole solid (plan #11 P3b, 886 texels).
+      sprite_draw::fill_polygons(fil, t.wt_w, t.wt_h, xs, ys, starts, kt + 1);
+    }
+  }
+
+  mismatch = 0;
+  inwin = 0;
+  shown = 0;
+  for ty in 0..t.wt_h {
+    for tx in 0..t.wt_w {
+      a = world_tex_at(t, tx, ty);
+      if a >= 0 {
+        // Only where the sample lands on an in-window hex: outside it no class was traced,
+        // so the raster is legitimately unpainted and comparing there tests nothing.
+        inwin = inwin + 1;
+        b = (fil[ty * t.wt_w + tx] ?? 0) - 1;
+        if a != b {
+          mismatch = mismatch + 1;
+          if shown < 6 { println("  mismatch tx={tx} ty={ty} sample={a} fill={b}"); shown = shown + 1; }
+        }
+      }
+    }
+  }
+  println("[1] classes={classes} loops={loops} in-window={inwin} mismatch={mismatch}");
+
+  // ── ROW 2. The mapping the fragment shader is given (u = x*su+ou, v = y*sv+ov) has to be
+  // the exact inverse of the layout the raster was built on, or the ground samples the wrong
+  // texel and every downstream check still passes. Round-trip every 37th texel.
+  rt_bad = 0;
+  for ty in 0..t.wt_h {
+    for tx in 0..t.wt_w {
+      if (ty * t.wt_w + tx) % 37 == 0 {
+        (wx, wy) = world_tex_centre(t, tx, ty);
+        (u, v) = world_tex_uv(t, wx, wy);
+        bx = (u * (t.wt_w as float)) as integer ?? -1;
+        by = (v * (t.wt_h as float)) as integer ?? -1;
+        if bx != tx || by != ty { rt_bad = rt_bad + 1; }
+      }
+    }
+  }
+  println("[2] uv round-trip failures={rt_bad}");
+
+  // ── ROW 3. What the RENDERER depends on, which row 1 does not state: stand on a hex and the
+  // ground under you carries that hex's landcover. A raster can agree with the field texel by
+  // texel and still be laid out somewhere else entirely — row 2 rules that out for the frame,
+  // this rules it out for the content.
+  centre_bad = 0;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      (wx, wy) = hex_to_px(q, r);
+      (u, v) = world_tex_uv(t, wx, wy);
+      tx = (u * (t.wt_w as float)) as integer ?? -1;
+      ty = (v * (t.wt_h as float)) as integer ?? -1;
+      if world_tex_at(t, tx, ty) != sim_tile_kind(s, q, r) { centre_bad = centre_bad + 1; }
+    }
+  }
+  println("[3] hexes whose own centre samples the wrong landcover={centre_bad}");
+
+  // ── ROW 4. Negative controls (every phase carries one — plan #10 P9). Both must be SEEN.
+  first_in = -1;
+  for i in 0..t.wt_w * t.wt_h { if first_in < 0 && (t.wt_kind[i] ?? -1) >= 0 { first_in = i; } }
+  nc1 = 0;
+  if first_in >= 0 {
+    fil[first_in] = (fil[first_in] ?? 0) + 1;                // one texel, one class off
+    for i in 0..t.wt_w * t.wt_h {
+      a = t.wt_kind[i] ?? -1;
+      if a >= 0 && a != (fil[i] ?? 0) - 1 { nc1 = nc1 + 1; }
+    }
+    fil[first_in] = (fil[first_in] ?? 0) - 1;
+  }
+  // A frame shifted by ONE lattice unit — the failure that would look like a working texture
+  // sliding off its world, which is the shape SCALE.md warns about at a different scale.
+  shifted = WorldTex { wt_w: t.wt_w, wt_h: t.wt_h, wt_k0: t.wt_k0 + 1, wt_m0: t.wt_m0,
+                       wt_kind: [] };
+  nc2 = 0;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      (wx, wy) = hex_to_px(q, r);
+      (u, v) = world_tex_uv(shifted, wx, wy);
+      tx = (u * (t.wt_w as float)) as integer ?? -1;
+      ty = (v * (t.wt_h as float)) as integer ?? -1;
+      if world_tex_at(t, tx, ty) != sim_tile_kind(s, q, r) { nc2 = nc2 + 1; }
+    }
+  }
+  println("[4] control: one flipped texel seen={nc1 == 1}, frame off by one lattice unit seen={nc2 > 0} ({nc2} hexes)");
+
+  ok = mismatch == 0 && inwin > 400000 && classes >= 5 && loops >= 2
+       && rt_bad == 0 && centre_bad == 0 && nc1 == 1 && nc2 > 0;
+  if ok { println("=== WORLDTEX OK ==="); } else { println("=== FAIL ==="); }
+}

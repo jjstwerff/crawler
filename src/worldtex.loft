@@ -1,0 +1,137 @@
+// worldtex — the world texture's CLASS raster (plan #11 P3b; DESIGN.md I-PAINT).
+//
+// **I-PAINT: the world's appearance is a texture derived from the same field as its geometry,
+// so a boundary in the texture and the geometry under it cannot disagree.**
+//
+// Kernel-side, so NO graphics import (the architecture invariant). This emits one TERRAIN
+// KIND per texel; the view owns the palette and the upload. That split is not tidiness — it
+// is what lets the gate compare CLASSES rather than colours, and two kinds sharing a colour
+// is exactly the shape of check that passes for the wrong reason.
+//
+// ── THE FRAME, and why it makes the raster exact ────────────────────────────────────────
+//
+//   hex_to_px is  x = SQRT3*q + SQRT3/2*(r&1)  and  y = 1.5*r
+//   lattice   is  k = 2q + (r&1)               and  m = 3r
+//   therefore     x = (SQRT3/2) * k            and  y = 0.5 * m
+//
+// The lattice IS world space up to one scale per axis, so a texture laid out on the lattice
+// at an integer number of texels per lattice unit has every hex corner on an exact texel
+// corner. Nothing rounds.
+//
+// ── WHY POINT-SAMPLING RATHER THAN trace + fill ────────────────────────────────────────
+//
+// DESIGN.md named the mechanism as `trace` the region -> `fill_polygons` its loops, and
+// called it "nearly free". Measured on the shipped world (101x101, 812x604 texels), it is
+// not the cheap one — the direct construction is:
+//
+//   | per level        | native  | interpreted |
+//   |------------------|---------|-------------|
+//   | point-sample     |   44 ms |     1244 ms |
+//   | trace            |  203 ms |      209 ms |
+//   | fill             |  386 ms |     3808 ms |
+//
+// 13x native, 3.2x interpreted — and interpreted is the path the game runs on while native
+// GL is upstream-gated (loft#396). The two rasters were diffed over all 488032 in-window
+// texels of that world and agree EXACTLY, so the choice is cost alone, and `worldtextest`
+// keeps diffing them: trace+fill stays the INDEPENDENT ORACLE rather than the producer.
+//
+// ⚠ Two consequences worth carrying, because they narrow claims already written down:
+//   - The 2:1 axis-ratio constraint (P3b's tie-class fix) is a property of the FILL, which
+//     has to break a tie when a texel centre lands on a boundary. Point-sampling has no tie
+//     to break — `px_to_hex` answers everywhere. The constraint still binds anything that
+//     rasterises a traced loop (P6's cached layers, the editor); it does not bind this.
+//   - `trace` is NOT retired and must not be: the loops are what GEOMETRY and silhouettes
+//     (I-AGREE) are built from. What is measured here is that a RASTER does not need them.
+use sim;
+use hex_grid;
+use overland;
+
+// Texels per lattice unit. One dial: k spans SQRT3/2 world units and m spans 1/2, so
+// TEX_SX = 2*TEX_SY is the world-square ratio — at 4/2 a texel is 0.19 m x 0.22 m
+// (SCALE.md: 1 world unit = 0.866 m).
+pub const TEX_SX = 4;
+pub const TEX_SY = 2;
+
+pub struct WorldTex {
+  wt_w:    integer,          // texels across
+  wt_h:    integer,          // texels down
+  wt_k0:   integer,          // lattice k at the left edge of column 0
+  wt_m0:   integer,          // lattice m at the top edge of row 0
+  wt_kind: vector<integer>,  // terrain kind per texel, row-major; -1 = no kind
+}
+
+// The lattice bounding box of a level's window. A hex centre sits at (2q + (r&1), 3r) and
+// its corners reach one unit in k and one in m, so the window's hexes are covered exactly by
+// k in [2*qmin-1, 2*(qmin+lw-1)+2] and m in [3*rmin-1, 3*(rmin+lh-1)+1].
+pub fn world_tex_frame(s: Sim) -> (integer, integer, integer, integer) {
+  k0 = 2 * s.qmin - 1;
+  m0 = 3 * s.rmin - 1;
+  k1 = 2 * (s.qmin + s.lw - 1) + 2;
+  m1 = 3 * (s.rmin + s.lh - 1) + 1;
+  (k0, m0, (k1 - k0) * TEX_SX, (m1 - m0) * TEX_SY)
+}
+
+// World position of texel (tx,ty)'s CENTRE. The half-texel is the whole point: a texel is an
+// area and the field is asked about its middle, which is also what a nearest sampler returns.
+pub fn world_tex_centre(t: WorldTex, tx: integer, ty: integer) -> (float, float) {
+  kf = ((tx as float) + 0.5) / (TEX_SX as float) + (t.wt_k0 as float) ?? 0.0;
+  mf = ((ty as float) + 0.5) / (TEX_SY as float) + (t.wt_m0 as float) ?? 0.0;
+  (SQRT3 / 2.0 * kf ?? 0.0, 0.5 * mf)
+}
+
+// The shader's transform: u = x*su + ou, v = y*sv + ov. Returned as four floats rather than
+// a per-point function because the fragment shader recomputes it from gl_Position's world
+// interpolation — ONE owner for the mapping, so `world_tex_uv` below cannot drift from it.
+pub fn world_tex_xform(t: WorldTex) -> (float, float, float, float) {
+  spank = (t.wt_w as float) / (TEX_SX as float) ?? 1.0;      // lattice units across
+  spanm = (t.wt_h as float) / (TEX_SY as float) ?? 1.0;
+  su = 2.0 / SQRT3 / spank ?? 0.0;
+  ou = 0.0 - (t.wt_k0 as float) / spank ?? 0.0;
+  sv = 2.0 / spanm ?? 0.0;
+  ov = 0.0 - (t.wt_m0 as float) / spanm ?? 0.0;
+  (su, ou, sv, ov)
+}
+
+// Where world (x,y) lands in the texture, in [0,1] uv. Defined THROUGH the shader transform
+// so there is one mapping, not two that agree today.
+pub fn world_tex_uv(t: WorldTex, x: float, y: float) -> (float, float) {
+  (su, ou, sv, ov) = world_tex_xform(t);
+  (x * su + ou, y * sv + ov)
+}
+
+// The FRAME alone, with no raster behind it. The mesh builder needs only this — it asks
+// `world_tex_uv` where each floor vertex lands — and paying for half a million texels to
+// answer that would have the geometry pass rebuild the texture a second time.
+pub fn world_tex_of(s: Sim) -> WorldTex {
+  (k0, m0, tw, th) = world_tex_frame(s);
+  WorldTex { wt_w: tw, wt_h: th, wt_k0: k0, wt_m0: m0, wt_kind: [] }
+}
+
+// The class raster. One `px_to_hex` per texel: the containing hex IS the definition of which
+// region a point belongs to, so this needs no fill rule, no contour orientation convention
+// and no tie-break. Texels whose centre falls outside the window carry -1.
+pub fn build_world_tex(s: Sim) -> WorldTex {
+  t = world_tex_of(s);
+  tw = t.wt_w;
+  th = t.wt_h;
+  kinds: vector<integer> = [];
+  qhi = s.qmin + s.lw;
+  rhi = s.rmin + s.lh;
+  for ty in 0..th {
+    for tx in 0..tw {
+      (wx, wy) = world_tex_centre(t, tx, ty);
+      (hq, hr) = px_to_hex(wx, wy);
+      v = -1;
+      if hq >= s.qmin && hr >= s.rmin && hq < qhi && hr < rhi { v = sim_tile_kind(s, hq, hr); }
+      kinds += [v];
+    }
+  }
+  t.wt_kind = kinds;
+  t
+}
+
+// The kind at a texel, or -1 off the edge.
+pub fn world_tex_at(t: WorldTex, tx: integer, ty: integer) -> integer {
+  if tx < 0 || ty < 0 || tx >= t.wt_w || ty >= t.wt_h { return -1; }
+  t.wt_kind[ty * t.wt_w + tx] ?? -1
+}

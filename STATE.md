@@ -1,12 +1,55 @@
-# STATE.md — where things stand (2026-08-10)
+# STATE.md — where things stand (2026-08-11)
 
-Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, **103 rows**
-in **2m40s** warm / 3m34s cold, 8-wide, on installed loft md5 `0dabaa1e169e`; 2026-08-10).
-⚠ `militiatest` is the new long pole at 111 s — five surfaces, two of them a four-day A/B.
-Written as a handoff: read after a `/clear`.
+Branch **`combat`**, tree clean and pushed, **full gate green** (`make test` — PASS, **106 rows**
+in **1m45s**, 8-wide; 2026-08-11). ⚠ `militiatest` (55.5 s) and `stocktest` (54.5 s) are the long
+poles, `worldtextest` third at 27 s. Written as a handoff: read after a `/clear`.
 
 **Read [`VISION.md`](VISION.md) first** — what this is for, why "properly" is load-bearing, and
 where crawler sits in the stack.
+
+> ## ✅ **plan #11 P3b IS BUILT (2026-08-11) — landcover is a texture derived from the field, and the design named the expensive way to make one.**
+>
+> **The world's appearance now comes off a world texture** (`src/worldtex.loft`, sampled in
+> `view3d`) instead of per-hex vertex colour — I-PAINT, which is what P6's far-field layers were
+> ordered behind. It is **exact on the world players start in**: `worldtextest` diffs the shipped
+> raster against an independent trace+fill oracle over **488 032 in-window texels of seed 1337
+> and reports 0 mismatches**, closing the follow-up `painttest` left in writing (*"the blob is
+> synthetic — re-run this against a real traced landcover region"*).
+>
+> ⚠ **AND THE MEASUREMENT OVERTURNED THE DESIGN'S OWN MECHANISM.** `DESIGN.md` specifies `trace`
+> the region → `fill_polygons` its loops and calls it *"nearly free"*. Timed in-program, per
+> level: point-sampling each texel through `px_to_hex` is **44 ms native / 1244 ms interpreted**;
+> trace+fill is **589 ms / 4017 ms** — **13× and 3.2×**. Both rasters are identical, so the
+> choice is cost alone. `worldtex` point-samples; **trace+fill stays as the test's independent
+> oracle**, which is a better job for it than being the producer.
+>
+> ⚠ **`fill` is the pole, not `trace` — the opposite of the prediction**, and `trace` costs the
+> **same in both modes** (203 vs 209 ms) because registry libraries run native under
+> `--interpret`. Worth remembering the next time a profile looks impossible.
+>
+> ⚠ **Two claims NARROW, and neither is retired.** The **2:1 axis-ratio constraint** P3b
+> introduced is a property of the **fill**, which must break a tie when a texel centre lands on
+> a boundary; point-sampling has no tie to break, so the constraint binds anything rasterising a
+> traced loop (P6's layers, the editor) and not the world texture. And **`trace` is not
+> retired** — the loops are what geometry and I-AGREE's silhouettes are built from.
+>
+> ⚠ **LOD and tiling are P6's, and the near field never needed them.** The *"23 gigatexels"*
+> arithmetic is about the 151 km overland; the **level window** is 151 m across = 812×604 =
+> **0.49 Mtexel, 2 MB**, one resident texture, no clipmap.
+>
+> ⚠ **The one link no headless gate reaches is GL's.** A vertically flipped texture passes every
+> CPU check and still puts the wrong landcover under your feet. Closed by reading the frame:
+> `shot3d` prints the kind of the hex the camera stands on, and the PNG's bottom-centre band is
+> that ground — surface kind 0 read **(107,132,76)** against the palette's (107,133,76); dungeon
+> kind −1 read **(182,173,140)** against (184,173,140). Equal to within 8-bit rounding.
+>
+> **Still owed by P3b:** retiring `worldmesh.loft`'s R4 vertex-colour bake. It feeds `view.loft`,
+> the **2D** renderer, which P9 deletes — so the bake retires *with its only consumer*, and
+> plumbing a texture into a renderer about to be removed is work done to be thrown away. A
+> decision, not an oversight. → `plans/11-3d-world/RESULTS.md` → *P3b plumbing*.
+>
+> **Next in plan #11 is P6** (the horizon: far field + air box from the hex world), which is
+> exactly what P3b was sequenced ahead of.
 
 > ## ✅ **plan #16 is BUILT END TO END (2026-08-11) — `M0`–`M4`. The eight statistics are the engine's, the content's, and six of them drive a number.**
 >

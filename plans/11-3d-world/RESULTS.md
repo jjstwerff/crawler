@@ -478,6 +478,89 @@ the 2:1 ratio between its axis scales, or it re-admits the tie class at that res
   orientations) and it did. Re-running the same diff against a **real traced landcover region**
   from a generated world is worth doing when the texture lands — the arithmetic says it must
   pass, and that is exactly the kind of claim this plan has learned to check rather than assume.
+  ✅ **Done, and it passed** — see the plumbing section below.
+
+## P3b plumbing (2026-08-11): the design named the expensive construction, and the measurement says so
+
+The exactness was settled; what remained was the texture itself, the sampler, and the LOD
+question. Three things came out of building it, and two of them narrow claims already written
+down above.
+
+### 1. The synthetic blob's exactness DOES hold on the world players start in
+
+`src/worldtextest.loft` runs the same two-independent-paths diff on **seed 1337, depth 0** —
+9 landcover classes, 124 traced loops, an `812×604` texture — and reports **0 mismatches over
+488 032 in-window texels**. That closes the open item this file recorded in writing. The blob
+was a fair proxy after all, which is worth knowing precisely because it was not assumed.
+
+### 2. `trace` + `fill` is NOT the cheap way to a raster — the direct construction is 13× cheaper
+
+`DESIGN.md` names the mechanism as `trace` the region → `fill_polygons` its loops, and calls
+it *"nearly free"*. Measured per level on that world, with the phases timed **in-program**:
+
+| per level, 812×604 texels | native | interpreted |
+|---|---|---|
+| worldgen (for scale) | 585 ms | 14 646 ms |
+| **point-sample** — texel centre → `px_to_hex` → kind | **44 ms** | **1244 ms** |
+| `trace` (9 classes, 5724 edges) | 203 ms | 209 ms |
+| `fill_polygons` (9 classes) | 386 ms | 3808 ms |
+
+**13× native, 3.2× interpreted** — and interpreted is the path the game runs on while native
+GL is upstream-gated (loft#396). Both rasters are byte-identical, so the choice is cost alone.
+So `worldtex.loft` point-samples, and **trace+fill stays as the test's independent ORACLE**
+rather than the producer — which is a better job for it than being the producer was.
+
+⚠ **`fill` is the pole, not `trace` — the opposite of the prediction.** The O(ne²) reading of
+`trace`'s linear-scan walk is real but small (5724 edges is nothing); the fill is O(rows ×
+edges) with a sort per row, and it is *crawler* code, so it is the only one of the three that
+the interpreter slows down 10×. Note `trace` costs the **same in both modes** (203 vs 209 ms):
+registry libraries run native under `--interpret`, which is worth remembering the next time a
+profile looks impossible.
+
+⚠ **Two claims above narrow, and neither is retired:**
+
+- **The 2:1 axis-ratio constraint is a property of the FILL**, which must break a tie when a
+  texel centre lands exactly on a boundary. Point-sampling has no tie to break — `px_to_hex`
+  answers everywhere, and its answer *is* the definition. So the constraint still binds
+  anything that rasterises a traced loop (P6's cached layers, the editor) and does not bind
+  the world texture. It reads as a whole-stack constraint above; it is a whole-*fill*-stack one.
+- **`trace` is not retired and must not be.** The loops are what geometry and silhouettes
+  (I-AGREE) are built from. What is measured here is only that a **raster** does not need them.
+
+### 3. LOD and tiling are P6's, and the near field never needed them
+
+The *"one texture is impossible — ~23 gigatexels"* arithmetic is about the 151 km overland at
+1 m/texel. The **level window** is 101×101 hexes ≈ 151 m across: at `TEX_SX=4 / TEX_SY=2` that
+is 812×604 = **0.49 Mtexel, 2 MB**, one texture, no tiles and no clipmap. So P3b ships a single
+resident texture per level and the ladder stays exactly where the design put it — in **P6**,
+where the far field actually needs it. Stated rather than silently skipped.
+
+### What shipped, and the one link the gate cannot reach
+
+`src/worldtex.loft` is kernel-side and emits **terrain kinds, not colours** — the palette lives
+in `view3d::kind_rgb3`. That is not tidiness: the gate then compares *classes*, and two kinds
+sharing a tone cannot hide a mismatch behind an equal colour. The floor buffer went stride 6 →
+**8** (the graphics library's `pos/loc1/UV` layout), floor vertices carry uv from
+`world_tex_uv` — the same function `worldtextest` row 2 round-trips, so the mapping has one
+owner — and **walls carry `(-1,-1)`**, which is the floor/wall discriminator: a floor uv is
+always inside `[0,1]`, so no second attribute has to be kept in step with the first.
+
+⚠ **The upload convention and the sampler are GL's, and no headless CPU gate reaches them.** A
+vertically flipped texture satisfies every check in `worldtextest` and still puts the wrong
+landcover under your feet. Closed by reading the rendered frame: `shot3d` prints the kind of
+the hex the camera stands on, and the PNG's bottom-centre band (where the fog fade is ~0) is
+that ground — **surface kind 0 read (107,132,76) against the palette's (107,133,76); dungeon
+kind −1 read (182,173,140) against (184,173,140)**, i.e. equal to within 8-bit rounding.
+
+Sampling is **linear + mipmapped**, deliberately: the raster is exact *at texel centres*, which
+is what the gate asserts, and a linear sampler blends across at most one texel — 0.19 m of
+world at this scale. Nearest would keep the claim literal at every fragment and show 19 cm
+blocks underfoot. The blend is the better picture and the bound is stated rather than hidden.
+
+**Still owed by P3b:** retiring `worldmesh.loft`'s R4 vertex-colour tint bake. It feeds
+`view.loft`, the **2D** renderer, which plan #11 **P9** deletes — so the bake retires *with its
+only consumer*, and plumbing a world texture into a renderer that is about to be removed would
+be work done to be thrown away. Recorded as a decision, not an oversight.
 
 ## P5 tail — the blueprint PINNED, after reading the four layers (2026-07-22, second pass)
 

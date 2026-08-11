@@ -18,21 +18,34 @@ use graphics;
 use sim;
 use hex_grid;
 use hexscene;
+use worldtex;
+use overland;
 
 WALL3D_H = 3.2;          // world units ~ 2.77 m: a room you can stand up in (SCALE.md)
 EYE3D_Z  = 1.847;        // 1.6 m eye height at 0.866 m per world unit
 
+// Stride 8 is the graphics library's pos(3)/loc1(3)/UV(2) layout — location 2 carries two
+// floats at offset 24 only at exactly that stride, which is why the buffer is 8 wide and
+// not 7 plus a flag.
+//
+// ⚠ THE FLOOR/WALL DISCRIMINATOR IS THE UV ITSELF: a floor vertex always lands inside [0,1]
+// (the frame is the window's own lattice bounding box), so walls carry (-1,-1) and the
+// fragment reads the texture only where the uv is real. One attribute, no second channel to
+// keep in step with the first.
 V3VERT = `
 #version 330 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aCol;
+layout (location = 2) in vec2 aUV;
 uniform mat4 uMVP;
 out vec3 vCol;
+out vec2 vUV;
 out float vDepth;
 void main() {{
   vec4 p = uMVP * vec4(aPos, 1.0);
   gl_Position = p;
   vCol = aCol;
+  vUV = aUV;
   vDepth = p.w;
 }}
 `;
@@ -40,15 +53,22 @@ void main() {{
 V3FRAG = `
 #version 330 core
 in vec3 vCol;
+in vec2 vUV;
 in float vDepth;
 out vec4 FragColor;
 uniform vec3 uFog;
+uniform sampler2D uWorld;
 void main() {{
+  // I-PAINT: landcover comes off the world texture, which is rasterised from the same field
+  // the floor under it is built from. vCol modulates rather than replaces, so a per-vertex
+  // floor tone stays available without touching this branch.
+  vec3 base = vCol;
+  if (vUV.x >= 0.0) base = texture(uWorld, vUV).rgb * vCol;
   // Distance fade: the near field is lit, the far field sinks into the air colour.
   // Cheap stand-in for the horizon P6 derives from the hex world.
   float f = clamp(vDepth / 42.0, 0.0, 1.0);
   f = f * f;
-  FragColor = vec4(mix(vCol, uFog, f), 1.0);
+  FragColor = vec4(mix(base, uFog, f), 1.0);
 }}
 `;
 
@@ -56,19 +76,55 @@ pub fn make_view3d_shader() -> integer {
   graphics::gl_create_shader(V3VERT, V3FRAG)
 }
 
-// Floor tone per hex. Warm aged stone underfoot (CLAUDE.md: light floor, dark walls), with
-// the surface's terrain kind tinting it so the overland still reads as country rather than
-// as one flat plane.
-fn floor_rgb3(s: Sim, q: integer, r: integer) -> (float, float, float) {
-  k = sim_tile_kind(s, q, r);
-  if k == K_GRASS { return (0.42, 0.52, 0.30); }
-  if k == K_FIELD { return (0.62, 0.56, 0.31); }
-  if k == K_ROAD  { return (0.55, 0.50, 0.42); }
-  if k == K_RIVER { return (0.24, 0.38, 0.50); }
-  if k == K_LAKE  { return (0.20, 0.33, 0.46); }
-  if k == K_SEA   { return (0.16, 0.28, 0.42); }
-  if k == K_SCREE { return (0.52, 0.50, 0.46); }
+// Landcover tone per terrain kind — the palette, and the ONLY place colour enters the world
+// texture. It lives view-side on purpose: `worldtex` emits CLASSES, so the gate compares
+// classes and two kinds sharing a tone cannot hide a mismatch behind an equal colour.
+// Kind -1 (the dungeon, and off the window edge) is warm aged stone underfoot.
+fn kind_rgb3(k: integer) -> (float, float, float) {
+  if k == K_GRASS  { return (0.42, 0.52, 0.30); }
+  if k == K_FOREST { return (0.20, 0.34, 0.20); }
+  if k == K_SAND   { return (0.78, 0.72, 0.52); }
+  if k == K_SCREE  { return (0.52, 0.50, 0.46); }
+  if k == K_MEADOW { return (0.50, 0.62, 0.34); }
+  if k == K_SNOW   { return (0.90, 0.92, 0.95); }
+  if k == K_FACE   { return (0.42, 0.40, 0.37); }
+  if k == K_ICE    { return (0.72, 0.80, 0.88); }
+  if k == K_RIVER  { return (0.24, 0.38, 0.50); }
+  if k == K_LAKE   { return (0.20, 0.33, 0.46); }
+  if k == K_SEA    { return (0.16, 0.28, 0.42); }
+  if k == K_FIELD  { return (0.62, 0.56, 0.31); }
+  if k == K_ROAD   { return (0.55, 0.50, 0.42); }
+  if k == K_SWAMP  { return (0.32, 0.38, 0.28); }
   (0.72, 0.68, 0.55)                                  // aged travertine, the dungeon floor
+}
+
+// The world texture, uploaded (plan #11 P3b, I-PAINT). The kernel hands over one terrain
+// kind per texel; this turns them into pixels through a 15-entry palette lookup rather than
+// a branch per texel, and uploads.
+//
+// LINEAR + mipmaps, deliberately. The raster is exact AT TEXEL CENTRES — that is what
+// `worldtextest` asserts — and a linear sampler blends across at most one texel, which at
+// TEX_SX=4 is 0.19 m of world. Nearest would keep the claim literal at every fragment and
+// show 19 cm blocks underfoot; the blend is the better picture and the error is stated
+// rather than hidden.
+pub fn build_world_texture3d(s: Sim) -> integer {
+  t = build_world_tex(s);
+  pal: vector<integer> = [];
+  for pk in -1..14 {
+    (pr, pg, pb) = kind_rgb3(pk);
+    pal += [graphics::rgba((pr * 255.0) as integer ?? 0, (pg * 255.0) as integer ?? 0,
+                           (pb * 255.0) as integer ?? 0, 255)];
+  }
+  // Built INLINE and handed straight to the upload — never returned from a helper
+  // (loft#392: a vector routed through a returning function into a native FFI call can
+  // abort the program silently).
+  pix: vector<integer> = [];
+  n = t.wt_w * t.wt_h;
+  for i in 0..n { pix += [pal[(t.wt_kind[i] ?? -1) + 1] ?? 0]; }
+  tex = graphics::gl_upload_canvas(pix, t.wt_w, t.wt_h);
+  graphics::gl_texture_filter(tex, false);
+  graphics::gl_generate_mipmap(tex);
+  tex
 }
 
 // Build the level's 3D scene and upload it. Returns (vao, vertex count).
@@ -82,25 +138,34 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
   n = 0;
   zf = 0.0 as single;
   hf = WALL3D_H as single;
+  neg = (0.0 - 1.0) as single;         // the wall marker: no uv, use the vertex tone
+  one = 1.0 as single;
+  // The texture FRAME only — `world_tex_of` carries no raster, so asking it where a vertex
+  // lands costs nothing. The uv comes from `world_tex_uv`, the same function the gate
+  // round-trips in `worldtextest` row 2: one owner for the mapping, so the ground cannot
+  // sample a texture laid out somewhere else.
+  wt = world_tex_of(s);
   for gr in 0..s.lh {
     for gq in 0..s.lw {
       q = s.qmin + gq;
       r = s.rmin + gr;
       if !field_blocked(s, q, r, DIR_HEX) {
-        // FLOOR — a hexagon fan at z = 0.
-        (fr3, fg3, fb3) = floor_rgb3(s, q, r);
-        fr = fr3 as single;
-        fg = fg3 as single;
-        fb = fb3 as single;
+        // FLOOR — a hexagon fan at z = 0. Landcover rides the world texture (I-PAINT), so
+        // the vertex tone is white and only modulates it.
         (cx, cy) = hex_to_px(q, r);
         cxs = cx as single;
         cys = cy as single;
+        (cu, cv) = world_tex_uv(wt, cx, cy);
+        cus = cu as single;
+        cvs = cv as single;
         for kc in 0..6 {
           (kax, kay) = hex_corner_px(q, r, kc);
           (kbx, kby) = hex_corner_px(q, r, (kc + 1) % 6 ?? 0);
-          buf += [cxs, cys, zf, fr, fg, fb];
-          buf += [kax as single, kay as single, zf, fr, fg, fb];
-          buf += [kbx as single, kby as single, zf, fr, fg, fb];
+          (au, av) = world_tex_uv(wt, kax, kay);
+          (bu, bv) = world_tex_uv(wt, kbx, kby);
+          buf += [cxs, cys, zf, one, one, one, cus, cvs];
+          buf += [kax as single, kay as single, zf, one, one, one, au as single, av as single];
+          buf += [kbx as single, kby as single, zf, one, one, one, bu as single, bv as single];
           n += 3;
         }
         // WALLS — one quad per blocked edge, raised from the floor. Emitted from the
@@ -120,19 +185,19 @@ pub fn build_scene3d(s: Sim) -> (integer, integer) {
             ay = w0y as single;
             bx = w1x as single;
             by = w1y as single;
-            buf += [ax, ay, zf, wr, wg, wb];
-            buf += [bx, by, zf, wr, wg, wb];
-            buf += [bx, by, hf, wr, wg, wb];
-            buf += [ax, ay, zf, wr, wg, wb];
-            buf += [bx, by, hf, wr, wg, wb];
-            buf += [ax, ay, hf, wr, wg, wb];
+            buf += [ax, ay, zf, wr, wg, wb, neg, neg];
+            buf += [bx, by, zf, wr, wg, wb, neg, neg];
+            buf += [bx, by, hf, wr, wg, wb, neg, neg];
+            buf += [ax, ay, zf, wr, wg, wb, neg, neg];
+            buf += [bx, by, hf, wr, wg, wb, neg, neg];
+            buf += [ax, ay, hf, wr, wg, wb, neg, neg];
             n += 6;
           }
         }
       }
     }
   }
-  (graphics::gl_upload_vertices(buf, 6), n)
+  (graphics::gl_upload_vertices(buf, 8), n)
 }
 
 // The ADAPTER for the presentation seam. `ActorView` and `present_boards` live in
@@ -195,7 +260,7 @@ pub fn view3d_actors(s: Sim, prog: integer, avbo: integer, vw: float, vh: float)
   n
 }
 
-pub fn view3d_frame(s: Sim, prog: integer, vao: integer, nverts: integer,
+pub fn view3d_frame(s: Sim, prog: integer, vao: integer, nverts: integer, wtex: integer,
                     vw: float, vh: float) {
   // Depth state BEFORE the clear: gl_clear is documented as clearing colour and says
   // nothing about depth, and nothing in this repo had ever enabled depth testing before
@@ -210,6 +275,8 @@ pub fn view3d_frame(s: Sim, prog: integer, vao: integer, nverts: integer,
   graphics::gl_use_shader(prog);
   graphics::gl_set_uniform_mat4(prog, "uMVP", m);
   graphics::gl_set_uniform_vec3(prog, "uFog", 0.376, 0.439, 0.541);
+  graphics::gl_bind_texture(wtex, 0);
+  graphics::gl_set_uniform_int(prog, "uWorld", 0);
   if nverts > 0 { graphics::gl_draw(vao, nverts); }
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
 }

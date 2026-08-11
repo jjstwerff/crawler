@@ -5,10 +5,12 @@
 
 ## Status
 
-**ACTIVE — P0–P4 built AND SEEN** (the frames were rendered headlessly and looked at once
-`xvfb` was installed — [`RESULTS.md`](RESULTS.md) → *VERIFIED*). **P3b is next**, and it is next
-by the order rule below rather than by preference: P6's layers each want the world texture at
-their own resolution, so building them against baked vertex colour builds them twice. The kernel now stands on the field: `sim.loft`
+**ACTIVE — P0–P4 and P3b built AND SEEN** (the frames were rendered headlessly and looked at
+once `xvfb` was installed — [`RESULTS.md`](RESULTS.md) → *VERIFIED*). **P3b landed 2026-08-11**:
+landcover now rides a world texture derived from the field (`src/worldtex.loft`, sampled in
+`view3d`), exact on the shipped world over 488 032 texels — and the measurement there says the
+design named the *expensive* construction, which is written up under *P3b plumbing*.
+**P6 is next**, which is what P3b was ordered ahead of. The kernel now stands on the field: `sim.loft`
 imports `hex_field` and `hexedge`, and **passability is an edge query** (`Sim.field`, an
 `EdgeSet`) rather than a lookup in `Sim.tiles` — proved equal to the old model over ~135 000
 `(hex, direction)` answers with zero mismatches from any reachable position
@@ -74,7 +76,7 @@ an earlier one is false.
 | **P2** | for one seeded world: every `(hex, direction)` answer from the old model beside the new one | I-TRUTH (equality form) | a differential harness in `src/fieldtest.loft` |
 | **P2b** | one walk, taken at 60 fps and again in four steps and again in one leap — the SAME set of walls stops it | I-CROSS (dt-independence) | headless: replay one path at several step lengths, diff the blocked set |
 | **P3** | a hex centre projected to a pixel, unprojected back to the same hex | I-STAND | pure-math headless test — **no GL needed** |
-| **P3b** | one field/wood boundary drawn into the world texture, beside the traced loop it came from and the geometry under it | I-PAINT | rasterise the traced loop, diff against the loop — **exact, both sides are integer** |
+| **P3b** | one field/wood boundary drawn into the world texture, beside the traced loop it came from and the geometry under it | I-PAINT | rasterise the traced loop, diff against the loop — **exact, both sides are integer**. Done twice: a synthetic blob with a hole (`painttest`) and then the shipped world's 9 real landcover classes (`worldtextest`) |
 | **P4** | a board of height *h* m and a wall of height *h* m at the same distance, side by side | I-STAND (metric parity) | a GL frame + pixel span assertion (`make probe`) |
 | **P6** | the boundary ring sampled from both readings, heights diffed | I-HORIZON | headless numeric test + a rendered horizon |
 | **P6b** | for a walk of known length: which layers re-rendered, and the worst parallax error each frame | I-PARALLAX | headless numeric test (pure camera math) + a pop-free walk |
@@ -98,7 +100,7 @@ check must go red.
 | **P2** — the field under the kernel | M | `src/fieldtest.loft` differential: old ≡ new over every (hex,dir) | **DONE** — 0 mismatches, ~135k answers |
 | **P2b** — movement becomes a swept path, not a probe point | M | the same walk at 1/4/16× step length blocks on the same walls | **DONE** — bit-identical |
 | **P3** — the 3D view: camera + world | MH | projection round-trip test; user visual in `make play` | ✅ **DONE** — `V` toggles; frames seen |
-| **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | **→ IN FLIGHT** — ✅ the loop-vs-raster diff is EXACT and gated (`painttest`, row 105); the texture/LOD/sampler plumbing and retiring the vertex bake remain |
+| **P3b** — the world texture: appearance off the mesh, derived from traced boundaries | MH | loop-vs-raster diff; the tint bake in `worldmesh` retires | ✅ **DONE** — exact on the SHIPPED world (`worldtextest`, 0/488032), texture + sampler live in `view3d`; the `worldmesh` bake retires with its only consumer in **P9** |
 | **P4** — boards, through the presentation seam | M | metric-parity probe; one instanced draw call | ✅ **DONE** — the playable milestone; actors are flat colours until P8's atlas |
 | **P5** — the derived world: the overland's settlements BUILT by the geometry stack | MH | the matcher gate on a *live* world (1 arc, r≈radius); door clear width in metres; a village placed by score, not by hand | **PART DONE** — metrics + purity gated; towers still hexagons, doors still gaps |
 | **P6** — the horizon: far field + air box from the hex world | MH | boundary-ring height diff; rendered horizon | Blocked on P3 |

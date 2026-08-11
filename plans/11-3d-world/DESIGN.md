@@ -310,21 +310,36 @@ crispness costs subdivision and subdivision costs triangles **per unit area** �
 backwards at distance, where area explodes and visible detail collapses. A texture inverts
 that: the mesh stays coarse, the boundary stays sharp.
 
-*Where the content comes from — and why this is nearly free.* The shapes are already exact.
-`trace(s: HexSet) -> VecMap` (plan #5) emits **exact integer boundary loops** of any
-labelled region — a field, a wood, a lake — already validated and golden-gated. Rasterise
-those loops into the texture with the **scanline polygon fill crawler already built and
-gated** (`src/sprite_draw.loft`, `[13/14] SPRITE OK`). So the world texture is *derived, not
-authored*, from the same loops the geometry uses — which is **I-AGREE at texture level**,
-and is the same "derived, never authored" discipline as props, placement and tree skeletons.
-(Two small truths: those rasteriser functions are currently module-private, so they need
-exporting; and the vertex format moves off baked colour — `worldmesh.loft`'s R4 tint bake
-into vertex colours is exactly what this replaces.)
+*Where the content comes from.* The shapes are already exact. `trace(s: HexSet) -> VecMap`
+(plan #5) emits **exact integer boundary loops** of any labelled region — a field, a wood, a
+lake — already validated and golden-gated. So the world texture is *derived, not authored*,
+from the same field the geometry uses — which is **I-AGREE at texture level**, and is the same
+"derived, never authored" discipline as props, placement and tree skeletons. The vertex format
+moves off baked colour: `worldmesh.loft`'s R4 tint bake into vertex colours is what this
+replaces.
+
+> ⚠ **CORRECTED BY MEASUREMENT (P3b, 2026-08-11).** This paragraph used to say the raster comes
+> from rasterising those loops with `sprite_draw`'s scanline fill, and called it *"nearly
+> free"*. Built and timed, it is the **expensive** construction: point-sampling each texel
+> through `px_to_hex` costs **44 ms native / 1244 ms interpreted** per level against trace+fill's
+> **589 ms / 4017 ms** — 13× and 3.2× — and the two rasters are identical over all 488 032
+> in-window texels of the shipped world. The **invariant is unchanged and better served**: the
+> containing hex *is* the definition of which region a point is in, so there is no fill rule, no
+> contour-orientation convention and no tie to break. `trace` remains load-bearing for
+> **geometry and silhouettes**, and is now the *test's* independent oracle rather than the
+> producer. Full numbers: [`RESULTS.md`](RESULTS.md) → *P3b plumbing*.
 
 *The honest constraint — one texture is impossible.* The overland window is 101×101 hexes of
 1500 m ≈ 151 km across; at 1 m per texel that is ~23 **giga**texels. So "a texture for the
 world" is necessarily **tiled with LOD** — a clipmap, resident per layer at that layer's
 resolution, not one image.
+
+> ⚠ **That is the FAR field's problem, and only its.** The **level window** the player stands
+> in is 101×101 hexes at the architecture reading — 151 m across — which at `TEX_SX=4 /
+> TEX_SY=2` is 812×604 = **0.49 Mtexel, 2 MB: one resident texture, no tiles, no clipmap**
+> (P3b, measured). The ladder belongs in **P6**, where the far field actually needs it. Said
+> here because the sentence above reads as if the near field needed a clipmap too, and building
+> one for it would have been a month spent on the wrong layer.
 
 > **Do not fuse the ladders.** Texture LOD and the I-PARALLAX cache layers are both distance
 > ladders driven by the same angular-pixel criterion, and it is tempting to make them one
