@@ -207,6 +207,15 @@ All siblings under `/home/jurjens/workspace/`:
   refreshed toolchain embeds the trust keys, `loft install` requires a signed index.
 - `build-cache/` — compiled native cdylibs per lib. `lib/` — global `loft install` packages
   (empty now).
+- ⚠ **`~/.loft` ONLY GROWS — 10 GB on this box (2026-08-12), and it is not a leak to fix here.**
+  The artifact key folds `BUILD_ID` (loft's git HEAD), so **every installed loft build orphans
+  the previous generation** and nothing collects it: 194 cdylibs, of which **101 (1.78 GB) can
+  no longer be selected**. `--native-release` prunes to reachable functions, so a package also
+  carries one build PER CONSUMER — `hex_way` has 8, all genuinely different. Filed as
+  **loft#861** (there is no `loft clean`/`gc`). ⚠ **The `rm -rf` the loft docs prescribe is
+  NOT free** — it takes the live generation too, and the next gate pays a full cold rebuild:
+  measured 545 s of rustc CPU over crawler's roster. Delete it deliberately, not as hygiene,
+  and remember moros and loft draw on the same store.
 - **Native libs are toolchain-free-ish now (loft @PLN21/#370):** a native artifact is a
   loft-ffi-fingerprinted **cdylib**, so **hand-written** native (`graphics`/`random`) is
   rustc-INDEPENDENT (E0514 is auto-native-only); published `prebuilt/<triple>/` cdylibs will
