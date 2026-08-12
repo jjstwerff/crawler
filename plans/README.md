@@ -140,6 +140,24 @@ in two days and "quick" takes weeks; effort buckets stay stable, projections don
 **Length budget: 100–300 lines per plan README.** Longer means reference content is
 leaking in — extract it to the doc that owns it.
 
+### A companion doc must be POINTED AT — gated
+
+A plan directory may hold companion docs beside its `README.md` (a design, an integration
+plan, a findings note). **Every one must be named by some other doc**, and `make doccheck`
+fails if it is not — the D4 rule. An unreferenced doc is not neutral: `TREES.md` sat inside
+its plan for months while the tree grew a second answer to the same question, which is why
+closing a plan includes checking for it (`_LIFECYCLE.md`).
+
+⚠ **Point with the PATH, not the bare name, when the name repeats.** Three docs here are
+called `DESIGN.md` — this plan's, plan #11's, and the root game design. `plans/5-geometry/`
+cited its own as a bare `DESIGN.md`, which sends a reader to whichever one they guess. The
+gate only credits a bare name when it is unique across the doc set.
+
+⚠ **And when a doc names a file that has been deleted, say so** — `` was `src/hexedge.loft` ``
+or a deletion word right after reads as *record*; a bare path reads as a claim the file is
+there, and D2 fails it. Three plan docs described the deleted `hexform`/`hexway`/`hexedge`
+forks as present, one of them in a live status block.
+
 ## ⚠ STATE AT THE TOP, RECORD BELOW — and only the top must be current
 
 Measured 2026-08-11, in the session that wrote it down: answering *"what do I do next"* cost

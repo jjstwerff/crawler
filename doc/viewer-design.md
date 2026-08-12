@@ -10,6 +10,20 @@ That is the gate. Where the viewer is currently behind the other implementations
 records *what* it's behind and *why* — without proposing a fix yet. The fix lives at the
 end (§7), labelled clearly.
 
+> **Owner:** plan **#2** (`plans/2-chunked-lod-world/`, OPEN) — this is its feature-parity
+> ledger. **Read date 2026-06-17**; the code has moved since, so check a claim before acting
+> on it.
+>
+> ⚠ **YOU CANNOT CURRENTLY RUN THE THING THIS DOC DESCRIBES, AND IT LOOKS LIKE A HANG.**
+> `viewer` is one of the six entry points that import `src/regions/ortler.loft` — generated
+> data whose largest line is an 86 400-element vector literal, which loft parses in **O(n²)**
+> (~18 min at 99 % CPU with no output). Not broken, *unusable*: **loft#854**. So a `timeout`
+> here is not evidence of a defect in the viewer. `CLAUDE.md` → the on-demand sweep.
+>
+> ⚠ §7 **proposes** files — `src/orttrimesh.loft`, `assets/sprites/river_line.png`,
+> `tools/blueprints/river_line.py`, `src/regions/wales.loft`. None exist; they are the
+> deliverable, not the record. `tools/doccheck.py` accepts them by name for that reason.
+
 ---
 
 ## 1. Geometry pillars in the repo

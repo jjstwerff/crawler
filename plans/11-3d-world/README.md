@@ -53,8 +53,8 @@ terrain in 3D with LOD chunks) · `RENDER.md` + `plans/7-render/` (the GL substr
 verification channels) · `EXTRACTION.md` (the package split, and **§ The editor as the second consumer** — the
 contract this plan's P3 must satisfy).
 
-Source: `src/sim.loft`, `src/hexedge.loft`, **`hex_field`** (LIB — was `src/hexform.loft`,
-extracted 2026-07-22), `src/scenemesh.loft`,
+Source: `src/sim.loft`, **`hex_edge`** (LIB — was `src/hexedge.loft`, adopted 2026-08-10),
+**`hex_field`** (LIB — was `src/hexform.loft`, extracted 2026-07-22), `src/scenemesh.loft`,
 `src/view.loft`, `src/viewer.loft`, `src/worldmesh.loft`, `src/wallgeo.loft`.
 
 ## The design

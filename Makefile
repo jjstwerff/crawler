@@ -28,6 +28,10 @@
 #                 dep, no --lib tree shadows a locked package, no module is a
 #                 fork of one, no type name collides with one.  ~1 s, no build.
 #
+#   make doccheck Doc seam: every relative link resolves, every backticked
+#                 crawler path exists, every root doc is in CLAUDE.md's routing
+#                 table, every nested doc is pointed at.  ~1 s, no build.
+#
 #   make check-native
 #                 Validate the NATIVE / wasm codegen path (run before
 #                 `make game`).  Needs the loft toolchain's rlibs to match
@@ -110,7 +114,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe ovshot viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin near-test hydro-test trimesh-test rivers-test phony-check
+.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe ovshot viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin near-test hydro-test trimesh-test rivers-test phony-check libcheck doccheck
 
 # Default target: print the overview above.
 help:
@@ -299,6 +303,17 @@ ovshot:
 # or added a module. Reads committed files only — no toolchain, no network, no build.
 libcheck:
 	@python3 tools/libcheck.py
+
+# The doc seam. `make test` runs it too; this is the standalone form for when you have just
+# moved, renamed or deleted a file a doc names. Reads committed markdown only — no toolchain,
+# no network, no build.
+#
+# ⚠ IT EXISTS BECAUSE THE HAND AUDITS WERE WRONG. Two doc passes on 2026-08-11 fixed the same
+# rot class by hand, and one of those audits miscounted its own evidence. The invariants a
+# command can settle — a link that resolves, a path that exists, a doc something points at —
+# should not be anyone's job to remember.
+doccheck:
+	@python3 tools/doccheck.py
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
 

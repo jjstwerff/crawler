@@ -152,8 +152,17 @@ Souls-grade fair challenge, no permadeath.**
    nothing to look at.
 
    **The measurable form: count the verbs.** The player's action vocabulary is a budget, and
-   it is small — **15 keys bound today** (~11 gameplay, 4 meta), which is Doom-to-Souls
-   territory and where it stays. Angband has 40+; DF is effectively unbounded through nested
+   it is small — **15 keys** (~11 gameplay, 4 meta), which is Doom-to-Souls
+   territory and where it stays. Counted, not remembered:
+
+   ```sh
+   grep -oE 'KEY_[A-Z0-9_]+' src/story.loft | sort -u | wc -l
+   ```
+
+   ⚠ **That reads 16 today.** The extra is `V`, the 2D/3D toggle added by plan #11 P3, which
+   **P9 deletes along with the 2D view**. It is over budget on purpose and on a schedule — the
+   distinction worth keeping is that a dev toggle with a removal date is not a player verb,
+   and if P9 ships without it going, the budget was quietly raised rather than spent. Angband has 40+; DF is effectively unbounded through nested
    menus. So every new simulation faces one question: **does this add something the player
    must learn?**
    - **No** → it is free, however deep. Build it as deep as it wants to be.

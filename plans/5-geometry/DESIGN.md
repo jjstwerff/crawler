@@ -5,8 +5,12 @@
 > bench that settled it. Companion to **FORMS.md** (the kit-of-parts requirements) and
 > `README.md` (the measurements themselves).
 >
-> **Status: DESIGN — not implemented beyond the prototypes.** `src/hexform.loft` is a
-> partial first cut (cells → vector map + validator); everything else is Python bench.
+> **Status: DESIGN — the core SHIPPED as a library; the rest is still Python bench.** What
+> was `src/hexform.loft`, a partial first cut (cells → vector map + validator), is now
+> **`hex_field`** (LIB) — extracted 2026-07-22, adopted from the registry 2026-08-10, and the
+> exact-integer field core the whole geometry stack stands on. Everything beyond it —
+> junctions, the matcher, the minimisation — remains design and Python bench.
+> `plans/5-geometry/INTEGRATION.md` §1 is the current built/not-built table.
 
 ## 1. What it is
 
@@ -439,7 +443,8 @@ because §7.2 has rendering and simulation sharing one cache.
 
 ### 7.4 What is built and what is not
 
-Built and verified (`src/hexedge.loft`, `src/edgetest.loft` in `make test`):
+Built and verified (**`hex_edge`** (LIB) — was `src/hexedge.loft` — with `src/edgetest.loft`
+still crawler's consumer gate in `make test`):
 `EdgeSet` keyed by the exact doubled-midpoint edge key · `Surfaces` with straight and arc
 kinds · `Materials` with the six per-consumer terms · `collide()` returning exact normals
 (0 error, all 24 headings; radial-exact on arcs).

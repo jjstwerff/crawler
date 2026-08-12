@@ -105,6 +105,9 @@ make shot     # one Xvfb frame -> story.png   (a window-grab: positionally unrel
 make probe    # pixel-probe gate: Xvfb renders + tools/probe.py asserts probes/*.probe (~10 min)
 make bundles  # re-scan bundles/*/bundle.json -> the generated registries (loft scanner)
 make apidoc   # regenerate LIBRARIES.md from the resolved packages (apidoc-check verifies it)
+make doccheck # doc seam (~1 s, in `make test`): links resolve, backticked crawler paths
+              #   exist, every root doc is in the routing table, every nested doc is
+              #   pointed at. Say `was `path`` (or a deletion word) to name a file as GONE
 make ovshot   # re-draw README's two world maps from overland.loft (NATIVE, ~35 s; >10 min
               #   interpreted). Re-running must leave doc/*.png byte-identical unless the world
               #   derivation genuinely moved — the target says which, and it is a real check.
@@ -186,9 +189,12 @@ editor as the second consumer*).
   0, the authority over the others). Dwarf Fortress is hard to get into *not by design*; the trap
   is entered one reasonable feature at a time. A derived system buys **coherence, not
   mechanics**: derive as deep as you like, but ask of every one — *does this add something the
-  player must learn?* If yes it must displace something. **The budget is measurable: 15 keys
-  bound today** (~11 gameplay), Doom-to-Souls territory, and it stays there. "It is realistic"
-  justifies the derivation, never a new verb.
+  player must learn?* If yes it must displace something. **The budget is 15 keys** (~11
+  gameplay, 4 meta), Doom-to-Souls territory, and it stays there. "It is realistic" justifies
+  the derivation, never a new verb. Count what is bound now — don't trust a number in a doc:
+  `grep -oE 'KEY_[A-Z0-9_]+' src/story.loft | sort -u | wc -l`. ⚠ **It reads 16, not 15**: the
+  extra is `V`, the 2D/3D toggle plan #11 **P9 removes with the 2D view**. A dev toggle is the
+  one way over budget that is allowed to exist, and only because its removal is already scheduled.
 - **Follow Angband logic, tune for accessibility.** Reproduce real Angband (4.2 core + ZAngband
   wilderness/realms) *systems/mechanics* faithfully — but the *curve*, *death model* (checkpoint
   respawn, not permadeath) and *class weight* are deliberately friendlier — **DESIGN §3a,
@@ -221,7 +227,10 @@ editor as the second consumer*).
   whose breakage costs one run rather than a false-green gate, so they are **swept on demand**,
   and the sweep pays for itself: over all **198** `.loft` files (2026-08-11) it found **191
   clean, 1 broken, 6 unbuildable-in-practice**.
-  `for f in src/*.loft *.loft; do loft --interpret --check $LOFTFLAGS $f >/dev/null || echo $f; done`
+  `for f in src/*.loft src/*/*.loft *.loft; do loft --interpret --check $LOFTFLAGS $f >/dev/null || echo $f; done`
+  ⚠ **The `src/*/` term is load-bearing** — without it the glob matches 192, not 198, and the
+  six it drops are `src/realworld/` + `src/regions/`, which is where `ortler.loft` lives. The
+  sweep would silently skip the very file its own finding is about.
   - The broken one was `near_mobs_test.loft`, crawler's @PLN48 validation of loft's spatial
     index: written against the upstream *plan directory's* spelling (`spacial`) where the
     feature shipped as **`spatial`**. One word, 16 cascading errors, never compiled, so the
@@ -252,7 +261,9 @@ editor as the second consumer*).
 - **Docs-first knowledge capture** (user rule, 2026-06-12): anything memory-worthy goes into the
   repo doc that owns it — agent memory holds only pointers. The repo is the shared brain.
   ⚠ **And a reference doc inside `plans/` is a doc nobody is allowed to read** (`TREES.md` was
-  buried in its plan for months) — check for that before closing a plan.
+  buried in its plan for months) — check for that before closing a plan. **`make doccheck` now
+  fails on it**, along with a dead link and a backticked path that no longer exists; the two
+  hand audits it replaces both missed things, and one miscounted its own evidence.
 - **Read narrowly.** Prefer `grep` + an offset `Read` over pulling a whole doc; skip any doc a
   newer one declares superseded. ⚠ **Editing a file through ANY shell command re-injects the
   WHOLE file** — `sed`, a heredoc, *and a `python3 -` script*, which reads as the safe

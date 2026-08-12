@@ -1,7 +1,9 @@
 # Integration plan — geometry into loft, with the junction matrix
 
-> How the design in `DESIGN.md` becomes working, gated loft. Phases are ordered by what
-> unblocks what; every phase names its gate. Nothing here is built unless it says so.
+> How the design in `plans/5-geometry/DESIGN.md` becomes working, gated loft. Phases are
+> ordered by what unblocks what; every phase names its gate. Nothing here is built unless it
+> says so. (The path is spelled out because three docs here are named `DESIGN.md` — this
+> plan's, plan #11's, and the root game design in `CLAUDE.md`'s routing table.)
 >
 > The hard part is not any single shape — it is **where two shapes meet**. That is where
 > seams, collision arbitration and the matcher all fail at once, so the junction matrix
@@ -9,19 +11,26 @@
 
 ## 1. Where we are
 
+⚠ **THREE OF THESE MODULES NO LONGER LIVE HERE.** `hexform`/`hexway`/`hexedge` were the same
+construction as the published `hex_field`/`hex_way`/`hex_edge`, so on **2026-08-10** the copies
+were **deleted** and crawler consumes the packages from the registry (`ADOPTION.md`; a
+duplicate of a library module is a fork). The *capability* below is unchanged and the gates are
+still crawler's — what moved is where the code lives, which is the whole point of the plan.
+
 | built + gated | not built |
 |---|---|
-| `hexform.loft` — chunked `HexSet`, tracer, validator, exact integer `VecMap` | the §7.3 minimisation (canonical-dir index, `u16`/`u8`) |
-| `hexway.loft` — `Track`, offsets, `way_stamp` one-pass rasteriser **(P1)** | the way *profiles* (rails/ruts/lane lines) on top of `Track` |
-| `hexmatch.loft` — line/arc fits, greedy segmentation, `tag_edges` **(P2)** | junctions (P3) — the matcher assumes ONE part per loop |
-| `hexedge.loft` — `EdgeSet`, `Surfaces` (straight/arc), `Materials`, `collide()` | the matcher (cells → surfaces) |
-| `formtest.loft` — 18 forms / 900 points vs the Python golden; chunk-locality | junctions of any kind |
-| `edgetest.loft` — 24/24 blocking, exact normals, materials, footprint | region cache, `vm_surf`, features |
+| **`hex_field`** (LIB) — chunked `HexSet`, tracer, validator, exact integer `VecMap` | the §7.3 minimisation (canonical-dir index, `u16`/`u8`) |
+| **`hex_way`** (LIB) — `Track`, offsets, `way_stamp` one-pass rasteriser **(P1)** | the way *profiles* (rails/ruts/lane lines) on top of `Track` |
+| `src/hexmatch.loft` — line/arc fits, greedy segmentation, `tag_edges` **(P2)** — still crawler-local | junctions (P3) — the matcher assumes ONE part per loop |
+| **`hex_edge`** (LIB) — `EdgeSet`, `Surfaces` (straight/arc), `Materials`, `collide()` | the matcher (cells → surfaces) |
+| `src/formtest.loft` — 18 forms / 900 points vs the Python golden; chunk-locality | junctions of any kind |
+| `src/edgetest.loft` — 24/24 blocking, exact normals, materials, footprint | region cache, `vm_surf`, features |
 
 ## 2. Phases
 
 ### P1 — surfaces from curves ✅ **SHIPPED 2026-07-21**
-`src/hexway.loft` + `src/waytest.loft`, gated in `make test` as `[ways]`.
+**`hex_way`** (LIB — was `src/hexway.loft`, adopted 2026-08-10) + `src/waytest.loft`, gated
+in `make test` as `[ways]`.
 
 A `Track` is a flat 6-float record per segment (straight or arc — no `vector<vector<>>`),
 with `track_offset`, `offset_legal`, and `track_distance`. The load-bearing piece is

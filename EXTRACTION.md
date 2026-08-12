@@ -828,7 +828,7 @@ question is worth asking each time, because the adapter is where the boundary er
 | routine | today | destination | state |
 |---|---|---|---|
 | **Camera** — `project`, `unproject_plane`, `horizon_y`, `cam_mat4` | `src/hexscene.loft` | **`hex_scene`** (graphics chunk) | **ready** — zero deps, gated headless (`scenetest`) |
-| **Collision + movement** — `EdgeSet`, `Surfaces`, `Materials`, `Features`, `passable`, `collide`, `sweep_path`, `sight_clear` | `src/hexedge.loft`, 620 lines | **`hex_field`** (its `EdgeSet` half, already promised above) | needs its gate split out of `edgetest`/`sweeptest` |
+| **Collision + movement** — `EdgeSet`, `Surfaces`, `Materials`, `Features`, `passable`, `collide`, `sweep_path`, `sight_clear` | **`hex_edge`** (LIB) — was `src/hexedge.loft`, 620 lines | — | ✅ **settled by ADOPTION, not extraction** (2026-08-10): the published package was the same construction, so the copy was deleted rather than pushed. `ADOPTION.md` |
 | **Field → 3D scene** — floor + wall extrusion for a live world | plan #11 P3, unbuilt | **`hex_scene`**, runtime half | after the camera lands |
 
 **`hexscene` therefore has two halves, and they must not be one package by accident.** The
@@ -890,7 +890,9 @@ two share only the field types they both read.
    > structure. `Surfaces`/`Materials`/`Features` stayed crawler-side, but that turned out to
    > be a consequence of the rule rather than the question itself.
    >
-   > **The "lift, not a redesign" claim is now GATED, not read** (2026-07-22, `src/mergetest.loft`).
+   > **The "lift, not a redesign" claim was GATED, not read** (2026-07-22, `mergetest.loft` —
+   > deleted 2026-08-10 with the copy it compared, once `hex_edge` was adopted and there was
+   > no second layer left to disagree with).
    > Reading the two index functions side by side agrees they are the same permutation; this
    > plan has three times been punished for a check that passed for the wrong reason, so the
    > claim is tested instead: one distinct value per edge written through **both** layers and

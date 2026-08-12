@@ -291,7 +291,7 @@ through a profile instead of a threshold:
    elevation:   set z           =     peak − pitch · d(geometry)
 ```
 
-which is `src/hexroof.loft`'s own claim reached from the other side — *"every roof form
+which is **`hex_roof`**'s own claim reached from the other side — *"every roof form
 anyone names is the same function of a distance, and only the distance SOURCE changes"*. A
 cone is the point distance, a gable/hip the segment distance, a barrel vault the same
 distance with a circular profile.

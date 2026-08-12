@@ -353,13 +353,14 @@ done
 echo "  [prelude 3/4] regenerate bundle registries (before any row reads them) ..."
 "$LOFT" --interpret src/genbundles.loft >/dev/null 2>&1
 
-echo "  [prelude 4/4] seams: no engine spawn by monster key (plan #4 A) · library seam (ADOPTION.md P4) ..."
+echo "  [prelude 4/4] seams: no engine spawn by monster key (plan #4 A) · library seam (ADOPTION.md P4) · doc seam ..."
 if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then
   echo "    FAIL: engine references a monster key:"
   grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal
   exit 1
 fi
 python3 tools/libcheck.py || exit 1
+python3 tools/doccheck.py || exit 1
 
 collect <<'EOF'
 src/combattest.loft|COMBAT OK|/tmp/story_combat.log|combat loop|[2/14] combat loop (player melee + enemy attacks) ...

@@ -146,7 +146,8 @@ no longer read for passage once a `Sim` exists.
 
 The plan said P2 would need an `EdgeSet` and I opened by reporting that `hex_field` has none
 (true — `validate` demands `shoelace == 12·cells` and one outer loop, so a zero-area barrier
-is not a form). **That was the wrong conclusion from a true fact.** `src/hexedge.loft` is a
+is not a form). **That was the wrong conclusion from a true fact.** **`hex_edge`** (LIB — was
+`src/hexedge.loft`, adopted 2026-08-10) is a
 620-line edge model, gated by `edgetest.loft` in `make test` today, with `passable()`,
 `collide()` returning the *exact* surface normal, materials, `apply_features` for openings
 and `sight_clear`. It has 27 consumers — and `sim.loft` was not one of them.
