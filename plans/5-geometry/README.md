@@ -10,17 +10,73 @@ here, so progress is never recorded twice.
 
 ## Status
 
-> ⚠ **FUTURE as of 2026-08-09 — demoted, and NOT because it is done.** Its live edge moved:
-> the wall FIT (`STATE.md`'s NEXT) now belongs in `../hexbody`, and plan **#11 P5** tracks
-> it. Keeping this active as well would double-count one body of work and spread the
-> attention the 2–3 cap exists to protect. `STENCILS.md` and `FORMS.md` still anchor here
-> and come back when #11 reaches them.
+> ⚠ **RE-SCOPED 2026-08-12 — most of this plan SHIPPED, and it shipped as LIBRARIES.**
+> `status:future`, issue **open**: deferred, not declined — every remaining phase names a
+> concrete trigger below (`plans/_LIFECYCLE.md`).
 
-**ACTIVE — blueprint phase running** (2026-07-21). `plans/5-geometry/hexforms.py` is the
-bench; first results below. Neither loft track has landed, and `wallgeo.loft`'s
-corner-graph smoother is still today's stand-in. This plan **blocks the theme-bundles
-plan (#4) Phase G**: themed structures need doors, jambs and round forms before their
-shapes can move bundle-side.
+**The deliverable was met by ADOPTION rather than by building it here.** This plan set out to
+produce *"a library emitting a VALIDATED vector map"*. That library exists, and crawler
+consumes it from the registry: **`hex_field`** (the field core), **`hex_way`** (P1's `Track` +
+`way_stamp`), **`hex_edge`** (P3's `Junctions`, P5's `Features`, P6's canonical index).
+
+⚠ **The two status blocks this replaces disagreed with the tree and with each other.** One
+said FUTURE (2026-08-09); the one below it said *"ACTIVE — neither loft track has landed"*
+(2026-07-21) — while **seven of this plan's gates were running in every `make test`**. The
+issue body said "neither has landed" too. `_LIFECYCLE.md` pitfall 5 is what was missed: a
+phase ships when its verification is **in the standing gate**, and these were.
+
+| phase | outcome | where it lives now | gate |
+|---|---|---|---|
+| field core — `HexSet`, tracer, validator, `VecMap` | ✅ SHIPPED | **`hex_field`** (LIB) | `formtest` · `sweeptest` |
+| **P1** surfaces from curves | ✅ SHIPPED 2026-07-21 | **`hex_way`** (LIB) | `waytest` `[ways]` |
+| **P2** the matcher: cells → surfaces | ✅ SHIPPED 2026-07-21 | `src/hexmatch.loft` — **the one piece still crawler-local** | `matchtest` |
+| **P3** junctions as first-class objects | ✅ SHIPPED 2026-07-21 | **`hex_edge`** (LIB) — `Junctions`, `junction_add`/`_g0`/`_ok` | `jointest` `[join]` |
+| **P5** features: doors and windows | ✅ SHIPPED 2026-07-21 | **`hex_edge`** (LIB) — `Features` | `feattest` `[feat]` |
+| **P6** minimisation — the index (15.9×) | ✅ SHIPPED 2026-07-21 | **`hex_edge`** (LIB) — canonical `(cell, dir)` | `edgetest` |
+| **P6** minimisation — the region cache | ✅ SHIPPED 2026-07-21 | `src/hexcache.loft` | `cachetest` `[cache]` |
+| **P6** minimisation — the last 2× (`u16`/`u8`) | ⏸ DEFERRED | — | **trigger:** loft **H3**, `vector<u16>` cannot be index-assigned |
+| **P3b/P3c** wall + way TYPE as a matcher hint | ⏸ DEFERRED | designed and measured on the bench, never ported | **trigger:** *Whose work this is*, below |
+| **P4** the junction matrix — *the stated "real deliverable"* | ⏸ DEFERRED — ⚠ **§3 states the requirements and the section itself is EMPTY** | — | **trigger:** *Whose work this is*, below |
+
+### Whose work this is now — the re-scope
+
+⚠ **Every deferred phase would modify code crawler no longer owns.** P3b/P3c and P4 land in
+the matcher and in `hex_way`/`hex_edge` — and three of those four are **published packages**.
+Under *no first-class project owns a library* (`ADOPTION.md`), junction arbitration is
+**universal for the class**: two surfaces meeting at one edge is not a crawler question, and
+answering it privately here would be the third implementation of one idea.
+
+So the residue splits three ways, and only the first is unambiguously crawler's:
+
+1. **crawler keeps the CONSUMER GATES.** `jointest`/`matchtest`/`feattest` already are that,
+   and they are what would catch a library regression.
+2. **`src/hexmatch.loft` is the asymmetry** — the whole geometry stack is library-side except
+   the matcher, and P3b *and* P4 both land inside it. Extract it (`EXTRACTION.md`) or leave
+   it: **P4 is decided by that choice, not before it.**
+3. ⚠ **How any of this reaches the library layer is the USER's call** — not an action to take
+   unasked (`CLAUDE.md`: other people's trees are read-only).
+
+**Still blocks the theme-bundles plan (#4) Phase G** — themed structures need doors, jambs and
+round forms bundle-side. ⚠ But that blocker now rests on **P3b/P4**, not on P1/P5, which
+shipped: re-check whether #4 Phase G is actually blocked before treating it as such.
+
+### The closure step still outstanding
+
+Per `_LIFECYCLE.md` step 2, a shipped phase's REFERENCE content moves to the doc that owns it,
+and the test is *"a reader who never opens `plans/` must still find how the thing works."*
+**Not done here**: this README's ~600 lines of blueprint findings (tower families, road-arc
+quantisation, the 24-direction wall widths) are durable truth about mechanisms that shipped,
+and their homes are `FORMS.md` and `WALLS.md`. It is deliberately left for the closing pass
+rather than half-done in a re-scope — but it is the reason this README is 700+ lines against a
+100–300 budget, and it is what makes it look unfinished when it is mostly delivered.
+
+⚠ **The two companion docs STAY** (`_LIFECYCLE.md` step 2's *"move it, or say why not"*):
+`DESIGN.md` and `INTEGRATION.md` both describe phases that have **not** shipped, and plan #11
+cites `INTEGRATION.md` twice as the live blueprint for its Track 2.
+
+⚠ **AND THIS DIRECTORY IS A LIVE BUILD INPUT, not just docs.** `src/formtest.loft` reads
+`plans/5-geometry/golden/hexforms.json` **at runtime**, and `hexforms.py` regenerates it — so
+this plan directory is load-bearing for a gate in `make test` and can never simply be archived.
 
 ## The deliverable — a library emitting a VALIDATED vector map
 

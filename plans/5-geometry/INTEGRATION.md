@@ -166,6 +166,18 @@ rejected where it is authored, not discovered at the junction.
 
 ### P4 — the junction matrix *(the real deliverable — §3)*
 
+⏸ **DEFERRED 2026-08-12, and ⚠ THIS SECTION HAS ALWAYS BEEN EMPTY** — the phase the plan calls
+its real deliverable is a heading with no body. §3 below states what every junction must
+satisfy and which cases break; nobody ever wrote the matrix that tests them.
+
+**It may also no longer be crawler's to write.** P3's junction *model* shipped into
+**`hex_edge`** (`Junctions`, `junction_add`/`_g0`/`_ok`, gated here by `jointest`), so the
+matrix would verify a published package — and arbitration between two surfaces meeting at one
+edge is *universal for the class*, not a crawler question. The blocking choice is whether
+`src/hexmatch.loft`, the one piece of this stack still crawler-local, gets extracted.
+**`README.md` → *Whose work this is now* carries the re-scope; routing it upstream is the
+user's call.**
+
 ### P5 — features: doors and windows ✅ **SHIPPED 2026-07-21**
 `Features` in `hexedge.loft` + `src/feattest.loft`, gated as `[feat]`. A feature is an
 **interval on the surface** `[s0,s1]` with a **vertical extent** `(z0,z1)`, pointing at
