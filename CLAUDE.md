@@ -191,10 +191,8 @@ editor as the second consumer*).
   mechanics**: derive as deep as you like, but ask of every one — *does this add something the
   player must learn?* If yes it must displace something. **The budget is 15 keys** (~11
   gameplay, 4 meta), Doom-to-Souls territory, and it stays there. "It is realistic" justifies
-  the derivation, never a new verb. Count what is bound now — don't trust a number in a doc:
-  `grep -oE 'KEY_[A-Z0-9_]+' src/story.loft | sort -u | wc -l`. ⚠ **It reads 16, not 15**: the
-  extra is `V`, the 2D/3D toggle plan #11 **P9 removes with the 2D view**. A dev toggle is the
-  one way over budget that is allowed to exist, and only because its removal is already scheduled.
+  the derivation, never a new verb. ⚠ **It reads 16 today** — `V`, the toggle P9 removes with
+  the 2D view. Count it, never quote it: DESIGN §3a carries the one-liner and the reasoning.
 - **Follow Angband logic, tune for accessibility.** Reproduce real Angband (4.2 core + ZAngband
   wilderness/realms) *systems/mechanics* faithfully — but the *curve*, *death model* (checkpoint
   respawn, not permadeath) and *class weight* are deliberately friendlier — **DESIGN §3a,
@@ -228,9 +226,8 @@ editor as the second consumer*).
   and the sweep pays for itself: over all **198** `.loft` files (2026-08-11) it found **191
   clean, 1 broken, 6 unbuildable-in-practice**.
   `for f in src/*.loft src/*/*.loft *.loft; do loft --interpret --check $LOFTFLAGS $f >/dev/null || echo $f; done`
-  ⚠ **The `src/*/` term is load-bearing** — without it the glob matches 192, not 198, and the
-  six it drops are `src/realworld/` + `src/regions/`, which is where `ortler.loft` lives. The
-  sweep would silently skip the very file its own finding is about.
+  ⚠ **The `src/*/` term is load-bearing** — without it the glob matches 192, not 198, dropping
+  `src/regions/`+`src/realworld/` — including the `ortler.loft` the finding is about.
   - The broken one was `near_mobs_test.loft`, crawler's @PLN48 validation of loft's spatial
     index: written against the upstream *plan directory's* spelling (`spacial`) where the
     feature shipped as **`spatial`**. One word, 16 cascading errors, never compiled, so the
@@ -261,9 +258,8 @@ editor as the second consumer*).
 - **Docs-first knowledge capture** (user rule, 2026-06-12): anything memory-worthy goes into the
   repo doc that owns it — agent memory holds only pointers. The repo is the shared brain.
   ⚠ **And a reference doc inside `plans/` is a doc nobody is allowed to read** (`TREES.md` was
-  buried in its plan for months) — check for that before closing a plan. **`make doccheck` now
-  fails on it**, along with a dead link and a backticked path that no longer exists; the two
-  hand audits it replaces both missed things, and one miscounted its own evidence.
+  buried in its plan for months) — **`make doccheck` fails on it now**, with dead links and
+  backticked paths that no longer exist.
 - **Read narrowly.** Prefer `grep` + an offset `Read` over pulling a whole doc; skip any doc a
   newer one declares superseded. ⚠ **Editing a file through ANY shell command re-injects the
   WHOLE file** — `sed`, a heredoc, *and a `python3 -` script*, which reads as the safe
