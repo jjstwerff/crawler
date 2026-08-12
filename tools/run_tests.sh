@@ -69,17 +69,28 @@ GATE_SLOW=$(mktemp)
 # not a gate-wide flag: compiling a 1 s test to save 0.8 s loses nine seconds, while
 # compiling questtest saves seventy-three.
 #
-# Measured 2026-08-10, all 97 tests both ways, back-to-back per test so box load hit both
-# arms alike (commit 3bf82be carries the finding; totals below are wall time for the whole
-# roster). ⚠ The per-test table is NOT kept anywhere, on purpose — it would rot, and it is
+# ⚠ The per-test table is NOT kept anywhere, on purpose — it would rot, and it is
 # reproducible on demand: `GATE_NO_NATIVE=1 make test` regenerates the interpreted baseline
 # for every row, which is the number you need to decide whether one belongs on this list.
 #
-#     --interpret                      593 s      what this gate used to be
-#     --native-release, cache warm      88 s      6.7x — but only when nothing changed
-#     --native-release, kernel edit    518 s      1.1x — 40 tests recompile, a wash
-#     --native-release, all cold      1058 s      0.6x — SLOWER than interpreting
-#     hybrid (this list)          239-380 s      1.6-2.5x, and it cannot lose
+# Re-measured 2026-08-12 over the whole 109-row roster, all three arms back to back on one
+# toolchain (md5 a8465f1df9de), wall time for the whole gate at 8-wide:
+#
+#     --interpret (GATE_NO_NATIVE=1)   846 s      what this gate would be without the list
+#     hybrid (this list), cache warm   189 s      4.5x
+#     hybrid (this list), all cold     233 s      3.6x — still 3.6x, see below
+#
+# The 2026-08-10 predecessor read 593 s interpreted against 97 tests; the roster has grown
+# and the settlement tests with it, so the interpreted arm is where the cost went.
+#
+# THE COLD CASE NO LONGER LOSES, AND THAT IS THE LIST'S DOING. A blanket flip of all 109
+# rows to native was measured SLOWER than interpreting when cold; this list of 18 is 233 s
+# cold against 846 s interpreted. The cold penalty is real but small and it PARALLELISES:
+# the two runs above differ by 545 s of rustc CPU, which the 8-wide pool absorbed into 44 s
+# of wall clock. Where that rustc goes is not the tests — a cold run rebuilt 49 auto-native
+# cdylibs (700 MB) for the LIBRARIES, because `--native-release` emits only reachable
+# functions, so each consuming program gets its own pruned build of hex_way, hex_field and
+# the rest. That is per-consumer specialisation working as designed, not waste.
 #
 # The blanket flip is the trap: the cache key hashes the generated Rust AND the
 # installed libloft.rlib mtime, so a `make install` in ../loft resets all 97 to cold,
@@ -87,18 +98,35 @@ GATE_SLOW=$(mktemp)
 # because the long tail of 1-3 s tests never pays for rustc at all.
 #
 # THE RULE: a test earns a place here by costing MORE THAN ~10 s interpreted — that is
-# the compile, so below it the trade is negative. The gate prints every row's seconds
-# and lists everything over 5 s on the way out, which is how you re-check the list
-# without a profiling session: a native row that still reports double digits, or an
-# interpreted row that climbs past ten, is the signal to move it.
+# the compile, so below it the trade is negative.
+#
+# ⚠ AND YOU CANNOT APPLY THAT RULE TO THE SECONDS THIS GATE PRINTS. This comment used to
+# send you to them; that was wrong. The printed seconds are CONTENDED WALL TIME, and
+# contention does not inflate the rows uniformly — measured 2026-08-12 against the same rows
+# run singly, the factor ran from 1.06x (sweeptest) to 4.4x (roofmatchtest). A threshold rule
+# cannot be read through a distortion that varies four-fold, and here it inverted the answer:
+# roofmatchtest PRINTED 15.1 s interpreted, comfortably above the line, and actually costs
+# 3.3 s. It sat on this list for that reason and is off it now.
+#
+# MEASURE CPU TIME — `/usr/bin/time -f '%U %S'`, user+sys, one row at a time. It is what the
+# row costs rather than how long it was in the way, and it barely moves under load:
+# roofmatchtest read 3.33 / 3.29 / 3.47 s across three runs with the box at load 24. Running
+# a row "alone" is NOT the fallback, because on this box it never is alone — ../loft's agent
+# keeps rustc and rust-analyzer on the other cores, and that wall-clock reading made
+# playtest:militia look like 27.9 s against 14.6 s of CPU.
 #
 # ⚠ THESE ROWS NOW EXERCISE A SECOND COMPILER. All 97 passed identically both ways on
 # 2026-08-10, so today the modes agree — but a native-codegen bug (LOFT-HANDOFF N1 is
 # one) would now surface HERE rather than in `make game`, and it is not our code. That
 # is what GATE_NO_NATIVE=1 is for: re-run the red test interpreted, and if it goes
 # green the divergence is the backend's, which is a loft ticket, not a crawler fix.
+# ⚠ roofmatchtest is NOT here, and the reason is worth keeping: it is the one row that
+# barely benefits. 3.33 s interpreted -> 2.35 s native is 1.4x, where every other member
+# returns 7-35x, because its work happens inside the already-native hex_roof cdylib and
+# compiling the TEST around that call changes almost nothing. It still paid a full rustc
+# build on every cold cache.
 NATIVE_TESTS="questtest stocktest traveltest surfacetest replaytest safetytest
-              meshtest fieldtest crystaltest effecttest cavetest roofmatchtest
+              meshtest fieldtest crystaltest effecttest cavetest
               sweeptest playtest incursiontest militiatest worldtextest
               horizontest towertest"
 # ⚠ NORMALISE THE SEPARATORS, OR THE LIST SILENTLY LIES. The names are written on three

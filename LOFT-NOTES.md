@@ -41,10 +41,11 @@ then work around and keep moving.
 
 ## Survival guide (updated 2026-07-21 — repros live in the filed issues + LOFT-HANDOFF.md)
 
-**Toolchain 2026.7.2 (installed 2026-07-21) = the @PLN110 len/size flip point release** (it
+**The 2026.7.2 upgrade (2026-07-21) = the @PLN110 len/size flip point release** (it
 also carries @PLN102 compat-contract work + a wide store-lifetime sweep). The whole gate went
 RED on the upgrade and is green again; **two of the three failures were SILENT data
-corruption, not compile errors** — that is the lesson to carry.
+corruption, not compile errors** — that is the lesson to carry. ⚠ This § is the RECORD of that
+upgrade, not a statement of what is installed today — the box has moved on past it.
 
 ### INTENDED changes in 2026.7.2
 
@@ -188,7 +189,10 @@ All siblings under `/home/jurjens/workspace/`:
 
 **Installed loft** (what `make` targets use by default after `make install`):
 
-- binary `/usr/local/bin/loft` (**2026.7.2**, installed 2026-07-21); stdlib
+- binary `/usr/local/bin/loft` — ⚠ **ask it, do not read a version here**: it is rebuilt from
+  `../loft`'s working tree by that project's agent (2026-08-12: reported `2026.8.0`, and was
+  `v2026.8.0-25-g5e4f8c85-dirty`, installed that morning). `make test`'s `[toolchain]` line is
+  the reading that matters — version, md5, and whether it is that tree's build; stdlib
   `/usr/local/share/loft/` (`default/`, `deps/`, `libloft.rlib`, `wasm32-*`). Refresh = `make
   install` in a loft repo (sudo); check with `make loft-doctor`.
 - **`graphics` must be `>=0.5.0`** on this toolchain (see above) — the lock pins it and `loft

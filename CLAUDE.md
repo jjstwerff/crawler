@@ -285,8 +285,10 @@ editor as the second consumer*).
 
 **Full survival guide, bug-filing procedure and toolchain/library locations: `LOFT-NOTES.md`.**
 Crawler is a CONSUMER — we never fix loft here; file it (standing grant: no per-issue
-authorization needed), work around it, keep moving. Toolchain **2026.7.2**; `graphics` must be
-**>=0.5.0**. The short list:
+authorization needed), work around it, keep moving. `graphics` must be **>=0.5.0**; the
+toolchain version is **not written here** — `make test` stamps it (version + md5 + whether it
+is `../loft`'s working-tree build), because it changes under you and `--version` is not
+provenance. The short list:
 
 - **Fallible float math returns `float?`** — `sqrt`, `pow`, `ln`, `asin`, and *variable* `/`
   and `%`. Discharge at the root with `?? 0.0`. A `??` default must match the type EXACTLY —
