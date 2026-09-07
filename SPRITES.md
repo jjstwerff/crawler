@@ -19,7 +19,9 @@ natural marks — non-uniform + construction-hiding by default; designs pinned i
 `tools/{petal,fronds}_blueprint.py`), and the **`Brush` / `Lock` brush stroke** (an image
 footprint dragged as a lock of hair / tuft of fur: root-pinched, swelling, spiked ends,
 lit top and any-hue dark underside, painted OVER the locks behind — the old-masters rough
-brush, minus wet pickup; probes: `tools/lock_probe.py`). ⚠ **Roles** (user, 2026-09-07):
+brush, minus wet pickup; probes: `tools/lock_probe.py`; **worked example: `jackal.draw`'s
+coat — a saddle wash for the mass, then short locks shingled from the hips forward, tufts at
+the silhouette only, a tufted tail; the fur that used to read as a web**). ⚠ **Roles** (user, 2026-09-07):
 **`draw.py` is the ORACLE — it exists to design and test the algorithms against; the loft
 `drawing` library (`../loft-libs-graphics/drawing`, held byte-identical to draw.py by a
 corpus diff and by its own goldens) is the PRODUCTION renderer.** A routine is finished

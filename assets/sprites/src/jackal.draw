@@ -6,18 +6,33 @@
 #
 # --- FUR + LIMBS, APPLIED (ref assets/sprites/ref/fur/jackal_canis_mesomelas) ---
 # FUR: the body Circles are value-graded (one continuous radial, lit shoulders -> shadow hips);
-# the dark saddle is a narrowed dorsal band, FADED into the tan flank by a Fronds of dark
-# back-fur sweeping onto the flanks (not a hard mantle).
+# the COAT is `Lock` strokes (the brush, formal/draw.md): a dark saddle wash for the mantle's
+# mass, then short locks laid from the hips FORWARD so each shingles over the roots behind it
+# — dark over the shoulders fanning outward and thinning to the hips, a transition row fading
+# it into the tan, tufts only at the silhouette (irregular, tips past the circle edge), and a
+# tufted tail with its black tip as a dark lock. Implied, never a wig; the first asset drawn
+# with the brush, and the render is byte-identical through draw.py and the loft `drawing`
+# library.
 # LIMBS: two SHORT forelegs reach FORWARD alongside the snout, each a clawed paw — kept forward
 # not splayed so it reads canine, not insect (the Canis mesomelas plate is the form reference).
 # Source for assets/sprites/jackal.png.
 size 256x256
 Background transparent
+# the one footprint every Lock below drags — a Brush must precede its locks
+Brush fur hair w=12 period=36 seed=3 gap=0.3
 
 # tail — bushy, slightly angled (dead-straight reads larval), BLACK TIP
 name tail
-Poly (0.50,0.68)@10 (0.535,0.82)@8 (0.525,0.93)@5 stroke=120,92,58
-Poly (0.527,0.91)@6 (0.518,0.99)@3 stroke=30,26,22
+Poly (0.50,0.68)@13 (0.535,0.82)@11 (0.525,0.93)@7 stroke=120,92,58
+# tail fur — short tufts lying ALONG the tail, alternating sides, sweeping back toward the tip
+# (the body's texture level, not a smooth ribbon beside a furred back), then the BLACK TIP as
+# a dark lock, no wider than the tail, whose spikes end it
+Lock (0.505,0.700) (0.488,0.730)~ (0.480,0.758) brush=fur w0=2 w=6 tips=2 tipvar=0.4 spread=12 seed=41 rgb=138,108,68 dark=92,70,42 lit=176,146,100
+Lock (0.532,0.745) (0.552,0.776)~ (0.560,0.804) brush=fur w0=2 w=6 tips=2 tipvar=0.4 spread=12 seed=42 rgb=138,108,68 dark=92,70,42 lit=176,146,100
+Lock (0.512,0.790) (0.498,0.822)~ (0.492,0.850) brush=fur w0=2 w=6 tips=2 tipvar=0.4 spread=12 seed=43 rgb=130,100,62 dark=86,64,38 lit=170,140,96
+Lock (0.538,0.830) (0.552,0.862)~ (0.556,0.888) brush=fur w0=2 w=5 tips=2 tipvar=0.4 spread=12 seed=44 rgb=130,100,62 dark=86,64,38 lit=170,140,96
+Lock (0.516,0.862) (0.508,0.890)~ (0.504,0.912) brush=fur w0=2 w=5 tips=2 tipvar=0.4 spread=12 seed=46 rgb=130,100,62 dark=86,64,38 lit=170,140,96
+Lock (0.527,0.895) (0.522,0.945)~ (0.516,0.995) brush=fur w0=4 w=6 tips=3 tipvar=0.4 spread=12 seed=45 rgb=34,28,24 dark=16,12,10 lit=70,60,50
 
 # forelegs are drawn LAST (on top), reaching forward alongside the snout, so they're VISIBLE
 # rather than hidden under the body (the old tucked paws were). See the forelegs block at the end.
@@ -32,14 +47,44 @@ Circle (0.50,0.425) r=0.115 radial=142,110,70>106,78,46 at=0.50,0.37,0.26
 name shoulders
 Circle (0.50,0.385) r=0.110 radial=142,110,70>106,78,46 at=0.50,0.37,0.26
 
-# THE SADDLE — front-loaded dark mantle as a tapered dorsal WASH (hard-edged geometry
-# fights the organic body; a wide-to-narrow stroke follows it)
+# THE SADDLE — the dark mantle's MASS, a tapered dorsal wash the locks lie on
 name saddle
 Poly (0.50,0.390)@20 (0.50,0.475)~@15 (0.50,0.560)@7 stroke=54,44,34
-# flank/saddle FUR — Fronds off the dorsal midline, mirrored, swept back: dark clumps over
-# the saddle and onto the flanks, fading the black mantle into the tan coat (not a hard band).
+# THE COAT — short LOCKS, laid from the hips FORWARD so each forward lock shingles over the
+# roots behind it. The saddle is a dense cluster of dark locks over the shoulders, angles
+# fanning outward, thinning to the hips; a transition row fades it into the tan; the tan
+# flank stays the body's own radial, with tufts only at the SILHOUETTE — irregular (four
+# left, three right, mixed lengths), angled outward-back, tips past the circle edge.
+# Short and many rather than long and few: a coat is implied, never a wig.
 name fur
-Fronds (0.50,0.40)-(0.50,0.58) n=8 len=0.13 len2=0.08 w=2.4 w2=1.0 ang=34 ang2=54 mirror=1 bow=0.13 seed=7 stroke=52,42,32
+Lock (0.472,0.600) (0.460,0.640)~ (0.450,0.670) brush=fur w0=2.5 w=8 tips=3 tipvar=0.45 spread=16 seed=1 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.530,0.602) (0.544,0.638)~ (0.556,0.664) brush=fur w0=2.5 w=7 tips=3 tipvar=0.45 spread=16 seed=2 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.482,0.542) (0.468,0.580)~ (0.456,0.610) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=3 rgb=96,76,50 dark=54,42,28 lit=138,112,76
+Lock (0.518,0.538) (0.532,0.578)~ (0.544,0.612) brush=fur w0=2.5 w=8 tips=3 tipvar=0.45 spread=16 seed=4 rgb=96,76,50 dark=54,42,28 lit=138,112,76
+Lock (0.424,0.565) (0.400,0.592)~ (0.386,0.616) brush=fur w0=2.5 w=7 tips=3 tipvar=0.45 spread=16 seed=5 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.582,0.548) (0.606,0.578)~ (0.622,0.606) brush=fur w0=2.5 w=7 tips=3 tipvar=0.45 spread=16 seed=6 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.446,0.520) (0.430,0.556)~ (0.420,0.590) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=7 rgb=96,76,50 dark=54,42,28 lit=138,112,76
+Lock (0.554,0.518) (0.570,0.552)~ (0.580,0.584) brush=fur w0=2.5 w=8 tips=3 tipvar=0.45 spread=16 seed=8 rgb=96,76,50 dark=54,42,28 lit=138,112,76
+Lock (0.402,0.512) (0.380,0.536)~ (0.364,0.558) brush=fur w0=2.5 w=7 tips=3 tipvar=0.45 spread=16 seed=9 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.598,0.500) (0.622,0.524)~ (0.640,0.548) brush=fur w0=2.5 w=8 tips=3 tipvar=0.45 spread=16 seed=10 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.468,0.492) (0.452,0.532)~ (0.440,0.564) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=11 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.502,0.484) (0.508,0.528)~ (0.512,0.566) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=12 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.532,0.494) (0.548,0.532)~ (0.560,0.562) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=13 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.486,0.470) (0.480,0.500)~ (0.476,0.524) brush=fur w0=2.5 w=6 tips=2 tipvar=0.45 spread=16 seed=14 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.440,0.462) (0.424,0.496)~ (0.412,0.526) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=15 rgb=96,76,50 dark=54,42,28 lit=138,112,76
+Lock (0.562,0.458) (0.578,0.492)~ (0.590,0.522) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=16 rgb=96,76,50 dark=54,42,28 lit=138,112,76
+Lock (0.410,0.470) (0.386,0.494)~ (0.370,0.516) brush=fur w0=2.5 w=6 tips=3 tipvar=0.45 spread=16 seed=17 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.408,0.436) (0.384,0.460)~ (0.366,0.482) brush=fur w0=2.5 w=7 tips=3 tipvar=0.45 spread=16 seed=18 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.592,0.442) (0.616,0.468)~ (0.634,0.494) brush=fur w0=2.5 w=7 tips=3 tipvar=0.45 spread=16 seed=19 rgb=148,118,76 dark=98,74,46 lit=186,156,108
+Lock (0.464,0.436) (0.446,0.476)~ (0.434,0.508) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=20 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.498,0.428) (0.494,0.474)~ (0.492,0.512) brush=fur w0=2.5 w=10 tips=3 tipvar=0.45 spread=16 seed=21 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.536,0.438) (0.552,0.478)~ (0.564,0.508) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=22 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.516,0.414) (0.522,0.446)~ (0.526,0.472) brush=fur w0=2.5 w=6 tips=2 tipvar=0.45 spread=16 seed=23 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.470,0.386) (0.456,0.424)~ (0.446,0.456) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=24 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.500,0.380) (0.503,0.424)~ (0.506,0.462) brush=fur w0=2.5 w=10 tips=3 tipvar=0.45 spread=16 seed=25 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.530,0.388) (0.544,0.426)~ (0.554,0.454) brush=fur w0=2.5 w=9 tips=3 tipvar=0.45 spread=16 seed=26 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.484,0.346) (0.473,0.380)~ (0.466,0.408) brush=fur w0=2.5 w=7 tips=2 tipvar=0.45 spread=16 seed=27 rgb=56,46,36 dark=30,24,18 lit=98,82,62
+Lock (0.516,0.346) (0.527,0.380)~ (0.534,0.408) brush=fur w0=2.5 w=7 tips=2 tipvar=0.45 spread=16 seed=28 rgb=56,46,36 dark=30,24,18 lit=98,82,62
 
 # head — set OFF the body by a neck narrowing: small skull, long protruding snout
 name skull
