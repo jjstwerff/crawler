@@ -337,6 +337,13 @@ crawler-private is unfinished, not done. Worked example: the `Lock` brush was de
 probed in `tools/draw.py` and shipped the same day into the `drawing` library
 (`../loft-libs-graphics/drawing`), byte-identical, with crawler keeping the oracle.
 
+**AND EVERY LIBRARY ROUTINE PULLS ITS WEIGHT** (user standard, 2026-09-07, going loft-wide;
+started in `drawing`): a library carries a **performance pass** — `bench/` times every
+public routine on a fixed workload with a hash of its output, a **pure-Rust reference**
+(or C#) computes the same workloads, and `compare.py` fails the routine whose hashes
+disagree or whose loft-native time is over the bar. Industry-standard speed is the bar,
+measured, not assumed. EXTRACTION.md DoD 7; rule `formal/draw.md` (Perf-Weight).
+
 **AND ITS CONSTRUCTIVE HALF — a library design must be UNIVERSAL FOR THE CLASS**, not for one
 project's scope. The live case is **indexing of walls / items / ground**: a stored identity is
 an **index into a table owned by a SCOPE**, `0 = nothing` the only fixed one — the library owns

@@ -178,6 +178,16 @@ Side lessons:
    fields (#320 — direct append or index-writes).
 6. Docs: the package README states its convention/contract; crawler's CLAUDE.md "Where
    things are" updated.
+7. **The performance pass** (user standard, 2026-09-07 — to become the loft-wide one; started
+   in `drawing`): `bench/bench.loft` times EVERY public routine on a fixed workload and
+   prints a hash of its output; `bench/reference/` is a **pure-Rust** crate computing the
+   same workloads with the same arithmetic (a C# one would do the same job); and
+   `bench/compare.py` joins the interpreter, native and reference lanes — the hashes must
+   agree (or it is not one algorithm), and loft-native must be within the bar of the
+   reference, or the routine **does not pull its weight** and that is a defect in the
+   routine, not a fact of the language. The bar and the dated table live in the README.
+   Rule: `formal/draw.md` (Perf-Weight). Nothing in `compare.py` knows what the routines
+   are, so the next package reuses it unchanged.
 
 **Environment caveat (not a blocker) — NARROWED 2026-06-14 by loft @PLN21 (#370).** E0514
 bites **only AUTO-compiled native** (a pure-loft lib loft compiles to a cdylib that

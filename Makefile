@@ -322,7 +322,7 @@ doccheck:
 # The loft port of draw.py (the `drawing` library) cites the same register, so its sources
 # are scanned too when the sibling checkout is present; absent, they simply contribute no
 # citations. The register stays here because draw.py is the oracle the library is held to.
-RULE_CITE_DIRS = tools:src:../loft-libs-graphics/drawing/src:../loft-libs-graphics/drawing/tests
+RULE_CITE_DIRS = tools:src:../loft-libs-graphics/drawing/src:../loft-libs-graphics/drawing/tests:../loft-libs-graphics/drawing/bench
 rules:
 	@RULES_DIR=formal CITE_DIRS=$(RULE_CITE_DIRS) CITE_EXTS=.py,.loft python3 formal/rule_tags.py check
 

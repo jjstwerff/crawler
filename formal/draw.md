@@ -158,9 +158,46 @@ finished until the library draws it byte for byte; the oracle is never what ship
                     shading only.
 ```
 
+### The performance pass
+
+```
+  (Perf-Weight)     Every public routine has a benchmark row — a fixed workload, timed,
+                    with a hash of its output — and every routine that defines the
+                    picture has a PURE-RUST reference computing the same workload with
+                    the same arithmetic. The hash must agree across the interpreter,
+                    the native build and the reference, or the routine is not one
+                    algorithm and its speeds are not comparable; and loft-native must
+                    run within the bar of the reference, or the routine does not pull
+                    its weight and that is a defect in it, not a fact of the language.
+                    The pass is `bench/` in the library, joined by `bench/compare.py`;
+                    the bar and the measured table live in its README, dated.
+```
+
 ## Deviations
 
-OPEN: **1**.
+OPEN: **2**.
+
+### D-draw-2 — loft-native runs 15–40× behind the Rust reference on every raster routine (OPEN)
+
+- **Violates:** Perf-Weight
+- **Where:** not in `drawing`'s code — the hashes agree across the interpreter, the native
+  build and the reference, so the algorithm is one. The gap is the loft native runtime and
+  codegen: measured 2026-09-07, best of 3 (`drawing/bench/compare.py`, bar 4×),
+  loft-native / Rust = `hair` 4.3, `hash` 10.9 (100 000 calls: the per-call crossing into
+  the library's cdylib), `fill_circle` 17, `fill_star` 17, `wide_line` 17, `composite` 26,
+  `lock` 30, `lock_curved` 34, `fronds` 49, `smooth` 262 (61 points: per-call cost). The
+  interpreter is 6–37× slower than native on the same rows, so the store-backed value
+  model, not interpretation, is the cost — loft's own `PERFORMANCE.md` measures the same
+  class at 18–25× on matrix / sort and names it **N1** (the `codegen_runtime` / `DbRef`
+  indirection).
+- **Effect:** a sprite that plain Rust renders in 1 ms takes loft 30 ms. Fine for a build
+  step, not for anything that draws at runtime.
+- **Status:** OPEN — the removal is loft's (the standing grant is to FILE it, not fix it):
+  filed as [loft#1426](https://github.com/loft-lang/loft/issues/1426); the harness is the
+  reproduction.
+- **Removal:** loft codegen/runtime work on this workload class — vectors of floats and
+  structs in tight loops, `??`-discharged arithmetic, cross-library calls. Re-run the pass;
+  close when every judged routine is within the bar.
 
 ### D-draw-1 — `src/sprite_draw.loft` renders the marks by rules of its own (OPEN)
 
