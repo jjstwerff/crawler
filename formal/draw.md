@@ -191,8 +191,11 @@ OPEN: **2**.
   boundary is not the cause; `--native-emit` shows the cause — every vector element
   read or written through the store runtime with a null-record test (1 read + 7 writes
   per painted pixel), struct scalars re-read per pixel, NaN-aware float comparisons,
-  sentinel integer helpers. Hash-preserving loft-side rewrites (hoist, inline the
-  per-pixel call, pass the arrays) recover ~10 %: 30.2 → 27.0 ms against Rust's 1.03.
+  sentinel integer helpers. Not the optimisation level: the emitted Rust rebuilt by hand
+  at `-O` reproduces the number, `opt-level=3`/`codegen-units=1`/`target-cpu=native` do not
+  move it, and LTO is impossible (the shipped rlib carries no bitcode); `--lean` strips the
+  hot-reload check only. Hash-preserving loft-side rewrites (hoist, inline the per-pixel
+  call, pass the arrays) recover ~10 %: 30.2 → 27.0 ms against Rust's 1.03.
   loft's own `PERFORMANCE.md` measures the class at 18–25× on matrix / sort and names it
   **N1** (collections through the store), with **N2/N4** (per-call instrumentation) on top.
 - **Effect:** a sprite that plain Rust renders in 1 ms takes loft 30 ms. Fine for a build
