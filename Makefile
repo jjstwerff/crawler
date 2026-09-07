@@ -32,6 +32,10 @@
 #                 crawler path exists, every root doc is in CLAUDE.md's routing
 #                 table, every nested doc is pointed at.  ~1 s, no build.
 #
+#   make rules    Formal rules (formal/): every `@FR-<Name>` citation in tools/,
+#                 src/ and the `drawing` library resolves to a defined rule, and
+#                 no rule is defined twice.  ~1 s, no build.
+#
 #   make check-native
 #                 Validate the NATIVE / wasm codegen path (run before
 #                 `make game`).  Needs the loft toolchain's rlibs to match
@@ -114,7 +118,7 @@ KTEST := src/selftest.loft
 HTML  := story.html
 SHOT  := story.png
 
-.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe ovshot viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin near-test hydro-test trimesh-test rivers-test phony-check libcheck doccheck
+.PHONY: apidoc apidoc-check help play game serve test check check-native shot probe ovshot viewer viewer-release viewer-gold viewer-gold-talus bundles fmt clean all loft-doctor region region-bin near-test hydro-test trimesh-test rivers-test phony-check libcheck doccheck rules
 
 # Default target: print the overview above.
 help:
@@ -314,6 +318,13 @@ libcheck:
 # should not be anyone's job to remember.
 doccheck:
 	@python3 tools/doccheck.py
+
+# The loft port of draw.py (the `drawing` library) cites the same register, so its sources
+# are scanned too when the sibling checkout is present; absent, they simply contribute no
+# citations. The register stays here because draw.py is the oracle the library is held to.
+RULE_CITE_DIRS = tools:src:../loft-libs-graphics/drawing/src:../loft-libs-graphics/drawing/tests
+rules:
+	@RULES_DIR=formal CITE_DIRS=$(RULE_CITE_DIRS) CITE_EXTS=.py,.loft python3 formal/rule_tags.py check
 
 # ── Screenshot (Xvfb, mirrors loft's snap_smoke) ──────────────────────────
 

@@ -34,7 +34,7 @@ with it.)*
 | **LOFT-NOTES.md** | the loft survival guide in full, bug filing, and where the toolchain and libraries live on this box |
 | **LOFT-HANDOFF.md** | a loft defect — findings ready to file, each with its repro (`H<N>`) |
 | **FILING.md** | how and why to file a loft ticket |
-| **LIBRARIES.md** | ⚠ **any signature in any dependency**. Generated (`make apidoc`, verified by `make apidoc-check`) — open a package for its *reasoning*, never to find out what a function takes |
+| **LIBRARIES.md** | ⚠ **any signature in a dependency crawler ALREADY DECLARES**. Generated (`make apidoc`, verified by `make apidoc-check`) — open a package for its *reasoning*, never to find out what a function takes. ⚠ **It cannot say what EXISTS** — it answered "no PNG decoder" on 2026-09-07 while `imaging` had shipped one. *"Is there a library for X?"* is asked of the **loft tree**: `../loft/doc/claude/LIBRARIES.md` (every published library with its API — *check here before implementing*), `LIBRARY_BRANCHES.md` beside it (what is in flight), and `loft api --registry` (the live catalogue, also in `.loft/api/_available.api`) |
 | **EXTRACTION.md** | pushing a crawler routine down to the library layer — tiers, per-package Definition of Done |
 | **ADOPTION.md** | consuming the family instead of copying it; the frozen-renderer ruling; *Universal for the class* |
 | **MOROS.md** | what crawler depends on moros FOR (and why no library is listed there) |
@@ -55,6 +55,7 @@ with it.)*
 | **SPRITES.md** | authoring a 2D sprite — the `draw` skill, done-criterion, perspective, palette, QA |
 | **DATA.md** | the world-state / world-data model |
 | **DESIGN-PROTOCOL.md** | the blueprint-vs-engine case log — how a model disagrees with the original *silently* |
+| **formal/** | the FORMAL RULES register — named invariants, cited from code as `@FR-<Name>`, gated by `make rules` (in `make test`). `formal/draw.md` = the drawing routines: `tools/draw.py`, the `drawing` library, `sprite_draw`. Read a domain's rules BEFORE a fix with a choice in it |
 | **RESOLUTION.md** · **PARTY.md** | design, not built: pluggable resolution and non-trivializing progression · co-op party, Tension, cards-as-UI |
 | **SLICE.md** | *historical* — the shipped June vertical slice. Nothing points at it |
 
@@ -255,6 +256,13 @@ editor as the second consumer*).
   or add a row to that gate** — an unconverted threshold cannot be falsified. `SCALE.md`.
 - **The view resolves sprites BY NAME, no code per sprite** — drop `<monster_key>.png` into
   `assets/sprites/` and it is in the game; a missing file falls back to the glyph.
+- **Formal rules — the code changes to match the rules, never the reverse** (`formal/`,
+  the loft tree's convention). A site that enforces a rule cites it in a comment,
+  `@FR-<Name>`, at the moment it is made to obey; an edge the rules cannot express extends
+  the RULE first, then cites; a deliberate divergence is a numbered, OPEN deviation, driven
+  to zero. `make rules` fails on a citation that resolves to nothing. The drawing routines
+  are the first domain (`formal/draw.md`) because thousands of initial assets will pass
+  through them — a human's later rework of an asset never lowers the bar on the routine.
 - **Docs-first knowledge capture** (user rule, 2026-06-12): anything memory-worthy goes into the
   repo doc that owns it — agent memory holds only pointers. The repo is the shared brain.
   ⚠ **And a reference doc inside `plans/` is a doc nobody is allowed to read** (`TREES.md` was
@@ -318,6 +326,16 @@ it needs**; the only constraint is not breaking the others, which is what the li
 (`api_compatible_with` / `data_compatible_with`) makes checkable. So "we wrote it" is never a
 reason to keep a copy, "they wrote it" is never a reason to refuse a package, and *"the library
 doesn't have it"* is a reason to **extend the library**, not to grow a private module.
+
+**AND THE STANDING ORDER FOR EVERY PROJECT THAT IS NOT loft** (user rule, 2026-09-07):
+**before writing a routine, verify whether a library already implements it** — ask the loft
+tree (`../loft/doc/claude/LIBRARIES.md`, `loft api --registry`; the LIBRARIES.md row above),
+never this repo's own list — **and prioritise adding or building libraries for the routines
+that are not in one yet.** Experimenting in a side project first is fine; the END GOAL is
+always that the routine is available to more projects than this one, so a routine that stays
+crawler-private is unfinished, not done. Worked example: the `Lock` brush was designed and
+probed in `tools/draw.py` and shipped the same day into the `drawing` library
+(`../loft-libs-graphics/drawing`), byte-identical, with crawler keeping the oracle.
 
 **AND ITS CONSTRUCTIVE HALF — a library design must be UNIVERSAL FOR THE CLASS**, not for one
 project's scope. The live case is **indexing of walls / items / ground**: a stored identity is

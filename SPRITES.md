@@ -16,12 +16,21 @@ pointer and the rule that the view resolves sprites **by name**.
 transparent`, `--once` (render-and-exit; exit 1 on unparsed lines / failed checks — agent/CI
 use) + unparsed-line reporting, and the `Petals`/`Fronds` ARRAY primitives (radial + linear
 natural marks — non-uniform + construction-hiding by default; designs pinned in
-`tools/{petal,fronds}_blueprint.py`); rotation/atlas + the old-masters rough brush (16th-c.
-split-bristle hair/fur stroke that mixes with wet paint) & the modern spray-paint/airbrush
-tool (translucent + adjustable-flow; skin/water/smoke — the fix for old painters' flat
-unicolor skin) & a grime wash (depth-pooled weathering — dirt in the recesses, wiped off the
-raised areas, for authentic figures/machines) next (paint-interacts-with-canvas; the missing
-capability, EXTRACTION.md §3).
+`tools/{petal,fronds}_blueprint.py`), and the **`Brush` / `Lock` brush stroke** (an image
+footprint dragged as a lock of hair / tuft of fur: root-pinched, swelling, spiked ends,
+lit top and any-hue dark underside, painted OVER the locks behind — the old-masters rough
+brush, minus wet pickup; probes: `tools/lock_probe.py`). ⚠ **Roles** (user, 2026-09-07):
+**`draw.py` is the ORACLE — it exists to design and test the algorithms against; the loft
+`drawing` library (`../loft-libs-graphics/drawing`, held byte-identical to draw.py by a
+corpus diff and by its own goldens) is the PRODUCTION renderer.** A routine is finished
+when `drawing` draws it, not when draw.py does. crawler's sprite pipeline still calls
+draw.py today; switching it to `drawing`'s CLI
+(`../loft-libs-graphics/drawing/examples/draw.loft <scene> [out.png]`, the same
+exit-on-verdict contract) waits on `drawing` 0.4.0 being published (STATE.md, *whose
+call*). Next: the modern spray-paint/airbrush tool (translucent +
+adjustable-flow; skin/water/smoke — the fix for old painters' flat unicolor skin) & a grime
+wash (depth-pooled weathering — dirt in the recesses, wiped off the raised areas, for
+authentic figures/machines) (paint-interacts-with-canvas; EXTRACTION.md §3).
 
 Built to be extractable as a **reusable 2D sprite library** — 3D/moros is the goal, but the
 2D stack stands on its own for 2D-preferring devs. Used to author the game's **simple 2D

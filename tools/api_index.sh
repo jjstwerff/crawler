@@ -26,7 +26,7 @@ deps=$(awk '/^\[dependencies\]/{f=1;next} /^\[/{f=0} f && /^[a-z_]+ *=/{print $1
   echo
   echo "**GENERATED — do not edit. \`make apidoc\` rewrites it; \`make apidoc-check\` fails if it is stale.**"
   echo
-  echo "One line per public name, read from the registry copy the build resolves. This exists"
+  echo "One line per public name, read from the registry copy \`loft.lock\` pins. This exists"
   echo "because looking a signature up used to mean reading the package: ~500 lines of source"
   echo "for ~20 signatures, measured over one session. Read this instead, and open the package"
   echo "only when you need the *reasoning* — which is what its comments are for."
@@ -34,12 +34,31 @@ deps=$(awk '/^\[dependencies\]/{f=1;next} /^\[/{f=0} f && /^[a-z_]+ *=/{print $1
   echo "⚠ Signatures only. **Why** a routine exists, and the traps around it, live in the"
   echo "package's own comments and in \`EXTRACTION.md\` / \`ADOPTION.md\`."
   echo
+  echo "⚠ **Only the packages crawler DECLARES.** This file cannot answer *\"is there already a"
+  echo "library that does X?\"* — it once said there was no PNG decoder while \`imaging\` had"
+  echo "shipped one. That question goes to the loft tree, which validates what is written:"
+  echo "\`../loft/doc/claude/LIBRARIES.md\` (every published library and its public API —"
+  echo "*check here before implementing*), \`LIBRARY_BRANCHES.md\` beside it (unmerged work in"
+  echo "flight), and \`loft api --registry\` / \`.loft/api/_available.api\` (the live catalogue)."
+  echo "Found one? Declare it in \`loft.toml\`, compile once, check \`loft.lock\` names it, and"
+  echo "\`make apidoc\` — then it is in here."
+  echo
 
   for d in $deps; do
-    dir=$(ls -d "$REG/$d"-* 2>/dev/null | sort -V | tail -1 || true)
-    [ -n "$dir" ] || { echo "## \`$d\` — not in the registry (unpublished or a local path)"; echo; continue; }
-    ver=$(basename "$dir" | sed "s/^$d-//")
-    echo "## \`$d\` $ver"
+    # The LOCKED version, not the newest directory: the registry holds every version any
+    # project on this box installed, and the newest is routinely not the one crawler builds
+    # against (graphics 0.9.0 sat beside the locked 0.5.0). Fall back to the newest only when
+    # the lock does not name the package, and say so.
+    ver=$(awk -v n="\"$d\"" '$1=="name" && $3==n {f=1; next} f && $1=="version" {gsub(/"/,"",$3); print $3; exit}' loft.lock)
+    dir="$REG/$d-$ver"
+    note=""
+    if [ -z "$ver" ] || [ ! -d "$dir" ]; then
+      dir=$(ls -d "$REG/$d"-* 2>/dev/null | sort -V | tail -1 || true)
+      [ -n "$dir" ] || { echo "## \`$d\` — not in the registry (unpublished or a local path)"; echo; continue; }
+      ver=$(basename "$dir" | sed "s/^$d-//")
+      note=" — ⚠ newest in the registry; \`loft.lock\` does not pin it"
+    fi
+    echo "## \`$d\` $ver$note"
     echo
     echo '```'
     grep -hE '^pub (fn|struct|const) ' "$dir"/src/*.loft 2>/dev/null \

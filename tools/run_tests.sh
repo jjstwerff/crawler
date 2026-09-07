@@ -389,6 +389,10 @@ if grep -n 'mon_find("' src/*.loft | grep -v spawn_crystal | grep -q .; then
 fi
 python3 tools/libcheck.py || exit 1
 python3 tools/doccheck.py || exit 1
+# The formal-rules seam: every @FR- citation resolves (formal/README.md; same env as `make rules`).
+RULES_DIR=formal CITE_DIRS=tools:src:../loft-libs-graphics/drawing/src:../loft-libs-graphics/drawing/tests \
+  CITE_EXTS=.py,.loft python3 formal/rule_tags.py check >/dev/null || \
+  { RULES_DIR=formal CITE_DIRS=tools:src CITE_EXTS=.py,.loft python3 formal/rule_tags.py check; exit 1; }
 
 collect <<'EOF'
 src/combattest.loft|COMBAT OK|/tmp/story_combat.log|combat loop|[2/14] combat loop (player melee + enemy attacks) ...

@@ -24,6 +24,12 @@ silently dropped — a typo'd mark must read as a syntax problem, not a geometry
 
 Requires Pillow.
 
+THIS FILE IS THE ORACLE, NOT THE PRODUCT: it exists to design and test the algorithms
+against. The picture of a scene is what it renders, byte for byte, and the loft `drawing`
+library — the production renderer — is held to it. The rules both enforce are named in
+formal/draw.md and cited below as `@FR-<Name>`; `make rules` checks that every citation
+resolves.
+
 Commands (coords are fractions; origin top-left, y down; gray L in 0..1, 0=black):
   size WxH
   Background top=A bottom=B               vertical gradient sky (A at top, B at bottom)
@@ -45,6 +51,20 @@ Commands (coords are fractions; origin top-left, y down; gray L in 0..1, 0=black
     <fill> = fill=L | rgb=R,G,B                      solid (gray / colour)
            | grad=R,G,B>R,G,B [dir=ax,ay,bx,by]      linear gradient (c1->c2)
            | radial=R,G,B>R,G,B [at=cx,cy,r]         radial gradient (centre->edge)
+  Brush <name> hair [w=12] [period=48] [seed=1] [gap=0.35]   a split-bristle footprint: w
+    columns ACROSS the stroke, `period` rows ALONG it (tiled), a `gap` share of thin
+    strands that break along the run. `Brush <name> file=<png> [period=]` is an authored
+    footprint instead (RGBA; rows = along, column 0 = the stroke's right side root→tip).
+  Lock (x,y) (x,y)[~] ... [brush=<name>] [w0=2] [w=10] [swell=0.3] [body=0.8] [tips=3]
+    [tipvar=0.35] [spread=8] [seed=1] [rgb=R,G,B] [dark=R,G,B] [lit=R,G,B] [light=x,y,z]
+    [alpha=1] [flip=1] [period=]   ONE LOCK OF HAIR / TUFT OF FUR — the brush dragged
+    root→tip along the (smoothable) path. Width w0 where it grows from the skin, swelling
+    to w by fraction `swell` of the length, body to fraction `body`, then `tips` spikes of
+    uneven length (±tipvar), fanned ±spread°, each tapering to a point. Shaded as a
+    half-cylinder against `light` (default from upper-left, in front): the underside sinks
+    to `dark` (any hue — white hair shadows blue), the crest is `rgb`, the flank facing the
+    light rises to `lit`. Paints OVER what is beneath, so lay locks back to front. No
+    `Brush` line needed: the default is `hair` with its defaults.
   landmark <name> = <value>
   check <prop> <op> <term> [tol T]        op: ~ < > <= >= ; arithmetic on RHS only
   # ...                                    comment / SHOULD note (ignored, searchable)
@@ -92,6 +112,7 @@ DIR = re.compile(r"\bdir\s*=\s*([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)", re.I)
 ATC = re.compile(r"\bat\s*=\s*([-\d.]+),([-\d.]+),([-\d.]+)", re.I)
 BGC = re.compile(r"Background\s+topc\s*=\s*\(?(\d+),(\d+),(\d+)\)?\s+botc\s*=\s*\(?(\d+),(\d+),(\d+)\)?", re.I)
 LAND = re.compile(r"landmark\s+(\w+)\s*=\s*([-\d.]+)", re.I)
+BRUSH = re.compile(r"Brush\s+(\w+)\s+(\w+)", re.I)
 
 
 def gray(L):
@@ -132,6 +153,7 @@ def _stroke_color(s):
     return (int(m[1]), int(m[2]), int(m[3])) if m else None
 
 
+# @FR-Raster-Gradient — computed on a 100×100 grid, enlarged bicubically (PIL's default resize).
 def _make_gradient(kind, c1, c2, spec, bbox, size):
     """A size=(w,h) RGB gradient image for the bbox (fractional fx0,fy0,fx1,fy1).
        Computed small (100x100) then resized — cheap and smooth."""
@@ -161,6 +183,7 @@ def _make_gradient(kind, c1, c2, spec, bbox, size):
     return im.resize((max(1, size[0]), max(1, size[1])))
 
 
+# @FR-Raster-Pillow — ImageDraw.polygon IS the rule: this is the oracle's filler.
 def _paint_polygon(img, pts, paint, BW, BH):
     if paint[0] == "solid":
         ImageDraw.Draw(img).polygon([(x*BW, y*BH) for x, y in pts], fill=paint[1])
@@ -209,6 +232,7 @@ def petal_polys(cx, cy, n, r, length, w, bulge, a0deg, W, H):
     return out
 
 
+# @FR-Seed-Hash
 def _hash01(seed, i, salt):
     """A REPRODUCIBLE pseudo-random float in [-1,1) from small non-negative ints — never
     random()/hash() (those break reproducible renders). Used for Fronds' seeded jitter."""
@@ -218,6 +242,7 @@ def _hash01(seed, i, salt):
     return (x / 0xFFFFFFFF) * 2.0 - 1.0
 
 
+# @FR-Seed-NonUniform — the field an array clumps on.
 def _lowfreq(seed, u):
     """A smooth LOW-FREQUENCY wave ~[-1,1] (two low harmonics, seed-derived phases).
     Smooth in u ⇒ neighbouring fronds correlate ⇒ CLUMPS + gaps, not white noise."""
@@ -226,6 +251,350 @@ def _lowfreq(seed, u):
     return 0.6 * math.sin(2 * math.pi * u + p1) + 0.4 * math.sin(4 * math.pi * u + p2)
 
 
+# ---- the BRUSH: an image dragged along a path (EXTRACTION.md §3, the two-pass brush) ----
+#
+# A brush is a small RGBA image. Its columns map ACROSS the stroke (stretched to the local
+# width), its rows ALONG it (tiled every `period` px). `Lock` drags one along a path with the
+# width profile of a lock of hair — pinched where it grows from the skin, swelling as the
+# hairs gain freedom, ending in spikes where the hairs ran out at uneven lengths — and shades
+# it as a half-cylinder against a light: the flank facing the light rises to `lit`, the
+# underside sinks to `dark` (any hue — white hair shadows blue in some styles). Every stroke
+# is built in its own LAYER (each pixel keeps the sample transversally closest to a
+# centreline, so body and spikes join without seams) and composited OVER the canvas once,
+# so a lock paints cleanly over the locks behind it. Written in a portable style — flat int
+# buffers, explicit loops — because src/sprite_draw.loft carries the same routines line for
+# line and the two are held to parity (tools/lock_probe.py).
+
+def _floor_i(v):
+    i = int(v)
+    return i - 1 if float(i) > v else i
+
+
+def _clamp(v, lo, hi):
+    return lo if v < lo else hi if v > hi else v
+
+
+# @FR-Brush-Image — the built-in footprint.
+def hair_brush(bw, bh, seed, gap):
+    """The built-in split-bristle footprint. Columns group into channels 1..3 px wide, each
+    a bristle with its own value; a `gap` fraction are thin translucent strands whose alpha
+    BREAKS along the run (the broken parallel streaks a worn brush lays); the outermost
+    columns are soft so the silhouette frays. Greyscale value × alpha, packed 0xAARRGGBB —
+    the stroke's colour ramp multiplies in at resolve time."""
+    img = [0] * (bw * bh)
+    x = 0
+    ci = 0
+    while x < bw:
+        cw = 1 + int(2.99 * (_hash01(seed, ci, 7) + 1.0) * 0.5)
+        val = 0.72 + 0.28 * (_hash01(seed, ci, 8) + 1.0) * 0.5
+        split = (_hash01(seed, ci, 9) + 1.0) * 0.5 < gap
+        for k in range(cw):
+            xx = x + k
+            if xx >= bw:
+                break
+            edge = 0.6 if (xx == 0 or xx == bw - 1) else 1.0
+            for y in range(bh):
+                u = y / bh
+                v = val * (1.0 - 0.12 * (1.0 + _lowfreq(seed * 3 + ci, u)) * 0.5)
+                a = edge
+                if split:                                    # a thin strand that fades out
+                    a = 0.35 * edge * _clamp((_lowfreq(seed * 7 + ci, u) + 0.6) / 0.6, 0.0, 1.0)
+                g = int(255.0 * v + 0.5)
+                ai = int(255.0 * a + 0.5)
+                img[y * bw + xx] = (ai << 24) | (g << 16) | (g << 8) | g
+        x += cw
+        ci += 1
+    return img
+
+
+def _path_at(px, py, cum, dist):
+    """Point + unit tangent at arc length `dist` along the polyline, extrapolated past the
+    end along the last segment (the spikes run on past the path's end)."""
+    n = len(px)
+    k = n - 2
+    for i in range(n - 1):
+        if dist <= cum[i + 1]:
+            k = i
+            break
+    seg = cum[k + 1] - cum[k]
+    u = (dist - cum[k]) / seg
+    dx = px[k + 1] - px[k]
+    dy = py[k + 1] - py[k]
+    return (px[k] + u * dx, py[k] + u * dy, dx / seg, dy / seg)
+
+
+def _lock_width(t, w0, w, swell):
+    if swell <= 1e-9 or t >= swell:
+        return w
+    return w0 + (w - w0) * math.sin(0.5 * math.pi * t / swell)
+
+
+# @FR-Lock-Profile · @FR-Lock-Streak (the [slo, shi] slice each ribbon carries)
+def _lock_ribbons(xs, ys, st):
+    """The lock's geometry as ribbons (X, Y, HW, AL, slo, shi): a sampled centreline with
+    per-sample half-width and arc position, plus the slice [slo,shi] of the body's across
+    axis it carries (the body is [-1,1]; a spike keeps its share, so the bristle streaks run
+    on from body into spike). Body first, then one ribbon per spike."""
+    px = [xs[0]]
+    py = [ys[0]]
+    cum = [0.0]
+    for i in range(1, len(xs)):
+        ddx = xs[i] - px[-1]
+        ddy = ys[i] - py[-1]
+        d = math.sqrt(ddx * ddx + ddy * ddy)      # @FR-Oracle-Order: sqrt, not hypot
+        if d > 1e-6:
+            px.append(xs[i]); py.append(ys[i]); cum.append(cum[-1] + d)
+    if len(px) < 2:
+        return []
+    L = cum[-1]
+    w0, w, swell, body = st["w0"], st["w"], st["swell"], st["body"]
+    body = _clamp(body, 0.05, 1.0)
+    swell = _clamp(swell, 0.0, body)
+    ds = _clamp(0.5 * w, 2.0, 6.0)
+    ribbons = []
+    nb = max(2, -_floor_i(-(body * L / ds))) + 1
+    X = []; Y = []; HW = []; AL = []; MX = []
+    for j in range(nb):
+        t = body * j / (nb - 1)
+        dist = t * L
+        qx, qy, _tx, _ty = _path_at(px, py, cum, dist)
+        X.append(qx); Y.append(qy)
+        HW.append(0.5 * _lock_width(t, w0, w, swell))
+        AL.append(dist); MX.append(0.0)
+    ribbons.append((X, Y, HW, AL, MX, -1.0, 1.0))
+    hwb = 0.5 * _lock_width(body, w0, w, swell)
+    tips, seed = st["tips"], st["seed"]
+    tail = (1.0 - body) * L
+    if tips <= 0 or tail < 1.0 or hwb < 0.3:
+        return ribbons
+    raw = [1.0 + 0.5 * _hash01(seed, i, 41) for i in range(tips)]
+    tot = 0.0
+    for i in range(tips):          # @FR-Oracle-Order: a running sum; `sum()` compensates since 3.12
+        tot += raw[i]
+    a1 = -1.0
+    for i in range(tips):
+        a0 = a1
+        a1 = a0 + 2.0 * raw[i] / tot
+        c = 0.5 * (a0 + a1)
+        hs = 0.5 * (a1 - a0)
+        ell = tail * (1.0 + st["tipvar"] * _hash01(seed, i, 42))
+        if ell < 0.15 * tail:
+            ell = 0.15 * tail
+        th = st["spread"] * _hash01(seed, i, 43) * (math.pi / 180.0)
+        m = max(2, -_floor_i(-(ell / ds))) + 1
+        X = []; Y = []; HW = []; AL = []; MX = []
+        for j in range(m):
+            u = j / (m - 1)
+            dist = body * L + u * ell * math.cos(th)
+            qx, qy, tx, ty = _path_at(px, py, cum, dist)
+            off = c * hwb + u * ell * math.sin(th)
+            X.append(qx + ty * off); Y.append(qy - tx * off)
+            HW.append(hs * hwb * (1.0 - u * u))     # full width leaving the body, a point at the end
+            AL.append(dist); MX.append(u)
+        ribbons.append((X, Y, HW, AL, MX, a0, a1))
+    return ribbons
+
+
+# @FR-Brush-Layer
+def _raster_segment(lay, ax, ay, bx, by, hwa, hwb, ala, alb, mxa, mxb, slo, shi):
+    """One ribbon segment into the layer: every pixel centre within the local half-width of
+    its projection onto the segment (round joins for free — the projection clamps to the
+    endpoints). A pixel keeps the sample with the SMALLEST |s|, i.e. from the centreline it
+    is transversally closest to; that is what makes the union of body + spikes seamless
+    whatever the order they are laid in. `mx` is how far the sample is into a spike (0 on
+    the body): the shading blends from the lock's cylinder to the spike's own by it."""
+    x0, y0, lw, lh, best, sb, sl, al, mx, nxv, nyv = lay
+    dx = bx - ax
+    dy = by - ay
+    l2 = dx * dx + dy * dy
+    if l2 < 1e-9:
+        return
+    ln = math.sqrt(l2)
+    nx = dy / ln
+    ny = -dx / ln
+    hm = max(hwa, hwb)
+    px0 = max(x0, _floor_i(min(ax, bx) - hm))
+    px1 = min(x0 + lw - 1, -_floor_i(-(max(ax, bx) + hm)))
+    py0 = max(y0, _floor_i(min(ay, by) - hm))
+    py1 = min(y0 + lh - 1, -_floor_i(-(max(ay, by) + hm)))
+    for yy in range(py0, py1 + 1):
+        cy = yy + 0.5
+        for xx in range(px0, px1 + 1):
+            cx = xx + 0.5
+            u = ((cx - ax) * dx + (cy - ay) * dy) / l2
+            u = _clamp(u, 0.0, 1.0)
+            hw = hwa + (hwb - hwa) * u
+            if hw <= 0.01:
+                continue
+            dist = (cx - ax - u * dx) * nx + (cy - ay - u * dy) * ny
+            s = dist / hw
+            a = s if s >= 0.0 else -s
+            if a > 1.0:
+                continue
+            idx = (yy - y0) * lw + (xx - x0)
+            if a < best[idx]:
+                best[idx] = a
+                sl[idx] = s
+                sb[idx] = slo + (s + 1.0) * 0.5 * (shi - slo)
+                al[idx] = ala + (alb - ala) * u
+                mx[idx] = mxa + (mxb - mxa) * u
+                nxv[idx] = nx
+                nyv[idx] = ny
+
+
+# @FR-Brush-Image — the sampling half: bilinear, clamped across, wrapped along.
+def _brush_sample(img, bw, bh, fu, fv):
+    """Bilinear RGBA sample: clamp across (fu), wrap along (fv, already non-negative)."""
+    iu = _floor_i(fu)
+    tu = fu - iu
+    iv = int(fv)
+    tv = fv - iv
+    u0 = _clamp(iu, 0, bw - 1)
+    u1 = _clamp(iu + 1, 0, bw - 1)
+    v0 = iv % bh
+    v1 = (iv + 1) % bh
+    c00 = img[v0 * bw + u0]; c10 = img[v0 * bw + u1]
+    c01 = img[v1 * bw + u0]; c11 = img[v1 * bw + u1]
+    w00 = (1.0 - tu) * (1.0 - tv); w10 = tu * (1.0 - tv)
+    w01 = (1.0 - tu) * tv;         w11 = tu * tv
+    out = []
+    for sh in (24, 16, 8, 0):
+        out.append(((c00 >> sh) & 255) * w00 + ((c10 >> sh) & 255) * w10 +
+                   ((c01 >> sh) & 255) * w01 + ((c11 >> sh) & 255) * w11)
+    return out
+
+
+# @FR-Brush-Ramp (the resolve) · @FR-Oracle-Order (the loft port computes this expression
+# for expression, so keep the arithmetic in this order)
+def lock_layer(xs, ys, cw, ch, img, bw, bh, st):
+    """Drag brush `img` (bw×bh) along the pixel path (xs, ys) as a lock of hair styled by
+    `st` (w0, w, swell, body, tips, tipvar, spread, seed, period, base, dark, lit, light,
+    alpha, flip — see the Lock command). Returns (x0, y0, lw, lh, pixels) — the stroke as a
+    0xAARRGGBB layer clipped to the cw×ch canvas — or None when it paints nothing."""
+    ribbons = _lock_ribbons(xs, ys, st)
+    if not ribbons:
+        return None
+    minx = miny = 1e18
+    maxx = maxy = -1e18
+    for (X, Y, HW, _AL, _MX, _a, _b) in ribbons:
+        for i in range(len(X)):
+            minx = min(minx, X[i] - HW[i]); maxx = max(maxx, X[i] + HW[i])
+            miny = min(miny, Y[i] - HW[i]); maxy = max(maxy, Y[i] + HW[i])
+    x0 = max(0, _floor_i(minx) - 1)
+    y0 = max(0, _floor_i(miny) - 1)
+    x1 = min(cw - 1, _floor_i(maxx) + 1)
+    y1 = min(ch - 1, _floor_i(maxy) + 1)
+    if x1 < x0 or y1 < y0:
+        return None
+    lw = x1 - x0 + 1
+    lh = y1 - y0 + 1
+    n = lw * lh
+    lay = (x0, y0, lw, lh, [2.0] * n, [0.0] * n, [0.0] * n, [0.0] * n, [0.0] * n,
+           [0.0] * n, [0.0] * n)
+    for (X, Y, HW, AL, MX, slo, shi) in ribbons:
+        for i in range(len(X) - 1):
+            _raster_segment(lay, X[i], Y[i], X[i + 1], Y[i + 1], HW[i], HW[i + 1],
+                            AL[i], AL[i + 1], MX[i], MX[i + 1], slo, shi)
+    best, sb, sl, al, mx, nxv, nyv = lay[4:]
+    lx, ly, lz = st["light"]
+    ll = math.sqrt(lx * lx + ly * ly + lz * lz)
+    if ll < 1e-9:
+        lx, ly, lz, ll = 0.0, 0.0, 1.0, 1.0
+    lx /= ll; ly /= ll; lz /= ll
+    crest = _clamp(lz, 0.05, 0.95)
+    base, dark, litc = st["base"], st["dark"], st["lit"]
+    period = st["period"] if st["period"] > 1e-6 else 1.0
+    phase = (_hash01(st["seed"], 0, 44) + 1.0) * 0.5 * period    # where along the tile this lock starts
+    flip, opacity = st["flip"], st["alpha"]
+    out = [0] * n
+    for idx in range(n):
+        if best[idx] > 1.5:
+            continue
+        s = sb[idx]
+        uu = (s + 1.0) * 0.5
+        if flip:
+            uu = 1.0 - uu
+        smp = _brush_sample(img, bw, bh, uu * bw - 0.5,
+                            ((al[idx] + phase) / period) * bh - 0.5 + bh * 4096.0)
+        ia = smp[0] * opacity
+        if ia < 0.5:
+            continue
+        s = s + (sl[idx] - s) * mx[idx]                  # a spike shades as its own cylinder
+        nz = math.sqrt(max(0.0, 1.0 - s * s))
+        lit = _clamp(s * nxv[idx] * lx + s * nyv[idx] * ly + nz * lz, 0.0, 1.0)
+        if lit < crest:
+            f = lit / crest
+            c0, c1 = dark, base
+        else:
+            f = (lit - crest) / (1.0 - crest)
+            c0, c1 = base, litc
+        r = int((c0[0] + (c1[0] - c0[0]) * f) * smp[1] / 255.0 + 0.5)
+        g = int((c0[1] + (c1[1] - c0[1]) * f) * smp[2] / 255.0 + 0.5)
+        b = int((c0[2] + (c1[2] - c0[2]) * f) * smp[3] / 255.0 + 0.5)
+        out[idx] = (int(ia + 0.5) << 24) | (_clamp(r, 0, 255) << 16) | \
+                   (_clamp(g, 0, 255) << 8) | _clamp(b, 0, 255)
+    return (x0, y0, lw, lh, out)
+
+
+# @FR-Brush-Over
+def _composite_layer(img, lay):
+    """Alpha-OVER the stroke layer onto the canvas, in INTEGER arithmetic rather than
+    Pillow's paste: this exact formula is what the loft port composites with, so the two
+    agree byte for byte instead of to within Pillow's rounding. Straight alpha; an RGB
+    canvas is the same formula with the destination fully opaque."""
+    x0, y0, lw, lh, out = lay
+    px = img.load()
+    rgba = img.mode == "RGBA"
+    for j in range(lh):
+        for i in range(lw):
+            c = out[j * lw + i]
+            sa = (c >> 24) & 255
+            if sa == 0:
+                continue
+            d = px[x0 + i, y0 + j]
+            da = d[3] if rgba else 255
+            t = da * (255 - sa)
+            oa = sa * 255 + t                       # the result's alpha, times 255
+            nr = (((c >> 16) & 255) * sa * 255 + d[0] * t + oa // 2) // oa
+            ng = (((c >> 8) & 255) * sa * 255 + d[1] * t + oa // 2) // oa
+            nb = ((c & 255) * sa * 255 + d[2] * t + oa // 2) // oa
+            if rgba:
+                px[x0 + i, y0 + j] = (nr, ng, nb, (oa + 127) // 255)
+            else:
+                px[x0 + i, y0 + j] = (nr, ng, nb)
+
+
+def _optf(s, key, dflt):
+    m = re.search(r"\b" + key + r"\s*=\s*([-\d.]+)", s, re.I)
+    return float(m[1]) if m else dflt
+
+
+def _rgb_opt(s, key):
+    m = re.search(r"\b" + key + r"\s*=\s*\(?\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)?", s, re.I)
+    return (int(m[1]), int(m[2]), int(m[3])) if m else None
+
+
+def _vec3_opt(s, key):
+    m = re.search(r"\b" + key + r"\s*=\s*\(?\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)?",
+                  s, re.I)
+    return (float(m[1]), float(m[2]), float(m[3])) if m else None
+
+
+def _load_brush_file(path, period):
+    """An authored footprint from a PNG (RGBA), rows = along the stroke, columns = across;
+    column 0 lands on the stroke's RIGHT side walking root→tip (flip=1 mirrors)."""
+    im = Image.open(path).convert("RGBA")
+    bw, bh = im.size
+    px = im.load()
+    img = [0] * (bw * bh)
+    for y in range(bh):
+        for x in range(bw):
+            r, g, b, a = px[x, y]
+            img[y * bw + x] = (a << 24) | (r << 16) | (g << 8) | b
+    return (img, bw, bh, period if period > 0 else float(bh))
+
+
+# @FR-Seed-NonUniform — trend + clump + jitter + fray by default; @FR-Seed-Hash for every draw.
 def fronds(x1, y1, x2, y2, n, length, length2, w, w2, ang, ang2,
            mirror, jitter, field, fray, seed, bow, W, H, depth=1, sub=0.32):
     """A LINEAR ARRAY of N tapered strokes rooted along the spine (x1,y1)-(x2,y2): each
@@ -283,6 +652,7 @@ def fronds(x1, y1, x2, y2, n, length, length2, w, w2, ang, ang2,
     return out
 
 
+# @FR-Mark-Smooth
 def _smooth_pts(pts, flags, closed, samples=10, vals=None):
     """Expand control points to a dense polyline. A point flagged smooth (~) curves
     (Catmull-Rom tangent = half the neighbour chord); a corner uses the segment chord
@@ -324,6 +694,7 @@ def _smooth_pts(pts, flags, closed, samples=10, vals=None):
     return out
 
 
+# @FR-Mark-Ribbon
 def _ribbon(d, pts, widths, color, BW, BH, S):
     """A stroke as a filled ribbon, so the pen width can vary per point (taper).
        Offsets each point along the local normal by half its width on both sides
@@ -348,6 +719,8 @@ def _ribbon(d, pts, widths, color, BW, BH, S):
     d.polygon(left + right[::-1], fill=color)
 
 
+# @FR-Scene-Order (the order the commands are tried in below IS the grammar) ·
+# @FR-Scene-Fraction · @FR-Scene-Unparsed
 def parse(text):
     W = H = 800
     ops = []          # ordered draw program
@@ -356,6 +729,7 @@ def parse(text):
     checks = []
     unparsed = []     # (line-number, text) for every line no command accepted
     bg_transparent = False
+    brushes = {}      # name -> (img, bw, bh, period_px); "hair" is made on first use
     cur = [None]
 
     def acc(x, y):
@@ -457,6 +831,47 @@ def parse(text):
                         cl, ww = pts, wid
                     accpts(cl)
                     ops.append(("stroke", cl, ww, col))
+            continue
+        if low.startswith("brush "):
+            m = BRUSH.match(s)
+            kind = m[2].lower() if m else ""
+            if kind == "hair":
+                bw, bh = int(_optf(s, "w", 12)), int(_optf(s, "period", 48))
+                brushes[m[1]] = (hair_brush(bw, bh, int(_optf(s, "seed", 1)),
+                                            _optf(s, "gap", 0.35)), bw, bh, float(bh))
+            elif kind == "file":
+                fm = re.search(r"\bfile\s*=\s*(\S+)", s, re.I)
+                path = os.path.join(os.path.dirname(os.path.abspath(SRC)), fm[1])
+                try:
+                    brushes[m[1]] = _load_brush_file(path, _optf(s, "period", 0.0))
+                except OSError:
+                    unparsed.append((lineno, s))
+            else:
+                unparsed.append((lineno, s))
+            continue
+        if low.startswith("lock"):
+            raw = PTF.findall(s)
+            pts = [(float(a), float(b)) for a, b, _, _ in raw]
+            flags = [t == "~" for _, _, t, _ in raw]
+            bm = re.search(r"\bbrush\s*=\s*(\w+)", s, re.I)
+            if len(pts) < 2 or (bm and bm[1] not in brushes):
+                unparsed.append((lineno, s)); continue
+            if bm is None and "hair" not in brushes:
+                brushes["hair"] = (hair_brush(12, 48, 1, 0.35), 12, 48, 48.0)
+            brush = brushes[bm[1] if bm else "hair"]
+            pts = _smooth_pts(pts, flags, closed=False)
+            accpts(pts)
+            base = _rgb_opt(s, "rgb") or (120, 80, 40)
+            st = dict(w0=_optf(s, "w0", 2.0), w=_optf(s, "w", 10.0),
+                      swell=_optf(s, "swell", 0.3), body=_optf(s, "body", 0.8),
+                      tips=int(_optf(s, "tips", 3)), tipvar=_optf(s, "tipvar", 0.35),
+                      spread=_optf(s, "spread", 8.0), seed=int(_optf(s, "seed", 1)),
+                      period=_optf(s, "period", brush[3]), base=base,
+                      dark=_rgb_opt(s, "dark") or tuple(c // 2 for c in base),
+                      lit=_rgb_opt(s, "lit") or tuple(c + (255 - c) * 35 // 100 for c in base),
+                      light=_vec3_opt(s, "light") or (-0.5, -0.8, 0.6),
+                      alpha=_optf(s, "alpha", 1.0), flip=int(_optf(s, "flip", 0)))
+            ops.append(("lock", pts, st, brush))
             continue
         if low.startswith("poly"):
             raw = PTF.findall(s)
@@ -695,6 +1110,8 @@ def write_stats(img, W, H, nops, elems, results, unparsed):
         f.write("\n".join(lines) + "\n")
 
 
+# @FR-Oracle-Bytes — this function IS the oracle · @FR-Raster-Supersample ·
+# @FR-Raster-Transparent · @FR-Mark-Deposit (fills and strokes overwrite; only "lock" composites)
 def render():
     """Render SRC to the output files. Returns True when every line parsed and
     every check passes — the --once exit status."""
@@ -733,6 +1150,14 @@ def render():
             else:
                 for p, q in zip(pts, pts[1:]):
                     d.line([(p[0]*BW, p[1]*BH), (q[0]*BW, q[1]*BH)], fill=color, width=max(1, w*S))
+        elif op[0] == "lock":
+            _, pts, st, brush = op
+            stp = dict(st)                                   # widths/period in canvas px -> S×
+            stp["w0"], stp["w"], stp["period"] = st["w0"] * S, st["w"] * S, st["period"] * S
+            lay = lock_layer([x * BW for x, _y in pts], [y * BH for _x, y in pts], BW, BH,
+                             brush[0], brush[1], brush[2], stp)
+            if lay:
+                _composite_layer(img, lay)
     img = img.resize((W, H), Image.LANCZOS)
     img.save(OUT)
     # Flatten-on-white copy for preview / check-overlay / stats — reads correctly

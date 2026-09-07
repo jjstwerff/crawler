@@ -23,18 +23,19 @@ reads as a **strange web on the back** — the line *placement* is right, the *d
 is wrong; the SAME lines laid by a rough brush would read as fur (failure-taxonomy #2,
 not #1 — don't keep re-placing the lines, grow the brush).
 
-> **Tool gap behind this:** `tools/draw.py` deposits paint OPAQUELY, so an interior
-> hair stroke floats instead of mixing with the mass under it. The two brushes that
-> would close it — a **rough brush** (the old-masters 16th-c. split-bristle drag that
-> mixes with the not-yet-dry paint, leaving streaks that read as hairs *within* the
-> mass) and a **modern spray-paint / airbrush tool** (translucent layering + a
-> centre-strong, edge-zero cross-section + adjustable flow — for skin / water / smoke;
+> **The tool behind this:** every other `tools/draw.py` mark deposits paint OPAQUELY, so
+> an interior hair stroke floats instead of mixing with the mass under it. The **rough
+> brush** — the old-masters 16th-c. split-bristle drag — now exists as the **`Lock`**
+> stroke (a bristle-image footprint dragged root→tip: pinched at the skin, swelling,
+> spiked ends, lit top / dark underside, painted OVER the locks behind; grammar in
+> `draw.py`'s docstring, probes in `tools/lock_probe.py`): lay fur as a few `Lock`s back
+> to front, never as enumerated opaque strands. Still missing — the wet pickup of the
+> paint beneath, and the **modern spray-paint / airbrush tool** (translucent layering +
+> a centre-strong, edge-zero cross-section + adjustable flow — for skin / water / smoke;
 > the established fix for skin going flat & unicolor, which the old masters never solved
-> by hand without days of colour-matching) — are recorded as missing capabilities in
-> **EXTRACTION.md §3**. The whole point of both is the **illusion of detail in one
-> gesture** — the masters almost never drew hairs or leaves one by one; a few clever
-> strokes imply the hundreds. Until the brushes exist, *withhold* (don't fake fur with
-> enumerated opaque strands — imply it, don't enumerate it).
+> by hand without days of colour-matching): **EXTRACTION.md §3**. The whole point of
+> both is the **illusion of detail in one gesture** — the masters almost never drew hairs
+> or leaves one by one; a few clever strokes imply the hundreds.
 
 **Licensing:** the bundled samples are public-domain (pre-1900 works / faithful
 photographic reproductions) — **except** `flora/leaf_pinnate_venation_pecan.jpg`, which is

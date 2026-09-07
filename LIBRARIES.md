@@ -2,13 +2,22 @@
 
 **GENERATED — do not edit. `make apidoc` rewrites it; `make apidoc-check` fails if it is stale.**
 
-One line per public name, read from the registry copy the build resolves. This exists
+One line per public name, read from the registry copy `loft.lock` pins. This exists
 because looking a signature up used to mean reading the package: ~500 lines of source
 for ~20 signatures, measured over one session. Read this instead, and open the package
 only when you need the *reasoning* — which is what its comments are for.
 
 ⚠ Signatures only. **Why** a routine exists, and the traps around it, live in the
 package's own comments and in `EXTRACTION.md` / `ADOPTION.md`.
+
+⚠ **Only the packages crawler DECLARES.** This file cannot answer *"is there already a
+library that does X?"* — it once said there was no PNG decoder while `imaging` had
+shipped one. That question goes to the loft tree, which validates what is written:
+`../loft/doc/claude/LIBRARIES.md` (every published library and its public API —
+*check here before implementing*), `LIBRARY_BRANCHES.md` beside it (unmerged work in
+flight), and `loft api --registry` / `.loft/api/_available.api` (the live catalogue).
+Found one? Declare it in `loft.toml`, compile once, check `loft.lock` names it, and
+`make apidoc` — then it is in here.
 
 ## `graphics` 0.5.0
 

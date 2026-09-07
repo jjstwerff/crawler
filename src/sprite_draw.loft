@@ -14,6 +14,10 @@
 // Coordinates are PIXEL-space floats; geometry front-ends (smoothing/circle/petals/fronds)
 // produce them. Parity invariant vs draw.py: interior pixel-exact, judged on MEAN (the
 // box-vs-LANCZOS kernel gap forbids a tight max gate — see sprite_drawtest).
+//
+// @FR-D-draw-1 — an OPEN deviation in formal/draw.md: the sprite half of this module is
+// not held to the oracle's bytes (Oracle-Bytes / Raster-Pillow / Raster-Supersample); the
+// `drawing` library is. `fill_polygons` for the world texture is not part of it.
 
 use graphics;
 
@@ -259,6 +263,7 @@ fn fill_polygon_radial(buf: vector<integer>, w: integer, h: integer,
 // Variable-width stroke as a filled ribbon (draw.py's _ribbon): offset each path point
 // along its local normal by half the per-point width, fill the left-fwd + right-back band.
 // Butt caps; `widths` is per-point (pass a uniform vector for constant width).
+// @FR-Mark-Ribbon
 fn stroke_path(buf: vector<integer>, w: integer, h: integer,
                xs: vector<float>, ys: vector<float>, widths: vector<float>, color: integer) {
   n = len(xs);

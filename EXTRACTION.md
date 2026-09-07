@@ -265,7 +265,19 @@ ceiling (the draw skill's failure-taxonomy #5 + its "grow the tool first — col
 with the wet canvas), a *modern* spray (translucent soft falloff), and a grime wash (depth-pooled
 weathering) — close it:
 
-- [ ] **Rough brush — the 16th-c. hair / fur stroke (the HARDER of the two to mimic).** A coarse,
+- [x] **Rough brush — the 16th-c. hair / fur stroke (the HARDER of the two to mimic).**
+      ✅ **Shipped 2026-09-07 as the `Lock` brush stroke, in both tools:** `tools/draw.py`
+      (`Brush` / `Lock`; falsification probes + the goldens in `tools/lock_probe.py`) and the
+      `drawing` library (`../loft-libs-graphics/drawing/src/brush.loft`, byte-identical to
+      draw.py, pinned by its `tests/lock.loft`). What it is: an IMAGE footprint (the built-in
+      split-bristle `hair`, or an authored PNG) dragged along a path with a lock's width
+      profile — pinched at the skin (`w0`), swelling to `w`, then `tips` spikes of uneven length
+      tapering to points — shaded as a half-cylinder against a light through a three-colour
+      ramp `dark → rgb → lit` across the width (the double-load; `dark=` is a colour, so white
+      hair shadows blue), built as a layer and composited OVER once, so a lock covers the locks
+      behind it and only its frayed edge shows them. ⚠ **NOT yet the wet pickup** (paint
+      dragged from the layer beneath) — the layer/composite design is where that goes, as a
+      read of the canvas under the stroke before the resolve. The original spec follows. A coarse,
       stiff, SPLIT-bristle brush (the worn hog-bristle the Renaissance "rough manner" painters —
       late Titian — dragged for hair, beard, fur): its splayed bristles lay MULTIPLE broken parallel
       streaks in one pass and, pulled through the *not-yet-dry* paint beneath, pick up and smear that
