@@ -1414,3 +1414,30 @@ in a sweep script reports it identically to a deadlock.
 one long one. That changes the generated shape and requires regenerating committed data to work
 around a complexity bug, so it is **the user's call, not taken** — nothing is corrupted, and the
 file does compile if you wait.
+
+---
+
+## H13 — loft-native runs 10–50× behind plain Rust on the drawing library's routines
+
+**Status:** ✅ **FILED 2026-09-07 as [loft#1426](https://github.com/loft-lang/loft/issues/1426)**,
+with the measured attribution and the plan's details (mechanisms M1–M4, phases P0–P5) for a
+loft agent to open as a plan. Not a crawler bug; not a library bug either — the hashes agree
+across the interpreter, the native build and the Rust reference, so the algorithm is one.
+**Labels:** `performance`, `area:native`, `area:codegen`, `hit-by:crawler`
+
+### Summary
+
+The `drawing` library's performance pass (`../loft-libs-graphics/drawing/bench/`, branch
+`drawing-lock`) measures every public routine against a byte-identical pure-Rust reference:
+`fill_poly` 17×, `composite` 26×, `lock_layer` 30×, `fronds` 49×, the 100 000-call `hash` row
+10.9× (best of 3). Isolated: not the optimisation level (the emitted Rust rebuilt by hand at
+`-O`, `opt-level=3`, `codegen-units=1`, `target-cpu=native` does not move; LTO impossible, the
+rlib has no bitcode), not the cdylib boundary (a standalone one-crate program gives the same
+numbers). The generated code: per element `vector::get_vector` / `vec_get_or_raise_runtime` +
+a store access with a null-record test (the write path not `#[inline]`), record scalars re-read
+per pixel, NaN-aware float compares on non-null operands, sentinel integer helpers, and on every
+call — `--native-release` included, `--lean` strips only the hot-reload check — the shadow-stack
+push (~7 ns). Loft-side style recovers ~10 %.
+
+**Ruling recorded (user, 2026-09-07):** the answer is work on loft, never a native export from
+a library; the reference validates and never implements. Register: `formal/draw.md` D-draw-2.

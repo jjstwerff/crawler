@@ -343,6 +343,11 @@ public routine on a fixed workload with a hash of its output, a **pure-Rust refe
 (or C#) computes the same workloads, and `compare.py` fails the routine whose hashes
 disagree or whose loft-native time is over the bar. Industry-standard speed is the bar,
 measured, not assumed. EXTRACTION.md DoD 7; rule `formal/draw.md` (Perf-Weight).
+⚠ **A routine that fails the bar is WORK FOR loft, never a native export** (user ruling,
+2026-09-07): a library stays readable loft and is efficient because loft is; nobody must
+learn rustc to get a library accepted, or loft's educational base is gone. The reference
+validates, it never implements. The lessons go to the loft tracker with the plan's details
+(loft#1426 is the worked example) — a plan for loft is a loft agent's to open, not this tree's.
 
 **AND ITS CONSTRUCTIVE HALF — a library design must be UNIVERSAL FOR THE CLASS**, not for one
 project's scope. The live case is **indexing of walls / items / ground**: a stored identity is

@@ -187,7 +187,10 @@ Side lessons:
    reference, or the routine **does not pull its weight** and that is a defect in the
    routine, not a fact of the language. The bar and the dated table live in the README.
    Rule: `formal/draw.md` (Perf-Weight). Nothing in `compare.py` knows what the routines
-   are, so the next package reuses it unchanged.
+   are, so the next package reuses it unchanged. ⚠ **The reference validates; it never
+   becomes the implementation** (user ruling, 2026-09-07): a failing bar is loft codegen
+   work, filed with the measurements and the plan's details on the loft tracker
+   (loft#1426), never a native export — library authors write loft, not rustc.
 
 **Environment caveat (not a blocker) — NARROWED 2026-06-14 by loft @PLN21 (#370).** E0514
 bites **only AUTO-compiled native** (a pure-loft lib loft compiles to a cdylib that
