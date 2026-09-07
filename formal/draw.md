@@ -183,13 +183,18 @@ OPEN: **2**.
 - **Where:** not in `drawing`'s code — the hashes agree across the interpreter, the native
   build and the reference, so the algorithm is one. The gap is the loft native runtime and
   codegen: measured 2026-09-07, best of 3 (`drawing/bench/compare.py`, bar 4×),
-  loft-native / Rust = `hair` 4.3, `hash` 10.9 (100 000 calls: the per-call crossing into
-  the library's cdylib), `fill_circle` 17, `fill_star` 17, `wide_line` 17, `composite` 26,
-  `lock` 30, `lock_curved` 34, `fronds` 49, `smooth` 262 (61 points: per-call cost). The
-  interpreter is 6–37× slower than native on the same rows, so the store-backed value
-  model, not interpretation, is the cost — loft's own `PERFORMANCE.md` measures the same
-  class at 18–25× on matrix / sort and names it **N1** (the `codegen_runtime` / `DbRef`
-  indirection).
+  loft-native / Rust = `hair` 4.3, `hash` 10.9 (100 000 calls: ~7 ns of each is the
+  entry instrumentation every generated function carries, release build included),
+  `fill_circle` 17, `fill_star` 17, `wide_line` 17, `composite` 26, `lock` 30,
+  `lock_curved` 34, `fronds` 49, `smooth` 262 (61 points: per-call cost). **Isolated:**
+  the brush inlined into one standalone program gives the same numbers, so the library
+  boundary is not the cause; `--native-emit` shows the cause — every vector element
+  read or written through the store runtime with a null-record test (1 read + 7 writes
+  per painted pixel), struct scalars re-read per pixel, NaN-aware float comparisons,
+  sentinel integer helpers. Hash-preserving loft-side rewrites (hoist, inline the
+  per-pixel call, pass the arrays) recover ~10 %: 30.2 → 27.0 ms against Rust's 1.03.
+  loft's own `PERFORMANCE.md` measures the class at 18–25× on matrix / sort and names it
+  **N1** (collections through the store), with **N2/N4** (per-call instrumentation) on top.
 - **Effect:** a sprite that plain Rust renders in 1 ms takes loft 30 ms. Fine for a build
   step, not for anything that draws at runtime.
 - **Status:** OPEN — the removal is loft's (the standing grant is to FILE it, not fix it):
