@@ -1,0 +1,58 @@
+// Hydro smoke test — load the active region and run pit-fill / flow / acc /
+// I-FLOW validate. Standalone entry; equivalent to what the viewer will
+// print at startup once it's wired through.
+//
+// Run from the project root via:
+//   loft --interpret --lib src/realworld/ --lib src/regions/ hydro_test.loft
+// or `make hydro-test` (added in the Makefile).
+//
+// LOFT_REGION selects the region; defaults to ortler.
+use region;
+use hydro;
+use ortler;
+
+fn main() {
+  name = env_variable("LOFT_REGION");
+  if name == "" || name == null { name = "ortler"; }
+  println("=== hydro_test({name}) ===");
+  if name != "ortler" {
+    println("  only `ortler` is wired today (no other regions generated yet).");
+    return;
+  }
+  rgn = region_load_ortler();
+  println("  region : {rgn.rgn_cols} x {rgn.rgn_rows} hexes");
+
+  t0 = ticks();
+  hyd = hydro_compute(rgn);
+  dt_compute = (ticks() - t0) / 1000;
+  println("  hydro_compute: {dt_compute} ms (pit-fill + flow + acc on {rgn.rgn_cols * rgn.rgn_rows} cells)");
+
+  // Spot-check the filled heights against the raw DEM. Summit doesn't move;
+  // an interior valley cell stays at its raw height too (pit-fill only
+  // raises pits trapped above the boundary drainage level).
+  hc = 40; hr = 40;
+  println("  summit raw={region_height(rgn, hc, hr)}  filled={hyd.filled[hr * rgn.rgn_cols + hc] ?? 0}");
+
+  // The accumulation maxima: where the renderer would draw the widest rivers.
+  max_acc = 0;
+  max_idx = 0;
+  for i in 0..(rgn.rgn_cols * rgn.rgn_rows) {
+    a = hyd.acc[i] ?? 0;
+    if a > max_acc { max_acc = a; max_idx = i; }
+  }
+  mc = max_idx - (max_idx / rgn.rgn_cols ?? 0) * rgn.rgn_cols;
+  mr = max_idx / rgn.rgn_cols ?? 0;
+  println("  max acc = {max_acc} at hex ({mc},{mr}) — h={region_height(rgn, mc, mr)} m");
+
+  // I-FLOW validation.
+  (n_river, n_filled_uphill, n_filled_flat, n_raw_uphill) = hydro_validate(rgn, hyd);
+  println("  river-mask cells          : {n_river}");
+  println("  filled-uphill (gate, want 0): {n_filled_uphill}");
+  println("  filled-flat               : {n_filled_flat}");
+  println("  raw-uphill (informational): {n_raw_uphill}");
+  if n_filled_uphill == 0 {
+    println("  I-FLOW: PASS");
+  } else {
+    println("  I-FLOW: FAIL — pit-fill / flow_dir produced uphill flow on {n_filled_uphill} river-mask cells");
+  }
+}

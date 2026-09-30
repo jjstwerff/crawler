@@ -1,0 +1,18 @@
+// Half-Orc — a single playable race (authored CONTENT). One bundle = one race, so a modder
+// can compose a limited game by including only the race bundles they want. Uses only the
+// engine vocabulary from `races` (the RaceDef record + RF_* flags); no engine source touched.
+use races::*;
+
+pub fn half_orc_race_defs() -> vector<RaceDef> {
+  t: vector<RaceDef> = [];
+  // ON THE EIGHT (plan #16 `M3`): the cheap bruiser — force and soak, nothing subtle, and the
+  // roster's second-worst Charisma. Its one point of HANDINESS is the half that already exists
+  // (improvised gear, CRAFTING.md): a half-orc makes do with what it scavenges, which is a
+  // different thing from a dwarf's forge.
+  t += [RaceDef { r_key: "half_orc", r_name: "Half-Orc",
+    r_might: 3, r_endu: 2, r_dex: 0, r_perc: -1, r_speed: 0, r_will: -1, r_char: -4, r_hand: 1,
+    r_hd: 1, r_xp: 110, r_melee: 3, r_bow: 0,
+    r_device: 3, r_disarm: 0, r_stealth: 0, r_save: 3, r_infra: 3, r_flags: RF_RES_DARK,
+    r_desc: "Brutish and tough; shrugs off the dark." }];
+  t
+}

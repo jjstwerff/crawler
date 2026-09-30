@@ -1,0 +1,94 @@
+// itemfx — the "use an item" verb + the effect dispatch (the use potion/scroll/food routine).
+//
+// LAYERING: this sits in the API layer, ABOVE the kernel (it calls sim_* accessors to read the
+// inventory and consume the item) and it drives effects through the Player API (player.loft) +
+// per-item scripts. The view calls use_item() on a use-key; the kernel never imports this.
+//
+// EFFECTS are scripts, and THIS FILE NAMES NONE OF THEM — the scanned index the old
+// hand-written dispatch was a "precursor to" now exists. Two arms, by owner:
+//   bundle item -> bundles/<b>/items/<item_key>.loft `apply`, reached through the GENERATED
+//                  item_fx_gen (the routine-by-id seam, exactly as spells work);
+//   engine item -> itemeffects.loft, beside the defs it belongs to.
+// So a bundle can ship a usable item with a custom effect and src/ is untouched — which is
+// the property BUNDLE.md's standing check exists to protect, and which this file used to
+// break by naming `naga_antivenin` and importing the explorer's potion module directly.
+use sim::*;
+use items::*;
+use catalog::*;   // game_items() — the merged catalog (engine + bundle items)
+use player::*;
+use castfx::*;    // the E-key falls through to quick-cast when no item is bound there
+use itemeffects::*;   // engine-owned item effects
+use item_fx_gen::*;   // GENERATED: bundle-owned item effects, discovered from bundles/*/items/
+
+// Use the consumable in inventory slot `slot`: run its effect, then consume one on success.
+// Returns whether anything happened (so the view can message "nothing happens" otherwise).
+pub fn use_item(s: &Sim, slot: integer) -> boolean {
+  key = sim_inv_key(s, slot);
+  if key == "" { return false; }
+  nm = sim_inv_name(s, slot);            // the name AS SHOWN now (the flavour, if still unidentified)
+  gi = game_items();
+  defidx = item_index(gi, key);
+  p = player_new(0);
+  fired = item_effect(s, p, key);
+  if fired {
+    c = item_cat(gi, defidx);
+    verb = "use";
+    if c == IT_POTION { verb = "quaff"; }
+    if c == IT_SCROLL { verb = "read"; }
+    if c == IT_FOOD { verb = "eat"; }
+    vn = nm;                             // flavours read "a Crimson Potion"; real names take "the"
+    if !(starts_with(nm, "a ") || starts_with(nm, "an ")) { vn = "the {nm}"; }
+    sim_log(s, "You {verb} {vn}.");
+    // Using it identifies the KIND (the Angband reveal); only a genuine mystery announces itself.
+    newid = sim_identify(s, defidx);
+    if newid && item_unknown_type(c) && !item_known_flag(gi, defidx) {
+      sim_log(s, "It was {item_name(gi, defidx)}!");
+    }
+    sim_consume_inv(s, slot);
+  }
+  fired
+}
+
+// Press a quick-slot: dispatch the slot's bound item to the right verb (this is the input layer
+// over use_item + sim_fire, kept here because use_item lives above the kernel). Returns:
+//   0 = nothing happened (empty slot, no ammo/no target, or none of the item left)
+//   1 = a consumable was used
+//   2 = the launcher fired (hit or kill)
+pub fn use_slot(s: &Sim, k: integer) -> integer {
+  defidx = sim_qs_def(s, k);
+  if defidx < 0 {
+    // E with nothing bound = QUICK-CAST: the first known spell the caster can afford (castfx).
+    // Non-casters fall through to the no-op (realm "none" has no known spells).
+    if k == QS_E {
+      fk = first_castable(s);
+      if fk != "" {
+        if cast_spell(s, fk) { return 1; }
+        return 0;                              // refused / fizzled (castfx already logged why)
+      }
+    }
+    return 0;                                  // empty slot -> no-op
+  }
+  cat = item_cat(game_items(), defidx);
+  if cat == IT_BOW {
+    fr = sim_fire(s);                          // launcher: auto-aim + consume ammo (kernel)
+    if fr == 0 { sim_log(s, "You have no launcher readied."); }
+    if fr == 1 { sim_log(s, "You are out of ammunition."); }
+    if fr == 2 { sim_log(s, "Nothing is in your sights."); }
+    if fr >= 3 { return 2; }
+    return 0;
+  }
+  j = sim_inv_find(s, defidx);                 // consumable: resolve the binding to a live inv entry
+  if j < 0 { sim_log(s, "You have none left."); return 0; }   // bound but none carried
+  if use_item(s, j) { return 1; }
+  sim_log(s, "Nothing happens.");              // an item whose effect is not built yet (still honest)
+  0
+}
+
+// Effect dispatch by item key — BY OWNER, and this function names no key of either kind.
+// Bundle items first: a bundle may ship a usable item whose key the engine has never heard
+// of, and it must win for its own key. Then the engine's own. An unhandled key returns false
+// and the caller says "Nothing happens." — still honest for an item whose effect is unbuilt.
+fn item_effect(s: &Sim, p: Player, key: text) -> boolean {
+  if bundle_item_effect(s, p, key) { return true; }
+  engine_item_effect(s, p, key)
+}

@@ -1,0 +1,17 @@
+{
+  "key": "rogue",
+  "name": "Rogue",
+  "kind": "character",
+  "module": "rogue",
+  "entry": "activate",
+  "class": "rogue_class",
+  "desc": "Shadow and knife. Stealthy, deft with locks; dabbles in arcane tricks.",
+  "gold": 40,
+  "kit": [
+    "dagger",
+    "soft_leather_armor",
+    "cloak",
+    "wooden_torch",
+    "potion_cure_light"
+  ]
+}

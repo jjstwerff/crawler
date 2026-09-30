@@ -1,0 +1,17 @@
+{
+  "key": "necromancer",
+  "name": "Necromancer",
+  "kind": "character",
+  "module": "necromancer",
+  "entry": "activate",
+  "class": "necromancer_class",
+  "desc": "Scholar of the grave; frail, feared, arcane to the bone.",
+  "gold": 15,
+  "kit": [
+    "dagger",
+    "cloak",
+    "wooden_torch",
+    "potion_cure_light",
+    "book_arcane_primer"
+  ]
+}

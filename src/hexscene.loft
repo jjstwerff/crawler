@@ -1,0 +1,207 @@
+// hexscene — the camera the world is seen through (plan #11 P3, invariant I-STAND).
+//
+// I-STAND: everything drawn stands where the kernel says it stands, at its true metric
+// size. The renderer holds NO world state of its own — a screen position is a pure
+// projection of kernel state — so this module is pure functions over an explicit SceneCamera
+// and nothing else. It has no dependency at all: not on `Sim`, not on `graphics`, not
+// even on the hex grid. That is deliberate, and it is what makes the invariant testable
+// without a GL context and the package extractable by a file move.
+//
+// EXTRACTION: this is plan #11's `hexscene`, destined for `loft-libs-graphics/hex_scene/`
+// (loft-libs-world's README assigns hex-to-screen projection to that chunk). It is built
+// here first because the consumer is here — "build new, extract settled" — but it is
+// written package-clean from the start so extraction moves a file rather than untangling
+// one. The in-world editor is the second consumer and needs exactly this.
+//
+// CONVENTION: the world is Z-UP. The hex plane is (x,y) — `hex_grid::hex_to_px` — and
+// height is z, matching `scenemesh::mesh_floor` and `tools/glbview.py --up 0,0,1`. `yaw`
+// is the kernel's own heading: 0 faces +x, and forward is (cos yaw, sin yaw) in plane.
+
+// NAMED `SceneCamera`, NOT `Camera` (ADOPTION.md P2, found by `tools/libcheck.py` L4).
+// `mesh3d::Camera` already holds that name in crawler's dependency graph. Today nothing
+// imports both, so the clash is latent — but this module is destined to BE the `hexscene`
+// package (plan #11 P3), and a 3D scene library that never meets a mesh library is not a
+// thing. Under loft 2026.8.0 the bare name would then be a hard error at every use site.
+pub struct SceneCamera {
+  cx:    float,          // eye, world units
+  cy:    float,
+  cz:    float,
+  yaw:   float,          // radians; 0 = +x. The kernel's heading, unchanged.
+  pitch: float,          // radians; + tilts up
+  fovy:  float,          // radians, VERTICAL field of view
+  vw:    float,          // viewport, pixels
+  vh:    float,
+}
+
+pub fn camera_new(cx: float, cy: float, cz: float, yaw: float, pitch: float,
+                  fovy: float, vw: float, vh: float) -> SceneCamera {
+  SceneCamera { cx: cx, cy: cy, cz: cz, yaw: yaw, pitch: pitch, fovy: fovy, vw: vw, vh: vh }
+}
+
+// The orthonormal basis. right = forward x worldUp, up = right x forward — so for a
+// level camera facing +x the basis is right = -y, up = +z, which is what a Z-up world
+// gives you. Only ONE definition of the basis exists, and both project and unproject
+// read it: a round-trip that used two spellings would verify nothing.
+pub fn cam_forward(c: SceneCamera) -> (float, float, float) {
+  cp = cos(c.pitch);
+  (cos(c.yaw) * cp, sin(c.yaw) * cp, sin(c.pitch))
+}
+
+pub fn cam_right(c: SceneCamera) -> (float, float, float) {
+  // forward x (0,0,1) = (fy, -fx, 0), whose length is cos(pitch) — normalise by the
+  // planar part, which is why a straight-down camera has no defined right (see below).
+  (sin(c.yaw), 0.0 - cos(c.yaw), 0.0)
+}
+
+pub fn cam_up(c: SceneCamera) -> (float, float, float) {
+  sp = sin(c.pitch);
+  (0.0 - cos(c.yaw) * sp, 0.0 - sin(c.yaw) * sp, cos(c.pitch))
+}
+
+// World point -> pixel, plus the depth along the view direction. `depth <= 0` means the
+// point is behind the camera and the pixel is meaningless.
+pub fn project(c: SceneCamera, wx: float, wy: float, wz: float) -> (float, float, float) {
+  (fx, fy, fz) = cam_forward(c);
+  (rx, ry, rz) = cam_right(c);
+  (ux, uy, uz) = cam_up(c);
+  dx = wx - c.cx;
+  dy = wy - c.cy;
+  dz = wz - c.cz;
+  vz = dx * fx + dy * fy + dz * fz;
+  if vz <= 0.000001 { return (0.0, 0.0, 0.0 - 1.0); }
+  vx = dx * rx + dy * ry + dz * rz;
+  vy = dx * ux + dy * uy + dz * uz;
+  th = tan(c.fovy * 0.5);
+  asp = c.vw / c.vh ?? 1.0;
+  nx = vx / (vz * th * asp) ?? 0.0;
+  ny = vy / (vz * th) ?? 0.0;
+  ((nx + 1.0) * 0.5 * c.vw, (1.0 - ny) * 0.5 * c.vh, vz)
+}
+
+// Pixel -> the point where that ray meets the horizontal plane z = gz, plus the ray
+// parameter. `t <= 0` means the ray never reaches the plane ahead of the camera — which
+// is the ordinary case for any pixel ABOVE the horizon, not an error. A caller that
+// ignores the sign will happily "unproject" the sky onto the ground behind it.
+pub fn unproject_plane(c: SceneCamera, sx: float, sy: float, gz: float) -> (float, float, float) {
+  (fx, fy, fz) = cam_forward(c);
+  (rx, ry, rz) = cam_right(c);
+  (ux, uy, uz) = cam_up(c);
+  th = tan(c.fovy * 0.5);
+  asp = c.vw / c.vh ?? 1.0;
+  nx = (2.0 * sx / c.vw ?? 0.0) - 1.0;
+  ny = 1.0 - (2.0 * sy / c.vh ?? 0.0);
+  ax = nx * th * asp;
+  ay = ny * th;
+  dx = fx + rx * ax + ux * ay;
+  dy = fy + ry * ax + uy * ay;
+  dz = fz + rz * ax + uz * ay;
+  if dz > 0.0 - 0.000001 && dz < 0.000001 { return (0.0, 0.0, 0.0 - 1.0); }
+  t = (gz - c.cz) / dz ?? 0.0 - 1.0;
+  if t <= 0.0 { return (0.0, 0.0, 0.0 - 1.0); }
+  (c.cx + dx * t, c.cy + dy * t, t)
+}
+
+// The world->clip matrix the GPU gets, column-major for `gl_set_uniform_mat4`.
+//
+// It is built here, beside `project`, and gated to AGREE with it (`scenetest`). That
+// agreement is the whole of I-STAND on the render side: if the shader used a matrix
+// assembled somewhere else, the invariant would be proved about maths the GPU never runs.
+// A renderer must not hold a second opinion about where things are.
+//
+// `w` carries the view depth, so after the perspective divide the NDC is exactly what
+// `project` computes before the pixel map.
+pub fn cam_mat4(c: SceneCamera, near: float, far: float) -> vector<float> {
+  (fx, fy, fz) = cam_forward(c);
+  (rx, ry, rz) = cam_right(c);
+  (ux, uy, uz) = cam_up(c);
+  th = tan(c.fovy * 0.5);
+  asp = c.vw / c.vh ?? 1.0;
+  sx = 1.0 / (th * asp) ?? 1.0;
+  sy = 1.0 / th ?? 1.0;
+  za = (far + near) / (far - near) ?? 1.0;
+  zb = 0.0 - (2.0 * far * near / (far - near) ?? 0.0);
+  re = rx * c.cx + ry * c.cy + rz * c.cz;
+  ue = ux * c.cx + uy * c.cy + uz * c.cz;
+  fe = fx * c.cx + fy * c.cy + fz * c.cz;
+  // column-major: element [col*4 + row]
+  [rx * sx, ux * sy, fx * za, fx,
+   ry * sx, uy * sy, fy * za, fy,
+   rz * sx, uz * sy, fz * za, fz,
+   0.0 - re * sx, 0.0 - ue * sy, 0.0 - fe * za + zb, 0.0 - fe]
+}
+
+// The screen row where the ground plane vanishes. Pixels above it never meet the plane
+// ahead of the camera, so it is the exact boundary of where unproject_plane is defined —
+// worth having as a function rather than a magic number in each caller.
+pub fn horizon_y(c: SceneCamera) -> float {
+  th = tan(c.fovy * 0.5);
+  if c.pitch > 0.0 - 0.000001 && c.pitch < 0.000001 { return c.vh * 0.5; }
+  // the ray with dz = 0: fz + uz*ay = 0  ->  ay = -fz/uz
+  (fx, fy, fz) = cam_forward(c);
+  (ux, uy, uz) = cam_up(c);
+  if uz > 0.0 - 0.000001 && uz < 0.000001 { return c.vh * 0.5; }
+  ay = (0.0 - fz) / uz ?? 0.0;
+  ny = ay / th ?? 0.0;
+  (1.0 - ny) * 0.5 * c.vh
+}
+
+// ── THE PRESENTATION SEAM (plan #11 P4) ─────────────────────────────────────
+//
+// P4's deliverable is this seam; the boards are only its first implementation. The frame
+// loop asks "how is this actor presented?" and never learns the answer: it produces
+// ActorView records from kernel state and hands them to a PRESENTER. Today the presenter
+// emits camera-facing quads. Later it emits glTF humanoid meshes with animation state, and
+// nothing above this line changes.
+//
+// So the rule this file must keep: **no billboard assumption may leak past `present_*`.**
+// If the frame loop ever reasons about quads, the mesh phase pays for it.
+//
+// Sizes are METRIC — world units, the same units walls are built in — which is the actor
+// half of I-STAND and is gated in `scenetest`: a board of height h and a wall of height h
+// at one distance must cover the same pixel span.
+pub struct ActorView {
+  av_x:   float,        // world stand point: where the KERNEL says it stands
+  av_y:   float,
+  av_z:   float,
+  av_w:   float,        // metric width, world units
+  av_h:   float,        // metric height, world units
+  av_yaw: float,        // facing — a board ignores it, a mesh will need it
+  av_r:   float,        // presentation tone; a stand-in until the sprite ATLAS lands
+  av_g:   float,
+  av_b:   float,
+  av_tex: integer,      // presentation handle, carried but unused: a per-actor texture
+}                       //   means one draw per actor, so it waits for the atlas (P8)
+
+// THE PRESENTER, board implementation. An upright billboard: width along the camera's
+// right, height along WORLD up — so actors stand upright rather than tipping with the
+// camera, which is what a character needs and what a mesh will also do.
+//
+// Appends 6 vertices (stride 6: xyz + uv0) per actor into `buf`. Returns the vertex count.
+// Deliberately writes into a caller-owned buffer rather than returning one: loft#392 makes
+// a `fn -> vector<single>` reaching gl_upload_vertices abort the program silently.
+pub fn present_boards(c: SceneCamera, views: vector<ActorView>, buf: vector<single>) -> integer {
+  (rx, ry, rz) = cam_right(c);
+  n = 0;
+  for i in 0..len(views) {
+    v = views[i];
+    hw = v.av_w * 0.5;
+    lx = (v.av_x - rx * hw) as single;
+    ly = (v.av_y - ry * hw) as single;
+    gx = (v.av_x + rx * hw) as single;
+    gy = (v.av_y + ry * hw) as single;
+    z0 = v.av_z as single;
+    z1 = (v.av_z + v.av_h) as single;
+    cr = v.av_r as single;
+    cg = v.av_g as single;
+    cb = v.av_b as single;
+    buf += [lx, ly, z0, cr, cg, cb];
+    buf += [gx, gy, z0, cr, cg, cb];
+    buf += [gx, gy, z1, cr, cg, cb];
+    buf += [lx, ly, z0, cr, cg, cb];
+    buf += [gx, gy, z1, cr, cg, cb];
+    buf += [lx, ly, z1, cr, cg, cb];
+    n += 6;
+  }
+  n
+}
+

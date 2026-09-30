@@ -1,0 +1,361 @@
+// safetytest — plan #17 `S1`/`S2`: the safety CATEGORY, and that a worker will not walk
+// into it.
+//
+// I-SAFE (CRAFTING.md): a settlement's output is a function of the danger around it. This
+// gates the half that decides everything downstream — what "unsafe" means, and that the
+// answer actually changes what a worker does.
+//
+// ⚠ EVERY CLAIM IS SEEN BOTH WAYS. A predicate that has only ever answered `true` is not
+// known to work; each row below has its opposite beside it.
+use sim::*;
+use gameflow::*;
+use hex_grid::*;
+
+DT = 0.016666;
+
+// How many workers `npc_target` is currently holding back — a worker whose own work site is
+// unsafe. Guards and wild things are exempt there and so are they here; the merchant cart and
+// the wizard have quest arms that pre-empt the ambient line, so they cannot report either.
+fn idle_workers(t: Sim) -> integer {
+  n = 0;
+  for i in 0..sim_enemy_count(t) {
+    rl = sim_enemy_role(t, i);
+    if sim_enemy_alive(t, i) && rl != 0 && rl != 3 && rl != 12 && rl != 7 {
+      (wq, wr) = sim_enemy_work(t, i);
+      if !hex_safe(t, wq, wr) { n += 1; }
+    }
+  }
+  n
+}
+
+fn main() {
+  ok = true;
+  s = flow_genesis(1337, 1);
+
+  // ── 1. the category answers, and it answers BOTH ways ──────────────────────────────
+  // Find ground the generated level considers safe and ground it does not, by asking.
+  // ⚠ Not by placing anything: the point is that the predicate reads the world as it is.
+  nsafe = 0;
+  nunsafe = 0;
+  for q in 0..60 {
+    for r in 0..60 {
+      if tile_at(s, q, r) == 0 {
+        if hex_safe(s, q, r) { nsafe += 1; } else { nunsafe += 1; }
+      }
+    }
+  }
+  println("open floor: {nsafe} safe, {nunsafe} unsafe");
+  if nsafe == 0 { println("FAIL: nothing is safe — the predicate never answers true"); ok = false; }
+  if nunsafe == 0 { println("FAIL: nothing is unsafe — 16 awake-able hostiles and no danger anywhere"); ok = false; }
+
+  // ── 2. an awake hostile is what makes ground unsafe ────────────────────────────────
+  // Take the first hostile, wake it, and read the ground under it. Asleep it threatens
+  // nothing; awake it does. ⚠ The control is the SAME hex, so nothing else can explain it.
+  hi = -1;
+  for i in 0..sim_enemy_count(s) {
+    if hi < 0 && sim_enemy_alive(s, i) { hi = i; }
+  }
+  if hi < 0 { println("FAIL: no live hostile to test with"); ok = false; }
+  else {
+    (eq, er) = sim_enemy_hex(s, hi);
+    // ⚠ PRESENCE, NOT WAKEFULNESS. Keyed on `awake` this predicate called a fresh level
+    // entirely safe, because monsters sleep until they perceive the PLAYER — and a farmer's
+    // danger does not wait for the hero to arrive. Both rows below must hold.
+    sim_set_awake(s, hi, false);
+    asleep_unsafe = !hex_safe(s, eq, er);
+    sim_set_awake(s, hi, true);
+    awake_unsafe = !hex_safe(s, eq, er);
+    println("under hostile {hi} at {eq},{er}: unsafe asleep {asleep_unsafe}, unsafe awake {awake_unsafe}");
+    if !awake_unsafe { println("FAIL: an awake hostile leaves its own ground safe"); ok = false; }
+    if !asleep_unsafe { println("FAIL: a SLEEPING hostile leaves its ground safe — danger must not wait for the hero"); ok = false; }
+  }
+
+  // ── 3. a worker will not step INTO danger, and CAN step out of it ──────────────────
+  // ⚠ This is the asymmetry the design turns on. npc_step freezes an NPC when nothing is
+  // passable, so a symmetric rule would trap a worker in danger rather than keep it out.
+  // ⚠ THE PAIR MUST BE A REAL BORDER — a SAFE hex with an UNSAFE neighbour. The first
+  // version of this row took any unsafe hex and its q+1 neighbour, which on a level that is
+  // 329/416 unsafe is almost always unsafe too — so "already in danger, leaving is allowed"
+  // fired and the row failed for a reason that had nothing to do with the code.
+  sq2 = -1; sr2 = -1; uq2 = -1; ur2 = -1;
+  for q in 0..60 {
+    for r in 0..60 {
+      if sq2 < 0 && tile_at(s, q, r) == 0 && hex_safe(s, q, r) {
+        for d in 0..6 {
+          (nq, nr) = hex_neighbor(q, r, d);
+          if sq2 < 0 && tile_at(s, nq, nr) == 0 && !hex_safe(s, nq, nr) {
+            sq2 = q; sr2 = r; uq2 = nq; ur2 = nr;
+          }
+        }
+      }
+    }
+  }
+  if sq2 >= 0 {
+    (gq, gr) = (uq2, ur2);
+    // a farmer standing on the SAFE side must refuse to cross into the unsafe hex
+    ok_enter = !npc_may_enter(s, 2, sq2, sr2, gq, gr);
+    // the same farmer, standing IN it, must be free to leave
+    ok_leave = npc_may_enter(s, 2, gq, gr, sq2, sr2);
+    println("border {sq2},{sr2} (safe) -> {gq},{gr} (unsafe): refuses to enter {ok_enter}, free to leave {ok_leave}");
+    if !ok_enter { println("FAIL: a worker walked into unsafe ground"); ok = false; }
+    if !ok_leave { println("FAIL: a worker in danger is TRAPPED — it must always be able to leave"); ok = false; }
+  } else {
+    println("FAIL: no safe hex borders an unsafe one — the border case cannot be tested");
+    ok = false;
+  }
+
+  // ── 4. a GUARD is exempt: walking toward trouble is the job ────────────────────────
+  if sq2 >= 0 {
+    guard_ok = npc_may_enter(s, 3, sq2, sr2, uq2, ur2);
+    println("a guard entering the same unsafe hex: {guard_ok}");
+    if !guard_ok { println("FAIL: guards refuse danger — then nothing holds ground"); ok = false; }
+  }
+
+  // ── 5. the rule has TERRITORY IN THE TOWN, which rows 1-4 do not prove ─────────────
+  // ⚠ Rows 1-4 run on a dungeon (depth 1), and a dungeon has NO CIVILIANS AT ALL — role
+  // census: 16 hostiles, nothing else. So every claim above is about a predicate no worker
+  // was ever standing next to. The settlement is the level this plan is FOR, and it is a
+  // different world: 23 civilians in 11 trades, and open ground that is 82% safe rather
+  // than the dungeon's 21%.
+  //
+  // ⚠ What this row is really guarding is `F6` — that the loop can be SEEN. If the town
+  // ever generates entirely safe, every step from S3 on is inert while still passing its
+  // own tests, because production would consume an input that never falls.
+  t = flow_genesis(1337, 0);
+  tsafe = 0;
+  tunsafe = 0;
+  for q in 0..80 {
+    for r in 0..80 {
+      if tile_at(t, q, r) == 0 {
+        if hex_safe(t, q, r) { tsafe += 1; } else { tunsafe += 1; }
+      }
+    }
+  }
+  civs = 0;
+  for i in 0..sim_enemy_count(t) {
+    if sim_enemy_alive(t, i) && sim_enemy_role(t, i) > 0 { civs += 1; }
+  }
+  println("town: {tsafe} safe, {tunsafe} unsafe, {civs} civilians");
+  if tunsafe == 0 { println("FAIL: the town is entirely safe — nothing downstream can ever fall"); ok = false; }
+  if tsafe == 0 { println("FAIL: the town is entirely unsafe — no worker could ever leave"); ok = false; }
+  if civs == 0 { println("FAIL: no civilians in the town — the predicate has nobody to govern"); ok = false; }
+
+  // ── 5b. I-FIELD: EVERY DESTINATION AN ACTOR CAN ASK FOR HAS A PATH FIELD ──────────
+  //
+  // Civilians descend cached flow fields keyed by (destination, movement class); without one
+  // they fall back to the straight-line step, which freezes at the first concave obstacle and
+  // stays frozen, because nothing about the situation ever changes. That fallback is SILENT.
+  //
+  // ⚠ AND IT WAS FIRING, on the world players boot into. The cache was capped at a flat 24
+  // while this window demands 38, so 14 destinations were never served — and not at random:
+  // work is asked by day, home by night, day comes first, so what lost was systematically the
+  // HOMES. **Nine townsfolk walked home in a straight line every night**, and the only reason
+  // anyone found out was that plan #17 `S7` put a picket where a miner needed to walk.
+  //
+  // The cap is derived from the actor count now (`flowd_cap` — an actor declares at most three
+  // destinations and they are fixed when it spawns), so this row asks the question that cap is
+  // supposed to answer, rather than trusting the arithmetic: **can every civilian reach every
+  // destination of its own, through the field?** A world that ever saturates again fails here
+  // instead of quietly walking into a rock.
+  // ⚠ IT ASKS ABOUT THE FIELD, NOT ABOUT THE PATH, and the difference is the whole row. A
+  // destination with no field is a cache failure; a destination with a field and no route is a
+  // worldgen fact (this town has one — a ring guard's outer leg stands on ground it cannot
+  // walk to, recorded in STATE.md). Both make `sim_npc_path_dist` answer `FLOW_BIG`, so a row
+  // that tested the path would blame the cache for the world. Counting FIELDS separates them.
+  dq5: vector<integer> = [];
+  dr5: vector<integer> = [];
+  dc5: vector<integer> = [];
+  for i in 0..sim_enemy_count(t) {
+    if sim_enemy_alive(t, i) && sim_enemy_role(t, i) > 0 {
+      rl5 = sim_enemy_role(t, i);
+      cls5 = 0;
+      if rl5 == 5 { cls5 = 5; }
+      if rl5 == 6 { cls5 = 6; }
+      (hq5, hr5) = sim_enemy_home(t, i);
+      (wq5, wr5) = sim_enemy_work(t, i);
+      (aq5, ar5) = sim_enemy_alt(t, i);
+      for k5 in 0..3 {
+        cq5 = hq5;
+        cr5 = hr5;
+        if k5 == 1 { cq5 = wq5; cr5 = wr5; }
+        if k5 == 2 { cq5 = aq5; cr5 = ar5; }
+        dup5 = false;
+        for j5 in 0..len(dq5) {
+          if (dq5[j5] ?? -1) == cq5 && (dr5[j5] ?? -1) == cr5 && (dc5[j5] ?? -1) == cls5 { dup5 = true; }
+        }
+        if !dup5 {
+          dq5 += [cq5];
+          dr5 += [cr5];
+          dc5 += [cls5];
+          sim_npc_path_dist(t, cq5, cr5, rl5, cq5, cr5);   // the ask that builds it
+        }
+      }
+    }
+  }
+  demand5 = len(dq5);
+  built5 = sim_flow_fields(t);
+  println("I-FIELD: the town declares {demand5} distinct (destination, class) fields; {built5} were built");
+  if built5 < demand5 {
+    println("FAIL: {demand5 - built5} declared destinations got NO field — everyone heading there walks it greedily and freezes at the first corner");
+    ok = false;
+  }
+  // ⚠ AND THE ROW MUST BE ABLE TO GO RED, which is not free here: it passes trivially if the
+  // town is small enough to fit under any cap. On the shipped world the demand is 38 against
+  // the flat 24 this cache used to carry, so the row DID fail before the cap was derived from
+  // the actor count — and it will fail again the day a town outgrows whatever replaces it.
+  if demand5 <= 24 {
+    println("FAIL: this town demands only {demand5} fields, so the row cannot distinguish a derived cap from the old flat 24 — it proves nothing");
+    ok = false;
+  }
+
+  // ── 6. at least one PRODUCER works outside the ring the guards hold ───────────────
+  // ⚠ The measurement this row exists to defend: the town's fields (68,50 / 68,52) and its
+  // fishing spot sit inside the guarded ring, so they are safe BY CONSTRUCTION — making
+  // them unsafe needs a monster standing where safety already denies. Across 8 monster
+  // placements they were safe 8 times out of 8. The ONE producer site danger reaches is
+  // the MINE at 25,8, ~45 hexes out — unsafe in 5 of those 8.
+  //
+  // So the whole loop rides on work that happens OUTSIDE the walls. If a change ever pulls
+  // every producer inside the ring, safety stops being able to touch production at all and
+  // every step from S3 on goes quietly inert — passing its own tests, gating nothing.
+  far_producer = 0;
+  for i in 0..sim_enemy_count(t) {
+    if sim_enemy_alive(t, i) {
+      rl2 = sim_enemy_role(t, i);
+      if rl2 == 2 || rl2 == 4 || rl2 == 9 || rl2 == 10 {
+        (wq, wr) = sim_enemy_work(t, i);
+        (hq, hr) = sim_enemy_home(t, i);
+        if hex_distance(wq, wr, hq, hr) > GUARD_R + THREAT_R { far_producer += 1; }
+      }
+    }
+  }
+  println("producers working beyond guard+threat reach of home: {far_producer}");
+  if far_producer == 0 {
+    println("FAIL: every producer works inside the guarded ring — safety cannot reach production");
+    ok = false;
+  }
+
+  // ── 7. THE DEAD DO NOT HOLD GROUND ────────────────────────────────────────────────
+  // ⚠ A slain actor keeps its coordinates forever — nothing clears them — so `occupied_hex`
+  // used to leave a permanent roadblock behind every kill. It is the worst shape a blocker
+  // can have: invisible, causeless, and unclearable, on a mover that only ever takes a
+  // strictly-improving neighbour. One corpse in a one-hex gap freezes a worker for good.
+  //
+  // ⚠ SEEN BOTH WAYS ON THE SAME HEX, which is the only way this row means anything: the
+  // live actor MUST block (or the fix has simply turned the predicate off and civilians walk
+  // through each other) and the corpse MUST NOT.
+  vi = -1;
+  for i in 0..sim_enemy_count(t) {
+    if vi < 0 && sim_enemy_alive(t, i) && sim_enemy_role(t, i) == 12 { vi = i; }
+  }
+  if vi < 0 {
+    for i in 0..sim_enemy_count(t) {
+      if vi < 0 && sim_enemy_alive(t, i) && sim_enemy_role(t, i) == 0 { vi = i; }
+    }
+  }
+  if vi < 0 {
+    println("FAIL: nothing on the surface to kill — row 7 measures nothing");
+    ok = false;
+  } else {
+    (vq, vr) = sim_enemy_hex(t, vi);
+    blocked_alive = sim_hex_occupied(t, vq, vr);
+    sim_slay(t, vi);
+    blocked_dead = sim_hex_occupied(t, vq, vr);
+    println("hex ({vq},{vr}) held by e{vi}: while alive={blocked_alive}, once dead={blocked_dead}");
+    if !blocked_alive {
+      println("FAIL: a LIVING actor did not hold its hex — occupancy is off entirely, and everyone now walks through everyone");
+      ok = false;
+    }
+    if blocked_dead {
+      println("FAIL: a corpse still holds its hex — every kill leaves a permanent roadblock nobody can clear");
+      ok = false;
+    }
+  }
+
+  // ── 8. I-SAY: the line and the veto agree, for EVERYONE ───────────────────────────
+  // ⚠ THE ASSERTION IS THE INVARIANT, NOT AN EXAMPLE (plan #17 `S4`). What a worker says
+  // about its work is read from the same term that decides whether it goes, so across the
+  // whole town "says why it is idle" and "its work site is unsafe" must be the SAME set. A
+  // row that checked one talkative miner would pass just as well against a line that is
+  // always spoken, or never — and a settlement that claims a trouble it does not have is
+  // worse than one that says nothing.
+  //
+  // ⚠ BOTH SIDES MUST BE NON-EMPTY, or the invariant is satisfied by a town where nothing
+  // is ever unsafe (every step of this plan then goes inert while still passing) or where
+  // everything is.
+  //
+  // ⚠ AND IT TICKS FIRST, WHICH IS NOT A CONVENIENCE. This world is **safe at genesis** —
+  // measured, 0 workers with an unsafe site — and the trouble ARRIVES, because that is
+  // `S5`'s entire design: pressure comes from a source rather than being there at the
+  // start. A row that read genesis would be reading the town before its story begins, find
+  // nothing to say, and conclude the mechanism was broken. Measured on this seed (which is
+  // `story.loft`'s own `GEN_SEED`, so it is the world a player actually starts in): the
+  // first worker reports a trouble at **tick 19**, and is still reporting it at tick 599.
+  // That number IS the `F6` answer — the signal is there before a player has crossed the
+  // square, and it does not blink out.
+  //
+  // ⚠ 100 TICKS WAS ENOUGH ONLY WHILE THE TOWN WAS SEALED. Once its wall got real gates
+  // (2026-08-10) the settlement's most exposed work moved OUT — the works now stands at the
+  // ore face, which is where `raid_objective` correctly sends the den's people, and they
+  // have a good deal farther to walk than they did to a picking ground 14 hexes from the
+  // square. A hundred ticks now samples the world before the raid lands, finds every worker
+  // happily at work, and reports the signal missing. So it ticks until the trouble ARRIVES
+  // rather than for a fixed span — the claim is that a worker held back says why, not that
+  // it happens by a particular tick, and a hard cap keeps the row honest if it never does.
+  arrived = 0;
+  while arrived < 800 && idle_workers(t) == 0 { sim_tick(t); arrived += 1; }
+  println("the first worker is held back at tick {arrived} (cap 800)");
+  //
+  // Excluded: guards and wild things (exempt in `npc_target` for the same reason), and the
+  // merchant cart and the wizard, whose own quest arms return before the ambient one is
+  // reached. That pre-emption is deliberate — a quest line is one-shot and this repeats.
+  said_it = 0;
+  stayed_quiet = 0;
+  mismatch = 0;
+  named_ok = false;
+  named_checked = false;
+  for i in 0..sim_enemy_count(t) {
+    rl3 = sim_enemy_role(t, i);
+    if sim_enemy_alive(t, i) && rl3 != 0 && rl3 != 3 && rl3 != 12 && rl3 != 7
+       && sim_enemy_key(t, i) != "wizard" {
+      (wq3, wr3) = sim_enemy_work(t, i);
+      danger = !hex_safe(t, wq3, wr3);
+      sim_talk_to(t, i);
+      spoke = sim_msg_at(t, 0).find("I'll not go while it stands") != null;
+      if spoke != danger { mismatch += 1; }
+      if spoke { said_it += 1; } else { stayed_quiet += 1; }
+      // ⚠ ATTRIBUTED, ONCE: the line has to name the creature that is actually standing
+      // there, or it is mood rather than somewhere to go. Checked on the first speaker —
+      // the naming is one expression, so one witness settles whether it is wired.
+      if spoke && !named_checked {
+        named_checked = true;
+        for j in 0..sim_enemy_count(t) {
+          if sim_enemy_alive(t, j) && sim_enemy_role(t, j) == 0 {
+            (hq3, hr3) = sim_enemy_hex(t, j);
+            if hex_distance(hq3, hr3, wq3, wr3) <= THREAT_R
+               && sim_msg_at(t, 1).find(sim_enemy_name(t, j)) != null { named_ok = true; }
+          }
+        }
+      }
+    }
+  }
+  println("I-SAY: {said_it} say why they are idle, {stayed_quiet} do not, {mismatch} disagree with the veto; names the creature = {named_ok}");
+  if mismatch > 0 {
+    println("FAIL: {mismatch} workers' words disagree with what they actually do — the line is a second state, not the same term");
+    ok = false;
+  }
+  if said_it == 0 {
+    println("FAIL: nobody reports a trouble — the signal cannot be seen, which is F6 itself");
+    ok = false;
+  }
+  if stayed_quiet == 0 {
+    println("FAIL: every worker reports a trouble — the line is unconditional, so it says nothing");
+    ok = false;
+  }
+  if !named_ok {
+    println("FAIL: the refusal names no creature that is actually there — a mood, not somewhere to go");
+    ok = false;
+  }
+
+  if ok { println("=== SAFETY OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -4,12 +4,22 @@
 // intents, and draws the egocentric 2D view. The kernel (sim/hexgeo) is the
 // reusable core; this file and view.loft are the swappable 2D front-end.
 //
-// Controls: W glide forward · S glide back · A/D turn (free) · Esc quit.
+// Controls: W glide forward · S glide back · A/D turn (free) · walk onto a
+// stair to change level (no button) · . / Space wait · g grab · Esc quit.
+// E and Q are intentionally FREE — reserved for upcoming character actions
+// (fire arrow / cast spell); that's why stairs are taken by walking, not a key.
 
 use graphics;
-use sim;
-use wallgeo;
-use view;
+use sim::*;
+use wallgeo::*;
+use view::*;
+use view3d::*;     // plan #11 P3: the first-person 3D pass (V toggles)
+use itemfx;
+use bundles;   // bundle_activate — the quick-start class kit (generated registry)
+use framekey::*;    // scene_key — the idle skip (redraw only when the frame would differ)
+use engine_host; // run — the games kernel owns the loop; crawler is the HOST (K1/K2)
+use gameflow::*;    // the deterministic intent seam: apply + broadcast (K2)
+use genbundles::*;  // the bundle scanner — N ("next world") re-scans before restart (K5)
 
 WIN_W   = 800;
 WIN_H   = 600;
@@ -17,7 +27,365 @@ KEY_W   = 119;
 KEY_S   = 115;
 KEY_A   = 97;
 KEY_D   = 100;
+KEY_G   = 103;      // 'g' grab items under you (gold auto-collects)
+KEY_DOT = 46;       // '.' wait one tick
+KEY_SPC = 32;       // Space — also wait
 KEY_ESC = 27;
+KEY_C   = 99;       // 'c' — open/close the character page
+KEY_I   = 105;      // 'i' — open/close the inventory page
+KEY_1   = 49;       // '1'..'9' — in play: use quick-slot N; char page: spend a stat; inv: use/wield N
+KEY_Q   = 113;      // 'q' — quick-slot active Q (fire the launcher)
+KEY_E   = 101;      // 'e' — quick-slot active E (spell — later)
+KEY_ENTER = 13;     // Enter — equip the selected item in the inventory hub
+KEY_V   = 118;      // 'v' — toggle the FIRST-PERSON 3D view (plan #11 P3)
+KEY_N   = 110;      // 'n' — NEXT WORLD: re-scan bundles (drop-ins included), new seed,
+                    //   restart into it (K5 v1 — the restart is the loading beat)
+
+STORY_PORT = 18099;  // K2: the game LISTENS — observers connect with src/observe.loft
+
+TICK_US  = 16666;     // the kernel's drift-free tick grid (~60 Hz; one tick = one frame).
+                      // Changing the rate is ONE constant: FIXED_DT derives from it, so the
+                      // sim's per-tick quantum always equals the grid period (determinism +
+                      // replay/lockstep need the rate RECORDED with the run, never re-derived).
+FIXED_DT = (TICK_US as float) / 1000000.0;  // sim time per tick — fixed quanta
+
+GEN_SEED  = 1337;   // world-key seed for this dungeon (deterministic gen)
+GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dungeon entrance);
+                    // walk onto the entrance to descend into the dungeon (depth 1: rats/bats/…)
+
+// K1 (plan #6): the world the kernel's closures capture — ONE struct link
+// (the loft#314 struct-held-world pattern; closures stay arguments per #313).
+// Every loop-mutated value lives here; immutables (painter, programs, the post
+// target) are captured directly.
+struct GameWorld {
+  s:       Sim not null,
+  walls:   vector<WallSeg> not null,
+  hud:     Hud not null,
+  ml:      vector<integer> not null,   // baked message-log textures
+  last_total: integer not null,        // msg counter watched for rebakes
+  last_known: integer not null,        // identify counter watched for rebakes
+  wvao:    integer not null,           // base-hexagon VAO (built once; R7 instanced floor)
+  wivbo:   integer not null,           // per-level floor instance buffer (loc5/6/7)
+  wallvao: integer not null,
+  walln:   integer not null,
+  s3prog:  integer not null,           // plan #11 P3: first-person 3D pass
+  s3vao:   integer not null,
+  s3n:     integer not null,
+  s3wtex:  integer not null,           // plan #11 P3b: the world texture (I-PAINT)
+  s3actor: integer not null,           // per-frame board buffer (one draw, updated in place)
+  mode3d:  boolean not null,
+  v_was:   boolean not null,
+  w_was:   boolean not null,           // edge-triggers (wait/grab/pages/slots/hub/crystal)
+  g_was:   boolean not null,
+  c_was:   boolean not null,
+  spend_was: boolean not null,
+  qs_was:  boolean not null,
+  i_was:   boolean not null,
+  iu_was:  boolean not null,
+  id_was:  boolean not null,
+  iq_was:  boolean not null,
+  ie_was:  boolean not null,
+  ient_was: boolean not null,
+  cu_was:  boolean not null,
+  cd_was:  boolean not null,
+  ca_was:  boolean not null,
+  cdd_was: boolean not null,
+  cent_was: boolean not null,
+  ckq_was: boolean not null,
+  page_open: boolean not null,         // overlay pages + cursors
+  inv_open:  boolean not null,
+  crys_open: boolean not null,
+  pg:      vector<integer> not null,
+  pg_inv:  vector<integer> not null,
+  pg_crys: vector<integer> not null,
+  inv_cursor: integer not null,
+  crys_col: integer not null,
+  crys_cur: integer not null,
+  sq:      integer not null,           // stair-hex walk-onto tracker
+  sr:      integer not null,
+  ilog:    vector<text> not null,      // K2: every intent emitted ("S/T/A" wire lines)
+                                       //   — late-joining observers replay the log
+  last_key: integer not null,          // idle skip (P1)
+  ticks_n: integer not null,
+  frames_drawn: integer not null,
+}
+
+// Boot pump (plan #6 § Boot responsiveness, fix 2): the interpreted boot
+// takes seconds AFTER the window exists — without event pumping the compositor
+// flags a frozen window and polled input has nowhere to land. Between boot
+// phases: feed the WM, draw a font-free progress bar (the font itself loads in
+// phase 3), swap. Boot LATENCY stays (inherent); UNRESPONSIVENESS goes.
+fn boot_pump(painter: graphics::Painter2D, step: integer, total: integer) {
+  _alive = graphics::gl_poll_events();
+  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
+  frac = (step as float) / (total as float) ?? 0.0;
+  graphics::draw_rect_at(painter, 250.0, 290.0, 300.0, 20.0, 0.10, 0.10, 0.22, 1.0);
+  if frac > 0.0 {
+    graphics::draw_rect_at(painter, 250.0, 290.0, 300.0 * frac, 20.0, 0.45, 0.45, 0.85, 1.0);
+  }
+  graphics::gl_swap_buffers();
+}
+
+// K2: apply-and-broadcast — every Sim mutation is an INTENT, logged (for late
+// joiners) and broadcast (for live observers); the host's world and every
+// replica stay scene_key-identical (replaytest pins the invariant).
+fn emit(w: GameWorld, line: text) {
+  w.ilog += [line];
+  _n = engine_host::broadcast(line);
+}
+
+// K2: a connecting observer (kind 0) receives the full intent log — genesis,
+// then every action/movement since — and replays it onto a fresh replica; the
+// live broadcasts continue seamlessly after (one TCP stream keeps the order).
+fn host_event(w: GameWorld, ev: engine_host::Event) {
+  if ev.kind == 0 {
+    for i in 0..len(w.ilog) {
+      _ok = engine_host::send(ev.cid, w.ilog[i] ?? "");
+    }
+  }
+}
+
+// One kernel tick = one frame: poll the window, apply input, advance the sim by
+// the FIXED quantum, and redraw only when the scene key moved. Runs at the
+// kernel's drift-free grid; between ticks the kernel idles (no busy-spin).
+fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
+             wallprog: integer, postprog: integer, postfbo: integer, posttex: integer) {
+  if !graphics::gl_poll_events() || graphics::gl_key_pressed(KEY_ESC) {
+    engine_host::stop();
+    return;
+  }
+  // V: first-person 3D <-> the 2D plan view. Both render the same kernel state; 3D
+  // replaces 2D for good in plan #11 P9, so until then the toggle is how they are compared.
+  v_down = graphics::gl_key_pressed(KEY_V);
+  if v_down && !w.v_was {
+    w.mode3d = !w.mode3d;
+    println("story: view = {if w.mode3d { \"first-person 3D\" } else { \"2D plan\" }}");
+  }
+  w.v_was = v_down;
+
+  if graphics::gl_key_pressed(KEY_N) {
+    println("story: next world — re-scanning bundles ...");
+    // K5 "next world": re-scan the bundle manifests (drop-ins get wired), leave
+    // the new seed for the relaunch, and stop — make play's loop restarts us;
+    // the boot re-parse IS the swap (loft#352 tracks the true in-process swap).
+    msg = regen_bundles();
+    if len(msg) > 0 { println(msg); }
+    root = env_variable("PWD") ?? ".";
+    file("{root}/.story_next").write("{w.s.wseed + 1}");
+    engine_host::stop();
+    return;
+  }
+
+  // Character page (C): toggle the overlay. While open the world is PAUSED and the number
+  // keys 1-6 spend banked stat points (the deferred, player-chosen level-up).
+  c_down = graphics::gl_key_pressed(KEY_C);
+  if c_down && !w.c_was {
+    w.page_open = !w.page_open;
+    if w.page_open { w.inv_open = false; w.pg = build_charpage(w.s, w.hud.font); }
+  }
+  w.c_was = c_down;
+
+  i_down = graphics::gl_key_pressed(KEY_I);
+  if i_down && !w.i_was {
+    w.inv_open = !w.inv_open;
+    if w.inv_open { w.page_open = false; w.inv_cursor = 0; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+  }
+  w.i_was = i_down;
+
+  if w.crys_open {
+    // THE CRYSTAL PAGE — W/S move, A/D switch column, Enter reshapes, Q steps away.
+    ccount = if w.crys_col == 0 { sim_race_count() } else { sim_class_count() };
+    cu = graphics::gl_key_pressed(KEY_W);
+    if cu && !w.cu_was && w.crys_cur > 0 { w.crys_cur -= 1; w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur); }
+    w.cu_was = cu;
+    cd = graphics::gl_key_pressed(KEY_S);
+    if cd && !w.cd_was && w.crys_cur < ccount - 1 { w.crys_cur += 1; w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur); }
+    w.cd_was = cd;
+    ca = graphics::gl_key_pressed(KEY_A);
+    cdd = graphics::gl_key_pressed(KEY_D);
+    if (ca && !w.ca_was) || (cdd && !w.cdd_was) {
+      w.crys_col = 1 - w.crys_col;
+      nmax = if w.crys_col == 0 { sim_race_count() } else { sim_class_count() };
+      if w.crys_cur >= nmax { w.crys_cur = nmax - 1; }
+      w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur);
+    }
+    w.ca_was = ca;
+    w.cdd_was = cdd;
+    cent = graphics::gl_key_pressed(KEY_ENTER);
+    if cent && !w.cent_was {
+      emit(w, "A 7 {w.crys_col} {w.crys_cur}");
+      _r7 = flow_action(w.s, 7, w.crys_col, w.crys_cur);
+      w.crys_open = false;
+    }
+    w.cent_was = cent;
+    ckq = graphics::gl_key_pressed(KEY_Q);
+    if ckq && !w.ckq_was { w.crys_open = false; }
+    w.ckq_was = ckq;
+  } else if w.page_open || w.inv_open {
+    // Number keys 1-9: char page SPENDS a stat (1-6); inventory hub BINDS the selected item to
+    // that quick-slot (the manual reslot).
+    sd = -1;
+    for ki in 0..9 {
+      if graphics::gl_key_pressed(KEY_1 + ki) { sd = ki; }
+    }
+    sdn = sd >= 0;
+    if sdn && !w.spend_was {
+      // ⚠ `NUM_STATS`, not a literal 6 (plan #16 `M2`): the handler already reads 1-9, so the
+      // two new axes cost ZERO new keys — the budget was always spent on the row, not the axis.
+      if w.page_open && sd < NUM_STATS {
+        emit(w, "A 4 {sd} 0");
+        if flow_action(w.s, 4, sd, 0) == 1 { w.pg = build_charpage(w.s, w.hud.font); }
+      } else if w.inv_open {
+        emit(w, "A 5 {w.inv_cursor} {sd}");
+        _r5 = flow_action(w.s, 5, w.inv_cursor, sd);
+        w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
+      }
+    }
+    w.spend_was = sdn;
+
+    if w.inv_open {
+      // WASD cursor over the carried list
+      up_d = graphics::gl_key_pressed(KEY_W);
+      if up_d && !w.iu_was && w.inv_cursor > 0 { w.inv_cursor = w.inv_cursor - 1; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.iu_was = up_d;
+      dn_d = graphics::gl_key_pressed(KEY_S);
+      if dn_d && !w.id_was && w.inv_cursor < sim_inv_count(w.s) - 1 { w.inv_cursor = w.inv_cursor + 1; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.id_was = dn_d;
+      // Q / E bind the selected item to an active slot
+      q_d = graphics::gl_key_pressed(KEY_Q);
+      if q_d && !w.iq_was { emit(w, "A 5 {w.inv_cursor} {QS_Q}"); _rq = flow_action(w.s, 5, w.inv_cursor, QS_Q); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.iq_was = q_d;
+      e_d = graphics::gl_key_pressed(KEY_E);
+      if e_d && !w.ie_was { emit(w, "A 5 {w.inv_cursor} {QS_E}"); _re = flow_action(w.s, 5, w.inv_cursor, QS_E); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      w.ie_was = e_d;
+      // Enter equips the selected item to its worn location
+      ent_d = graphics::gl_key_pressed(KEY_ENTER);
+      if ent_d && !w.ient_was {
+        emit(w, "A 6 {w.inv_cursor} 0");
+        _r6 = flow_action(w.s, 6, w.inv_cursor, 0);
+        if w.inv_cursor >= sim_inv_count(w.s) && w.inv_cursor > 0 { w.inv_cursor = sim_inv_count(w.s) - 1; }
+        w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
+      }
+      w.ient_was = ent_d;
+    }
+  } else {
+    w.spend_was = false;
+
+  // Quick-slots: 1-9 / Q / E use the bound item (consumable -> use_item, launcher -> sim_fire).
+  // Edge-triggered so a held key fires once. The bar reads live, so no rebake is needed.
+  qslot = -1;
+  for ki in 0..9 {
+    if graphics::gl_key_pressed(KEY_1 + ki) { qslot = ki; }
+  }
+  if graphics::gl_key_pressed(KEY_Q) { qslot = QS_Q; }
+  if graphics::gl_key_pressed(KEY_E) { qslot = QS_E; }
+  qdn = qslot >= 0;
+  if qdn && !w.qs_was { emit(w, "A 3 {qslot} 0"); _r3 = flow_action(w.s, 3, qslot, 0); }
+  w.qs_was = qdn;
+
+  fwd = 0;
+  // ⚠ NOT `turn`: `use engine_host` exports `pub fn turn()`, and an unqualified library
+  // function claims the CONSUMER's variable namespace — `turn = 0` is then a compile error
+  // ("Cannot redefine function 'turn' as a variable"). The wire format is unchanged; only
+  // this local is renamed. LOFT-HANDOFF.md H11 carries the repro and the open question.
+  turn_dir = 0;
+  if graphics::gl_key_pressed(KEY_W) { fwd = 1; }
+  if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
+  if graphics::gl_key_pressed(KEY_A) { turn_dir = 1; }   // left  = CCW (heading up)
+  if graphics::gl_key_pressed(KEY_D) { turn_dir = -1; }  // right = CW
+
+  // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
+  w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
+  if w_down && !w.w_was { emit(w, "A 1 0 0"); _r1 = flow_action(w.s, 1, 0, 0); }
+  w.w_was = w_down;
+
+  // Grab: 'g' picks up items under the player (gold auto-collects on walk-over).
+  g_down = graphics::gl_key_pressed(KEY_G);
+  if g_down && !w.g_was { emit(w, "A 2 0 0"); _r2 = flow_action(w.s, 2, 0, 0); }
+  w.g_was = g_down;
+
+  if fwd != 0 || turn_dir != 0 {
+    // the distance-driven clock: an idle tick mutates nothing, so only REAL
+    // movement intents hit the wire (an idle host = zero traffic)
+    emit(w, "T {fwd} {turn_dir}");
+    (s2, nsq, nsr, chg) = flow_move(w.s, fwd, turn_dir, FIXED_DT, w.sq, w.sr);
+    w.s = s2;
+    w.sq = nsq;
+    w.sr = nsr;
+    if chg == 1 {
+      // the level changed (respawn / stairs / travel): rebuild the visuals
+      w.walls = build_walls(w.s);
+      w.hud = build_hud(w.s);
+      update_world_ivbo(w.wivbo, w.s);   // R7: re-upload floor instances (base hexagon persists)
+      graphics::gl_delete_vao(w.wallvao);
+      w.wallvao = build_walls_vbo(w.s, w.walls);
+      w.walln = len(w.walls) * 6;
+      graphics::gl_delete_vao(w.s3vao);
+      (n3v, n3n) = build_scene3d(w.s);   // hoisted: never inline a call into a field write
+      w.s3vao = n3v;
+      w.s3n = n3n;
+      graphics::gl_delete_texture(w.s3wtex);
+      n3t = build_world_texture3d(w.s);  // the world texture is per LEVEL, like the mesh
+      w.s3wtex = n3t;
+    }
+  }
+  }
+  // The shrine: bumping the spawning crystal raises the INTERACT event -> the crystal page.
+  if sim_shrine_pending(w.s) == 1 {
+    sim_shrine_clear(w.s);
+    w.crys_open = true;
+    w.page_open = false;
+    w.inv_open = false;
+    w.crys_col = 0;
+    w.crys_cur = 0;
+    w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur);
+  }
+  // IDLE SKIP (P1, RENDER.md Frame reuse Tier 0): digest everything the frame
+  // depends on; unchanged -> skip FOV recompute, rebakes, draw AND swap. The
+  // digest lives in framekey.loft (kernel-side, pinned by idletest) — a missed
+  // observable is added THERE, never patched here. The kernel loop idles
+  // between ticks (K1 closed the old busy-spin gap, loft#343).
+  w.ticks_n += 1;
+  key = scene_key(w.s, if w.page_open { 1 } else { 0 }, if w.inv_open { 1 } else { 0 },
+                  if w.crys_open { 1 } else { 0 }, w.inv_cursor, w.crys_col, w.crys_cur);
+  if key != w.last_key {
+    w.last_key = key;
+    w.frames_drawn += 1;
+    sim_compute_fov(w.s);        // directed-light FOV: recompute visibility for this frame
+    // Rebake the message log only when a new line arrived (combat, pickup, level, descend, …).
+    tot = sim_msg_total(w.s);
+    if tot != w.last_total {
+      free_msglog(w.ml);
+      w.ml = build_msglog(w.s, w.hud.font);
+      w.last_total = tot;
+    }
+    // Re-bake the quick-slot item names only when an identification changed what they show.
+    kn = sim_known_count(w.s);
+    if kn != w.last_known {
+      w.hud.itex = hud_rebuild_items(w.hud, w.s);
+      w.last_known = kn;
+    }
+    if w.mode3d {
+      // The world only: actors are boards through the presentation seam (P4) and the
+      // full HUD comes with P9. Toggle back with V for the 2D plan view.
+      // Aspect from the LIVE window, never from the requested constants: a resized
+      // window would otherwise stretch the world silently. Exact for a borderless /
+      // fullscreen window; a decorated one still overstates the drawable by its
+      // chrome inset until `graphics` can report the framebuffer size — LOFT-HANDOFF G3.
+      vpw = graphics::gl_window_width() as float;
+      vph = graphics::gl_window_height() as float;
+      view3d_frame(w.s, w.s3prog, w.s3vao, w.s3n, w.s3wtex, vpw, vph);
+      view3d_actors(w.s, w.s3prog, w.s3actor, vpw, vph);
+    } else {
+      view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln, postprog, postfbo, posttex);
+      draw_msglog(painter, w.s, w.hud, w.ml);
+    }
+    if w.page_open { draw_charpage(painter, w.s, w.hud, w.pg); }
+    else if w.inv_open { draw_invpage(painter, w.s, w.hud, w.pg_inv, w.inv_cursor); }
+    else if w.crys_open { draw_crystalpage(painter, w.s, w.hud, w.pg_crys, w.crys_col, w.crys_cur); }
+    graphics::gl_swap_buffers();
+  }
+  }
 
 fn main() {
   if !graphics::gl_create_window(WIN_W, WIN_H, "story — M0") {
@@ -32,32 +400,70 @@ fn main() {
   // enable blending for alpha. (Same setup brick-buster uses.)
   graphics::gl_disable(graphics::GL_DEPTH_TEST);
   graphics::gl_enable(graphics::GL_BLEND);
-  s = sim_new();
-  walls = build_walls(s);   // smoothed wall outline, built once (static per level)
-  last = ticks();
-  running = true;
-  while running {
-    if !graphics::gl_poll_events() {
-      running = false;
-    } else if graphics::gl_key_pressed(KEY_ESC) {
-      running = false;
-    } else {
-      tnow = ticks();
-      dt = (tnow - last) as float / 1000000.0;
-      last = tnow;
-      if dt > 0.05 { dt = 0.05; }
-
-      fwd = 0;
-      turn = 0;
-      if graphics::gl_key_pressed(KEY_W) { fwd = 1; }
-      if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
-      if graphics::gl_key_pressed(KEY_A) { turn = 1; }   // left  = CCW (heading up)
-      if graphics::gl_key_pressed(KEY_D) { turn = -1; }  // right = CW
-
-      sim_step(s, fwd, turn, dt);
-      view_draw(painter, s, walls);
-      graphics::gl_swap_buffers();
-    }
+  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  // K5: a pending "next world" flag carries the new seed across the restart.
+  seed = GEN_SEED;
+  root = env_variable("PWD") ?? ".";
+  nf = "{root}/.story_next";
+  if exists(nf) {
+    (fs, _u1, _u2) = wire3("S {file(nf).content()}");
+    if fs > 0 { seed = fs; }
+    _del = delete(nf);
   }
+  println("story: world seed={seed}");
+  boot_pump(painter, 0, 4);
+  // QUICK-START genesis (shared with observers + replaytest via gameflow): a
+  // ready-made HUMAN WARRIOR with its class kit — no creation screen in the way.
+  // The crystal re-specs race/class later; the kit is a new-game grant only.
+  s = flow_genesis(seed, GEN_DEPTH);
+  boot_pump(painter, 1, 4);
+  walls = build_walls(s);   // smoothed wall outline, built once (static per level)
+  boot_pump(painter, 2, 4);
+  hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
+  boot_pump(painter, 3, 4);
+  ml = build_msglog(s, hud.font);     // baked message-log lines (rebaked only when a message arrives)
+  last_total = sim_msg_total(s);      // watch this to know when to rebake
+  last_known = sim_known_count(s);    // watch identifications to re-bake the quick-slot names (flavour → real)
+  wprog = make_world_shader_inst();  // R7 instanced terrain shader (global, built once)
+  wvao = build_hex_vao();            // base hexagon (global, built once)
+  wivbo = build_world_ivbo(wvao, s); // per-level floor instances (updated on level change)
+  wallprog = make_wall_shader(); // R5 wall-stroke shader (global, built once)
+  postprog = make_post_shader(); // R6 light-cone + vignette pass (built once)
+  (postfbo, posttex) = make_post_target();
+  boot_pump(painter, 4, 4);
+  wallvao = build_walls_vbo(s, walls);   // wall-stroke VBO (rebuilt with the level)
+  walln = len(walls) * 6;
+  s3prog = make_view3d_shader();         // plan #11 P3: the first-person pass
+  (s3vao, s3n) = build_scene3d(s);       // per-level 3D scene (floor + walls)
+  s3wtex = build_world_texture3d(s);     // plan #11 P3b: landcover off the field, not baked
+  s3actor = make_actor_vbo();            // boards: created once, re-uploaded per frame
+  (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
+                                  // standing on it doesn't fire (walk-onto edge-trigger)
+  w = GameWorld {
+    s: s, walls: walls, hud: hud, ml: ml, last_total: last_total, last_known: last_known,
+    wvao: wvao, wivbo: wivbo, wallvao: wallvao, walln: walln,
+    s3prog: s3prog, s3vao: s3vao, s3n: s3n, s3wtex: s3wtex, s3actor: s3actor,
+    mode3d: false, v_was: false,
+    w_was: false, g_was: false, c_was: false, spend_was: false, qs_was: false,
+    i_was: false, iu_was: false, id_was: false, iq_was: false, ie_was: false,
+    ient_was: false, cu_was: false, cd_was: false, ca_was: false, cdd_was: false,
+    cent_was: false, ckq_was: false,
+    page_open: false, inv_open: false, crys_open: false,
+    pg: [], pg_inv: [], pg_crys: [], ilog: [],
+    inv_cursor: 0, crys_col: 0, crys_cur: 0, sq: sq, sr: sr,
+    last_key: 0, ticks_n: 0, frames_drawn: 0,
+  };
+  w.ilog += ["S {seed} {GEN_DEPTH}"];   // genesis — an observer's first line
+  // K1/K2: the games kernel owns the loop — drift-free ticks, idle backoff,
+  // the debug endpoint, the swap machinery — and crawler is the HOST: run()
+  // listens on STORY_PORT; an observer (src/observe.loft) connecting gets the
+  // full intent log (host_event), then rides the live broadcasts. game_tick is
+  // the frame; Esc / window close call stop() to leave.
+  engine_host::run(STORY_PORT, TICK_US, fn(ev: engine_host::Event) {
+    host_event(w, ev);
+  }, fn() {
+    game_tick(w, painter, wprog, wallprog, postprog, postfbo, posttex);
+  });
+  println("idle-skip: drew {w.frames_drawn} frames over {w.ticks_n} ticks; key={w.last_key} ilog={len(w.ilog)} clients={engine_host::clients()}");
   graphics::gl_destroy_window();
 }

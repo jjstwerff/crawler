@@ -4,7 +4,76 @@ schema_version = 1
 
 [[package]]
 name = "graphics"
-version = "0.1.0"
-url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/graphics-v0.1.0/graphics-0.1.0.tar.gz"
-sha256 = "762271f637cbedaff4c3cda73ef9c6da0bcc826b8c81d9bb08eae03a645510db"
+version = "0.9.4"
+url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/graphics-v0.9.4/graphics-0.9.4.tar.gz"
+sha256 = "05ed1215dcb7e5233abc0e74b3d130d3e5816b002a5147ae6340ba5ce877a2cc"
 source = "registry"
+deps = ["glb", "mesh3d"]
+
+[[package]]
+name = "random"
+version = "0.3.3"
+url = "https://github.com/loft-lang/loft-libs-core/releases/download/random-v0.3.3/random-0.3.3.tar.gz"
+sha256 = "c05f1aa51f74e9dcc7004c112160ccbfecfc9d07c02d4e7a721051f5ddcbc447"
+source = "registry"
+
+[[package]]
+name = "hex_grid"
+version = "0.1.2"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_grid-v0.1.2/hex_grid-0.1.2.tar.gz"
+sha256 = "3555008637ffd46b097c4fca0805ac30806987a1922098b8a396d2c5ce10a92d"
+source = "registry"
+
+[[package]]
+name = "hex_terrain"
+version = "0.1.3"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_terrain-v0.1.3/hex_terrain-0.1.3.tar.gz"
+sha256 = "237766b0558edc8b209cc7335f9fbeda2e56536d320da973b2314c41665a84a1"
+source = "registry"
+deps = ["hex_grid"]
+
+[[package]]
+name = "glb"
+version = "0.1.3"
+url = "https://github.com/loft-lang/loft-libs-assets/releases/download/glb-v0.1.3/glb-0.1.3.tar.gz"
+sha256 = "57ad8d0a0a25caefd65c4819b03c86562c9d5462dabf294c893132c65718160a"
+source = "registry"
+deps = ["mesh3d"]
+
+[[package]]
+name = "mesh3d"
+version = "0.1.2"
+url = "https://github.com/loft-lang/loft-libs-assets/releases/download/mesh3d-v0.1.2/mesh3d-0.1.2.tar.gz"
+sha256 = "b1929c5f56d5abf5925faad5572cfb02418d15cfe8eb4819c0b8df679915df10"
+source = "registry"
+
+[[package]]
+name = "hex_field"
+version = "0.1.3"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_field-v0.1.3/hex_field-0.1.3.tar.gz"
+sha256 = "f0610140d754ce999668e8d4c48f8948299865b23e8b8233206d9d99ce427e6c"
+source = "registry"
+
+[[package]]
+name = "hex_edge"
+version = "0.2.1"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_edge-v0.2.1/hex_edge-0.2.1.tar.gz"
+sha256 = "d86755c63cac35e9e253b9cc0f5067595f261eae4c0ec037a14f79eabb9b0938"
+source = "registry"
+deps = ["hex_field"]
+
+[[package]]
+name = "hex_way"
+version = "0.1.2"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_way-v0.1.2/hex_way-0.1.2.tar.gz"
+sha256 = "4e42e0ad810450a2befd95ea5813d2315ef6b397b2e5eeade65d049cb2d4b9c3"
+source = "registry"
+deps = ["hex_edge", "hex_field"]
+
+[[package]]
+name = "hex_roof"
+version = "0.1.5"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_roof-v0.1.5/hex_roof-0.1.5.tar.gz"
+sha256 = "49c34d77fc681a2d42db516dafc4fffd7b2d84ceedde7abfc5cb0009ed3cd672"
+source = "registry"
+deps = ["hex_field", "hex_way"]

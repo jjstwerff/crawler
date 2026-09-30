@@ -1,25 +1,28 @@
 // deftest — headless check of the classes / races / items databases.
 
-use classes;
-use races;
-use items;
+use classes::*;
+use races::*;
+use items::*;
+use catalog::*;   // race_catalog() — engine base (now empty) + the per-race kind:"race" bundles
 
 fn main() {
   println("=== story definition tables test ===");
-  ct = class_table();
-  rt = race_table();
+  ct = class_catalog();       // merged: the not-yet-migrated engine rows + the per-class bundles
+  rt = race_catalog();        // races are bundle content now (one race per bundle)
+  eng_rt = race_table();      // the engine base race table — MUST be empty post-migration
+  eng_ct = class_table();     // the engine class table is EMPTY post-migration (all 8 in bundles)
   it = item_table();
-  println("classes={len(ct)} races={len(rt)} items={len(it)}");
+  println("classes={len(ct)} (engine-base={len(eng_ct)}) races={len(rt)} (engine-base={len(eng_rt)}) items={len(it)}");
 
   w = class_find(ct, "warrior");
   println("warrior: hd={w.c_hd} melee={w.c_melee} realm={w.c_realm}");
   m = class_find(ct, "mage");
-  println("mage: str={m.c_str} device={m.c_device} realm={m.c_realm}");
+  println("mage: might={m.c_might} will={m.c_will} device={m.c_device} realm={m.c_realm}");
 
   hf = race_find(rt, "halfling");
   println("halfling: dex={hf.r_dex} stealth={hf.r_stealth} freeact={race_has_flag(hf, RF_FREE_ACTION)}");
   ht = race_find(rt, "half_troll");
-  println("half_troll: str={ht.r_str} regen={race_has_flag(ht, RF_REGEN)} xp={ht.r_xp}");
+  println("half_troll: might={ht.r_might} hand={ht.r_hand} regen={race_has_flag(ht, RF_REGEN)} xp={ht.r_xp}");
 
   ls = item_find(it, "long_sword");
   println("long_sword: {ls.i_dd}d{ls.i_ds} cost={ls.i_cost} slot={ls.i_slot}");
@@ -30,8 +33,8 @@ fn main() {
   println("weapons={len(weapons)} potions={len(potions)}");
 
   miss = item_find(it, "nope");
-  ok_classes = len(ct) >= 6 && w.c_hd > 0 && m.c_str < 0 && m.c_realm == "arcane";
-  ok_races   = len(rt) >= 8 && hf.r_dex > 0 && race_has_flag(hf, RF_FREE_ACTION) && race_has_flag(ht, RF_REGEN);
+  ok_classes = len(ct) >= 8 && len(eng_ct) == 0 && w.c_hd > 0 && m.c_might < 0 && m.c_will > 0 && m.c_realm == "arcane";
+  ok_races   = len(rt) >= 8 && len(eng_rt) == 0 && hf.r_dex > 0 && race_has_flag(hf, RF_FREE_ACTION) && race_has_flag(ht, RF_REGEN);
   ok_items   = len(it) >= 25 && ls.i_dd > 0 && len(weapons) >= 8 && len(potions) >= 3 && item_stackable(pot) && miss.i_key == "";
   println("classes : {ok_classes}");
   println("races   : {ok_races}");

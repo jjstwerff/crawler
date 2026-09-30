@@ -1,0 +1,113 @@
+// sprite_drawtest — headless, deterministic verification of the in-loft sprite rasterizer
+// (sprite_draw.loft). Operates on a BARE vector<integer> buffer (native-safe — see the
+// header of sprite_draw.loft), asserts exact pixels via px_get. No PIL/draw.py at runtime;
+// the draw.py golden parity (AA-rim tolerance) is a dev probe kept out of the gate.
+// Runs identically interpreted (the gate) and native.
+//
+// Shape under test: a right-pointing ARROW (concave — head wider than shaft), exercising
+// even-odd scanline correctness. 120×80, fill RED on a GRAY field.
+
+use graphics;
+use sprite_draw;
+
+fn expect(buf: vector<integer>, w: integer, x: integer, y: integer, want: integer, name: text) -> integer {
+  got = sprite_draw::px_get(buf, w, x, y);
+  if got == want {
+    0
+  } else {
+    println("  FAIL {name} at ({x},{y}): got {got} want {want}");
+    1
+  }
+}
+
+fn expect_gt(a: integer, b: integer, name: text) -> integer {
+  if a > b { 0 } else { println("  FAIL {name}: {a} !> {b}"); 1 }
+}
+
+fn main() {
+  println("=== sprite_draw rasterizer test (bare-buffer, native-safe) ===");
+  red = graphics::rgba(200, 40, 40, 255);
+  bg = graphics::rgba(80, 80, 80, 255);
+  const W = 120;
+  const H = 80;
+  c = sprite_draw::new_buffer(W, H, bg);
+  xs: vector<float> = [20.0, 50.0, 50.0, 85.0, 50.0, 50.0, 20.0];
+  ys: vector<float> = [30.0, 30.0, 15.0, 40.0, 65.0, 50.0, 50.0];
+  sprite_draw::fill_polygon(c, W, H, xs, ys, red);
+
+  fails = 0;
+  // (1) shaft interior filled
+  fails = fails + expect(c, W, 30, 40, red, "shaft-mid");
+  fails = fails + expect(c, W, 40, 40, red, "shaft-right");
+  fails = fails + expect(c, W, 25, 45, red, "shaft-low");
+  // (2) head interior filled (wider than shaft)
+  fails = fails + expect(c, W, 60, 40, red, "head-mid");
+  fails = fails + expect(c, W, 70, 40, red, "head-fwd");
+  fails = fails + expect(c, W, 55, 30, red, "head-upper");
+  fails = fails + expect(c, W, 55, 50, red, "head-lower");
+  // (3) tip span: row 40 fills x in [20,85]
+  fails = fails + expect(c, W, 83, 40, red, "tip-in");
+  fails = fails + expect(c, W, 87, 40, bg, "tip-out");
+  // (4) even-odd concavity: row 18 covers only the head sliver x≈[50,54]
+  fails = fails + expect(c, W, 52, 18, red, "head-sliver-in");
+  fails = fails + expect(c, W, 45, 18, bg, "left-of-head-top");
+  fails = fails + expect(c, W, 60, 18, bg, "right-of-head-top");
+  // (5) re-entrant rows excluded
+  fails = fails + expect(c, W, 30, 20, bg, "above-shaft");
+  fails = fails + expect(c, W, 30, 60, bg, "below-shaft");
+  // (6) clearly outside
+  fails = fails + expect(c, W, 10, 40, bg, "far-left");
+  fails = fails + expect(c, W, 110, 40, bg, "far-right");
+
+  // (7) downscale = box average (verified == PIL BOX, max=1). A 2×4 buffer, one red sub-
+  //     pixel in the top 2×2 block → R=(200+80*3)/4=110, G=B=(40+80*3)/4=70; bottom stays bg.
+  d = sprite_draw::new_buffer(2, 4, bg);
+  sprite_draw::px_set(d, 2, 4, 0, 0, red);
+  small = sprite_draw::new_buffer(1, 2, 0);
+  sprite_draw::downscale(d, 2, 2, small, 1, 2);
+  fails = fails + expect(small, 1, 0, 0, graphics::rgba(110, 70, 70, 255), "downscale-avg");
+  fails = fails + expect(small, 1, 0, 1, bg, "downscale-uniform");
+
+  // (8) stroke_path ribbon: horizontal (20,40)→(100,40) tapering width 20→4
+  s = sprite_draw::new_buffer(W, H, bg);
+  sxx: vector<float> = [20.0, 100.0];
+  syy: vector<float> = [40.0, 40.0];
+  sww: vector<float> = [20.0, 4.0];
+  sprite_draw::stroke_path(s, W, H, sxx, syy, sww, red);
+  fails = fails + expect(s, W, 22, 40, red, "stroke-root-centre");
+  fails = fails + expect(s, W, 60, 40, red, "stroke-mid-centre");
+  fails = fails + expect(s, W, 98, 40, red, "stroke-tip-centre");
+  fails = fails + expect(s, W, 22, 35, red, "stroke-root-thick-up");
+  fails = fails + expect(s, W, 22, 45, red, "stroke-root-thick-down");
+  fails = fails + expect(s, W, 22, 28, bg, "stroke-root-above");
+  fails = fails + expect(s, W, 22, 52, bg, "stroke-root-below");
+  fails = fails + expect(s, W, 98, 34, bg, "stroke-tip-narrow-up");
+  fails = fails + expect(s, W, 98, 46, bg, "stroke-tip-narrow-down");
+  fails = fails + expect(s, W, 10, 40, bg, "stroke-before-start");
+  fails = fails + expect(s, W, 110, 40, bg, "stroke-after-end");
+
+  // (9) gradient fills. c1→c2 = red→blue. Clamped regions are exact.
+  c1 = graphics::rgba(240, 40, 40, 255);
+  c2 = graphics::rgba(40, 40, 120, 255);
+  gx: vector<float> = [10.0, 90.0, 90.0, 10.0];
+  gy: vector<float> = [10.0, 10.0, 90.0, 90.0];
+  gl = sprite_draw::new_buffer(100, 100, graphics::rgba(0, 0, 0, 255));
+  sprite_draw::fill_polygon_linear(gl, 100, 100, gx, gy, c1, c2, 50.0, 20.0, 50.0, 80.0);
+  fails = fails + expect(gl, 100, 50, 12, c1, "grad-linear-top-clamp");
+  fails = fails + expect(gl, 100, 50, 88, c2, "grad-linear-bot-clamp");
+  fails = fails + expect_gt(graphics::color_r(sprite_draw::px_get(gl, 100, 50, 30)),
+                            graphics::color_r(sprite_draw::px_get(gl, 100, 50, 70)), "grad-linear-red-falls");
+  fails = fails + expect_gt(graphics::color_b(sprite_draw::px_get(gl, 100, 50, 70)),
+                            graphics::color_b(sprite_draw::px_get(gl, 100, 50, 30)), "grad-linear-blue-rises");
+  gr = sprite_draw::new_buffer(100, 100, graphics::rgba(0, 0, 0, 255));
+  sprite_draw::fill_polygon_radial(gr, 100, 100, gx, gy, c1, c2, 50.0, 50.0, 40.0);
+  fails = fails + expect(gr, 100, 12, 12, c2, "grad-radial-corner-clamp");
+  fails = fails + expect_gt(graphics::color_r(sprite_draw::px_get(gr, 100, 50, 50)),
+                            graphics::color_r(sprite_draw::px_get(gr, 100, 25, 25)), "grad-radial-red-falls");
+
+  if fails == 0 {
+    println("SPRITE OK");
+  } else {
+    println("sprite_draw FAILED: {fails} pixel mismatch(es)");
+  }
+}

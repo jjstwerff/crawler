@@ -1,0 +1,155 @@
+// shot3d — render ONE first-person frame headlessly and write it to a PNG, so the plan #11
+// P3/P4 picture can be looked at instead of assumed. Run under xvfb:
+//
+//   xvfb-run -a -s "-screen 0 1024x576x24" \
+//     loft --interpret --path ../loft/ --lib ... --lib src/ src/shot3d.loft
+//
+// `gl_screenshot` reads the GL back buffer, which is reliable headlessly (CLAUDE.md — it is
+// what `make probe` uses); only `make shot`'s window-grab is positionally unreliable.
+//
+// It prints the numbers a still frame cannot show — scene vertex count, actor count, the
+// camera's own position — so a black PNG can be told apart from an empty world.
+use graphics;
+use sim::*;
+use hex_grid::*;
+use hexscene::*;
+use view3d::*;
+
+fn shot_at(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float) {
+  shot_far(s, name, prog, avbo, vw, vh, true, true);
+}
+
+// `usefar` off is the FAR FIELD'S NEGATIVE CONTROL: the same camera with the wilderness
+// beyond the window not drawn. A diff of the two PNGs is what proves the far mesh is
+// contributing pixels — 108 000 vertices that change nothing look exactly like 108 000
+// vertices that were never uploaded.
+fn shot_far(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float,
+            usefar: boolean, usenear: boolean) {
+  shot_arc(s, name, prog, avbo, vw, vh, usefar, usenear, true);
+}
+
+fn shot_arc(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float,
+            usefar: boolean, usenear: boolean, usearc: boolean) {
+  (pq, pr) = sim_player_hex(s);
+  (svao, sn) = build_scene3d_arc(s, usearc);
+  (fvao, fvn) = build_far3d(s);          // plan #11 P6: the wilderness past the window
+  if !usefar { fvn = 0; }
+  if !usenear { sn = 0; }
+  wtex = build_world_texture3d(s);      // plan #11 P3b: landcover rides the world texture
+  view3d_frame_far(s, prog, svao, sn, fvao, fvn, wtex, vw, vh);
+  na = view3d_actors(s, prog, avbo, vw, vh);
+  ok = graphics::gl_screenshot(vw as integer, vh as integer, "/tmp/{name}.png");
+  hz = horizon_y(view3d_camera(s, vw, vh));
+  println("{name}: hex=({pq},{pr}) scene_verts={sn} far_verts={fvn} actor_verts={na} horizon_y={hz} png={ok}");
+  // ⚠ THE ONE LINK NO HEADLESS GATE REACHES: `worldtextest` proves the CPU mapping, but the
+  // upload convention and the sampler are GL's. A vertically flipped texture satisfies every
+  // CPU check and still puts the wrong landcover under your feet. So print what the ground at
+  // the camera's own hex must be — the frame's bottom-centre pixel is that ground, and
+  // tools/ can compare the two. (plan #11 P3b)
+  println("  {name}: ground kind at ({pq},{pr}) = {sim_tile_kind(s, pq, pr)}");
+  graphics::gl_delete_vao(svao);
+  if fvn > 0 { graphics::gl_delete_vao(fvao); }
+  graphics::gl_delete_texture(wtex);
+}
+
+fn main() {
+  // BORDERLESS FULLSCREEN, deliberately. A decorated window's drawable is shorter than
+  // gl_window_height() reports (35 px here — LOFT-HANDOFF G3), which would stretch this
+  // frame ~6.5% vertically and make the harness lie about the very thing it verifies.
+  // Fullscreen was measured to have ZERO inset, so here w/h are exactly the drawable.
+  if !graphics::gl_create_fullscreen_window("story 3d shot") {
+    println("shot3d: no window (need xvfb / a display)");
+    return;
+  }
+  vw = graphics::gl_window_width() as float;
+  vh = graphics::gl_window_height() as float;
+  println("shot3d: drawable {vw}x{vh} (aspect {vw / vh ?? 0.0})");
+  prog = make_view3d_shader();
+  avbo = make_actor_vbo();
+  println("shot3d: shader={prog} actor_vbo={avbo}");
+
+  // A DUNGEON level: enclosed, so walls should fill much of the frame.
+  d = sim_new_gen(1337, 1);
+  sim_compute_fov(d);
+  graphics::gl_poll_events();
+  shot_at(d, "p3_dungeon", prog, avbo, vw, vh);
+
+  // Turned 90 degrees from the same spot — a different wall layout must appear, which is
+  // the cheapest check that the camera is actually being read rather than baked.
+  d.heading = d.heading + 1.5707963267948966;
+  graphics::gl_poll_events();
+  shot_at(d, "p3_dungeon_turned", prog, avbo, vw, vh);
+
+  // The SURFACE: open country, so the frame should be mostly ground and sky with the
+  // horizon across it. If the dungeon looks right and this does not, the fault is scale.
+  u = sim_new_gen(1337, 0);
+  sim_compute_fov(u);
+  graphics::gl_poll_events();
+  shot_at(u, "p3_surface", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_far(u, "p3_surface_nofar", prog, avbo, vw, vh, false, true);
+  graphics::gl_poll_events();
+  // STEP B'S RENDERED CONTROL: the same frame with arc-tagged edges drawn as the facets they
+  // used to be. Diffing the two says WHICH pixels the arc changes — and a renderer that
+  // curved everything would show every wall in that diff, not only the towers.
+  shot_arc(u, "p3_surface_flat", prog, avbo, vw, vh, true, true, false);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_faronly", prog, avbo, vw, vh, true, false);
+
+  // ⚠ AND A CAMERA THAT CAN SEE THE ANSWER. `skyprobe` measured the missing sky per bearing:
+  // 7.35 degrees at bearing 300, 3.51 at 90, 1.78 at 0, nothing in the other nine. The frame
+  // above looks along bearing 90 with a 75-degree horizontal field, so bearings 0 and 300 are
+  // simply not in it — and 90's own 3.5 degrees sits behind the town wall. A frame that cannot
+  // show the thing is not evidence about the thing.
+  // ⚠ AND THE ANSWER TO THAT WAS ITSELF A FRAME THAT COULD NOT CARRY ONE. From the spawn the
+  // far field is 100% occluded and the composite is pixel-identical with it and without it —
+  // not because it fails to draw (alone, it fills 47% of the frame) but because the NEAR rim
+  // at bearing 300 stands at 32 degrees, which is already outside a 60-degree vertical field.
+  // The bowl hides its own horizon. A vantage on the window's high rim, looking outward, is
+  // where near and far actually meet, so that is where the seam gets looked at.
+  sim_teleport(u, 96, 6);
+  sim_compute_fov(u);
+  (vqx, vqy) = hex_to_px(96, 6);
+  (vcx, vcy) = hex_to_px(u.lw / 2, u.lh / 2);
+  u.heading = atan2(vqy - vcy, vqx - vcx);
+  graphics::gl_poll_events();
+  shot_at(u, "p6_rim", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_rim_nofar", prog, avbo, vw, vh, false, true);
+
+  // ── plan #11 P5 step B: a round tower and a STRAIGHT wall in ONE frame.
+  //
+  // The control is the frame itself, and it has to be in the same frame to be one: a
+  // renderer that curves everything passes "the tower curves". The tower at (55,44) stands
+  // inside the town among its houses, so the frame carries straight walls beside it —
+  // 5 hexes away, which is 7.5 m, close to the 8 m the P0 target frame was plotted at.
+  // ⚠ AND THE VANTAGE IS PLACED, NOT SEARCHED FOR. Three attempts failed first, each in a
+  // way worth recording: (69,56) stood on a hillside 100 m off with the town in miniature;
+  // (60,44) put the camera INSIDE a building; and a search for "open ground 5 hexes out with
+  // a clear line" found (66,13), which is open and clear and looks straight into a slope,
+  // because the line test knows about walls and the world has heights now. A frame that
+  // cannot show the thing is not evidence about the thing. So: the town square, looking
+  // north at the wall tower at (50,37) — 13 hexes, 19.5 m, with the town's straight-walled
+  // houses in between, which is what makes the frame its own control.
+  t5q = 50;
+  t5r = 37;
+  (t5x, t5y) = hex_to_px(t5q, t5r);
+  sim_teleport(u, 50, 50);
+  sim_compute_fov(u);
+  (v5x, v5y) = hex_to_px(50, 50);
+  u.heading = atan2(t5y - v5y, t5x - v5x);
+  graphics::gl_poll_events();
+  shot_at(u, "p5_tower", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_arc(u, "p5_tower_flat", prog, avbo, vw, vh, true, true, false);
+
+  u.heading = 5.235987755982988;                 // bearing 300: the 7.35-degree gap
+  graphics::gl_poll_events();
+  shot_at(u, "p6_far300", prog, avbo, vw, vh);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_far300_nofar", prog, avbo, vw, vh, false, true);
+  graphics::gl_poll_events();
+  shot_far(u, "p6_far300_only", prog, avbo, vw, vh, true, false);
+
+  graphics::gl_destroy_window();
+}

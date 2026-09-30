@@ -1,0 +1,523 @@
+// hexcanopy — plan #9 T1: the canopy PARTITION.
+//
+// Every mechanism in plan #5 authors a form and derives a field. This runs backwards: the
+// field is primary — which hex of the forest top belongs to which trunk — and the tree is
+// derived from it. A normal mesh tree is one that never had neighbours to fight for
+// sunlight with.
+//
+// THE PARTITION IS EXACT INTEGER ARITHMETIC, and that is not an optimisation. Every cell
+// centre sits at (k*sqrt3/2, m/2) with k, m integers, so if a trunk is placed ON the
+// lattice the squared distance from it is
+//
+//     d^2 = (3*dk^2 + dm^2) / 4        ->   q2 = 3*dk^2 + dm^2   is an exact integer
+//
+// A PARABOLOID crown, z = P*(1 - d^2/R^2), depends on d^2 rather than d — so with
+// D = 4*R^2 the whole comparison stays integral:
+//
+//     z_A > z_B   <=>   P_A*(D_A - q2_A)*D_B  >  P_B*(D_B - q2_B)*D_A
+//
+// A cone or a dome would need sqrt(d^2) and drop straight back into floating point. That
+// is the deciding argument for the paraboloid, over and above its being the usual
+// allometric choice: it is the only profile of the three that keeps this exact.
+//
+// It matters because the first prototype was NOT exact, and it showed: a crown boundary
+// passes exactly through cell centres, and floating point admitted one cell while
+// rejecting its mirror image, so an isolated tree acquired a spurious lean of a third of a
+// cell. In exact arithmetic the lean of an isolated tree is 0 — not 1e-15, but 0.
+use hex_field::*;
+
+pub struct Trees {
+  tr_k:  vector<integer>,   // trunk lattice k  (world x = k*sqrt3/2)
+  tr_m:  vector<integer>,   // trunk lattice m  (world y = m/2)
+  tr_p:  vector<integer>,   // peak height
+  tr_d:  vector<integer>,   // D = 4*R^2 — the crown reaches while q2 < D
+  tr_id: vector<integer>,   // STABLE identity: ties break on this, never on array order,
+                            // which is what makes the partition order-free (I-PART)
+  tr_n:  integer,
+}
+
+pub fn trees_new() -> Trees {
+  a: vector<integer> = []; b: vector<integer> = []; c: vector<integer> = [];
+  d: vector<integer> = []; e: vector<integer> = [];
+  Trees { tr_k: a, tr_m: b, tr_p: c, tr_d: d, tr_id: e, tr_n: 0 }
+}
+
+pub fn tree_add(t: Trees, k: integer, m: integer, peak: integer,
+                r2: integer, id: integer) -> integer {
+  t.tr_k += [k]; t.tr_m += [m]; t.tr_p += [peak]; t.tr_d += [4 * r2]; t.tr_id += [id];
+  t.tr_n = t.tr_n + 1;
+  t.tr_n - 1
+}
+
+// Exact 4*d^2 from a cell to a trunk.
+pub fn crown_q2(t: Trees, i: integer, k: integer, m: integer) -> integer {
+  dk = k - (t.tr_k[i] ?? 0);
+  dm = m - (t.tr_m[i] ?? 0);
+  3 * dk * dk + dm * dm
+}
+
+pub fn crown_count_strict(s: HexSet, lb: Labels, ct: Labels, id: integer) -> integer {
+  n = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) == id
+         && label_get(ct, q, r) != 1 { n = n + 1; }
+    }
+  }
+  n
+}
+
+// I-LEAN, in exact integer form: the SUM of lattice offsets of the owned cells from the
+// trunk.  Zero means the crown is exactly balanced on its trunk.  Reporting the sum rather
+// than the mean keeps it integral, so "no lean" is 0 and not a tolerance.
+// The canopy partition: owner(cell) = argmax over trees of the crown profile.
+//
+// This is the groin-vault operator (plan #5 section 15) with N inputs instead of 2 — max
+// for the surface, argmax for the ownership — so it inherits determinism and
+// order-independence for free, PROVIDED ties break on the stable id rather than on which
+// tree happened to be visited first.
+//
+// CONTESTED CELLS GO TO THE BIGGEST TREE, and its size is derived from the hexes it already
+// holds — a bigger crown overtops a smaller one and shades it out. That makes the rule
+// self-referential (the partition sets the sizes; the sizes settle the partition), so it
+// runs in two passes:
+//
+//   pass 1  assign every uncontested cell, and mark the contested ones
+//   pass 2  size each tree from its UNCONTESTED cells, then give each contested cell to
+//           the largest of the trees tied there
+//
+// Sizing from uncontested cells only is what keeps pass 2 order-free — a size that counted
+// already-awarded contested cells would depend on the sweep order. This is the whole T6
+// relaxation problem in miniature, and it is worth meeting here at two passes rather than
+// first meeting it at fixed-point scale.
+//
+// Only when the tied trees are ALSO the same size does the stable id decide, which under
+// exact symmetry is a genuine coin flip and has to land somewhere. That is why the
+// symmetric pair is the degenerate case: it is the one scene where the physical rule
+// cannot help.
+//
+// Returns the number of contested cells. They are not a rounding artefact: the hex lattice
+// is mirror-symmetric about a cell-centre column (k -> -k preserves k = r mod 2), so a
+// symmetric pair of trees ALWAYS produces an exact tie column.
+pub fn canopy_partition(t: Trees, s: HexSet, lb: Labels, ct: Labels) -> integer {
+  ties = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        k = lattice_k(q, r);
+        m = lattice_m(q, r);
+        bid = -1;
+        bp = 0; bd = 1; bq = 0;
+        tied = false;
+        for i in 0..t.tr_n {
+          dd = t.tr_d[i] ?? 0;
+          qq = crown_q2(t, i, k, m);
+          if qq < dd {
+            pp = t.tr_p[i] ?? 0;
+            id = t.tr_id[i] ?? 0;
+            if bid < 0 {
+              bid = id; bp = pp; bd = dd; bq = qq; tied = false;
+            } else {
+              lhs = pp * (dd - qq) * bd;
+              rhs = bp * (bd - bq) * dd;
+              if lhs > rhs {
+                bid = id; bp = pp; bd = dd; bq = qq; tied = false;
+              } else {
+                if lhs == rhs {
+                  tied = true;
+                  if id < bid { bid = id; bp = pp; bd = dd; bq = qq; }
+                }
+              }
+            }
+          }
+        }
+        label_set(lb, q, r, bid);
+        // Contested cells are an OUTPUT, not an internal detail. They go to the lowest id
+        // so the partition stays a total function, but that attribution is arbitrary — so
+        // any symmetric quantity (counts, lean) must be measured on the uncontested set,
+        // and anything downstream that cares (interleaved foliage, T9's cards) needs to
+        // know which cells they were.
+        if tied {
+          label_set(ct, q, r, 1);
+          ties = ties + 1;
+        } else {
+          label_set(ct, q, r, 0);
+        }
+      }
+    }
+  }
+
+  // ── pass 2: the biggest tree takes the contested cells ────────────────────
+  if ties > 0 {
+    sz: vector<integer> = [];
+    for i in 0..t.tr_n { sz += [crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0)]; }
+    for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+      for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+        if hexset_get(s, q, r) && label_get(ct, q, r) == 1 {
+          k = lattice_k(q, r);
+          m = lattice_m(q, r);
+          // recover the tied set at this cell, then take the largest of them
+          wid = -1;
+          wsz = -1;
+          wp = 0; wd = 1; wq = 0;
+          for i in 0..t.tr_n {
+            dd = t.tr_d[i] ?? 0;
+            qq = crown_q2(t, i, k, m);
+            if qq < dd {
+              pp = t.tr_p[i] ?? 0;
+              id = t.tr_id[i] ?? 0;
+              n = sz[i] ?? 0;
+              if wid < 0 {
+                wid = id; wsz = n; wp = pp; wd = dd; wq = qq;
+              } else {
+                lhs = pp * (dd - qq) * wd;
+                rhs = wp * (wd - wq) * dd;
+                if lhs > rhs {
+                  wid = id; wsz = n; wp = pp; wd = dd; wq = qq;
+                } else {
+                  if lhs == rhs {
+                    // tied on height: the larger crown wins, the id only if equal too
+                    if n > wsz { wid = id; wsz = n; }
+                    else { if n == wsz && id < wid { wid = id; } }
+                  }
+                }
+              }
+            }
+          }
+          label_set(lb, q, r, wid);
+        }
+      }
+    }
+  }
+  ties
+}
+
+pub fn crown_count(s: HexSet, lb: Labels, id: integer) -> integer {
+  n = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) == id { n = n + 1; }
+    }
+  }
+  n
+}
+
+// The cells this tree won OUTRIGHT.  This is the symmetric quantity: contested cells are
+// attributed by an arbitrary rule, so comparing raw counts across trees compares the rule
+// as much as the competition.
+pub fn crown_lean(s: HexSet, lb: Labels, ct: Labels, t: Trees, i: integer) -> (integer, integer) {
+  id = t.tr_id[i] ?? 0;
+  tk = t.tr_k[i] ?? 0;
+  tm = t.tr_m[i] ?? 0;
+  sk = 0;
+  sm = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) && label_get(lb, q, r) == id && label_get(ct, q, r) != 1 {
+        sk = sk + lattice_k(q, r) - tk;
+        sm = sm + lattice_m(q, r) - tm;
+      }
+    }
+  }
+  (sk, sm)
+}
+
+// Is a crown one connected piece?  (I-REACH in its cheap form — the full statement, that
+// every cell reaches the trunk through cells of its own tree, arrives with the skeleton in
+// T4.)  Flood from the trunk cell through same-labelled neighbours.
+pub fn crown_connected(s: HexSet, lb: Labels, t: Trees, i: integer) -> boolean {
+  id = t.tr_id[i] ?? 0;
+  total = crown_count(s, lb, id);
+  if total == 0 { return true; }
+  cap = hexset_w(s) * hexset_h(s);
+  fq: vector<integer> = [];
+  fr: vector<integer> = [];
+  for j in 0..cap { fq += [0]; fr += [0]; }
+  vis = hexset_chunk(hexset_q0(s), hexset_r0(s), hexset_w(s), hexset_h(s));
+  n = 0;
+  // seed at the trunk's own cell if it belongs to this tree, else at any owned cell
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if n == 0 && hexset_get(s, q, r) && label_get(lb, q, r) == id {
+        fq[0] = q; fr[0] = r; n = 1;
+        hexset_set(vis, q, r, true);
+      }
+    }
+  }
+  head = 0;
+  seen = 0;
+  while head < n {
+    cq = fq[head] ?? 0;
+    cr = fr[head] ?? 0;
+    head = head + 1;
+    seen = seen + 1;
+    for j in 0..6 {
+      nq = nb_q(cq, cr, j);
+      nr = nb_r(cq, cr, j);
+      if hexset_get(s, nq, nr) && !hexset_get(vis, nq, nr)
+         && label_get(lb, nq, nr) == id && n < cap {
+        hexset_set(vis, nq, nr, true);
+        fq[n] = nq; fr[n] = nr;
+        n = n + 1;
+      }
+    }
+  }
+  seen == total
+}
+
+// ── T2: THE CANOPY IS AN INTERVAL ───────────────────────────────────────────
+//
+// A roof is a surface — one z per cell. A canopy is occupied SPACE, because it is drawn by
+// filling it: every cell carries (base, top). That needs no new structure, just two Heights
+// fields — the floor/soffit pair the arch work already used.
+//
+// The base is not authored. "Height to live crown" is a forestry quantity driven by
+// COMPETITION: a crowded tree self-prunes the lower branches its neighbours have shaded,
+// which is why forest-grown trees have long clean boles and open-grown ones branch to the
+// ground. T1's partition already measures that competition, so the base falls out of it:
+//
+//     shade_t = 1 - won_t / potential_t          (potential = what it would hold alone)
+//     bole_t  = H_t * shade_t * BOLE_MAX
+//     top     = bole_t + (H_t - bole_t) * u      u = 1 - q2/D_t
+//     base    = bole_t
+//
+// At the crown edge u = 0, so top == base and the crown closes exactly. At the trunk u = 1,
+// so top == H_t: crowding does not shorten the tree, it raises the crown base and shallows
+// the crown. One parameter, and it is a ratio.
+//
+// NOTE the circularity, deliberately not resolved here: the partition competes on the
+// POTENTIAL profile, and the realized crown is derived from the result. Feeding realized
+// crowns back into the competition is the T6 relaxation, and this is the second place the
+// same shape has appeared (the first being T1's contested-cell rule).
+pub const BOLE_MAX = 0.8;
+
+// How many cells this crown would hold with no neighbours at all.
+pub fn crown_potential(t: Trees, i: integer, s: HexSet) -> integer {
+  dd = t.tr_d[i] ?? 0;
+  n = 0;
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        if crown_q2(t, i, lattice_k(q, r), lattice_m(q, r)) < dd { n = n + 1; }
+      }
+    }
+  }
+  n
+}
+
+// The fraction of its potential crown this tree lost to its neighbours.
+pub fn crown_shade(t: Trees, i: integer, s: HexSet, lb: Labels, ct: Labels) -> float {
+  pot = crown_potential(t, i, s);
+  if pot <= 0 { return 0.0; }
+  won = crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0);
+  1.0 - ((won as float) / (pot as float) ?? 0.0)
+}
+
+pub fn crown_bole(t: Trees, i: integer, s: HexSet, lb: Labels, ct: Labels) -> float {
+  ((t.tr_p[i] ?? 0) as float) * crown_shade(t, i, s, lb, ct) * BOLE_MAX
+}
+
+// Fill the canopy interval for every owned cell.
+pub fn canopy_heights(t: Trees, s: HexSet, lb: Labels, ct: Labels,
+                      top: Heights, base: Heights) {
+  bl: vector<float> = [];
+  for i in 0..t.tr_n { bl += [crown_bole(t, i, s, lb, ct)]; }
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        id = label_get(lb, q, r);
+        if id >= 0 {
+          for i in 0..t.tr_n {
+            if (t.tr_id[i] ?? -1) == id {
+              dd = t.tr_d[i] ?? 0;
+              hh = (t.tr_p[i] ?? 0) as float;
+              bo = bl[i] ?? 0.0;
+              qq = crown_q2(t, i, lattice_k(q, r), lattice_m(q, r));
+              u = 1.0 - ((qq as float) / (dd as float) ?? 0.0);
+              if u < 0.0 { u = 0.0; }
+              height_set(base, q, r, bo);
+              height_set(top, q, r, bo + (hh - bo) * u);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// The canopy's thickness at a cell — what T9's cards have to fill and T10 has to make
+// match the opacity sight_clear reports.
+pub fn canopy_depth(top: Heights, base: Heights, q: integer, r: integer) -> float {
+  height_get(top, q, r) - height_get(base, q, r)
+}
+
+// ── T3: LEAN AND TRUNK PLACEMENT ────────────────────────────────────────────
+//
+// The lean is the crown's centre of mass measured from the trunk that carries it. It is
+// not an effect added for looks: it is what the partition already says about which side of
+// the tree kept its light.
+//
+// Its bound is a THEOREM, not a measurement. Every owned cell lies within R of the trunk
+// (that is what the crown test is), and a centroid of points inside a disc is inside that
+// disc — so |lean| < R always. A trunk can never lean outside the crown it carries, and no
+// clamp is needed to make that true.
+pub fn crown_lean_world(s: HexSet, lb: Labels, ct: Labels,
+                        t: Trees, i: integer) -> (float, float) {
+  n = crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0);
+  if n <= 0 { return (0.0, 0.0); }
+  (sk, sm) = crown_lean(s, lb, ct, t, i);
+  nf = n as float;
+  (((sk as float) / nf ?? 0.0) * 0.8660254037844386,
+   ((sm as float) / nf ?? 0.0) * 0.5)
+}
+
+// Where the crown attaches to the trunk.
+//
+// A tree leans TOWARD its crown's centre of mass, because that is the load it has to stand
+// under — but the roots anchor the base, so it cannot get all the way there. `alpha` is
+// how much of the imbalance the trunk takes out by tilting; the REMAINDER is what the
+// branches have to carry asymmetrically, which is the whole reason T4's branch structure
+// comes out unequal on a crowded tree.
+pub fn trunk_top(t: Trees, i: integer, lx: float, ly: float,
+                 alpha: float) -> (float, float) {
+  rx = ((t.tr_k[i] ?? 0) as float) * 0.8660254037844386;
+  ry = ((t.tr_m[i] ?? 0) as float) * 0.5;
+  (rx + lx * alpha, ry + ly * alpha)
+}
+
+// The imbalance the branches must carry: the part of the lean the trunk did not take out.
+pub fn crown_residual(lx: float, ly: float, alpha: float) -> float {
+  rx = lx * (1.0 - alpha);
+  ry = ly * (1.0 - alpha);
+  sqrt(rx * rx + ry * ry) ?? 0.0
+}
+
+pub fn crown_radius(t: Trees, i: integer) -> float {
+  sqrt(((t.tr_d[i] ?? 0) as float) * 0.25) ?? 0.0
+}
+
+// ── T6: RELAXATION ──────────────────────────────────────────────────────────
+//
+// The circularity T1 and T2 both met at small scale, now met properly: a tree that holds
+// more crown has more leaf area, so it grows taller, so it holds more crown. That is
+// positive feedback, and positive feedback is exactly what does NOT obviously settle.
+//
+// The design asked whether to run a fixed number of iterations (cheap, arbitrary) or to a
+// proven fixed point (correct, but we have no proof). Neither is needed, and the reason is
+// a payoff from a decision made back in T1:
+//
+//     I-EXACT forces heights to be INTEGERS, so the state space is FINITE.
+//     A deterministic map on a finite space must reach a fixed point or enter a cycle.
+//     Both are detectable exactly, by remembering the states already visited.
+//
+// So termination is DETECTED rather than assumed, and the caller is told which of the three
+// outcomes happened rather than being handed a number and a hope. Measured: fixed points
+// everywhere tried, in 1-8 iterations, and reached from very different starting states.
+pub const RELAX_FIXED  = 0;   // settled: the heights stopped moving
+pub const RELAX_CYCLE  = 1;   // returned to a state already visited
+pub const RELAX_BUDGET = 2;   // ran out of iterations having done neither
+
+// One step: re-partition, then set each height from the crown it actually holds.
+//   H_next = H0 * (won/potential)^p          rounded to nearest, kept integral
+fn relax_step(t: Trees, s: HexSet, lb: Labels, ct: Labels,
+              h0: vector<integer>, p: integer) -> boolean {
+  moved = false;
+  canopy_partition(t, s, lb, ct);
+  for i in 0..t.tr_n {
+    pot = crown_potential(t, i, s);
+    won = crown_count_strict(s, lb, ct, t.tr_id[i] ?? 0);
+    if pot > 0 {
+      num = h0[i] ?? 0;
+      den = 1;
+      for j in 0..p { num = num * won; den = den * pot; }
+      nh = (2 * num + den) / (2 * den) ?? 0;
+      if nh < 1 { nh = 1; }
+      if nh != (t.tr_p[i] ?? 0) { moved = true; }
+      t.tr_p[i] = nh;
+    }
+  }
+  moved
+}
+
+// Relax to termination, and say which kind it was.
+pub fn canopy_relax(t: Trees, s: HexSet, lb: Labels, ct: Labels,
+                    h0: vector<integer>, p: integer, maxit: integer) -> (integer, integer) {
+  hist: vector<integer> = [];
+  for j in 0..maxit * t.tr_n { hist += [0]; }
+  seen = 0;
+  for it in 0..maxit {
+    // has this exact state been visited before?  (finite space => must repeat or settle)
+    for h in 0..seen {
+      same = true;
+      for i in 0..t.tr_n {
+        if (hist[h * t.tr_n + i] ?? 0) != (t.tr_p[i] ?? 0) { same = false; }
+      }
+      if same {
+        canopy_partition(t, s, lb, ct);
+        return (it, RELAX_CYCLE);
+      }
+    }
+    for i in 0..t.tr_n { hist[seen * t.tr_n + i] = t.tr_p[i] ?? 0; }
+    seen = seen + 1;
+    if !relax_step(t, s, lb, ct, h0, p) {
+      canopy_partition(t, s, lb, ct);
+      return (it, RELAX_FIXED);
+    }
+  }
+  canopy_partition(t, s, lb, ct);
+  (maxit, RELAX_BUDGET)
+}
+
+// ── T7: LIGHT, AND THE UNDERSTORY ───────────────────────────────────────────
+//
+// `sight_clear` (plan #5) answers whether a ray crosses a BARRIER — an edge carrying an
+// opaque material. A canopy is not a barrier, it is a VOLUME: a cell is occupied between
+// `base` and `top`, and a ray is stopped by passing through that interval rather than by
+// crossing an edge. So the volumetric counterpart is needed, and it is small.
+//
+// It walks the same way sight_clear does — 0.2 world units, under a hex inradius of 0.866,
+// so consecutive samples cannot skip a cell — and it reuses hex_at unchanged.
+pub fn canopy_blocks(lb: Labels, top: Heights, base: Heights,
+                     x0: float, y0: float, z0: float,
+                     x1: float, y1: float, z1: float) -> boolean {
+  dx = x1 - x0;
+  dy = y1 - y0;
+  dz = z1 - z0;
+  horiz = sqrt(dx * dx + dy * dy) ?? 0.0;
+  n = ((horiz / 0.2 ?? 0.0) as integer) + 1;
+  if n < 24 { n = 24; }
+  hit = false;
+  for i in 1..n + 1 {
+    t = (i as float) / (n as float) ?? 0.0;
+    px = x0 + dx * t;
+    py = y0 + dy * t;
+    pz = z0 + dz * t;
+    (cq, cr) = hex_at(px, py);
+    if !hit && label_get(lb, cq, cr) >= 0 {
+      if pz >= height_get(base, cq, cr) && pz <= height_get(top, cq, cr) { hit = true; }
+    }
+  }
+  hit
+}
+
+// How much of the sky a point can see: rays at `n` azimuths, at one elevation.
+//
+// This is what decides whether anything grows underneath. A closed canopy returns near
+// zero; a gap in it returns most of the sky, which is how a felled or fallen tree lets the
+// next generation up — regeneration is not scripted, it is this number changing.
+pub fn sky_fraction(lb: Labels, top: Heights, base: Heights,
+                    x: float, y: float, z: float,
+                    elev: float, n: integer) -> float {
+  if n <= 0 { return 1.0; }
+  clear = 0;
+  reach = 60.0;
+  ch = cos(elev) * reach;
+  cv = sin(elev) * reach;
+  for i in 0..n {
+    a = 6.283185307179586 * ((i as float) / (n as float) ?? 0.0);
+    if !canopy_blocks(lb, top, base, x, y, z, x + ch * cos(a), y + ch * sin(a), z + cv) {
+      clear = clear + 1;
+    }
+  }
+  (clear as float) / (n as float) ?? 0.0
+}

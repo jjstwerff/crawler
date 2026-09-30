@@ -1,0 +1,54 @@
+# militia.play — plan #17 `S7`: THE PETITION IS A BUMP, AND IT COSTS NO KEY.
+#
+# `militiatest` states the algebra — standing is earned by acts, read as a category, and its
+# one consumer is whether a militia may be raised — but it drives `sim_militia_petition`
+# directly. What it CANNOT say is that a player ever reaches that verb, and that is the claim
+# `I-SAFE`'s "zero new keys" stands or falls on.
+#
+# This script is that claim, on `story.loft`'s own GEN_SEED, in the town at depth 0:
+#   • a GUARD MASTER stands in the shipped settlement, findable, alive, at the market seat;
+#   • bumping them is the whole interface — `sim_talk_to`, the same seam that already carries
+#     the bounty, the Circle's favour and the smith's repair (DESIGN §3a #7);
+#   • a STRANGER is turned down, and the refusal changes nothing — without that half, "the
+#     guard master answered" proves only that an NPC exists;
+#   • once the town has cause to trust you, the same bump raises the militia and a picket
+#     goes out;
+#   • and bumping again only reports. That is the row that keeps the frontier a world state
+#     rather than a button you press until the valley is clear.
+#
+# ⚠ `defend` IS A POKE AND THE ONLY ONE. Walking a level-1 hero out to kill six raiders is a
+# combat claim (`combattest`), and `militiatest` already measures what the militia BUYS. What
+# is under test here is everything the settlement does once the deeds are done.
+
+genesis 1337 0
+echo --- the shipped world, the home town, and a stranger at its gate
+
+expect depth == 0
+expect alive == 1
+expect standing == 0
+expect militia == -1
+expect pickets == 0
+
+# The refusal, and that it is INERT. A petition that was turned down must leave the world
+# exactly as it found it, or "you cannot ask yet" would itself be a way of asking.
+echo --- a stranger asks, and is told to read the board
+talk guard_master
+expect militia == -1
+expect pickets == 0
+
+echo --- six times the den sends, and six times you are in the way (a poke)
+defend 6
+expect standing >= 6
+
+echo --- and now the SAME bump is a petition
+talk guard_master
+expect militia == 1
+expect pickets == 1
+
+# ⚠ THE BUTTON TEST. The kick-start is the player's; every picket after it is the militia's
+# own daily move. If bumping posted one each time, the frontier would be a progress bar with
+# a key bound to it.
+echo --- bumping again only reports
+talk guard_master
+expect militia == 1
+expect pickets == 1

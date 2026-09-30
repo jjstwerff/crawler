@@ -1,6 +1,6 @@
 // montest — headless check of the enemy database (independent of wallgeo).
 
-use monsters;
+use monsters::*;
 
 fn main() {
   println("=== story enemy database test ===");

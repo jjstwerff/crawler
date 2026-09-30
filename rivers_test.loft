@@ -1,0 +1,42 @@
+// Rivers smoke test — load region, run hydro, build the ribbon mesh, print
+// the size + a spot-check on the heights/widths against the source data.
+use region;
+use hydro;
+use rivers;
+use ortler;
+
+fn main() {
+  println("=== rivers_test(ortler) ===");
+  rgn = region_load_ortler();
+  println("  region    : {rgn.rgn_cols} x {rgn.rgn_rows} hexes");
+
+  t0 = ticks();
+  hyd = hydro_compute(rgn);
+  println("  hydro     : {(ticks() - t0) / 1000} ms");
+
+  t1 = ticks();
+  exag = 6.0;
+  buf = river_mesh(rgn, hyd, exag);
+  dt = (ticks() - t1) / 1000;
+  vc = river_vertex_count(buf);
+  println("  river_mesh: {dt} ms");
+  println("  vertices  : {vc}");
+  println("  triangles : {vc / 3 ?? 0}");
+  println("  floats    : {len(buf)} (stride 6)");
+
+  // Width sanity: find the max acc cell and its expected width.
+  max_acc = 0;
+  max_i = 0;
+  for i in 0..(rgn.rgn_cols * rgn.rgn_rows) {
+    if (rgn.hex_river[i] ?? 0) != 0 {
+      a = hyd.acc[i] ?? 0;
+      if a > max_acc { max_acc = a; max_i = i; }
+    }
+  }
+  c0 = max_i - (max_i / rgn.rgn_cols ?? 0) * rgn.rgn_cols;
+  r0 = max_i / rgn.rgn_cols ?? 0;
+  af = max_acc as float;
+  if af < 1.0 { af = 1.0; }
+  expected_w = 35.0 + 18.0 * sqrt(af);
+  println("  max-acc river cell ({c0},{r0}): acc={max_acc}, width ≈ {expected_w:.1f} m");
+}

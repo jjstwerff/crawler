@@ -1,0 +1,7 @@
+{
+  "key": "half_orc",
+  "name": "Half-Orc",
+  "kind": "race",
+  "race": "half_orc",
+  "desc": "Brutish and tough; shrugs off the dark. A drop-in race bundle: one bundle = one race, so include only the races you want (a modder can ship a limited game by picking just these folders). Data only -- no engine source touched."
+}

@@ -1,0 +1,20 @@
+# glb 0.1.3 — public API surface
+# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/glb-0.1.3
+# use it with: use glb::*;
+
+## src/glb.loft
+
+// Export a Mesh as a GLB 2.0 file.
+// The output file will contain POSITION, NORMAL, and TEXCOORD_0 vertex attributes
+// plus triangle indices.  Readable by Blender, three.js, gltf-validator.
+// Example: @GLB-001
+// Example: @GLB-003
+// Example: @GLB-004
+pub fn save_glb(m: Mesh, path: text)
+
+// --- buffer ---
+
+// Export a Scene as a GLB 2.0 file.
+// All meshes are packed into one BIN chunk; materials use pbrMetallicRoughness.
+// Example: @GLB-002
+pub fn save_scene_glb(sc: Scene, path: text)

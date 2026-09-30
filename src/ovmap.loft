@@ -1,0 +1,71 @@
+// ovmap — the contract wilderness printed as a ZAngband-style CHARACTER map.
+// Legend (adapted from the ZAngband wilderness vocabulary):
+//   ' ' sea   '~' river   '=' lake   ',' sand   '.' grass   '+' field
+//   '-' road  'T' forest  '"' meadow ':' scree  '^' rock face (wall)
+//   '*' snow  '%' glacier 's' swamp  1/2/3 town (by size)  'X' ruin  'W'/'w' wizard tower (lit/abandoned)
+use overland::*;
+
+fn kind_ch(k: integer) -> text {
+  if k == K_SEA { return " "; }
+  if k == K_RIVER { return "~"; }
+  if k == K_LAKE { return "="; }
+  if k == K_SAND { return ","; }
+  if k == K_FIELD { return "+"; }
+  if k == K_ROAD { return "-"; }
+  if k == K_FOREST { return "T"; }
+  if k == K_MEADOW { return "\""; }
+  if k == K_SCREE { return ":"; }
+  if k == K_FACE { return "^"; }
+  if k == K_SNOW { return "*"; }
+  if k == K_ICE { return "%"; }
+  if k == K_SWAMP { return "s"; }
+  "."
+}
+
+fn main() {
+  o = overland_new();
+  println("towns={len(o.ov_towns)} roads={len(o.ov_roads)} sides={len(o.ov_sides)} peaks={len(o.ov_peaks)} ridges={len(o.ov_ridges)}");
+  cols = 100;
+  rows = 40;
+  sx = 13500.0 / (cols as float);
+  sy = 9100.0 / (rows as float);
+  for r in 0..rows {
+    line = "";
+    for c in 0..cols {
+      x = ((c as float) + 0.5) * sx;
+      y = ((r as float) + 0.5) * sy;
+      (_, k) = ov_sample(o, x, y);
+      ch = kind_ch(k);
+      for ri2 in 0..len(o.ov_ruins) {
+        ru = o.ov_ruins[ri2];
+        if ru != null {
+          ddr = sqrt((x - ru.ru_x) * (x - ru.ru_x) + (y - ru.ru_y) * (y - ru.ru_y)) ?? 0.0;
+          if ddr < sx * 0.75 { ch = "X"; }
+        }
+      }
+      for wi2 in 0..len(o.ov_wiz) {
+        wz = o.ov_wiz[wi2];
+        if wz != null {
+          ddw = sqrt((x - wz.wz_x) * (x - wz.wz_x) + (y - wz.wz_y) * (y - wz.wz_y)) ?? 0.0;
+          if ddw < sx * 0.75 {
+            ch = "W";
+            if wz.wz_dead == 1 { ch = "w"; }
+          }
+        }
+      }
+      for ti in 0..len(o.ov_towns) {
+        tw = o.ov_towns[ti];
+        if tw != null {
+          dd = sqrt((x - tw.ot_x) * (x - tw.ot_x) + (y - tw.ot_y) * (y - tw.ot_y)) ?? 0.0;
+          if dd < sx * 0.75 {
+            if tw.ot_size == 3 { ch = "3"; }
+            if tw.ot_size == 2 { ch = "2"; }
+            if tw.ot_size == 1 { ch = "1"; }
+          }
+        }
+      }
+      line = line + ch;
+    }
+    println(line);
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "key": "explorer",
+  "name": "Explorer",
+  "kind": "character",
+  "module": "explorer",
+  "entry": "activate",
+  "desc": "A far-ranging pathfinder — travels light, survives anything, sees deep into the dark by a great torch.",
+  "stats": { "con": 1 },
+  "kit": ["everbright_torch", "short_sword", "soft_leather_armor", "cloak", "potion_cure_light"]
+}

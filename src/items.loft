@@ -30,11 +30,14 @@ pub const SLOT_HANDS  = 6;
 pub const SLOT_FEET   = 7;
 pub const SLOT_CLOAK  = 8;
 pub const SLOT_LIGHT  = 9;
-pub const SLOT_RING   = 10;
+pub const SLOT_RING   = 10;   // left ring
 pub const SLOT_AMULET = 11;
+pub const SLOT_RING2  = 12;   // right ring (faithful Angband — two ring locations)
 
 pub const IF_NONE      = 0;
 pub const IF_STACKABLE = 1;
+pub const IF_QUEST     = 2;    // a quest keepsake: never auto-slotted/consumed; inspect for its lore
+pub const IF_KNOWN     = 4;    // always identified by sight (skips the unknown-flavour system)
 
 pub struct ItemDef {
   i_key: text, i_name: text, i_glyph: text,
@@ -58,6 +61,12 @@ fn item_none() -> ItemDef {
 
 pub fn item_table() -> vector<ItemDef> {
   t: vector<ItemDef> = [];
+  // ── The Circle's quest line (engine town quests; all IF_QUEST: inspect-only
+  // keepsakes, never consumed by the use path — the quest verbs (talk / pool
+  // walk-on) move them around) ──
+  t += [ItemDef { i_key: "circle_writ", i_name: "The Circle's Writ", i_glyph: "?", i_cr: 170, i_cg: 140, i_cb: 230, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 1, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "Now it can be told: the serpent nested on a POOL, and the pool is the prize. Its water is the seat of our mana brews -- without it the Circle's stills run dry. Bring it by the phial; we pay by the phial. -- the Circle" }];
+  t += [ItemDef { i_key: "circle_phial", i_name: "Circle Phial (empty)", i_glyph: "!", i_cr: 150, i_cg: 170, i_cb: 200, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 2, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "A stoppered glass phial, etched with the Circle's mark. It wants filling: stand in the throne pool and stoop." }];
+  t += [ItemDef { i_key: "phial_brimming", i_name: "Circle Phial (brimming)", i_glyph: "!", i_cr: 110, i_cg: 200, i_cb: 230, i_cat: IT_SCROLL, i_slot: SLOT_NONE, i_depth: 0, i_rarity: 0, i_weight: 4, i_cost: 0, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 0, i_flags: IF_QUEST, i_desc: "The phial brims with pool-water; it hums faintly against the cork. The Circle pays for this on delivery." }];
   // ── melee weapons ──
   t += [ItemDef { i_key: "dagger", i_name: "Dagger", i_glyph: "|", i_cr: 200, i_cg: 200, i_cb: 210, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 1, i_rarity: 1, i_weight: 12, i_cost: 10, i_dd: 1, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A light, fast blade." }];
   t += [ItemDef { i_key: "short_sword", i_name: "Short Sword", i_glyph: "|", i_cr: 200, i_cg: 200, i_cb: 210, i_cat: IT_WEAPON, i_slot: SLOT_WEAPON, i_depth: 2, i_rarity: 1, i_weight: 75, i_cost: 90, i_dd: 1, i_ds: 7, i_ac: 0, i_power: 0, i_flags: IF_NONE, i_desc: "A reliable one-handed sword." }];
@@ -73,6 +82,7 @@ pub fn item_table() -> vector<ItemDef> {
   t += [ItemDef { i_key: "sling", i_name: "Sling", i_glyph: "}}", i_cr: 160, i_cg: 120, i_cb: 80, i_cat: IT_BOW, i_slot: SLOT_BOW, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 5, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_NONE, i_desc: "Hurls shots; humble but cheap." }];
   t += [ItemDef { i_key: "short_bow", i_name: "Short Bow", i_glyph: "}}", i_cr: 170, i_cg: 130, i_cb: 80, i_cat: IT_BOW, i_slot: SLOT_BOW, i_depth: 2, i_rarity: 1, i_weight: 30, i_cost: 75, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_NONE, i_desc: "A compact bow for arrows." }];
   t += [ItemDef { i_key: "long_bow", i_name: "Long Bow", i_glyph: "}}", i_cr: 180, i_cg: 140, i_cb: 90, i_cat: IT_BOW, i_slot: SLOT_BOW, i_depth: 8, i_rarity: 1, i_weight: 40, i_cost: 120, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 3, i_flags: IF_NONE, i_desc: "A powerful war bow." }];
+  t += [ItemDef { i_key: "light_crossbow", i_name: "Light Crossbow", i_glyph: "}}", i_cr: 160, i_cg: 150, i_cb: 130, i_cat: IT_BOW, i_slot: SLOT_BOW, i_depth: 3, i_rarity: 1, i_weight: 110, i_cost: 140, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 3, i_flags: IF_NONE, i_desc: "A machine-drawn bow that hurls bolts hard." }];
   // ── ammunition ──
   t += [ItemDef { i_key: "iron_shot", i_name: "Iron Shot", i_glyph: "{{", i_cr: 150, i_cg: 150, i_cb: 160, i_cat: IT_AMMO, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 5, i_cost: 1, i_dd: 1, i_ds: 3, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Shot for a sling." }];
   t += [ItemDef { i_key: "arrow", i_name: "Arrow", i_glyph: "{{", i_cr: 180, i_cg: 150, i_cb: 100, i_cat: IT_AMMO, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 2, i_cost: 1, i_dd: 1, i_ds: 4, i_ac: 0, i_power: 0, i_flags: IF_STACKABLE, i_desc: "Ammunition for bows." }];
@@ -95,8 +105,13 @@ pub fn item_table() -> vector<ItemDef> {
   // ── light (i_power = light radius) ──
   t += [ItemDef { i_key: "wooden_torch", i_name: "Wooden Torch", i_glyph: "~", i_cr: 230, i_cg: 160, i_cb: 60, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 1, i_rarity: 1, i_weight: 30, i_cost: 2, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 2, i_flags: IF_STACKABLE, i_desc: "Burns for a while; radius 2." }];
   t += [ItemDef { i_key: "brass_lantern", i_name: "Brass Lantern", i_glyph: "~", i_cr: 240, i_cg: 210, i_cb: 90, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 3, i_rarity: 1, i_weight: 50, i_cost: 35, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 3, i_flags: IF_NONE, i_desc: "A steady oil lantern; radius 3." }];
+  // The deep explorer's prize: a great late-game light. i_power = radius (12, far past the
+  // wooden torch's 2 / lantern's 3); the FOV uses max(base, light radius), so it widens sight.
+  t += [ItemDef { i_key: "everbright_torch", i_name: "Everbright Torch", i_glyph: "~", i_cr: 255, i_cg: 244, i_cb: 205, i_cat: IT_LIGHT, i_slot: SLOT_LIGHT, i_depth: 25, i_rarity: 5, i_weight: 25, i_cost: 6000, i_dd: 0, i_ds: 0, i_ac: 1, i_power: 12, i_flags: IF_NONE, i_desc: "A torch that never burns down, blazing with a clear white light to radius 12 — the deep explorer's prize." }];
   // ── potions (i_power = effect magnitude) ──
   t += [ItemDef { i_key: "potion_cure_light", i_name: "Potion of Cure Light Wounds", i_glyph: "!", i_cr: 220, i_cg: 120, i_cb: 120, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 1, i_rarity: 1, i_weight: 4, i_cost: 15, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 15, i_flags: IF_STACKABLE, i_desc: "Heals minor wounds." }];
+  // i_power = detect duration in turns; its effect is a CUSTOM script (bundles/explorer/items/).
+  t += [ItemDef { i_key: "potion_detect_monsters", i_name: "Potion of Detect Monsters", i_glyph: "!", i_cr: 120, i_cg: 120, i_cb: 230, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 2, i_rarity: 2, i_weight: 4, i_cost: 35, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 30, i_flags: IF_STACKABLE, i_desc: "Reveals nearby monsters through walls for a time." }];
   t += [ItemDef { i_key: "potion_cure_serious", i_name: "Potion of Cure Serious Wounds", i_glyph: "!", i_cr: 220, i_cg: 90, i_cb: 90, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 5, i_rarity: 1, i_weight: 4, i_cost: 40, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 30, i_flags: IF_STACKABLE, i_desc: "Heals serious wounds." }];
   t += [ItemDef { i_key: "potion_healing", i_name: "Potion of Healing", i_glyph: "!", i_cr: 240, i_cg: 60, i_cb: 60, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 20, i_rarity: 2, i_weight: 4, i_cost: 300, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 300, i_flags: IF_STACKABLE, i_desc: "Restores a great deal of health." }];
   t += [ItemDef { i_key: "potion_speed", i_name: "Potion of Speed", i_glyph: "!", i_cr: 120, i_cg: 220, i_cb: 220, i_cat: IT_POTION, i_slot: SLOT_NONE, i_depth: 10, i_rarity: 3, i_weight: 4, i_cost: 500, i_dd: 0, i_ds: 0, i_ac: 0, i_power: 10, i_flags: IF_STACKABLE, i_desc: "Hastens the drinker." }];
@@ -146,4 +161,332 @@ pub fn items_by_cat(table: vector<ItemDef>, cat: integer) -> vector<ItemDef> {
 
 pub fn item_stackable(i: ItemDef) -> boolean {
   (i.i_flags & IF_STACKABLE) != 0
+}
+
+// Selection weight ∝ 1/rarity.
+fn item_weight(rarity: integer) -> integer {
+  rr = rarity;
+  if rr < 1 { rr = 1; }
+  64 / rr ?? 1
+}
+
+// Rarity-weighted pick among items eligible at depth `eff` (i_depth in [1,eff]).
+// Returns a table index, or -1 if none. Reads the struct table only via the
+// proven-safe filter shape; the weighting runs over plain int vectors.
+pub fn item_choose_idx(table: vector<ItemDef>, eff: integer, salt: integer) -> integer {
+  pidx: vector<integer> = [];
+  prar: vector<integer> = [];
+  for ii in 0..len(table) {
+    m = table[ii] ?? item_none();
+    if m.i_depth >= 1 && m.i_depth <= eff {
+      pidx += [ii];
+      prar += [item_weight(m.i_rarity)];
+    }
+  }
+  np = len(pidx);
+  res = -1;
+  if np > 0 {
+    total = 0;
+    for wi in 0..np { total += prar[wi] ?? 0; }
+    if total > 0 {
+      s = (((salt & 2147483647) | 1) * 1103515245 + 12345) & 2147483647;
+      roll = s % total ?? 0;
+      acc = 0;
+      hit = false;
+      for wj in 0..np {
+        if !hit {
+          acc += prar[wj] ?? 0;
+          if roll < acc {
+            res = pidx[wj] ?? -1;
+            hit = true;
+          }
+        }
+      }
+    }
+  }
+  res
+}
+
+// Category (IT_*) of item `idx`, or 0 if out of range.
+pub fn item_cat(table: vector<ItemDef>, idx: integer) -> integer {
+  c = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; c = m.i_cat; }
+  c
+}
+
+// Field accessors by table index (guarded direct index — the C1-safe shape).
+pub fn item_slot(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_slot; }
+  v
+}
+pub fn item_ac(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_ac; }
+  v
+}
+pub fn item_dd(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_dd; }
+  v
+}
+pub fn item_ds(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_ds; }
+  v
+}
+// ── What a smith can ruin, and what a smith can mend (plan #17 `S6`) ────────────────────
+//
+// Damage is an EVENT on WORKED GEAR — the arms and armour a forge makes and a forge repairs.
+// ⚠ NOT everything the player carries: a corroded potion is a destroyed potion, not a
+// damaged one, and a damaged ring has no number to halve that is not the ring's whole point.
+// Keeping the set to what the two forge producers make is also what lets a repair draw the
+// matching stock without inventing a third store.
+pub fn item_damageable(table: vector<ItemDef>, idx: integer) -> boolean {
+  c = item_cat(table, idx);
+  c == IT_WEAPON || c == IT_BOW || c == IT_ARMOR
+}
+
+// Which forge line mends this item — the producer key a repair draws from. "" = not gear.
+pub fn item_repair_producer(table: vector<ItemDef>, idx: integer) -> text {
+  c = item_cat(table, idx);
+  if c == IT_WEAPON || c == IT_BOW { return "forge_weapon"; }
+  if c == IT_ARMOR { return "forge_armor"; }
+  ""
+}
+
+pub fn item_key(table: vector<ItemDef>, idx: integer) -> text {
+  v = "";
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_key; }
+  v
+}
+pub fn item_name(table: vector<ItemDef>, idx: integer) -> text {
+  v = "";
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_name; }
+  v
+}
+pub fn item_power(table: vector<ItemDef>, idx: integer) -> integer {
+  v = 0;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_power; }
+  v
+}
+// Short display name for tight UI (the quick-slot bar): drop the redundant "Category of " prefix —
+// "Potion of Cure Light Wounds" -> "Cure Light Wounds", "Scroll of Phase Door" -> "Phase Door". Names
+// without " of " (a weapon, a bow) are returned unchanged. The category is conveyed by context.
+pub fn item_short(name: text) -> text {
+  parts = name.split_text(" of ");
+  if len(parts) >= 2 { p = parts[1]; return p; }
+  name
+}
+pub fn item_short_idx(table: vector<ItemDef>, idx: integer) -> text {
+  item_short(item_name(table, idx))
+}
+pub fn item_desc(table: vector<ItemDef>, idx: integer) -> text {
+  v = "";
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = m.i_desc; }
+  v
+}
+// A quest keepsake (IF_QUEST): never auto-slotted/consumed; the view shows its lore on inspect.
+pub fn item_is_quest(table: vector<ItemDef>, idx: integer) -> boolean {
+  v = false;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = (m.i_flags & IF_QUEST) != 0; }
+  v
+}
+
+// ── Unknown items (Angband mystery): the "magic" goods are FLAVOURED until identified ──────────────
+// The flavour <-> real mapping is shuffled per game (sim assigns each def a flavour index from seed);
+// the display name resolves through sim (real if identified/known-flag, else the flavour). These give
+// the engine the vocabulary; sim owns the per-game state.
+
+// Categories whose items start UNIDENTIFIED (shown as a flavour).
+pub fn item_unknown_type(cat: integer) -> boolean {
+  cat == IT_POTION || cat == IT_SCROLL || cat == IT_WAND ||
+  cat == IT_STAFF  || cat == IT_RING   || cat == IT_AMULET
+}
+
+// Always-known by sight (IF_KNOWN: e.g. the antivenin escape hatch) or a quest item (IF_QUEST).
+pub fn item_known_flag(table: vector<ItemDef>, idx: integer) -> boolean {
+  v = false;
+  if idx >= 0 && idx < len(table) { m = table[idx]; v = (m.i_flags & (IF_KNOWN | IF_QUEST)) != 0; }
+  v
+}
+
+// All flavour pools are this wide; sim shuffles [0..FLAVOUR_POOL) per category per game. Must be
+// >= the per-category def count, or two kinds collide onto one flavour (fine for this slice).
+pub const FLAVOUR_POOL = 12;
+
+fn potion_colours() -> vector<text> {
+  ["Cloudy", "Azure", "Crimson", "Murky", "Golden", "Silver", "Viridian", "Rose", "Inky", "Pale", "Amber", "Smoky"]
+}
+fn scroll_titles() -> vector<text> {
+  ["grok zar", "lo bre", "klaa tu", "xyzzy", "vli nok", "ish kar", "mun dro", "fel zib", "qua roth", "nyx vel", "po tash", "wur gle"]
+}
+fn metal_flavours() -> vector<text> {
+  ["Bronze", "Iron", "Silver", "Gold", "Jade", "Bone", "Crystal", "Copper", "Onyx", "Pewter", "Ivory", "Brass"]
+}
+fn wood_flavours() -> vector<text> {
+  ["Oak", "Birch", "Ash", "Elm", "Yew", "Pine", "Maple", "Ebony", "Walnut", "Cedar", "Hazel", "Rowan"]
+}
+
+// The display name of an UNIDENTIFIED item of category `cat` whose shuffled flavour index is `idx`.
+pub fn flavour_name(cat: integer, idx: integer) -> text {
+  if cat == IT_POTION { f = potion_colours(); c = f[idx % len(f) ?? 0] ?? "strange"; return "a {c} Potion"; }
+  if cat == IT_SCROLL { f = scroll_titles(); c = f[idx % len(f) ?? 0] ?? "..."; return "a Scroll titled \"{c}\""; }
+  if cat == IT_WAND   { f = metal_flavours(); c = f[idx % len(f) ?? 0] ?? "plain"; return "a {c} Wand"; }
+  if cat == IT_STAFF  { f = wood_flavours();  c = f[idx % len(f) ?? 0] ?? "plain"; return "a {c} Staff"; }
+  if cat == IT_RING   { f = metal_flavours(); c = f[idx % len(f) ?? 0] ?? "plain"; return "a {c} Ring"; }
+  if cat == IT_AMULET { f = metal_flavours(); c = f[idx % len(f) ?? 0] ?? "plain"; return "an {c} Amulet"; }
+  "something"
+}
+
+// Table index of the item with `key`, or -1 if none.
+pub fn item_index(table: vector<ItemDef>, key: text) -> integer {
+  for ii in 0..len(table) {
+    it = table[ii] ?? item_none();
+    if it.i_key == key { return ii; }
+  }
+  -1
+}
+
+// ── Production repertoires — WHICH items each kind of workshop makes ─────────────────
+//
+// CONTENT, and it lives here beside the defs it names rather than in sim.loft, which owns
+// only the MECHANISM above it: a forge alternates weapons and armour by day parity, the
+// alchemist brews on three weekdays, the scriptorium writes on the others. The rotation is
+// the engine's; the repertoire is not. (Moved out of sim.loft 2026-08-09 — BUNDLE.md
+// standing check: mechanism engine-side, content beside content.)
+//
+// ⚠ BRANCH SELECTORS, NOT `vector<text>` LITERALS, AND THAT SHAPE IS LOAD-BEARING: a
+// vector<text> literal in a large function can HANG the interpreter and indexing one in a
+// call argument can PANIC the allocator (loft#336). A synthetic probe passes on 2026.8.0,
+// but the recorded trigger is a DEEP context and this is exactly such a caller, so the
+// workaround stays until something needs it lifted. Do not "simplify" these to vectors.
+// The caller supplies the index; each falls through to its last entry.
+// Production repertoires as branch selectors — vector<text> literals HANG or
+// PANIC the interpreter in deep contexts (LOFT_ISSUES C27); never build them.
+pub fn forge_weapon_key(i: integer) -> text {
+  if i == 0 { return "dagger"; }
+  if i == 1 { return "short_sword"; }
+  if i == 2 { return "mace"; }
+  if i == 3 { return "spear"; }
+  if i == 4 { return "quarterstaff"; }
+  if i == 5 { return "long_sword"; }
+  if i == 6 { return "war_hammer"; }
+  if i == 7 { return "broad_sword"; }
+  if i == 8 { return "battle_axe"; }
+  if i == 9 { return "halberd"; }
+  "light_crossbow"
+}
+pub fn forge_armor_key(i: integer) -> text {
+  if i == 0 { return "leather_boots"; }
+  if i == 1 { return "chain_mail"; }
+  if i == 2 { return "small_shield"; }
+  if i == 3 { return "iron_helm"; }
+  if i == 4 { return "gauntlets"; }
+  if i == 5 { return "iron_shod_boots"; }
+  if i == 6 { return "plate_mail"; }
+  if i == 7 { return "large_shield"; }
+  "brass_lantern"
+}
+pub fn scribe_key(i: integer) -> text {
+  if i == 0 { return "scroll_identify"; }
+  if i == 1 { return "scroll_phase_door"; }
+  if i == 2 { return "scroll_magic_mapping"; }
+  if i == 3 { return "scroll_teleport"; }
+  "scroll_recall"
+}
+pub fn book_key(i: integer) -> text {
+  if i == 0 { return "book_arcane_primer"; }
+  if i == 1 { return "book_holy_litany"; }
+  "book_nature_lore"
+}
+pub fn town_craft_key(i: integer) -> text {
+  if i == 0 { return "ration_of_food"; }
+  if i == 1 { return "wooden_torch"; }
+  if i == 2 { return "cloak"; }
+  if i == 3 { return "soft_leather_armor"; }
+  if i == 4 { return "arrow"; }
+  if i == 5 { return "short_bow"; }
+  if i == 6 { return "leather_gloves"; }
+  if i == 7 { return "hard_leather_cap"; }
+  if i == 8 { return "sling"; }
+  if i == 9 { return "iron_shot"; }
+  if i == 10 { return "long_bow"; }       // the fletcher's masterwork
+  if i == 11 { return "bolt"; }
+  "hard_leather_armor"
+}
+pub fn import_key(i: integer) -> text {
+  if i == 0 { return "wand_magic_bolt"; }
+  if i == 1 { return "staff_light"; }
+  if i == 2 { return "ring_protection"; }
+  if i == 3 { return "amulet_slow_digestion"; }
+  if i == 4 { return "wand_frost_bolt"; }
+  if i == 5 { return "staff_detection"; }
+  if i == 6 { return "ring_strength"; }
+  if i == 7 { return "amulet_resist_fire"; }
+  "staff_teleport"
+}
+
+// The alchemist's brew rotation — one potion type per brewing day (see the caller's day/week
+// mechanism in sim.loft). Index 0 is also the fallback, so a widened modulus degrades to the
+// common brew rather than to "".
+pub fn alchemy_key(i: integer) -> text {
+  if i == 1 { return "potion_detect_monsters"; }
+  if i == 2 { return "potion_cure_serious"; }
+  if i == 3 { return "potion_restore"; }
+  if i == 4 { return "potion_healing"; }
+  if i == 5 { return "potion_speed"; }
+  "potion_cure_light"
+}
+
+// ── The producer seam: the engine's own repertoire, addressed by producer key ─────────
+//
+// The seven producer keys are MECHANISM and closed (the engine is what has a forge); the
+// entries are content. `catalog.loft` merges these with every bundle's `production` section
+// and `sim.loft` indexes the merged length — so a bundle can put an item in circulation
+// without an engine edit. See BUNDLE.md → "The `production` section".
+//
+// ⚠ len() and key(i) rather than a vector: see the branch-selector note above (loft#336).
+// Each length equals the entries its selector answers, and sim.loft no longer carries the
+// constant — if you add an entry above, add it here too or the tail becomes unreachable.
+pub fn engine_production_len(producer: text) -> integer {
+  if producer == "forge_weapon" { return 11; }
+  if producer == "forge_armor" { return 9; }
+  if producer == "alchemy" { return 6; }
+  if producer == "scriptorium_scroll" { return 5; }
+  if producer == "scriptorium_book" { return 3; }
+  if producer == "town_craft" { return 13; }
+  if producer == "import" { return 9; }
+  0
+}
+
+// ── The producers as an ORDER, so a per-producer number can be an array index ──────────
+//
+// plan #17 `S3` gives each producer a stock (a number, never an inventory), which needs a
+// stable integer per producer. The order is the SAME one `tools/gen_bundles.loft`'s
+// `producer_at` walks — the generated repertoire and the stock array have to agree on what
+// index 2 means, and there is no compiler check that they do. If a producer is ever added,
+// it is added in both places or the stock silently belongs to the wrong workshop.
+pub const NUM_PRODUCERS = 7;
+
+pub fn producer_index(producer: text) -> integer {
+  if producer == "forge_weapon" { return 0; }
+  if producer == "forge_armor" { return 1; }
+  if producer == "alchemy" { return 2; }
+  if producer == "scriptorium_scroll" { return 3; }
+  if producer == "scriptorium_book" { return 4; }
+  if producer == "town_craft" { return 5; }
+  if producer == "import" { return 6; }
+  -1
+}
+
+pub fn engine_production_key(producer: text, i: integer) -> text {
+  if producer == "forge_weapon" { return forge_weapon_key(i); }
+  if producer == "forge_armor" { return forge_armor_key(i); }
+  if producer == "alchemy" { return alchemy_key(i); }
+  if producer == "scriptorium_scroll" { return scribe_key(i); }
+  if producer == "scriptorium_book" { return book_key(i); }
+  if producer == "town_craft" { return town_craft_key(i); }
+  if producer == "import" { return import_key(i); }
+  ""
 }

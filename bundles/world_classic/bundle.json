@@ -1,0 +1,21 @@
+{
+  "key": "classic",
+  "name": "Classic Dungeon",
+  "kind": "world",
+  "desc": "A world bundle is a linkable PLACE. This one supplies the classic Angband-style dungeon: a BEGINNER dungeon whose default entry is level 1 (depth.start). A more dangerous top area can LINK to it and enter deeper -- any level in [start, max] (the entry depth is just the depth arg generation already takes). Rooms section = the room set + connections; sibling sections (monster spawns, terrain, level features) come later.",
+  "depth": { "start": 1, "max": 50 },
+  "rooms": {
+    "connect": {
+      "mode": "corridors",
+      "graph": "chain",
+      "extra_loops": 0
+    },
+    "list": [
+      { "key": "rect",     "shape": "rect",     "w_min": 4, "w_max": 8,  "h_min": 4, "h_max": 8,  "weight": 50, "desc": "A plain rectangular room (the staple)." },
+      { "key": "large",    "shape": "rect",     "w_min": 9, "w_max": 14, "h_min": 7, "h_max": 11, "weight": 10, "desc": "A large hall." },
+      { "key": "cross",    "shape": "cross",    "w_min": 5, "w_max": 9,  "h_min": 5, "h_max": 9,  "weight": 15, "desc": "A plus/cross-shaped room (two overlapping rects)." },
+      { "key": "overlap",  "shape": "overlap",  "w_min": 5, "w_max": 9,  "h_min": 5, "h_max": 9,  "weight": 15, "desc": "Two overlapping rectangles." },
+      { "key": "pillared", "shape": "pillared", "w_min": 7, "w_max": 12, "h_min": 6, "h_max": 9,  "weight": 10, "desc": "A large room with regular pillars." }
+    ]
+  }
+}

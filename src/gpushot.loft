@@ -1,0 +1,138 @@
+// gpushot — GPU renderer R1+R3 (RENDER.md): the world as one persistent VBO drawn with a
+// camera mat4, FOV applied on the GPU via a tiny per-hex visibility texture (R channel =
+// brightness: 0 unseen, 0.45 remembered, 1.0 visible). The static VBO bakes each hex's
+// visibility-texel UV into the unused NORMAL slot (loc1); only the small texture updates
+// per frame. Dev harness; render -> gl_screenshot -> read PNG. Run under xvfb.
+
+use graphics;
+use hex_grid::*;
+use sim::*;
+
+PI2      = 1.5707963267948966;
+SCALE    = 26.0;
+VIEW_W   = 800.0;
+VIEW_H   = 600.0;
+CX       = 400.0;
+ANCHOR_Y = 420.0;
+HALF     = 0.675;
+
+VERT = `
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aVisUV;
+layout (location = 2) in vec4 aColor;
+uniform mat4 uMVP;
+out vec3 vColor;
+out vec2 vVisUV;
+void main() {{
+  vColor = aColor.rgb;
+  vVisUV = aVisUV.xy;
+  gl_Position = uMVP * vec4(aPos.xy, 0.0, 1.0);
+}}
+`;
+
+FRAG = `
+#version 330 core
+in vec3 vColor;
+in vec2 vVisUV;
+out vec4 FragColor;
+uniform sampler2D uVis;
+void main() {{
+  float vis = texture(uVis, vVisUV).r;
+  if (vis < 0.02) discard;
+  FragColor = vec4(vColor * vis, 1.0);
+}}
+`;
+
+fn cam_mat4(px: float, py: float, heading: float) -> vector<float> {
+  phi = PI2 - heading;
+  cc = cos(phi);
+  ss = sin(phi);
+  hw = VIEW_W / 2.0;
+  hh = VIEW_H / 2.0;
+  // ⚠ `??` on every VARIABLE divide: loft returns `float?` from `/` when the divisor is not a
+  // literal, and an undischarged one poisons the whole matrix below (plan #16 `M4` found
+  // `make probe` red at HEAD for exactly this — see the plan's note on the unrun gate).
+  sxw = SCALE / hw ?? 0.0;
+  syw = SCALE / hh ?? 0.0;
+  a = sxw * cc;
+  b = 0.0 - sxw * ss;
+  c = syw * ss;
+  d = syw * cc;
+  e = (CX / hw ?? 0.0) - 1.0 - sxw * (px * cc - py * ss);
+  f = 1.0 - (ANCHOR_Y / hh ?? 0.0) - syw * (px * ss + py * cc);
+  [a, c, 0.0, 0.0,  b, d, 0.0, 0.0,  0.0, 0.0, 1.0, 0.0,  e, f, 0.0, 1.0]
+}
+
+// Static VBO: per hex, a quad (6 verts), stride 10 = pos.xyz · visUV-in-normal · color.
+fn build_world_mesh(s: Sim) -> vector<single> {
+  buf: vector<single> = [];
+  one = 1.0 as single;
+  zz = 0.0 as single;
+  lwf = s.lw as float;
+  lhf = s.lh as float;
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      q = s.qmin + gq;
+      r = s.rmin + gr;
+      t = tile_at(s, q, r);
+      cr = 0.80; cg = 0.745; cb = 0.59;
+      if t == 1 { cr = 0.15; cg = 0.14; cb = 0.13; }
+      cR = cr as single; cG = cg as single; cB = cb as single;
+      U = ((gq as float + 0.5) / lwf ?? 0.0) as single;
+      V = ((gr as float + 0.5) / lhf ?? 0.0) as single;
+      (wx, wy) = hex_to_px(q, r);
+      X0 = (wx - HALF) as single; X1 = (wx + HALF) as single;
+      Y0 = (wy - HALF) as single; Y1 = (wy + HALF) as single;
+      buf += [X0, Y0, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X1, Y0, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X1, Y1, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X0, Y0, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X1, Y1, zz, U, V, zz, cR, cG, cB, one];
+      buf += [X0, Y1, zz, U, V, zz, cR, cG, cB, one];
+    }
+  }
+  buf
+}
+
+// Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
+fn build_vis_texture(s: Sim) -> integer {
+  pix: vector<integer> = [];
+  for gr in 0..s.lh {
+    for gq in 0..s.lw {
+      st = sim_hex_state(s, s.qmin + gq, s.rmin + gr);
+      b = 0;
+      if st == 2 { b = 255; } else if st == 1 { b = 115; }
+      pix += [graphics::rgba(b, 0, 0, 255)];
+    }
+  }
+  graphics::gl_upload_canvas(pix, s.lw, s.lh)
+}
+
+fn main() {
+  if !graphics::gl_create_window(800, 600, "gpu r1+r3") {
+    println("gpushot: no window");
+    return;
+  }
+  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+
+  s = sim_new_gen(1337, 1);
+  sim_compute_fov(s);
+  buf = build_world_mesh(s);
+  vao = graphics::gl_upload_vertices(buf, 10);
+  nverts = len(buf) / 10 ?? 0;
+  vistex = build_vis_texture(s);
+  prog = graphics::gl_create_shader(VERT, FRAG);
+  mat = cam_mat4(s.px, s.py, s.heading);
+
+  graphics::gl_poll_events();
+  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
+  graphics::gl_use_shader(prog);
+  graphics::gl_set_uniform_mat4(prog, "uMVP", mat);
+  graphics::gl_bind_texture(vistex, 0);
+  graphics::gl_set_uniform_int(prog, "uVis", 0);
+  graphics::gl_draw(vao, nverts);
+  ok = graphics::gl_screenshot(800, 600, "/tmp/gpu_r3.png");
+  println("gpushot: vao={vao} prog={prog} nverts={nverts} vistex={vistex} shot={ok}");
+  graphics::gl_destroy_window();
+}

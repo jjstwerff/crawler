@@ -1,0 +1,72 @@
+// ortlergen — build DetailChunks from the real 80x80 Ortler grid (ortlerdata.loft), so the
+// efficient overworld-tier mesh routine (chunk_mesh_ov) renders the real massif unchanged. The
+// Ortler uses the SAME moros odd-r 1500 m convention as the engine's overworld hexes, so a cell
+// at Ortler hex (q,r) maps to global hex (q,r) and overworld_center positions it directly.
+//
+// Two classifications over the SAME real heights (the @PLN1 A/B adequacy comparison):
+//   real=true  (A) — REAL OSM landcover (ground truth).
+//   real=false (B) — OUR MODEL's elevation bands. The gap A→B is the adequacy answer.
+use ortlerdata;
+use chunk;
+use overland;
+
+// OSM landcover code (0..10, ortlerdata legend) + river flag -> a crawler K_ kind. The ground
+// truth (A): water splits river/lake by the river mask; farmland/orchard/vineyard -> FIELD.
+pub fn ort_osm_kind(o: integer, riv: integer) -> integer {
+  if o == 1 { if riv != 0 { return K_RIVER; } return K_LAKE; }   // water
+  if o == 2 { return K_ICE; }      // glacier
+  if o == 3 { return K_FACE; }     // bare rock
+  if o == 4 { return K_SCREE; }    // scree
+  if o == 5 { return K_FOREST; }   // wood
+  if o == 6 { return K_MEADOW; }   // grass / fell / heath
+  if o == 7 { return K_FIELD; }    // farmland
+  if o == 8 { return K_FIELD; }    // orchard
+  if o == 9 { return K_FIELD; }    // vineyard
+  if o == 10 { return K_SWAMP; }   // wetland
+  K_GRASS                          // 0 none -> bare valley ground
+}
+
+// our MODEL's elevation classifier (B): pure height -> the tuned-defaults bands (tuned-defaults.md
+// / overland.loft TREEL/MELT/SNOWL). A concentric zonation — the gap vs the irregular OSM A pane
+// (e.g. the model lumps farmland/orchard into the grass/forest bands) is the adequacy finding.
+const ORT_SNOWL = 3100.0;     // snow / glacier line
+const ORT_MELT  = 2600.0;     // bare scree band top
+const ORT_TREEL = 2150.0;     // treeline: forest below, alpine meadow above
+const ORT_FOREST_LO = 1100.0; // montane forest floor; below = valley ground
+pub fn ort_model_kind(h: float) -> integer {
+  if h > ORT_SNOWL { return K_SNOW; }
+  if h > ORT_MELT  { return K_SCREE; }
+  if h > ORT_TREEL { return K_MEADOW; }
+  if h > ORT_FOREST_LO { return K_FOREST; }
+  K_GRASS
+}
+
+// Build a 32x32 DetailChunk of the Ortler grid at chunk (cx,cz): cell (hx,hz) = Ortler hex
+// (cx*32+hx, cz*32+hz). real selects the A (OSM) or B (model) classification. Cells outside the
+// 80x80 data are K_SEA at height 0. The caller passes the baked arrays once (ort_h/ort_osm/
+// ort_river) so they are not rebuilt per chunk. Reuses chunk_build (base+0.1 m encoding).
+pub fn ortler_chunk(hd: vector<integer>, od: vector<integer>, rd: vector<integer>,
+                    cx: integer, cz: integer, real: boolean) -> DetailChunk {
+  hs: vector<float> = [];
+  ks: vector<integer> = [];
+  for hz in 0..CHUNK {
+    for hx in 0..CHUNK {
+      q = cx * CHUNK + hx;
+      r = cz * CHUNK + hz;
+      if q >= 0 && q < ORT_COLS && r >= 0 && r < ORT_ROWS {
+        gi = r * ORT_COLS + q;
+        hh = (hd[gi] ?? 0) as float;
+        hs += [hh];
+        if real {
+          ks += [ort_osm_kind(od[gi] ?? 0, rd[gi] ?? 0)];
+        } else {
+          ks += [ort_model_kind(hh)];
+        }
+      } else {
+        hs += [0.0];
+        ks += [K_SEA];
+      }
+    }
+  }
+  chunk_build(cx, cz, hs, ks)
+}

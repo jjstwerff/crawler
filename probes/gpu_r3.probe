@@ -1,0 +1,14 @@
+# gpu_r3.probe — P0 done-criterion (PLAN-RENDER.md): three known pixels of the
+# gpushot scene (sim_new_gen(1337,1), camera at the player, R1 VBO + R3 shader FOV).
+# Expected colors are THEORY, confirmed by measurement 2026-06-12:
+#   floor (0.80,0.745,0.59)*255 = (204,190,150) at vis 1.0
+#   wall  (0.15,0.14,0.13)*255  = (38,36,33)    at vis 1.0
+#   background = gl_clear rgba(14,16,24)         (unseen hexes discard)
+# Coords are PNG pixels, origin top-left. The scene is deterministic (fixed seed,
+# fixed camera) so the wall point (206,250) is stable for THIS gpushot code.
+
+image /tmp/gpu_r3.png
+
+probe lit_floor 400 420 204 190 150 tol 4
+probe wall_dark 206 250 38 36 33 tol 4
+probe background 5 5 14 16 24 tol 2

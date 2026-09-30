@@ -1,0 +1,333 @@
+// stocktest — plan #17 `S3`: a workshop needs its inputs.
+//
+// I-STOCK (sim.loft): a producer's stock is raised only by a worker bringing something home
+// and drawn only by that workshop making, so **stock == raised − drawn** at every tick.
+//
+// ⚠ THE COUPLING IS ARMED for `alchemy` (`prod_armed_index`). The six other producers have
+// no input stream and are unconstrained, so both states are live at once and both are gated
+// here — `prod_draw_when` takes the arming as an argument so neither branch depends on which
+// producers happen to be switched on today.
+//
+// ⚠ EVERY CLAIM IS SEEN BOTH WAYS. A stock that is never empty gates nothing.
+use sim::*;
+use items::*;
+use catalog::*;
+use monsters::*;                 // TAG_RUIN_BOSS — the den whose absence is the peaceful arm
+use hex_grid;                 // hex_distance, for the gatherer's round trip
+
+fn main() {
+  println("=== story stock test (plan #17 S3) ===");
+  ok = true;
+
+  // ── 1. a fresh settlement has nothing in stock ─────────────────────────────────────
+  // All seven, not just one: the array is indexed by `producer_index`, and a mis-sized or
+  // mis-indexed array shows up here rather than as the wrong workshop being fed later.
+  // ⚠ A DUNGEON LEVEL, DELIBERATELY. Rows 1-5 need a `Sim`, not a populated 101x101
+  // surface — generating one costs ~20 s and proves nothing these rows assert. Only
+  // row 7 (the gatherer) needs the surface, and it builds exactly one.
+  s = sim_new_gen(1337, 1);
+  empty_all = true;
+  for pi in 0..NUM_PRODUCERS {
+    if sim_prod_stock(s, producer_name_at(pi)) != 0 { empty_all = false; }
+  }
+  println("fresh settlement: all {NUM_PRODUCERS} producers empty = {empty_all}");
+  if !empty_all { println("FAIL: a fresh settlement starts with stock it never earned"); ok = false; }
+
+  // ── 2. ARMED: the producer refuses when empty and allows when stocked ──────────────
+  // The row the whole plan rests on. Both answers, same producer, same sim.
+  refused_empty = !prod_draw_when(s, "alchemy", true);
+  still_zero = sim_prod_stock(s, "alchemy") == 0;
+  prod_raise(s, "alchemy");
+  rose = sim_prod_stock(s, "alchemy") == 1;
+  allowed_stocked = prod_draw_when(s, "alchemy", true);
+  drew = sim_prod_stock(s, "alchemy") == 0;
+  println("armed alchemy: refuse-when-empty={refused_empty} stays-0={still_zero} raise->1={rose} allow-when-stocked={allowed_stocked} draw->0={drew}");
+  if !refused_empty { println("FAIL: an empty workshop still made something — S3 gates nothing"); ok = false; }
+  if !still_zero { println("FAIL: a refused draw still moved the stock"); ok = false; }
+  if !rose { println("FAIL: a worker came home and the stock did not rise"); ok = false; }
+  if !allowed_stocked { println("FAIL: a stocked workshop refused to make"); ok = false; }
+  if !drew { println("FAIL: making did not draw the stock down"); ok = false; }
+
+  // ── 3. UNARMED never touches the stock — the negative control for row 2 ───────────
+  // Six of the seven producers have no input stream and must keep making regardless. If
+  // this drew, S3 would quietly starve the workshops nobody has wired a supply to.
+  prod_raise(s, "alchemy");
+  before_un = sim_prod_stock(s, "alchemy");
+  un_allowed = prod_draw_when(s, "alchemy", false);
+  un_untouched = sim_prod_stock(s, "alchemy") == before_un;
+  println("unarmed draw: allowed={un_allowed} untouched={un_untouched} (stock {before_un})");
+  if !un_allowed { println("FAIL: an unarmed producer was refused — S3 has stopped the town"); ok = false; }
+  if !un_untouched { println("FAIL: an unarmed producer drew stock anyway"); ok = false; }
+
+  // ── 3b. the LIVE entry point is armed for alchemy and open for the rest ────────────
+  // ⚠ Both states in one row, because `prod_draw` reads the policy: alchemy must refuse on
+  // an empty store, town_craft must not. If these ever agree, either everything is gated
+  // (the town stops) or nothing is (the plan does nothing).
+  while sim_prod_stock(s, "alchemy") > 0 { prod_draw(s, "alchemy"); }
+  live_alchemy = prod_draw(s, "alchemy");
+  live_town = prod_draw(s, "town_craft");
+  println("live policy on an empty store: alchemy allowed={live_alchemy} (want false), town_craft allowed={live_town} (want true)");
+  if live_alchemy { println("FAIL: the armed producer made something from an empty store"); ok = false; }
+  if !live_town { println("FAIL: an unarmed producer was refused by the live policy"); ok = false; }
+
+  // ── 3c. the store has walls ────────────────────────────────────────────────────────
+  // Uncapped, deliveries outran the alchemist ~6:1 and stock reached 120 in 16 days — at
+  // which point "empty" is unreachable and the coupling is decorative. The cap is what
+  // makes danger able to drain it.
+  for _ in 0..(PROD_STOCK_MAX * 3) { prod_raise(s, "alchemy"); }
+  capped = sim_prod_stock(s, "alchemy") == PROD_STOCK_MAX;
+  println("cap: {PROD_STOCK_MAX * 3} deliveries into an empty store -> {sim_prod_stock(s, \"alchemy\")} (cap {PROD_STOCK_MAX})");
+  if !capped { println("FAIL: the store banked past its cap — stock can no longer run out"); ok = false; }
+  while sim_prod_stock(s, "alchemy") > 0 { prod_draw(s, "alchemy"); }
+
+  // ── 4. conservation: stock == raised − drawn ───────────────────────────────────────
+  // An uneven sequence, so the count cannot come out right by symmetry, and more draws
+  // asked for than there is stock — the surplus must be REFUSED, never go negative.
+  s2 = sim_new_gen(4242, 1);
+  raised = 0;
+  drawn = 0;
+  for i in 0..7 {
+    prod_raise(s2, "alchemy");
+    raised += 1;
+  }
+  for i in 0..10 {
+    if prod_draw_when(s2, "alchemy", true) { drawn += 1; }
+  }
+  held = sim_prod_stock(s2, "alchemy");
+  conserved = held == raised - drawn;
+  no_debt = held >= 0 && drawn <= raised;
+  println("conservation: raised={raised} drawn={drawn} held={held} balanced={conserved} never-negative={no_debt}");
+  if !conserved { println("FAIL: stock != raised - drawn — the two events are not the only writers"); ok = false; }
+  if !no_debt { println("FAIL: the workshop made on credit — stock went negative"); ok = false; }
+
+  // ── 5. an unknown producer name is inert, never a silent index ─────────────────────
+  // `producer_index` answers -1, and both verbs must survive it: a typo must not write over
+  // producer 0's stock, which is exactly what an unchecked index would do.
+  forge_before = sim_prod_stock(s2, "forge_weapon");
+  prod_raise(s2, "nonesuch");
+  unknown_allowed = prod_draw_when(s2, "nonesuch", true);
+  forge_after = sim_prod_stock(s2, "forge_weapon");
+  unknown_inert = forge_before == forge_after && sim_prod_stock(s2, "nonesuch") == 0;
+  println("unknown producer: inert={unknown_inert} allowed={unknown_allowed} (forge {forge_before}->{forge_after})");
+  if !unknown_inert { println("FAIL: an unknown producer key wrote into a real producer's stock"); ok = false; }
+
+  // ── 6. the bundle's own entry is in the merged repertoire ──────────────────────────
+  // `desert_surprise` contributes the first real `production` section (BUNDLE.md I-PROD).
+  // Until it existed the merge's bundle arm was structurally unexercised — `producttest`
+  // walked a `0..bundle_len` loop that never ran a single iteration.
+  eng = engine_production_len("alchemy");
+  tot = game_production_len("alchemy");
+  contributed = tot > eng;
+  found = false;
+  for i in 0..tot {
+    if game_production_key("alchemy", i) == "naga_antivenin" { found = true; }
+  }
+  println("alchemy repertoire: engine {eng}, merged {tot}, bundle entry present={found}");
+  if !contributed { println("FAIL: no bundle contributed to alchemy — the merge's bundle arm is still dead"); ok = false; }
+  if !found { println("FAIL: the bundle's entry is not reachable through the merged repertoire"); ok = false; }
+
+  // ── 7. I-SAFE END TO END: the SAME settlement, at peace and under pressure ─────────
+  // ⚠ THIS IS THE ROW THE PLAN IS NAMED FOR, and it must be an A/B or it proves nothing.
+  // Rows 1-6 are arithmetic; `safetytest` proves a worker refuses unsafe ground and
+  // `incursiontest` proves a raid reaches the work — but "output is a function of the
+  // danger around it" is a claim about the DIFFERENCE between two worlds, and only a
+  // difference can measure it.
+  //
+  // ⚠ AND THE PEACEFUL ARM IS NOT A FORMALITY — IT IS THE CONTROL THAT CATCHES THE FAILURE
+  // THIS ROW ALREADY HAD ONCE. Until 2026-08-10 this ran one arm, the contested one, and
+  // asserted only "a delivery arrived". When the coupling was finally closed it went on
+  // passing at ONE delivery and ONE potion in a week — a starved town clearing a bar meant
+  // for a healthy one. A collapse in both arms is a broken gatherer; a collapse in one is
+  // the mechanism. So peace must look like a working economy, pressure must not, and the
+  // two must be told apart by a margin no run-to-run jitter can cover.
+  //
+  // Four days, not seven: measured 2026-08-10 the arms separate by day 3, and the surface
+  // tick is the most expensive thing in the gate.
+  //
+  // ⚠ SEED 1337 IS `story.loft`'s OWN `GEN_SEED` — the world a player actually starts in.
+  // This plan measured world 777 throughout, and the two are not the same town to live in:
+  // the overland is a fixed contract wilderness so the *town* is identical, but monster
+  // placement is not, and monster placement is what this whole plan is about. Measured both
+  // ways over four days:
+  //
+  //             at peace                under pressure
+  //   1337      3 deliveries, stock 0..1     0 deliveries, stock 0..0
+  //    777      7 deliveries, stock 0..4     1 delivery,   stock 0..1
+  //
+  // ⚠ SO THE PEACEFUL BAR HERE IS LOW ON PURPOSE, AND THE REASON IS MEASURED, NOT GUESSED.
+  // The shipped world's peacetime supply is genuinely marginal: the gatherer spends **1023
+  // of 1600 daylight ticks frozen mid-route**, stalled at safety borders while ambient
+  // wildlife drifts across an unescorted 14-hex walk (777: 887, so it is a difference of
+  // degree). That is the design working — an unescorted civilian crossing monster country
+  // is slow — and `S7`'s pickets are its designed answer, not a number to tune here. What
+  // this row must not do is hide it behind a bar written for a livelier world.
+  peace_d = -1;
+  war_d = -1;
+  peace_lo = 999;
+  peace_hi = -1;
+  war_hi = -1;
+  war_unsafe = 0;
+  peace_do = -1;      // the ore chain, measured beside the herbs
+  war_do = -1;
+  peace_flo = 999;
+  peace_fhi = -1;
+  war_fhi = -1;
+  war_unsafe_o = 0;
+  for arm in 0..2 {
+    w = sim_new_gen(1337, 0);
+    // ⚠ THE ONLY DIFFERENCE BETWEEN THE ARMS IS THE CAUSE. Not the seed, not the window,
+    // not the placement — one dead leader, so anything that moves is attributable to it.
+    if arm == 0 {
+      for i in 0..sim_enemy_count(w) {
+        if sim_enemy_alive(w, i) && (sim_enemy_tags(w, i) & TAG_RUIN_BOSS) != 0 { sim_slay(w, i); }
+      }
+    }
+    // ⚠ THE SETTLEMENT HAS TWO SUPPLY CHAINS AND THE RAID CHOOSES BETWEEN THEM, so this row
+    // has to FOLLOW THE DANGER rather than name a trade. `raid_objective` presses the most
+    // exposed work; pinned to the gatherer, this row went red the day the town's wall got
+    // real gates (2026-08-10) — the window opened from 498 walkable hexes to 8951, the works
+    // moved out to the ore face where only its own posted guard reaches, and the raid
+    // correctly went THERE. The picking ground then read 6 deliveries at peace against 6
+    // under pressure, which is not I-SAFE failing but this row watching the wrong valley.
+    //
+    // So both chains are measured in both arms, and the CLAIM is asserted on whichever one
+    // the raid actually pressed. Herbs: role 9 -> `alchemy`. Ore: role 10 -> the forge.
+    gi = -1;
+    mi = -1;
+    for i in 0..sim_enemy_count(w) {
+      if gi < 0 && sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 9 { gi = i; }
+      if mi < 0 && sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 10 { mi = i; }
+    }
+    if gi < 0 || mi < 0 {
+      println("FAIL: the settlement is missing a supply trade (gatherer={gi} miner={mi})");
+      ok = false;
+    } else {
+      (hq, hr) = sim_enemy_home(w, gi);
+      (wq, wr) = sim_enemy_work(w, gi);
+      (mhq, mhr) = sim_enemy_home(w, mi);
+      (mwq, mwr) = sim_enemy_work(w, mi);
+      pd = sim_npc_path_dist(w, wq, wr, 9, hq, hr);
+      pdm = sim_npc_path_dist(w, mwq, mwr, 10, mhq, mhr);
+      if pd >= FLOW_BIG || pdm >= FLOW_BIG {
+        println("FAIL: a work site has NO PATH from its home (herb={pd} ore={pdm}) — the worker cannot ever work");
+        ok = false;
+      }
+      // Deliveries counted as ARRIVALS, not as days the number went up: at the cap a real
+      // delivery moves nothing, and in a starved week one delivery looks like seven.
+      // ⚠ BOTH miners are counted — one worker's bag is not the settlement's supply.
+      dh = 0;
+      dor = 0;
+      lo = 999;
+      hi = -1;
+      flo = 999;
+      fhi = -1;
+      uh = 0;
+      uo = 0;
+      pcg = sim_enemy_carry(w, gi);
+      pcm: vector<integer> = [];
+      mis: vector<integer> = [];
+      for i in 0..sim_enemy_count(w) {
+        if sim_enemy_alive(w, i) && sim_enemy_role(w, i) == 10 {
+          mis += [i];
+          pcm += [sim_enemy_carry(w, i)];
+        }
+      }
+      for _ in 0..(4 * DAY_LEN) {
+        sim_tick(w);
+        if !hex_safe(w, wq, wr) { uh += 1; }
+        if !hex_safe(w, mwq, mwr) { uo += 1; }
+        c = sim_enemy_carry(w, gi);
+        if c == 0 && pcg > 0 { dh += 1; }
+        pcg = c;
+        for k in 0..len(mis) {
+          cm = sim_enemy_carry(w, mis[k] ?? 0);
+          if cm == 0 && (pcm[k] ?? 0) > 0 { dor += 1; }
+          pcm[k] = cm;
+        }
+        st = sim_prod_stock(w, "alchemy");
+        if st < lo { lo = st; }
+        if st > hi { hi = st; }
+        fst = sim_prod_stock(w, "forge_weapon") + sim_prod_stock(w, "forge_armor");
+        if fst < flo { flo = fst; }
+        if fst > fhi { fhi = fst; }
+      }
+      label = "under pressure";
+      if arm == 0 { label = "at peace      "; }
+      println("{label}: herbs ({wq},{wr}) unsafe {uh}/{4 * DAY_LEN}, {dh} deliveries, store {lo}..{hi} | ore ({mwq},{mwr}) unsafe {uo}/{4 * DAY_LEN}, {dor} deliveries, store {flo}..{fhi}");
+      // The PRESSED chain is the one whose ground the raid actually spoiled; the other is a
+      // control that must keep working, or a collapse in both is some other defect.
+      if arm == 0 {
+        peace_d = dh; peace_lo = lo; peace_hi = hi;
+        peace_do = dor; peace_flo = flo; peace_fhi = fhi;
+      } else {
+        war_d = dh; war_hi = hi; war_unsafe = uh;
+        war_do = dor; war_fhi = fhi; war_unsafe_o = uo;
+      }
+    }
+  }
+  // ⚠ WHICH CHAIN THE DANGER REACHED decides which numbers carry the claim. Measured on the
+  // shipped world: the ore face is unsafe 775 of 1600 ticks with the den alive and 0 with it
+  // cleared, while the picking ground stays clear in both — so the ore is the pressed chain
+  // today and the herbs are the control.
+  ore_is_pressed = war_unsafe_o > war_unsafe;
+  if ore_is_pressed {
+    println("the raid pressed the ORE (unsafe {war_unsafe_o} ticks vs {war_unsafe} on the herbs); the herb chain is the control");
+    peace_d = peace_do; war_d = war_do;
+    peace_hi = peace_fhi; war_hi = war_fhi; peace_lo = peace_flo;
+    war_unsafe = war_unsafe_o;
+  } else {
+    println("the raid pressed the HERBS (unsafe {war_unsafe} ticks vs {war_unsafe_o} on the ore); the ore chain is the control");
+  }
+  // The peaceful arm: the loop turns. Both failure modes named, as before — a store stuck
+  // at 0 supplies nothing, a store stuck at the cap gates nothing. ⚠ The bar is 2 against a
+  // measured 3, and the margin is deliberately thin because the *reason* it is 3 is a
+  // property of the shipped world (above), not slack in this row: a drop to 1 is a real
+  // regression and must go red rather than be absorbed.
+  if peace_d < 2 {
+    println("FAIL: {peace_d} deliveries in four peaceful days — the supply loop is dead, and the pressure arm below then proves nothing");
+    ok = false;
+  }
+  if peace_hi <= 0 {
+    println("FAIL: the store never held anything at peace — nothing was ever supplied");
+    ok = false;
+  }
+  if peace_lo >= PROD_STOCK_MAX {
+    println("FAIL: stock sat at the cap all week at peace — nothing draws it, so danger cannot bite");
+    ok = false;
+  }
+  // The contested arm. ⚠ ATTRIBUTED: the ground has to actually BE unsafe, or a collapse
+  // here is some other defect wearing this row's clothes.
+  // ⚠ The bar is DAY_LEN against a measured 775 of 1600 on the pressed chain. It was 2 days
+  // when this row watched the picking ground; the ore face is pressed hard but not
+  // continuously, because the works has its own posted guard holding one end of the walk at
+  // a time — which is the design (`S1`: guards are a term in the safety expression) and is
+  // exactly what leaves `S7`'s pickets something left to buy.
+  if war_unsafe < DAY_LEN {
+    println("FAIL: the pressed work was unsafe only {war_unsafe} ticks — the den never reached it, so the comparison is of two peaceful worlds");
+    ok = false;
+  }
+  if war_d * 2 > peace_d {
+    println("FAIL: {war_d} deliveries under pressure against {peace_d} at peace — danger does not cut supply (I-SAFE)");
+    ok = false;
+  }
+  if war_hi >= PROD_STOCK_MAX {
+    println("FAIL: the store still reached its cap under pressure — supply has a path danger cannot touch");
+    ok = false;
+  }
+  println("I-SAFE: {peace_d} deliveries at peace vs {war_d} under pressure; contested store peaked at {war_hi} of {PROD_STOCK_MAX}");
+
+  if ok { println("=== STOCK OK ==="); } else { println("=== FAIL ==="); }
+}
+
+// The seven producer keys in `producer_index` order — the test's own copy, deliberately.
+// If it drifts from items.loft the row-1 sweep stops covering all seven, which is the
+// failure it exists to catch.
+fn producer_name_at(i: integer) -> text {
+  if i == 0 { return "forge_weapon"; }
+  if i == 1 { return "forge_armor"; }
+  if i == 2 { return "alchemy"; }
+  if i == 3 { return "scriptorium_scroll"; }
+  if i == 4 { return "scriptorium_book"; }
+  if i == 5 { return "town_craft"; }
+  "import"
+}

@@ -1,0 +1,127 @@
+// realworld::region — the generic in-memory shape of a real-world fixture.
+//
+// One Region carries everything a renderer or analysis needs about a bounded
+// geographic area sampled onto a moros odd-r hex grid: per-cell EU-DEM heights,
+// per-cell OSM landcover code, per-cell waterway-mask, per-inner-triangle OSM
+// classification, and (for the regions where we already fetched it) a sub-hex
+// EU-DEM trimesh with REAL per-vertex heights.
+//
+// The struct is map-agnostic — Ortler is one Region, the Welsh sea-cliff coast
+// is another, future regions follow. The schema is the on-disk schema in
+// doc/viewer-design.md §9.1 read straight in via region_io.loft.
+
+// Per-inner-triangle indexing convention — every region uses this layout so
+// gid = (c·rows + r)·18 + loc reaches the same triangle as ortler_render.py's
+// _tri_gid bit-for-bit. Within each hex the 18 triangles are ordered side
+// k = 0..5, three per side:
+//   loc = 3·k + 0 : (centre, corner_k,      edge_(k,1/3))   flank L of side k
+//   loc = 3·k + 1 : (centre, edge_(k,1/3),  edge_(k,2/3))   middle  of side k
+//   loc = 3·k + 2 : (centre, edge_(k,2/3),  corner_(k+1))   flank R of side k
+// Side k faces hex_neighbor direction k (0=E, 1=SE, 2=SW, 3=W, 4=NW, 5=NE —
+// pointy-top, ODD-R OFFSET, matching hex_grid).
+pub const TRIS_PER_HEX = 18;
+
+// OSM landcover palette codes (matching the Python NAME2CODE):
+//   0 none, 1 water, 2 glacier, 3 rock, 4 scree, 5 wood, 6 grass,
+//   7 farmland, 8 orchard, 9 vineyard, 10 wetland.
+pub const OSM_NONE     = 0;
+pub const OSM_WATER    = 1;
+pub const OSM_GLACIER  = 2;
+pub const OSM_ROCK     = 3;
+pub const OSM_SCREE    = 4;
+pub const OSM_WOOD     = 5;
+pub const OSM_GRASS    = 6;
+pub const OSM_FARMLAND = 7;
+pub const OSM_ORCHARD  = 8;
+pub const OSM_VINEYARD = 9;
+pub const OSM_WETLAND  = 10;
+
+// The in-memory region. Construction via region_io::region_read_bin(). All
+// vectors are dense: hex_h / hex_osm / hex_river are length cols·rows;
+// tri_osm is length cols·rows·18; vert_* are length n_verts; vert_tris is
+// v_cols·v_rows·18·3.
+//
+// rgn_name carries the region identifier ("ortler", "wales", …) so analysis
+// modules can branch on it where they must, and so the validation reports
+// (§9.5) print the right header.
+pub struct Region {
+  rgn_name:   text not null,
+  rgn_cols:   integer not null,
+  rgn_rows:   integer not null,
+  rgn_v_cols: integer not null,
+  rgn_v_rows: integer not null,
+  rgn_n_verts: integer not null,
+  hex_h:     vector<integer> not null,
+  hex_osm:   vector<integer> not null,
+  hex_river: vector<integer> not null,
+  tri_osm:   vector<integer> not null,
+  vert_x:    vector<float>   not null,
+  vert_y:    vector<float>   not null,
+  vert_h:    vector<integer> not null,
+  vert_tris: vector<integer> not null,
+}
+
+// ── accessors (the only call sites consumers should touch) ───────────────
+
+// Linear index for hex (c, r) in 0..cols-1, 0..rows-1.
+pub fn region_hex_idx(rgn: const Region, c: integer, r: integer) -> integer {
+  r * rgn.rgn_cols + c
+}
+
+// EU-DEM height (metres) at hex (c, r), or 0 outside the region.
+pub fn region_height(rgn: const Region, c: integer, r: integer) -> integer {
+  if c < 0 || c >= rgn.rgn_cols || r < 0 || r >= rgn.rgn_rows { return 0; }
+  rgn.hex_h[r * rgn.rgn_cols + c] ?? 0
+}
+
+// OSM landcover code 0..10 at hex (c, r), or OSM_NONE outside.
+pub fn region_osm(rgn: const Region, c: integer, r: integer) -> integer {
+  if c < 0 || c >= rgn.rgn_cols || r < 0 || r >= rgn.rgn_rows { return OSM_NONE; }
+  rgn.hex_osm[r * rgn.rgn_cols + c] ?? 0
+}
+
+// 0/1 OSM waterway-hit mask at hex (c, r); 0 outside.
+pub fn region_river(rgn: const Region, c: integer, r: integer) -> integer {
+  if c < 0 || c >= rgn.rgn_cols || r < 0 || r >= rgn.rgn_rows { return 0; }
+  rgn.hex_river[r * rgn.rgn_cols + c] ?? 0
+}
+
+// Per-triangle OSM code at hex (c, r), local triangle slot loc ∈ 0..17.
+pub fn region_triosm(rgn: const Region, c: integer, r: integer,
+                     loc: integer) -> integer {
+  if c < 0 || c >= rgn.rgn_cols || r < 0 || r >= rgn.rgn_rows { return OSM_NONE; }
+  if loc < 0 || loc >= TRIS_PER_HEX { return OSM_NONE; }
+  gid = (c * rgn.rgn_rows + r) * TRIS_PER_HEX + loc;
+  rgn.tri_osm[gid] ?? 0
+}
+
+// Real EU-DEM height at trimesh vertex `vid`, 0 on miss.
+pub fn region_vert_h(rgn: const Region, vid: integer) -> integer {
+  if vid < 0 || vid >= rgn.rgn_n_verts { return 0; }
+  rgn.vert_h[vid] ?? 0
+}
+
+// World (x, y) in metres of trimesh vertex `vid`. (0.0, 0.0) on miss.
+pub fn region_vert_xy(rgn: const Region, vid: integer) -> (float, float) {
+  if vid < 0 || vid >= rgn.rgn_n_verts { return (0.0, 0.0); }
+  (rgn.vert_x[vid] ?? 0.0, rgn.vert_y[vid] ?? 0.0)
+}
+
+// The three vertex ids of triangle (c, r, loc) in the trimesh.
+// (-1, -1, -1) on miss (region has no trimesh: v_cols/v_rows == 0).
+pub fn region_triidx(rgn: const Region, c: integer, r: integer,
+                     loc: integer) -> (integer, integer, integer) {
+  if rgn.rgn_v_cols <= 0 || rgn.rgn_v_rows <= 0 { return (-1, -1, -1); }
+  if c < 0 || c >= rgn.rgn_v_cols || r < 0 || r >= rgn.rgn_v_rows { return (-1, -1, -1); }
+  if loc < 0 || loc >= TRIS_PER_HEX { return (-1, -1, -1); }
+  base = ((c * rgn.rgn_v_rows + r) * TRIS_PER_HEX + loc) * 3;
+  (rgn.vert_tris[base]     ?? -1,
+   rgn.vert_tris[base + 1] ?? -1,
+   rgn.vert_tris[base + 2] ?? -1)
+}
+
+// True iff this region has the sub-hex EU-DEM trimesh (some regions are
+// per-cell only). Analyses that need real per-vertex relief gate on this.
+pub fn region_has_trimesh(rgn: const Region) -> boolean {
+  rgn.rgn_n_verts > 0 && rgn.rgn_v_cols > 0 && rgn.rgn_v_rows > 0
+}

@@ -1,0 +1,434 @@
+// land — a castle and a hamlet in a landscape.  Intent: build/INTENT-landscape.md
+//
+// Block-in pass: big masses first, detail last.  Everything stands on the hex field —
+// the ground is displaced hexes, the walls are edges, the roofs are the profile x distance
+// table from plan #5, the trees are plan #9's canopy.
+use hex_field::*;
+use hex_edge;
+use hex_way;
+use hex_roof;
+use hexprim::*;
+use hexpart::*;
+use hexseat::*;
+use hexhinge::*;
+use hexwheel;
+use hexlink;
+use hexcanopy;
+use hexskel;
+use scenemesh::*;
+use figure::*;
+use mesh3d::*;
+use glb::*;
+
+fn m(v: float) -> float { v / 0.8660254037844386 ?? 0.0 }
+
+// A real gable: two sloped planes meeting at a ridge, with triangular ends.  The stepped
+// courses of pass 2 read as STEPS at this scale, not as a pitch — and a cottage is mostly
+// roof, so getting the roof wrong got the whole building wrong.
+fn mesh_gable(cx: float, cy: float, z: float, w: float, d: float, h: float,
+              ang: float) -> Mesh {
+  ms = mesh("gable");
+  u = vec2(0.0, 0.0);
+  ca = cos(ang); sa = sin(ang);
+  // corner in world, from local (lx, ly)
+  hw = w * 0.5; hd = d * 0.5;
+  ax = cx + ca * (0.0 - hw) - sa * (0.0 - hd);
+  ay = cy + sa * (0.0 - hw) + ca * (0.0 - hd);
+  bx = cx + ca * hw - sa * (0.0 - hd);
+  by = cy + sa * hw + ca * (0.0 - hd);
+  ex = cx + ca * hw - sa * hd;
+  ey = cy + sa * hw + ca * hd;
+  fx = cx + ca * (0.0 - hw) - sa * hd;
+  fy = cy + sa * (0.0 - hw) + ca * hd;
+  rx0 = cx + ca * (0.0 - hw);
+  ry0 = cy + sa * (0.0 - hw);
+  rx1 = cx + ca * hw;
+  ry1 = cy + sa * hw;
+  n1 = vec3(0.0 - sa, ca, 0.55);
+  p0 = add_vertex(ms, vertex(vec3(ax, ay, z), n1, u));
+  p1 = add_vertex(ms, vertex(vec3(bx, by, z), n1, u));
+  p2 = add_vertex(ms, vertex(vec3(rx1, ry1, z + h), n1, u));
+  p3 = add_vertex(ms, vertex(vec3(rx0, ry0, z + h), n1, u));
+  add_quad(ms, p0, p1, p2, p3);
+  n2 = vec3(sa, 0.0 - ca, 0.55);
+  q0v = add_vertex(ms, vertex(vec3(fx, fy, z), n2, u));
+  q1v = add_vertex(ms, vertex(vec3(ex, ey, z), n2, u));
+  q2v = add_vertex(ms, vertex(vec3(rx1, ry1, z + h), n2, u));
+  q3v = add_vertex(ms, vertex(vec3(rx0, ry0, z + h), n2, u));
+  add_quad(ms, q0v, q3v, q2v, q1v);
+  ne = vec3(ca, sa, 0.0);
+  g0 = add_vertex(ms, vertex(vec3(bx, by, z), ne, u));
+  g1 = add_vertex(ms, vertex(vec3(ex, ey, z), ne, u));
+  g2 = add_vertex(ms, vertex(vec3(rx1, ry1, z + h), ne, u));
+  add_triangle(ms, g0, g1, g2);
+  h0 = add_vertex(ms, vertex(vec3(ax, ay, z), ne, u));
+  h1 = add_vertex(ms, vertex(vec3(fx, fy, z), ne, u));
+  h2 = add_vertex(ms, vertex(vec3(rx0, ry0, z + h), ne, u));
+  add_triangle(ms, h0, h2, h1);
+  ms
+}
+
+// Round towers come from hexprim's axis-agnostic drum (plan #10 P1). The local copy that
+// hardcoded the vertical axis is gone; the migration was proven free by the bit-identity
+// gate in primtest, which reproduces the old drum's vertices exactly.
+
+// a rolling hill: low at the front-right, rising to the back-left where the castle sits
+fn terrain(x: float, y: float) -> float {
+  // Relief raised from 6.4 m to clear the 6.8 m target (predicate 3 — the only one that
+  // never passed). Done FIRST in this pass, deliberately: every framing and shadow
+  // decision sits on the terrain, so changing it last would invalidate all of them.
+  h = 0.0 - x * 0.205 + y * 0.132;
+  h = h + 2.2 * sin(x * 0.09 + 1.1) + 1.6 * cos(y * 0.11 - 0.4);
+  h = h + 0.9 * sin(x * 0.21 + y * 0.17);
+  h + 6.0
+}
+
+// displaced ground: one hexagon per cell, lifted to the terrain height
+fn mesh_ground(s: HexSet, tint: integer, ntint: integer) -> Mesh {
+  ms = mesh("ground");
+  n = vec3(0.0, 0.0, 1.0);
+  u = vec2(0.0, 0.0);
+  for r in hexset_r0(s)..hexset_r0(s) + hexset_h(s) {
+    for q in hexset_q0(s)..hexset_q0(s) + hexset_w(s) {
+      if hexset_get(s, q, r) {
+        k = lattice_k(q, r);
+        mm = lattice_m(q, r);
+        cx = (k as float) * 0.8660254037844386;
+        cy = (mm as float) * 0.5;
+        // one tint band per mesh, so grass is not a single painted plane
+        band = ((cx * 3.1 + cy * 5.7) as integer) % ntint;
+        if band < 0 { band = 0 - band; }
+        if band == tint {
+          cz = terrain(cx, cy);
+          c = add_vertex(ms, vertex(vec3(cx, cy, cz), n, u));
+          for i in 0..6 {
+            j = i + 1;
+            if j > 5 { j = 0; }
+            ax = (k + corner_k(i) as integer) as float * 0.8660254037844386;
+            ay = (mm + corner_m(i) as integer) as float * 0.5;
+            bx = (k + corner_k(j) as integer) as float * 0.8660254037844386;
+            by = (mm + corner_m(j) as integer) as float * 0.5;
+            a = add_vertex(ms, vertex(vec3(ax, ay, terrain(ax, ay)), n, u));
+            b = add_vertex(ms, vertex(vec3(bx, by, terrain(bx, by)), n, u));
+            add_triangle(ms, c, a, b);
+          }
+        }
+      }
+    }
+  }
+  ms
+}
+
+// a house: walls to the eaves, then a gable roof — the profile x distance table, section 13
+fn add_house(sc: Scene, cuw: integer, cur: integer, wallm: integer, roofm: integer,
+             x: float, y: float, w: float, d: float, eaves: float, ang: float) {
+  z = terrain(x, y);
+  // REAL DIMENSIONS (user ruling 2026-07-22): the engine ships true measurements and a game
+  // implementer may stylise; we do not stylise by default. `eaves` is the WALL PLATE height,
+  // authored in metres by the caller, not a fraction of some other number.
+  //
+  // A cottage is still mostly roof — but that is achieved by the PITCH, not by shrinking the
+  // wall below head height. The previous `wallh = hgt * 0.52` gave 1.51 m eaves and a 1.45 m
+  // door against a 1.75 m figure: you had to stoop to enter and could not stand at any wall.
+  // Only an eye-height camera showed it (plan #11 P0).
+  add_node(sc, node_at("house", cuw, wallm,
+    mat4_trs(x, y, z + eaves * 0.5, ang, w, d, eaves)));
+  // The eaves overhung 1.20x the wall, which from any raised camera hid the wall — and
+  // with it every door in the village. A cottage eave projects a little; it does not
+  // cantilever over the whole elevation.
+  // The roof is DERIVED from a 45-degree pitch over the roof's own depth (overhang
+  // included) — which is what a real slate or tile cottage roof is. Thatch runs steeper
+  // (50-55 deg); a game wanting thatch scales this one number.
+  rd = d * 1.10;
+  gi = add_mesh(sc, mesh_gable(x, y, z + eaves, w * 1.06, rd, rd * 0.5, ang));
+  add_node(sc, node_at("roof", gi, roofm, mat4_identity()));
+}
+
+// A field: a tessellated patch following the ground, so crops sit ON the hill rather than
+// hovering over it.  Fields are the cue that turns scenery into a WORKED landscape.
+fn mesh_field(cx: float, cy: float, w: float, d: float, ang: float, nx: integer) -> Mesh {
+  ms = mesh("field");
+  u = vec2(0.0, 0.0);
+  ca = cos(ang); sa = sin(ang);
+  n = vec3(0.0, 0.0, 1.0);
+  for i in 0..nx {
+    for j in 0..nx {
+      f0 = (i as float) / (nx as float) ?? 0.0;
+      f1 = ((i + 1) as float) / (nx as float) ?? 0.0;
+      g0 = (j as float) / (nx as float) ?? 0.0;
+      g1 = ((j + 1) as float) / (nx as float) ?? 0.0;
+      lx0 = (f0 - 0.5) * w; lx1 = (f1 - 0.5) * w;
+      ly0 = (g0 - 0.5) * d; ly1 = (g1 - 0.5) * d;
+      ax = cx + ca * lx0 - sa * ly0; ay = cy + sa * lx0 + ca * ly0;
+      bx = cx + ca * lx1 - sa * ly0; by = cy + sa * lx1 + ca * ly0;
+      ex = cx + ca * lx1 - sa * ly1; ey = cy + sa * lx1 + ca * ly1;
+      fx = cx + ca * lx0 - sa * ly1; fy = cy + sa * lx0 + ca * ly1;
+      v0 = add_vertex(ms, vertex(vec3(ax, ay, terrain(ax, ay) + 0.06), n, u));
+      v1 = add_vertex(ms, vertex(vec3(bx, by, terrain(bx, by) + 0.06), n, u));
+      v2 = add_vertex(ms, vertex(vec3(ex, ey, terrain(ex, ey) + 0.06), n, u));
+      v3 = add_vertex(ms, vertex(vec3(fx, fy, terrain(fx, fy) + 0.06), n, u));
+      add_quad(ms, v0, v1, v2, v3);
+    }
+  }
+  ms
+}
+
+fn main() {
+  q0 = -34; r0 = -30; gw = 69; gh = 61;
+  ground = hexset_chunk(q0, r0, gw, gh);
+  for r in r0..r0 + gh {
+    for q in q0..q0 + gw { hexset_set(ground, q, r, true); }
+  }
+
+  sc = scene("land");
+  // grass in four tints so the ground is not one painted plane (predicate 10)
+  g0 = add_material(sc, material_color("grass0", 0.38, 0.47, 0.26));
+  g1 = add_material(sc, material_color("grass1", 0.44, 0.52, 0.29));
+  g2 = add_material(sc, material_color("grass2", 0.34, 0.43, 0.24));
+  g3 = add_material(sc, material_color("grass3", 0.47, 0.54, 0.32));
+  m_wall = add_material(sc, material_color("wall", 0.72, 0.68, 0.60));
+  m_keep = add_material(sc, material_color("keep", 0.62, 0.59, 0.54));
+  m_roof = add_material(sc, material_color("roof", 0.42, 0.24, 0.18));
+  m_bark = add_material(sc, material_color("bark", 0.32, 0.24, 0.17));
+  m_leaf = add_material(sc, material_color("leaf", 0.22, 0.38, 0.19));
+  m_leaf2 = add_material(sc, material_color("leaf2", 0.28, 0.44, 0.22));
+  m_path = add_material(sc, material_color("path", 0.60, 0.55, 0.44));
+  m_skin = add_material(sc, material_color("skin", 0.80, 0.60, 0.45));
+  m_door = add_material(sc, material_color("door", 0.36, 0.22, 0.13));
+  m_iron = add_material(sc, material_color("iron", 0.24, 0.23, 0.24));
+  m_fence = add_material(sc, material_color("fence", 0.44, 0.36, 0.25));
+  // A chimney needs its OWN material: sharing the roof's made it merge with what it stands
+  // on, which is a contrast failure rather than a size one — though it was also too big.
+  m_chim = add_material(sc, material_color("chimney", 0.70, 0.66, 0.58));
+
+  for i in 0..4 {
+    gi = add_mesh(sc, mesh_ground(ground, i, 4));
+    mat = g0;
+    if i == 1 { mat = g1; }
+    if i == 2 { mat = g2; }
+    if i == 3 { mat = g3; }
+    add_node(sc, node_at("ground", gi, mat, mat4_identity()));
+  }
+
+  // glTF binds a material to a mesh PRIMITIVE, not to a node — so every node sharing one
+  // cube() mesh receives the same material, whichever was written last. That is why the
+  // first render came out uniformly brown and the whole palette collapsed. One cube mesh
+  // per material is the fix.
+  cu_wall = add_mesh(sc, cube());
+  cu_keep = add_mesh(sc, cube());
+  cu_roof = add_mesh(sc, cube());
+  cu_bark = add_mesh(sc, cube());
+  cu_path = add_mesh(sc, cube());
+  cu = cu_wall;
+
+  // ── the castle, upper-left: a SQUAT keep and two round towers ────────────
+  // The keep read as a chimney because it was narrow and tall. A keep is squat: wide base,
+  // few storeys, a battlement course crowning it. Height alone does not say "castle" —
+  // proportion does.
+  kx = -24.0; ky = 14.0;
+  kz = terrain(kx, ky);
+  ki = add_mesh(sc, prim_drum(kx, ky, kz - 1.0, 0.0, 0.0, 1.0, m(8.4), m(7.8), (kz + m(13.0)) - (kz - 1.0), 10));
+  add_node(sc, node_at("keep", ki, m_keep, mat4_identity()));
+  kb = add_mesh(sc, prim_drum(kx, ky, kz + m(13.0), 0.0, 0.0, 1.0, m(9.2), m(9.2), (kz + m(15.2)) - (kz + m(13.0)), 10));
+  add_node(sc, node_at("keep_battlement", kb, m_wall, mat4_identity()));
+  for i in 0..2 {
+    // On the NEAR slope, not beyond the crest. Pushing them apart in pass 5 was right —
+    // three masses only read as three with sky between them — but one landed behind the
+    // hill and vanished. Separation has to be toward the VIEWER: both towers now sit
+    // downslope of the keep, so the castle steps down the hill in three stages instead of
+    // hiding two of them over the top.
+    tx = kx + 15.0; ty = ky - 19.0;
+    if i == 1 { tx = kx - 12.0; ty = ky - 9.0; }
+    tz = terrain(tx, ty);
+    di = add_mesh(sc, prim_drum(tx, ty, tz - 1.0, 0.0, 0.0, 1.0, m(4.2), m(3.9), (tz + m(11.0)) - (tz - 1.0), 12));
+    add_node(sc, node_at("tower", di, m_wall, mat4_identity()));
+    bi2 = add_mesh(sc, prim_drum(tx, ty, tz + m(11.0), 0.0, 0.0, 1.0, m(4.7), m(4.7), (tz + m(12.6)) - (tz + m(11.0)), 12));
+    add_node(sc, node_at("tower_batt", bi2, m_keep, mat4_identity()));
+    mx = (kx + tx) * 0.5; my = (ky + ty) * 0.5;
+    dx = tx - kx; dy = ty - ky;
+    L = sqrt(dx * dx + dy * dy) ?? 1.0;
+    add_node(sc, node_at("curtain", cu_wall, m_wall,
+      mat4_trs(mx, my, terrain(mx, my) + m(2.6), atan2(dy, dx), L, m(1.4), m(5.2))));
+  }
+
+  // ── the hamlet: five houses, clustered below and right of the castle ─────
+  for i in 0..5 {
+    hx = 2.0 + (i as float) * 5.0 - 1.6 * cos((i as float) * 1.7);
+    hy = -6.0 + 4.2 * sin((i as float) * 2.1);
+    add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
+              m(6.0), m(4.4), m(2.4), 0.4 * ((i as float) - 2.0));
+  }
+
+  // ── the path: from the front of the frame up to the hamlet ───────────────
+  for i in 0..16 {
+    f = (i as float) / 15.0 ?? 0.0;
+    px = 12.0 - 20.0 * f;
+    py = -22.0 + 21.0 * f + 2.0 * sin(f * 5.0);
+    add_node(sc, node_at("path", cu_path, m_path,
+      mat4_trs(px, py, terrain(px, py) + 0.05, 0.0, 2.6, 2.6, 0.12)));
+  }
+
+  // ── trees: no two alike, and off the eye-path ────────────────────────────
+  // Nine identical lollipops read as an ICON, not as trees — regularity is the signature
+  // of abstraction. Radius, height, tint and lean all vary now, and none stands between
+  // the viewer and the hamlet.
+  for i in 0..11 {
+    a = (i as float) * 2.39996;
+    rr = 15.0 + (i as float) * 2.1;
+    tx = rr * cos(a) * 1.05 - 4.0;
+    ty = rr * sin(a) * 0.72 + 6.0;
+    // Keep the eye-path clear. The first attempt used `||` and therefore excluded almost
+    // nothing — a tree stood dead centre hiding both the keep and the path it leads to.
+    // The corridor from the figure up to the hamlet has to be EXCLUDED, not permitted.
+    inpath = tx > -9.0 && tx < 15.0 && ty > -24.0 && ty < 8.0;
+    if !inpath {
+      tz = terrain(tx, ty);
+      v = 0.62 + 0.52 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
+      // REAL DIMENSIONS: a mature open-grown hedgerow/landscape tree (oak, ash, lime) is
+      // 13-20 m tall with a crown spread about equal to its height, and a trunk roughly
+      // height/22 across. Crown radius and trunk are DERIVED from height, not tuned — the
+      // old 7-11 m with a 6-9 m spread was orchard-sized and read as one.
+      th = m(12.0) * v + m(6.0);
+      cr = th * 0.42;
+      lm = m_leaf;
+      if i % 3 == 1 { lm = m_leaf2; }
+      lean = 0.35 * ((((i * 3) % 5) as float) / 4.0 - 0.5) ?? 0.0;
+      td = th / 22.0 ?? 0.5;
+      add_node(sc, node_at("trunk", cu_bark,
+        m_bark, mat4_trs(tx, ty, tz + th * 0.32, lean, td, td, th * 0.66)));
+      ci = add_mesh(sc, mesh_crown(tx + lean * th * 0.5, ty, tz + th * 0.50,
+                                   tz + th * (0.92 + 0.22 * v), cr, 5, 11));
+      add_node(sc, node_at("crown", ci, lm, mat4_identity()));
+    }
+  }
+
+  // ── the orchard: the SAME tree, planted instead of grown ─────────────────
+  // An orchard reads as an orchard because it is in ROWS. That is the inversion of the
+  // scattered-trees note above: there, regularity was the signature of abstraction; here it
+  // is the signature of cultivation, and it is what tells the eye "someone planted this".
+  //
+  // In the real model (plan #9) this needs NO new mechanism, only a different placement: a
+  // trunk is an item in a hex and the canopy is a field above it, so trunks on a REGULAR
+  // lattice have uncontested canopies — no competition, hence no lean, equal crowns, uniform
+  // crown base — while scattered trunks contest their cells and the partition produces the
+  // lean and the raised bole that read as grown. Same routine, two outcomes.
+  //
+  // REAL DIMENSIONS: a traditional standard fruit tree is 5-7 m tall on a 9-10 m grid, with
+  // a crown radius of 2.5-3.5 m and a short clear bole. Modern bush orchards are half that
+  // and much denser; this is the pre-industrial kind that belongs beside a village.
+  for oi in 0..12 {
+    orow = oi / 4;
+    ocol = oi % 4;
+    ox = -34.0 + (ocol as float) * m(9.5);
+    oy = -34.0 + (orow as float) * m(9.5);
+    oz = terrain(ox, oy);
+    ov = 0.90 + 0.14 * (((oi * 3) % 4) as float) / 3.0 ?? 0.0;   // planted stock varies little
+    oh = m(6.0) * ov;
+    ocr = oh * 0.46;                       // a fruit tree is broader for its height
+    otd = oh / 16.0 ?? 0.3;                // and thicker-boled, because it is kept short
+    add_node(sc, node_at("trunk", cu_bark, m_bark,
+      mat4_trs(ox, oy, oz + oh * 0.22, 0.0, otd, otd, oh * 0.44)));
+    oc = add_mesh(sc, mesh_crown(ox, oy, oz + oh * 0.38, oz + oh * 1.02, ocr, 5, 9));
+    add_node(sc, node_at("crown", oc, m_leaf2, mat4_identity()));
+  }
+
+  // ── the road: wider than the footpath, continuous, through the village ───
+  m_road = add_material(sc, material_color("road", 0.55, 0.50, 0.41));
+  cu_road = add_mesh(sc, cube());
+  for i in 0..46 {
+    f = (i as float) / 45.0 ?? 0.0;
+    rx = 30.0 - 52.0 * f;
+    ry = -30.0 + 30.0 * f + 7.0 * sin(f * 3.4);
+    ang = 0.0;
+    if i > 0 {
+      pf = ((i - 1) as float) / 45.0 ?? 0.0;
+      ang = atan2((ry - (0.0 - 30.0 + 30.0 * pf + 7.0 * sin(pf * 3.4))),
+                  (rx - (30.0 - 52.0 * pf)));
+    }
+    add_node(sc, node_at("road", cu_road, m_road,
+      mat4_trs(rx, ry, terrain(rx, ry) + 0.10, ang, 3.0, 4.6, 0.16)));
+  }
+
+  // ── fields: five patches, five tints, beside the village ────────────────
+  // On OPEN ground to the left of the road, and spaced so a strip of grass shows between
+  // each — an unploughed baulk is what actually divides fields, and it reads as a boundary
+  // where a tint change alone read as one muddy mass.
+  for i in 0..5 {
+    fx = 2.0 - (i as float) * 13.5;
+    fy = -30.0 + (i as float) * 3.2;
+    if i >= 3 { fx = 10.0 - ((i - 3) as float) * 14.0; fy = -12.0; }
+    fm = add_material(sc, material_color("crop",
+      0.60 + 0.16 * cos((i as float) * 2.1),
+      0.56 + 0.12 * sin((i as float) * 1.3),
+      0.26 + 0.13 * cos((i as float) * 0.9)));
+    fi = add_mesh(sc, mesh_field(fx, fy, 11.5, 9.0, 0.30 * sin((i as float) * 1.7), 5));
+    add_node(sc, node_at("field", fi, fm, mat4_identity()));
+  }
+
+  // ── the village: more houses than the hamlet, fronting the road ─────────
+  // Moved DOWN the road, clear of the hamlet's ground, and thinned from nine houses to
+  // six with wider spacing. Nine touching roofs read as a camp; six spaced along a road
+  // read as a village. Two settlements now sit at two addresses with worked ground
+  // between them — which is also what makes the road worth having.
+  for i in 0..6 {
+    f = 0.04 + (i as float) * 0.042;
+    rx = 30.0 - 52.0 * f;
+    ry = -30.0 + 30.0 * f + 7.0 * sin(f * 3.4);
+    side = 6.6;
+    if i % 2 == 1 { side = 0.0 - 6.6; }
+    hx = rx + side * 0.85;
+    hy = ry + side * 0.55;
+    hang = 0.6 + 0.25 * ((i as float) - 3.0);
+    add_house(sc, cu_wall, cu_roof, m_wall, m_roof, hx, hy,
+              m(5.2), m(3.8), m(2.4), hang);
+    // PROPS, derived from the building rather than placed by hand: a door in the front
+    // wall and a chimney on the ridge. Each house differs because the seed does.
+    hz = terrain(hx, hy);
+    // On the wall the viewer can actually SEE. A door on the far side is correct and
+    // invisible, which is the only way a prop can fail once it is right.
+    dface = 0.0 - 0.93;
+    dw = m(3.8) * 0.5;
+    ajar = 0.35 + 0.75 * (((i * 7) % 5) as float) / 4.0 ?? 0.0;
+    // A REAL door leaf: 1.95 m tall, 0.85 m wide, 45 mm thick. It fits the 2.4 m wall with
+    // 0.45 m of head above it, which is what a doorway in a real cottage looks like — and a
+    // 1.75 m figure walks through it upright.
+    dl = add_mesh(sc, mesh_leaf(hx + cos(dface) * dw, hy + sin(dface) * dw,
+                                hz, hz + m(1.95), m(0.85), m(0.045),
+                                dface + 1.5707963267948966, ajar));
+    add_node(sc, node_at("door", dl, m_door, mat4_identity()));
+    ridge = seat_plane(0.0, 0.0, 1.0, hz + m(2.9) * 0.52 + m(2.9) * 1.05 * 0.75);
+    chi = add_mesh(sc, mesh_seated_prism(ridge, hx - cos(hang) * m(1.1), hy - sin(hang) * m(1.1),
+                                         hz + m(2.9) * 0.52 + m(2.9) * 1.05 + m(0.85), m(0.24), 6));
+    add_node(sc, node_at("chimney", chi, m_chim, mat4_identity()));
+  }
+
+  // a fence along the near field boundary, posts plumb on the slope
+  fseat = seat_plane(0.205, -0.132, 1.0, 6.0);
+  fen = add_mesh(sc, mesh_seated_fence(fseat, -2.0, -26.0, 16.0, -20.0, 9, m(1.2), m(0.07), 2));
+  add_node(sc, node_at("fence", fen, m_fence, mat4_identity()));
+
+  // a handcart standing on the road — the P2 part-list, placed
+  crt = parts_new();
+  part_box(crt, 0.0, 0.0, 0.95, 2.20, 1.25, 0.70);
+  part_drum(crt, 0.0, -0.72, 0.56, 0.0, 1.0, 0.0, 0.56, 0.56, 0.12);
+  part_drum(crt, 0.0,  0.60, 0.56, 0.0, 1.0, 0.0, 0.56, 0.56, 0.12);
+  part_box(crt, 1.35, -0.45, 0.90, 1.60, 0.10, 0.10);
+  part_box(crt, 1.35,  0.45, 0.90, 1.60, 0.10, 0.10);
+  cart_x = 11.0; cart_y = -15.5;
+  cart_z = terrain(cart_x, cart_y);
+  for cpi in 0..parts_count(crt) {
+    pm = add_mesh(sc, part_mesh(crt, cpi, cart_x, cart_y, cart_z, 12));
+    mm = m_fence;
+    if cpi == 1 || cpi == 2 { mm = m_iron; }
+    add_node(sc, node_at("cart", pm, mm, mat4_identity()));
+  }
+
+  add_figure(sc, 8.0, -19.0, terrain(8.0, -19.0), m_skin);
+
+  add_camera(sc, camera("cam"));
+  add_light(sc, directional_light("sun", 1.0, 0.88, 0.70, 1.0, vec3(0.55, 0.30, -0.34)));
+  out = "{env_variable("PWD") ?? "."}/build/land.glb";
+  save_scene_glb(sc, out);
+  println("wrote {out}");
+  println("terrain range: front {terrain(10.0, -20.0)} keep {terrain(-24.0, 14.0)}");
+}

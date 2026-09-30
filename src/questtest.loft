@@ -1,0 +1,235 @@
+// questtest — the desert_surprise overlay end-to-end, all driven by the bundle (no engine content):
+//   1) QUEST GRANT  — the surface (depth 0) hands the player the sealed-orders keepsake (a quest
+//                     item, so it is NOT auto-slotted).
+//   2) SET-PIECE    — depth 3 stamps the naga_throne stencil: Ssirath (the unique) by the stair-down,
+//                     ringed by snake guards.
+//   3) BOSS->FLAG   — killing the unique sets boss_slain (tested through the ranged kill path).
+//   4) INFESTATION  — with boss_slain carried, the way OUT crawls with the brood (depth 1 thick,
+//                     depth 2 some); without it, the shallow levels are snake-free.
+//   5-10) THE TOWN'S QUEST LINES — the watch's WANTED poster (notice board tile 8: read ->
+//                     hunt the ruin-nest boss (trait-tagged, windows away) -> claim the bounty);
+//                     the Circle's line (merchant points -> mage asks -> reward + the WRIT
+//                     reveals the POOL -> fill the phial at the naga pool (tile 9) -> deliver,
+//                     repeatable). Plus: the way OUT of the dungeon exists (depth 1 -> surface).
+use sim::*;
+use catalog::*;
+use monsters::*;
+use items::*;
+use hex_grid::*;
+use world_place_gen::*;
+
+fn count_glyph(s: Sim, g: text) -> integer {
+  n = 0;
+  ec = sim_enemy_count(s);
+  for i in 0..ec {
+    if sim_enemy_alive(s, i) && sim_enemy_glyph(s, i) == g { n = n + 1; }
+  }
+  n
+}
+
+fn main() {
+  println("=== story quest test (desert_surprise: grant + throne set-piece + boss -> infestation) ===");
+  gi = game_items();
+
+  // 1) quest grant on the surface
+  surf = sim_new_gen(1337, 0);
+  scroll = sim_find_item(surf, "sealed_orders");
+  granted = scroll >= 0 && item_is_quest(gi, item_index(gi, "sealed_orders"));
+
+  // 2) the depth-3 set-piece: the naga + guards, by the stair-down
+  d3 = sim_new_gen(1337, 3);
+  naga_i = -1;
+  ec = sim_enemy_count(d3);
+  for i in 0..ec {
+    if sim_enemy_hp(d3, i) >= 40 { naga_i = i; }     // only Ssirath has >= 40 hp at depth 3
+  }
+  guards = count_glyph(d3, "J");                       // sand-adder ring (glyph J)
+  near = false;
+  if naga_i >= 0 {
+    (nx, ny) = sim_enemy_pos(d3, naga_i);
+    (nq, nr) = px_to_hex(nx, ny);
+    near = hex_distance(nq, nr, d3.dn_q, d3.dn_r) <= 2;
+  }
+  setpiece = naga_i >= 0 && guards >= 1 && near;
+
+  // 3) killing the unique sets boss_slain — fire a bow at her point-blank until she falls
+  d3k = sim_new_gen(1337, 3);
+  kill_flag = 0;
+  if naga_i >= 0 {
+    (kx, ky) = sim_enemy_pos(d3k, naga_i);
+    (kq, kr) = px_to_hex(kx, ky);
+    (px2, py2) = hex_to_px(kq - 1, kr);                // stand one hex west of her
+    d3k.px = px2;
+    d3k.py = py2;
+    d3k.heading = atan2(ky - py2, kx - px2);           // face her
+    sim_equip_by_key(d3k, "short_bow");
+    for _ in 0..60 { sim_give_item(d3k, "arrow"); }
+    sim_compute_fov(d3k);                              // FOV is constant while the player stays put
+    for _ in 0..50 { sim_fire(d3k); }                  // empty the quiver into the throne (boss + guards)
+    kill_flag = d3k.boss_slain;
+  }
+
+  // 4) the infestation is gated on boss_slain, and it THICKENS toward the surface
+  //
+  // ⚠ MEASURED AGAINST EACH DEPTH'S OWN BASELINE, and that is the whole row. `count_glyph`
+  // counts every "J" on the level, and normal generation places snakes too — so the raw
+  // totals mix the brood with the local wildlife. This used to assert `inf1 > inf2` on those
+  // raw totals and it passed on world 777 by luck: depth 2 there happened to hold 4 natural
+  // snakes (4 + 4 brood = 8) against depth 1's 11 + 0. On the SHIPPED world depth 2 holds
+  // more, both totals come out at 11, and the same healthy mechanism reads as broken.
+  // Subtracting each depth's boss-not-slain population cancels the wildlife, so what is left
+  // is the brood alone — which is the thing the claim is about, in any world.
+  clean1 = count_glyph(sim_new_gen(1337, 1), "J");       // depth 1, no boss killed -> no brood
+  d3n = sim_new_gen(1337, 3);                           // the SAME ascent with the throne intact
+  base2 = count_glyph(sim_descend(d3n, -1), "J");
+  d3i = sim_new_gen(1337, 3);
+  d3i.boss_slain = 1;                                   // the throne has fallen
+  up2 = sim_descend(d3i, -1);                           // ascend to depth 2 -> some snakes
+  up1 = sim_descend(up2, -1);                           // ascend to depth 1 -> crawling
+  inf2 = count_glyph(up2, "J");
+  inf1 = count_glyph(up1, "J");
+  brood2 = inf2 - base2;                                // the brood alone, wildlife cancelled
+  brood1 = inf1 - clean1;
+
+  // 5) the WANTED poster: a notice board stands on the square; walking onto it takes the bounty
+  t5 = sim_new_gen(1337, 0);
+  bq = -1;
+  br = -1;
+  for r5 in 0..101 {
+    for q5 in 0..101 {
+      if bq < 0 && tile_at(t5, q5, r5) == 8 { bq = q5; br = r5; }
+    }
+  }
+  board = bq >= 0;
+  if board {
+    sim_teleport(t5, bq, br);
+    sim_step(t5, 0, 0, 0.016);
+  }
+  took = sim_quest_poster(t5) == 1;
+
+  // 6) the hunt: the ruin nest lives windows away; its boss is TRAIT-tagged, never named
+  // ⚠ Was the literal window (-1,-4) — see the wizard note below; the same baked-in home
+  // position. Walk the world's own ruin list and take the first window that holds a boss.
+  rw = sim_new_gen_s(1337, 0, 0, 0, -1, -4);
+  bossi = -1;
+  for ri9 in 0..sim_ruin_count() {
+    if bossi < 0 {
+      (rx9, ry9) = sim_ruin_pos(ri9);
+      (rwx9, rwy9) = sim_window_of(rx9, ry9);
+      if rwx9 != 0 || rwy9 != 0 {            // the home window carries no ruin nest
+        cand = sim_new_gen_s(1337, 0, 0, 0, rwx9, rwy9);
+        for bi in 0..sim_enemy_count(cand) {
+          if bossi < 0 && (sim_enemy_tags(cand, bi) & TAG_RUIN_BOSS) != 0
+             && sim_enemy_alive(cand, bi) {
+            bossi = bi;
+            rw = cand;
+          }
+        }
+      }
+    }
+  }
+  rw.q_poster = 1;                                     // the poster was read back in town
+  hunted = false;
+  if bossi >= 0 {
+    (bx5, by5) = sim_enemy_pos(rw, bossi);
+    (bq5, br5) = px_to_hex(bx5, by5);
+    (hx5, hy5) = hex_to_px(bq5 - 1, br5);
+    rw.px = hx5;
+    rw.py = hy5;
+    rw.heading = atan2(by5 - hy5, bx5 - hx5);
+    sim_equip_by_key(rw, "short_bow");
+    for _ in 0..90 { sim_give_item(rw, "arrow"); }
+    sim_compute_fov(rw);
+    for _ in 0..80 { sim_fire(rw); }                   // chew through the nest to the chief
+    hunted = sim_quest_poster(rw) == 2;
+  }
+
+  // 7) the claim: the bounty is paid IN PERSON by the guard master (an
+  //    existing town figure — the board only posts the work)
+  t5.q_poster = 2;                                     // (the carry across windows is the travel lists')
+  gmi = -1;
+  for ei0 in 0..sim_enemy_count(t5) {
+    if gmi < 0 && sim_enemy_key(t5, ei0) == "guard_master" { gmi = ei0; }
+  }
+  gold0 = sim_gold(t5);
+  sim_talk_to(t5, gmi);
+  paid = gmi >= 0 && sim_quest_poster(t5) == 3 && sim_gold(t5) == gold0 + 150;
+
+  // 8) the Circle's line: the merchant points at the EXISTING tower wizard
+  //    (window -3,-2 — the lit tower, no spawned quest-giver); he asks, the
+  //    kill pays + REVEALS the pool
+  mi = -1;
+  for ei in 0..sim_enemy_count(t5) {
+    if mi < 0 && sim_enemy_glyph(t5, ei) == "M" { mi = ei; }
+  }
+  sim_talk_to(t5, mi);
+  pointed = sim_quest_mage(t5) == 1;
+  // ⚠ Was the literal window (-3,-2) — right only while the home town sat where it sat.
+  // Ask the world where the living wizard's tower is, then which window holds it.
+  (wzx, wzy) = sim_wizard_tower();
+  (wwx9, wwy9) = sim_window_of(wzx, wzy);
+  ww = sim_new_gen_s(1337, 0, 0, 0, wwx9, wwy9);
+  gi5 = -1;
+  for ei2 in 0..sim_enemy_count(ww) {
+    if gi5 < 0 && sim_enemy_key(ww, ei2) == "wizard" { gi5 = ei2; }
+  }
+  sim_talk_to(ww, gi5);
+  asked = gi5 >= 0 && sim_quest_mage(ww) == 2;
+  ww.boss_slain = 1;                                   // the desert dweller has fallen (section 3 is the kill)
+  goldb = sim_gold(ww);
+  sim_talk_to(ww, gi5);
+  rewarded = sim_quest_mage(ww) == 3 && sim_gold(ww) == goldb + 250
+          && sim_find_item(ww, "circle_writ") >= 0 && sim_find_item(ww, "circle_phial") >= 0;
+
+  // 9) the POOL: the throne ring is shallow magical water; standing in it fills the phial
+  d3p = sim_new_gen(1337, 3);
+  poolq = -1;
+  poolr = -1;
+  for pr5 in 0..41 {
+    for pq5 in 0..41 {
+      if poolq < 0 && tile_at(d3p, pq5, pr5) == 9 { poolq = pq5; poolr = pr5; }
+    }
+  }
+  pool = poolq >= 0 && hex_distance(poolq, poolr, d3p.dn_q, d3p.dn_r) <= 2;
+  sim_give_item(d3p, "circle_phial");
+  filled = false;
+  if pool {
+    sim_teleport(d3p, poolq, poolr);
+    sim_step(d3p, 0, 0, 0.016);
+    filled = sim_find_item(d3p, "phial_brimming") >= 0 && sim_find_item(d3p, "circle_phial") < 0;
+  }
+
+  // 10) the DELIVERY: a brimming phial pays 60 at the tower and comes back
+  //     empty — the constant resource
+  sim_give_item(ww, "phial_brimming");
+  goldc = sim_gold(ww);
+  sim_talk_to(ww, gi5);
+  delivered = sim_gold(ww) == goldc + 60 && sim_find_item(ww, "phial_brimming") < 0;
+
+  // 11) the way OUT: the surface is a real stair destination again (rewards get claimed)
+  d1c = sim_new_gen(1337, 1);
+  upc = sim_descend(d1c, -1);
+  wayout = sim_depth(upc) == 0;
+
+  println("granted={granted}  setpiece={setpiece} (naga={naga_i} guards={guards} near={near})  boss_flag={kill_flag}");
+  println("poster: board={board} took={took} hunted={hunted} paid={paid}");
+  println("circle: pointed={pointed} asked={asked} rewarded={rewarded} pool={pool} filled={filled} delivered={delivered} wayout={wayout}");
+  // ⚠ AN IDENTITY, NOT A THRESHOLD. With the wildlife cancelled the brood is exactly what
+  // the bundle declares, so the row can ask for that rather than for "enough" — and it is
+  // read from `world_placement()` rather than copied, so a bundle that re-authors its
+  // infestation moves the expectation with it instead of quietly failing an engine test.
+  want1 = world_placement().infest_d1;
+  want2 = world_placement().infest_d2;
+  println("infestation: clean-d1={clean1} d1={inf1} (brood {brood1}, declared {want1}) · natural-d2={base2} d2={inf2} (brood {brood2}, declared {want2})");
+  if brood1 != want1 || brood2 != want2 {
+    println("FAIL: the brood is {brood1}/{brood2} against the bundle's declared {want1}/{want2}");
+  }
+  if brood1 <= brood2 {
+    println("FAIL: the brood does not thicken toward the surface — {brood1} at depth 1 against {brood2} at depth 2");
+  }
+  ok = granted && setpiece && kill_flag == 1
+    && clean1 == 0 && brood1 == want1 && brood2 == want2 && brood1 > brood2
+    && board && took && hunted && paid && pointed && asked && rewarded
+    && pool && filled && delivered && wayout;
+  if ok { println("=== QUEST OK ==="); } else { println("=== FAIL ==="); }
+}

@@ -1,0 +1,1548 @@
+// overland — the contract wilderness (OVERLAND.md §7/§12), kernel-side.
+//
+// The EXAMPLE WORLD from the blueprint experiment (tools/triangle_blueprint.py)
+// authored as a 9x7 overland hex map at the NATURAL scale (1.5 km tiles): two
+// mountains beside each other, a mountain on the sea, a mountain on a lake,
+// hills/forest/plains. The OWNERSHIP CONTRACTS resolve it:
+//   VERTEX (hex center): valley elevation + jittered control point
+//   SIDE   (center-center, where flow runs): the curved river course with a
+//          MONOTONE bed (water never flows uphill — invariant I3)
+//   CORNER (triple point): the peak, jittered OFF the exact lattice point
+//   EDGE   (corner-corner): dry -> a saddled ridge; wet -> a water gap
+// and a ZAngband-style zonation pass turns samples into walkable terrain
+// KINDS (forest belts, eroded faces with scree, alpine meadows, snow cut by
+// rock, glaciers that melt into streams).
+//
+// Pure functions of (the authored world, x, y) in NATURAL meters — the seam
+// invariant holds; the game walks it at OV_STEP natural meters per fine hex
+// (100 steps across a dual triangle side = 1.5 km).
+//
+// Invariants (tested in overlandtest): I1 no inland sea (solid land floored
+// above sea level), I2 lakes exactly level, I3 water never flows uphill.
+
+use hex_grid::*;
+use hex_terrain;
+
+// ── terrain kinds (the game-facing vocabulary) ─────────────────────────────
+pub const K_GRASS  = 0;   // plains, clearings, alluvial floors
+pub const K_FOREST = 1;   // tree stands (walkable)
+pub const K_SAND   = 2;   // beach
+pub const K_SCREE  = 3;   // rubble below the stone faces
+pub const K_MEADOW = 4;   // alpine shelves
+pub const K_SNOW   = 5;
+pub const K_FACE   = 6;   // eroded stone face — IMPASSABLE (a wall)
+pub const K_ICE    = 7;   // glacier tongue (walkable)
+pub const K_RIVER  = 8;   // shallow running water (walkable, fordable)
+pub const K_LAKE   = 9;   // still water — impassable
+pub const K_SEA    = 10;  // open sea — impassable
+pub const K_FIELD  = 11;  // farmers' fields around a town (walkable)
+pub const K_ROAD   = 12;  // road/path between towns (walkable)
+pub const K_SWAMP  = 13;  // marsh: water against flat land, worst at confluences
+
+pub fn ov_walkable(kind: integer) -> boolean {
+  kind != K_FACE && kind != K_LAKE && kind != K_SEA
+}
+
+// One walked fine hex = this many NATURAL meters (100 steps per 1.5 km side).
+pub const OV_STEP = 15.0;
+
+// ── the authored example world (9 x 7, odd-r) ──────────────────────────────
+// materials: 0=sea 1=lake 2=plain 3=forest 4=hill 5=mountain
+const OV_NX = 9;
+const OV_NY = 7;
+const OV_TILE = 1500.0;
+const OV_SEA = 0.0;
+// REAL-METRE defaults derived from the Ortler study (@PLN1 tuned-defaults.md). The example
+// world is scaled to real Alpine metres (peaks ~3840 m) so these absolute thresholds apply.
+// These four are the tuning knobs — re-tune here (keep tuned-defaults.md in sync).
+const OV_LAKE_LVL = 510.0;
+const TREEL = 2150.0;   // treeline: forest below, alpine meadow above
+// The floor under the ALPINE KINDS: below this, `ov_kind_at`'s mountain arm cannot return
+// scree, so a window that never reaches it cannot carry a picking ground or a mine.
+// ⚠ ONE OWNER ON PURPOSE — `ov_kind_at` tests it and `ov_home_town` gates on it, and those
+// two silently disagreeing is a starting town whose economy has nowhere to stand.
+const ALPINE_MIN = 270.0;
+const ALPINE_TOP = 2500.0; // alpine meadow gives way to scree (grass p50 2316, dominant 2300-2499)
+const SNOWL = 3100.0;   // sn/ glacier line
+const MELT = 2600.0;    // glacier ice persists above this
+// Glacier p10 = 2970 m: a tenth of real glacier sits below the snow line, so snow may reach
+// this far down on gentle ground — and NO further. It used to reach SNOWL - 870 = 2230 m,
+// which silently erased the entire alpine meadow band (see ov_kind_at).
+const SNOW_REACH = 2970.0;
+
+fn ov_mat_rows() -> vector<integer> {
+  m: vector<integer> = [];
+  m += [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  m += [0, 5, 4, 3, 3, 3, 3, 4, 0];
+  m += [0, 4, 2, 3, 5, 5, 4, 2, 0];
+  m += [0, 2, 4, 4, 4, 5, 4, 2, 0];
+  m += [0, 2, 2, 4, 4, 1, 2, 2, 0];   // a FLAT eastern lakeshore: marsh ground
+  m += [0, 2, 2, 2, 4, 2, 2, 2, 0];
+  m += [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  m
+}
+
+// per-material: height, peak boost, steepness
+fn ov_hgt_of(m: integer) -> float {           // real metres (~3x the old compressed scale)
+  if m == 0 { return -180.0; }
+  if m == 1 { return OV_LAKE_LVL; }
+  if m == 2 { return 75.0; }     // plains lie LOW and FLAT (the floodplain)
+  if m == 3 { return 135.0; }
+  if m == 4 { return 810.0; }
+  if m == 6 { return 120.0; }    // DESERT: the rain shadow's dry floor
+  2850.0
+}
+fn ov_boost_of(m: integer) -> float {          // peak amplitude (peaks derive from this)
+  if m == 0 || m == 1 { return 0.0; }
+  if m == 2 { return 54.0; }
+  if m == 3 { return 105.0; }
+  if m == 4 { return 330.0; }
+  if m == 6 { return 42.0; }
+  990.0
+}
+fn ov_steep_of(m: integer) -> float {
+  if m == 0 || m == 1 { return 1.0; }
+  if m == 2 { return 2.5; }
+  if m == 3 { return 5.0; }
+  if m == 4 { return 28.0; }
+  if m == 6 { return 4.0; }
+  80.0
+}
+
+// ── the resolved contract world ────────────────────────────────────────────
+pub struct OvSide {
+  os_x:    vector<float> not null,   // the curved course (natural meters)
+  os_y:    vector<float> not null,
+  os_bed:  vector<float> not null,   // monotone bed along the course
+  os_ws:   vector<float> not null,   // water width per point (estuary funnel)
+  os_acc:  float not null,
+  os_w:    float not null,           // water width (nominal; ws carries the taper)
+  os_ice:  float not null,           // glacier half-width (0 = none)
+  os_vw:   float not null,           // carve falloff width
+  os_x0:   float not null,           // bbox incl. influence apron
+  os_y0:   float not null,
+  os_x1:   float not null,
+  os_y1:   float not null,
+}
+
+pub struct OvPeak {
+  op_x:     float not null,
+  op_y:     float not null,
+  op_amp:   float not null,
+  op_rad:   float not null,
+  op_steep: float not null,
+}
+
+pub struct OvRidge {
+  or_x:    vector<float> not null,   // displaced crest polyline
+  or_y:    vector<float> not null,
+  or_aamp: float not null,
+  or_bamp: float not null,
+  or_sadl: float not null,
+  or_x0:   float not null,
+  or_y0:   float not null,
+  or_x1:   float not null,
+  or_y1:   float not null,
+}
+
+pub struct OvTown {
+  ot_x:    float not null,    // the town center (the cell's vertex point)
+  ot_y:    float not null,
+  ot_size: integer not null,  // 1 small .. 3 big
+  ot_bld:  float not null,    // building-cluster radius
+  ot_fld:  float not null,    // field/clearing radius (the farmers' cut)
+}
+
+pub struct OvRoad {
+  rd_x:  vector<float> not null,
+  rd_y:  vector<float> not null,
+  rd_x0: float not null,
+  rd_y0: float not null,
+  rd_x1: float not null,
+  rd_y1: float not null,
+  rd_faded: integer not null,   // 1 = a SPOTTED path to a ruin (history's leftovers)
+}
+
+pub struct OvWiz {
+  wz_x:    float not null,    // a wizard's tower: REMOTE (they want privacy)
+  wz_y:    float not null,
+  wz_dead: integer not null,  // 1 = abandoned long ago
+}
+
+pub struct OvRuin {
+  ru_x:    float not null,    // a settlement that FELL — the maximal history's loss
+  ru_y:    float not null,
+  ru_size: integer not null,  // 1 village ruin, 2 broken castle-town, 3 dead city
+}
+
+pub struct OvSwamp {
+  ow_x: float not null,    // a confluence pool: two rivers meeting on the flat
+  ow_y: float not null,
+  ow_r: float not null,
+}
+
+pub struct OvStop {
+  op2_x: float not null,    // a roadside waystation: carts park here at night
+  op2_y: float not null,
+}
+
+pub struct OvFort {
+  of_x:  float not null,    // the keep's spot: ABOVE its town, watching the ways
+  of_y:  float not null,
+  of_tw: integer not null,  // the town it protects
+}
+
+pub struct Overland {
+  ov_seed:   integer not null,
+  ov_mat:    vector<integer> not null,
+  ov_flow:   vector<integer> not null,
+  ov_acc:    vector<float> not null,
+  ov_sides:  vector<OvSide> not null,
+  ov_peaks:  vector<OvPeak> not null,
+  ov_ridges: vector<OvRidge> not null,
+  ov_towns:  vector<OvTown> not null,
+  ov_roads:  vector<OvRoad> not null,
+  ov_forts:  vector<OvFort> not null,
+  ov_swamps: vector<OvSwamp> not null,
+  ov_stops:  vector<OvStop> not null,
+  ov_ruins:  vector<OvRuin> not null,
+  ov_wiz:    vector<OvWiz> not null,
+}
+
+const OV_RC = 866.0254037844386;     // OV_TILE / sqrt(3): circumradius
+const OV_VS = 1299.0381056766578;    // 1.5 * OV_RC: vertical pitch
+
+fn ov_center(c: integer, r: integer) -> (float, float) {
+  (((c as float) + 0.5 * ((r & 1) as float)) * OV_TILE, (r as float) * OV_VS)
+}
+
+fn ov_mat(mats: vector<integer>, c: integer, r: integer) -> integer {
+  if c >= 0 && c < OV_NX && r >= 0 && r < OV_NY {
+    return mats[r * OV_NX + c] ?? 0;
+  }
+  0
+}
+
+// canonical scalar hash over id parts (trap-safe: 31-bit masks throughout)
+fn ov_chash(a1: integer, a2: integer, a3: integer, a4: integer, ch: integer) -> float {
+  n = 7 * 1597334677 & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a1 * 73856093) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = (n ^ (n >> 11)) & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a2 * 19349663) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a3 * 83492791) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = ((n * 31) ^ ((a4 * 1297357571) & 0x7FFFFFFF)) & 0x7FFFFFFF;
+  n = (n ^ (ch * 668265263)) & 0x7FFFFFFF;
+  n = (n ^ (n >> 13)) & 0x7FFFFFFF;
+  n = (n * 1274126177) & 0x7FFFFFFF;
+  ((n ^ (n >> 16)) & 0x7FFFFFFF) as float / 2147483648.0
+}
+
+fn ov_vertex(c: integer, r: integer) -> (float, float) {
+  (cx, cy) = ov_center(c, r);
+  jx = (ov_chash(c, r, 0, 0, 6) - 0.5) * 0.55 * OV_RC;
+  jy = (ov_chash(c, r, 0, 0, 7) - 0.5) * 0.55 * OV_RC;
+  (cx + jx, cy + jy)
+}
+
+fn ov_edge_bit(ca: integer, ra: integer, cb: integer, rb: integer) -> (float, float) {
+  c1 = ca; r1 = ra; c2 = cb; r2 = rb;
+  if ca > cb || (ca == cb && ra > rb) {
+    c1 = cb; r1 = rb; c2 = ca; r2 = ra;
+  }
+  (x1, y1) = ov_center(c1, r1);
+  (x2, y2) = ov_center(c2, r2);
+  d = sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)) ?? 0.0;
+  px = 0.0 - (((y2 - y1) / d) ?? 0.0);
+  py = ((x2 - x1) / d) ?? 0.0;
+  off = 0.30 * OV_RC;
+  if ov_chash(c1, r1, c2, r2, 5) < 0.5 { off = 0.0 - off; }
+  ((x1 + x2) * 0.5 + px * off, (y1 + y2) * 0.5 + py * off)
+}
+
+// fractal midpoint displacement (canonical: hashes the rounded endpoints)
+fn ov_displace(xs: vector<float>, ys: vector<float>, open_: float, lvl: integer,
+               ox: vector<float>, oy: vector<float>) {
+  if lvl > 5 {
+    for i in 0..len(xs) { ox += [xs[i] ?? 0.0]; oy += [ys[i] ?? 0.0]; }
+    return;
+  }
+  nx2: vector<float> = [];
+  ny2: vector<float> = [];
+  moved = false;
+  for i in 0..len(xs) - 1 {
+    ax = xs[i] ?? 0.0;
+    ay = ys[i] ?? 0.0;
+    bx = xs[i + 1] ?? 0.0;
+    by = ys[i + 1] ?? 0.0;
+    nx2 += [ax];
+    ny2 += [ay];
+    seg = sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay)) ?? 0.0;
+    if seg >= 170.0 {
+      moved = true;
+      px = 0.0 - (((by - ay) / seg) ?? 0.0);
+      py = ((bx - ax) / seg) ?? 0.0;
+      hq = ov_chash(round(ax) as integer, round(ay) as integer,
+                    round(bx) as integer, round(by) as integer, 100 + lvl);
+      dd = (hq - 0.5) * 2.0 * seg * 0.34 * open_;
+      nx2 += [(ax + bx) * 0.5 + px * dd];
+      ny2 += [(ay + by) * 0.5 + py * dd];
+    }
+  }
+  nx2 += [xs[len(xs) - 1] ?? 0.0];
+  ny2 += [ys[len(ys) - 1] ?? 0.0];
+  if moved {
+    ov_displace(nx2, ny2, open_, lvl + 1, ox, oy);
+  } else {
+    for i in 0..len(nx2) { ox += [nx2[i] ?? 0.0]; oy += [ny2[i] ?? 0.0]; }
+  }
+}
+
+// neighbor dir k -> the two corner indices of the shared edge (pointy-top,
+// odd-r neighbor order E,W,NE,NW,SE,SW; corner k at angle 30+60k degrees)
+fn ov_edge_corners(d: integer) -> (integer, integer) {
+  if d == 0 { return (5, 0); }
+  if d == 4 { return (0, 1); }
+  if d == 5 { return (1, 2); }
+  if d == 1 { return (2, 3); }
+  if d == 3 { return (3, 4); }
+  (4, 5)
+}
+
+fn ov_corner_pos(c: integer, r: integer, k: integer) -> (float, float) {
+  (cx, cy) = ov_center(c, r);
+  ang = 0.5235987755982988 + (k as float) * 1.0471975511965976;
+  (cx + OV_RC * cos(ang), cy + OV_RC * sin(ang))
+}
+
+// the two neighbor dirs meeting at corner k
+fn ov_corner_nb(k: integer) -> (integer, integer) {
+  if k == 0 { return (0, 4); }
+  if k == 1 { return (4, 5); }
+  if k == 2 { return (5, 1); }
+  if k == 3 { return (1, 3); }
+  if k == 4 { return (3, 2); }
+  (2, 0)
+}
+
+// ── building the world (contracts resolved once) ───────────────────────────
+pub fn overland_new() -> Overland {
+  mats = ov_mat_rows();
+  n = OV_NX * OV_NY;
+  // THE RAIN SHADOW: the prevailing wind blows west -> east; plains lying
+  // within two cells EAST of a mountain get no rain — full DESERT biome
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      i = r * OV_NX + c;
+      if (mats[i] ?? 0) == 2 {
+        shadow = false;
+        for back in 1..3 {
+          if ov_mat(mats, c - back, r) == 5 { shadow = true; }
+        }
+        if shadow {
+          if i < len(mats) { mats[i] = 6; }
+        }
+      }
+    }
+  }
+  flow: vector<integer> = [];
+  acc: vector<float> = [];
+  for fi9 in 0..n {
+    flow += [-1];
+    runoff = 1.0;
+    if (mats[fi9] ?? 0) == 6 { runoff = 0.1; }   // deserts feed the rivers almost nothing
+    acc += [runoff];
+  }
+  // steepest descent (lake cells terminate; sea has no flow)
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      m = ov_mat(mats, c, r);
+      if ov_hgt_of(m) <= OV_SEA || m == 1 { continue; }
+      bh = ov_hgt_of(m);
+      bi = -1;
+      for d in 0..6 {
+        (nc, nr) = hex_neighbor(c, r, d);
+        nh = ov_hgt_of(ov_mat(mats, nc, nr));
+        if nh < bh { bh = nh; bi = d; }
+      }
+      i = r * OV_NX + c;
+      if i < len(flow) { flow[i] = bi; }
+    }
+  }
+  // accumulation: high cells drain first (selection over the 63 cells)
+  taken: vector<boolean> = [];
+  for _ in 0..n { taken += [false]; }
+  for _ in 0..n {
+    best = -1;
+    bh = 0.0 - 1.0e18;
+    for ti in 0..n {
+      hv = ov_hgt_of(mats[ti] ?? 0);
+      if !(taken[ti] ?? true) && hv > bh { bh = hv; best = ti; }
+    }
+    if best >= 0 {
+      if best < len(taken) { taken[best] = true; }
+      bc = (best % OV_NX) ?? 0;
+      br = ((best - bc) / OV_NX) ?? 0;
+      bi = flow[best] ?? -1;
+      if bi >= 0 {
+        (nc, nr) = hex_neighbor(bc, br, bi);
+        if nc >= 0 && nc < OV_NX && nr >= 0 && nr < OV_NY {
+          j = nr * OV_NX + nc;
+          if j < len(acc) {
+            acc[j] = (acc[j] ?? 1.0) + (acc[best] ?? 1.0);
+          }
+        }
+      }
+    }
+  }
+  // SWAMPS: water against FLAT terrain — especially where two rivers flow
+  // into one another (confluence pools on plains/forest cells)
+  swamps: vector<OvSwamp> = [];
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      m9 = ov_mat(mats, c, r);
+      if m9 == 2 || m9 == 3 || m9 == 4 {
+        indeg = 0;
+        intot = 0.0;
+        for d in 0..6 {
+          (nc, nr) = hex_neighbor(c, r, d);
+          if nc >= 0 && nc < OV_NX && nr >= 0 && nr < OV_NY {
+            j9 = nr * OV_NX + nc;
+            bj9 = flow[j9] ?? -1;
+            if bj9 >= 0 {
+              (qc9, qr9) = hex_neighbor(nc, nr, bj9);
+              if qc9 == c && qr9 == r {
+                indeg = indeg + 1;
+                intot = intot + (acc[j9] ?? 1.0);
+              }
+            }
+          }
+        }
+        if indeg >= 2 && intot >= 2.5 {
+          (swx, swy) = ov_vertex(c, r);
+          swamps += [OvSwamp { ow_x: swx, ow_y: swy,
+                               ow_r: min(420.0, 110.0 * sqrt(intot)) }];
+        }
+      }
+    }
+  }
+
+  // SIDES: one per flowing cell — curved course + monotone bed + glacier flag
+  sides: vector<OvSide> = [];
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      i = r * OV_NX + c;
+      bi = flow[i] ?? -1;
+      if bi < 0 { continue; }
+      (nc, nr) = hex_neighbor(c, r, bi);
+      hA = ov_hgt_of(ov_mat(mats, c, r));
+      mB = ov_mat(mats, nc, nr);
+      hB = ov_hgt_of(mB);
+      slope = abs(hA - hB) / OV_TILE;
+      open_ = max(0.38, 1.0 - slope / 0.12);
+      (vax, vay) = ov_vertex(c, r);
+      (ebx, eby) = ov_edge_bit(c, r, nc, nr);
+      (vbx, vby) = ov_vertex(nc, nr);
+      rxs: vector<float> = [vax, ebx, vbx];
+      rys: vector<float> = [vay, eby, vby];
+      pxs: vector<float> = [];
+      pys: vector<float> = [];
+      ov_displace(rxs, rys, open_, 0, pxs, pys);
+      // bed: monotone ramp between the vertex-owned levels (I3); inflows to
+      // the lake LAND on its surface, the sea on -5
+      bedA = hA - 15.0;
+      bedB = hB - 15.0;
+      if mB == 1 { bedB = OV_LAKE_LVL; }
+      if hB <= OV_SEA { bedB = -15.0; }
+      tot = 0.0;
+      for k in 0..len(pxs) - 1 {
+        dx2 = (pxs[k + 1] ?? 0.0) - (pxs[k] ?? 0.0);
+        dy2 = (pys[k + 1] ?? 0.0) - (pys[k] ?? 0.0);
+        tot = tot + sqrt(dx2 * dx2 + dy2 * dy2);
+      }
+      if tot < 0.001 { tot = 0.001; }
+      beds: vector<float> = [];
+      run = 0.0;
+      for k in 0..len(pxs) {
+        if k > 0 {
+          dx2 = (pxs[k] ?? 0.0) - (pxs[k - 1] ?? 0.0);
+          dy2 = (pys[k] ?? 0.0) - (pys[k - 1] ?? 0.0);
+          run = run + sqrt(dx2 * dx2 + dy2 * dy2);
+        }
+        beds += [bedA + (bedB - bedA) * ((run / tot) ?? 0.0)];
+      }
+      a = acc[i] ?? 1.0;
+      wnom = (2.0 + 2.2 * sqrt(a)) * (0.35 + 0.65 * open_);
+      // THE ESTUARY (user rule): a sea mouth is never straight-walled — the
+      // daily tide pushes in and broadens it, UNLESS the river drops steeply
+      wend = wnom;
+      if hB <= OV_SEA {
+        wend = wnom * (1.0 + 3.0 * max(0.0, open_ - 0.45));
+      }
+      ws: vector<float> = [];
+      run2 = 0.0;
+      for k in 0..len(pxs) {
+        if k > 0 {
+          dx3 = (pxs[k] ?? 0.0) - (pxs[k - 1] ?? 0.0);
+          dy3 = (pys[k] ?? 0.0) - (pys[k - 1] ?? 0.0);
+          run2 = run2 + sqrt(dx3 * dx3 + dy3 * dy3);
+        }
+        tt2 = (run2 / tot) ?? 0.0;
+        ws += [wnom + (wend - wnom) * tt2 * tt2];   // the funnel opens AT the mouth
+      }
+      glac = hA >= 2400.0;
+      icew = 0.0;
+      if glac { icew = 75.0 + 45.0 * (sqrt(a) ?? 0.0); }
+      vw = 150.0 + 2.0 * wnom;
+      if glac { vw = vw * 2.3; }
+      x0 = pxs[0] ?? 0.0; y0 = pys[0] ?? 0.0; x1 = x0; y1 = y0;
+      for k in 0..len(pxs) {
+        x0 = min(x0, pxs[k] ?? 0.0); x1 = max(x1, pxs[k] ?? 0.0);
+        y0 = min(y0, pys[k] ?? 0.0); y1 = max(y1, pys[k] ?? 0.0);
+      }
+      ap = 4.0 * vw + icew + 60.0;
+      sides += [OvSide { os_x: pxs, os_y: pys, os_bed: beds, os_ws: ws, os_acc: a,
+                         os_w: wnom,
+                         os_ice: icew, os_vw: vw,
+                         os_x0: x0 - ap, os_y0: y0 - ap, os_x1: x1 + ap, os_y1: y1 + ap }];
+    }
+  }
+  // STABILITY: bigger water first. SELECTION into a fresh vector — never swap
+  // struct elements in place (slot assignment COPIES into the slot's storage,
+  // so a held link reads the overwrite: the classic store-copy trap).
+  sorted2: vector<OvSide> = [];
+  used9: vector<boolean> = [];
+  for _ in 0..len(sides) { used9 += [false]; }
+  for _ in 0..len(sides) {
+    bi9 = -1;
+    ba9 = -1.0;
+    for i9 in 0..len(sides) {
+      sdx = sides[i9];
+      if !(used9[i9] ?? true) && sdx != null {
+        if sdx.os_acc > ba9 { ba9 = sdx.os_acc; bi9 = i9; }
+      }
+    }
+    if bi9 >= 0 {
+      if bi9 < len(used9) { used9[bi9] = true; }
+      sdy = sides[bi9];
+      if sdy != null { sorted2 += [sdy]; }
+    }
+  }
+  sides = sorted2;
+  // PEAKS: corner-owned, jittered off the exact triple point, deduped
+  peaks: vector<OvPeak> = [];
+  pkx: vector<integer> = [];
+  pky: vector<integer> = [];
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      for k in 0..6 {
+        (px2, py2) = ov_corner_pos(c, r, k);
+        kx = round(px2) as integer;
+        ky = round(py2) as integer;
+        seen = false;
+        for q in 0..len(pkx) {
+          if (pkx[q] ?? -1) == kx && (pky[q] ?? -1) == ky { seen = true; }
+        }
+        if seen { continue; }
+        if px2 <= 0.0 || px2 >= (OV_NX as float) * OV_TILE { continue; }
+        if py2 <= 0.0 || py2 >= (OV_NY as float) * OV_VS { continue; }
+        pkx += [kx];
+        pky += [ky];
+        (d1, d2) = ov_corner_nb(k);
+        (c1, r1) = hex_neighbor(c, r, d1);
+        (c2, r2) = hex_neighbor(c, r, d2);
+        m0 = ov_mat(mats, c, r);
+        m1 = ov_mat(mats, c1, r1);
+        m2 = ov_mat(mats, c2, r2);
+        boost = max(ov_boost_of(m0), max(ov_boost_of(m1), ov_boost_of(m2)));
+        if boost <= 0.0 { continue; }
+        nhigh = 0;
+        if ov_hgt_of(m0) > 1800.0 { nhigh = nhigh + 1; }
+        if ov_hgt_of(m1) > 1800.0 { nhigh = nhigh + 1; }
+        if ov_hgt_of(m2) > 1800.0 { nhigh = nhigh + 1; }
+        boost = boost * (0.55 + 0.45 * (nhigh as float));
+        jr = ov_chash(kx, ky, 0, 0, 11) * 0.22 * OV_TILE;
+        ja = ov_chash(kx, ky, 0, 0, 12) * 6.283185307179586;
+        peaks += [OvPeak { op_x: px2 + jr * cos(ja), op_y: py2 + jr * sin(ja),
+                           op_amp: boost, op_rad: 620.0 + boost * 1.5,
+                           op_steep: max(ov_steep_of(m0), max(ov_steep_of(m1), ov_steep_of(m2))) }];
+      }
+    }
+  }
+  // RIDGES: dry edges between two real peaks -> displaced saddled crest
+  ridges: vector<OvRidge> = [];
+  for r in 0..OV_NY {
+    for c in 0..OV_NX {
+      for d in 0..3 {                  // E, W, NE — each edge visited once
+        (nc, nr) = hex_neighbor(c, r, d);
+        if nc < 0 || nc >= OV_NX || nr < 0 || nr >= OV_NY { continue; }
+        i = r * OV_NX + c;
+        j = nr * OV_NX + nc;
+        wet = false;
+        if (flow[i] ?? -1) == d { wet = true; }
+        bj = flow[j] ?? -1;
+        if bj >= 0 {
+          (qc, qr) = hex_neighbor(nc, nr, bj);
+          if qc == c && qr == r { wet = true; }
+        }
+        if wet { continue; }
+        (ka, kb) = ov_edge_corners(d);
+        (pax, pay) = ov_corner_pos(c, r, ka);
+        (pbx, pby) = ov_corner_pos(c, r, kb);
+        aamp = 0.0;
+        bamp = 0.0;
+        apx = pax; apy = pay; bpx = pbx; bpy = pby;
+        for q in 0..len(peaks) {
+          pk = peaks[q];
+          if pk != null {
+            da = sqrt((pk.op_x - pax) * (pk.op_x - pax) + (pk.op_y - pay) * (pk.op_y - pay)) ?? 0.0;
+            db = sqrt((pk.op_x - pbx) * (pk.op_x - pbx) + (pk.op_y - pby) * (pk.op_y - pby)) ?? 0.0;
+            if da < 400.0 && pk.op_amp > aamp { aamp = pk.op_amp; apx = pk.op_x; apy = pk.op_y; }
+            if db < 400.0 && pk.op_amp > bamp { bamp = pk.op_amp; bpx = pk.op_x; bpy = pk.op_y; }
+          }
+        }
+        if min(aamp, bamp) < 70.0 { continue; }
+        mx = (apx + bpx) * 0.5;
+        my = (apy + bpy) * 0.5;
+        dd = sqrt((bpx - apx) * (bpx - apx) + (bpy - apy) * (bpy - apy)) ?? 0.0;
+        if dd < 1.0 { continue; }
+        qx = 0.0 - ((bpy - apy) / dd ?? 0.0);
+        qy = (bpx - apx) / dd ?? 0.0;
+        kxa = round(pax) as integer;
+        kya = round(pay) as integer;
+        kxb = round(pbx) as integer;
+        kyb = round(pby) as integer;
+        woff = (ov_chash(kxa, kya, kxb, kyb, 21) - 0.5) * 0.3 * OV_TILE;
+        rrx: vector<float> = [apx, mx + qx * woff, bpx];
+        rry: vector<float> = [apy, my + qy * woff, bpy];
+        gx2: vector<float> = [];
+        gy2: vector<float> = [];
+        ov_displace(rrx, rry, 0.55, 0, gx2, gy2);
+        x0 = gx2[0] ?? 0.0; y0 = gy2[0] ?? 0.0; x1 = x0; y1 = y0;
+        for q in 0..len(gx2) {
+          x0 = min(x0, gx2[q] ?? 0.0); x1 = max(x1, gx2[q] ?? 0.0);
+          y0 = min(y0, gy2[q] ?? 0.0); y1 = max(y1, gy2[q] ?? 0.0);
+        }
+        ridges += [OvRidge { or_x: gx2, or_y: gy2, or_aamp: aamp, or_bamp: bamp,
+                             or_sadl: 0.42 + 0.18 * ov_chash(kxa, kya, kxb, kyb, 22),
+                             or_x0: x0 - 460.0, or_y0: y0 - 460.0,
+                             or_x1: x1 + 460.0, or_y1: y1 + 460.0 }];
+      }
+    }
+  }
+  // TOWNS: where the land can support them — along rivers, on flat fertile
+  // ground, harbors at still water; bigger towns on the better spots
+  tscore: vector<float> = [];
+  for tsi in 0..n {
+    m = mats[tsi] ?? 0;
+    sc = -1.0;
+    if m == 2 || m == 3 {                       // plains and forest edges
+      flat = 1.0 - ov_steep_of(m) / 80.0;
+      fert = 1.0;
+      if m == 3 { fert = 0.8; }
+      water = min(1.0, (acc[tsi] ?? 1.0) / 6.0) * 1.5;
+      bc = (tsi % OV_NX) ?? 0;
+      br = ((tsi - bc) / OV_NX) ?? 0;
+      for d in 0..6 {
+        (nc, nr) = hex_neighbor(bc, br, d);
+        nm = ov_mat(mats, nc, nr);
+        if nm == 1 { water = water + 0.5; }     // a lake harbor
+        if nm == 0 { water = water + 0.35; }    // a sea harbor
+      }
+      sc = flat * 1.2 + fert + water;
+    }
+    tscore += [sc];
+  }
+  towns: vector<OvTown> = [];
+  for _ in 0..4 {
+    best = -1;
+    bs = 1.2;                                    // below this no town forms
+    for twi in 0..n {
+      if (tscore[twi] ?? -1.0) > bs {
+        bc = (twi % OV_NX) ?? 0;
+        br = ((twi - bc) / OV_NX) ?? 0;
+        (tx, ty) = ov_vertex(bc, br);
+        farok = true;
+        for q in 0..len(towns) {
+          tq = towns[q];
+          if tq != null {
+            dd = sqrt((tq.ot_x - tx) * (tq.ot_x - tx) + (tq.ot_y - ty) * (tq.ot_y - ty)) ?? 0.0;
+            if dd < 2.2 * OV_TILE { farok = false; }
+          }
+        }
+        if farok { bs = tscore[twi] ?? -1.0; best = twi; }
+      }
+    }
+    if best >= 0 {
+      if best < len(tscore) { tscore[best] = -1.0; }
+      bc = (best % OV_NX) ?? 0;
+      br = ((best - bc) / OV_NX) ?? 0;
+      (tx, ty) = ov_vertex(bc, br);
+      size = 1;
+      if bs > 2.4 { size = 2; }
+      if bs > 3.0 { size = 3; }
+      towns += [OvTown { ot_x: tx, ot_y: ty, ot_size: size,
+                         ot_bld: 90.0 + 60.0 * (size as float),
+                         ot_fld: 260.0 + 130.0 * (size as float) }];
+    }
+  }
+  // THE HISTORY: the land supported MORE once. Re-score the settlement sites
+  // with a lower bar and looser spacing — the runners-up were inhabited in
+  // the maximal past, and something went wrong: they stand as RUINS now.
+  ruins: vector<OvRuin> = [];
+  rscore: vector<float> = [];
+  for rsi in 0..n {
+    m = mats[rsi] ?? 0;
+    sc = -1.0;
+    if m == 2 || m == 3 {
+      flat = 1.0 - ov_steep_of(m) / 80.0;
+      fert = 1.0;
+      if m == 3 { fert = 0.8; }
+      water = min(1.0, (acc[rsi] ?? 1.0) / 6.0) * 1.5;
+      sc = flat * 1.2 + fert + water;
+    }
+    rscore += [sc];
+  }
+  for _ in 0..4 {
+    best = -1;
+    bs = 0.9;
+    for rwi in 0..n {
+      if (rscore[rwi] ?? -1.0) > bs {
+        bc = (rwi % OV_NX) ?? 0;
+        br = ((rwi - bc) / OV_NX) ?? 0;
+        (rx5, ry5) = ov_vertex(bc, br);
+        farok = true;
+        for q in 0..len(towns) {
+          tq = towns[q];
+          if tq != null {
+            dd = sqrt((tq.ot_x - rx5) * (tq.ot_x - rx5) + (tq.ot_y - ry5) * (tq.ot_y - ry5)) ?? 0.0;
+            if dd < 1.6 * OV_TILE { farok = false; }
+          }
+        }
+        for q in 0..len(ruins) {
+          rq = ruins[q];
+          if rq != null {
+            dd = sqrt((rq.ru_x - rx5) * (rq.ru_x - rx5) + (rq.ru_y - ry5) * (rq.ru_y - ry5)) ?? 0.0;
+            if dd < 1.5 * OV_TILE { farok = false; }
+          }
+        }
+        if farok { bs = rscore[rwi] ?? -1.0; best = rwi; }
+      }
+    }
+    if best >= 0 {
+      if best < len(rscore) { rscore[best] = -1.0; }
+      bc = (best % OV_NX) ?? 0;
+      br = ((best - bc) / OV_NX) ?? 0;
+      (rx5, ry5) = ov_vertex(bc, br);
+      rsz = 1;
+      if bs > 1.8 { rsz = 2; }
+      if bs > 2.4 { rsz = 3; }
+      ruins += [OvRuin { ru_x: rx5, ru_y: ry5, ru_size: rsz }];
+    }
+  }
+
+  // WIZARD TOWERS: wizards want their PRIVACY — the remotest decent land,
+  // far from every town and ruin. One still burns its lamp; one was
+  // abandoned long ago.
+  wiz: vector<OvWiz> = [];
+  for wzi in 0..2 {
+    bwz = -1;
+    bwd = -1.0;
+    for wci in 0..n {
+      m = mats[wci] ?? 0;
+      if m == 2 || m == 3 || m == 4 {
+        bc = (wci % OV_NX) ?? 0;
+        br = ((wci - bc) / OV_NX) ?? 0;
+        (wx5, wy5) = ov_vertex(bc, br);
+        nearest = 1.0e18;
+        for q in 0..len(towns) {
+          tq = towns[q];
+          if tq != null {
+            dd = sqrt((tq.ot_x - wx5) * (tq.ot_x - wx5) + (tq.ot_y - wy5) * (tq.ot_y - wy5)) ?? 0.0;
+            if dd < nearest { nearest = dd; }
+          }
+        }
+        for q in 0..len(ruins) {
+          rq = ruins[q];
+          if rq != null {
+            dd = sqrt((rq.ru_x - wx5) * (rq.ru_x - wx5) + (rq.ru_y - wy5) * (rq.ru_y - wy5)) ?? 0.0;
+            if dd < nearest { nearest = dd; }
+          }
+        }
+        for q in 0..len(wiz) {
+          wq2 = wiz[q];
+          if wq2 != null {
+            dd = sqrt((wq2.wz_x - wx5) * (wq2.wz_x - wx5) + (wq2.wz_y - wy5) * (wq2.wz_y - wy5)) ?? 0.0;
+            if dd < nearest { nearest = dd; }
+          }
+        }
+        if nearest > bwd { bwd = nearest; bwz = wci; }
+      }
+    }
+    if bwz >= 0 && bwd > 1.05 * OV_TILE {
+      bc = (bwz % OV_NX) ?? 0;
+      br = ((bwz - bc) / OV_NX) ?? 0;
+      (wx5, wy5) = ov_vertex(bc, br);
+      wiz += [OvWiz { wz_x: wx5, wz_y: wy5, wz_dead: wzi }];
+    }
+  }
+
+  // ROADS: each town connects to the nearest earlier town by the EASIEST
+  // walking route over the cell graph (slope + terrain costs; water heavy)
+  roads: vector<OvRoad> = [];
+  for ti in 1..len(towns) {
+    ta = towns[ti];
+    if ta == null { continue; }
+    bj = -1;
+    bd = 1.0e18;
+    for tj in 0..ti {
+      tb = towns[tj];
+      if tb != null {
+        dd = sqrt((tb.ot_x - ta.ot_x) * (tb.ot_x - ta.ot_x) + (tb.ot_y - ta.ot_y) * (tb.ot_y - ta.ot_y)) ?? 0.0;
+        if dd < bd { bd = dd; bj = tj; }
+      }
+    }
+    tbn = towns[bj ?? 0];
+    if tbn == null { continue; }
+    tb = tbn as OvTown;
+    // Dijkstra over the 63 cells (selection-based; the map is tiny)
+    sr2 = round(((ta.ot_y / OV_VS) ?? 0.0)) as integer;
+    sc2 = round(((ta.ot_x / OV_TILE) ?? 0.0) - 0.5 * ((sr2 & 1) as float)) as integer;
+    ec2 = round(((tb.ot_x / OV_TILE) ?? 0.0) - 0.5 * ((round((tb.ot_y / OV_VS) ?? 0.0) as integer & 1) as float)) as integer;
+    er2 = round(((tb.ot_y / OV_VS) ?? 0.0)) as integer;
+    cost: vector<float> = [];
+    from: vector<integer> = [];
+    done2: vector<boolean> = [];
+    for _ in 0..n { cost += [1.0e18]; from += [-1]; done2 += [false]; }
+    si2 = sr2 * OV_NX + sc2;
+    if si2 >= 0 && si2 < len(cost) { cost[si2] = 0.0; }
+    for _ in 0..n {
+      cur = -1;
+      cb = 1.0e18;
+      for di in 0..n {
+        if !(done2[di] ?? true) && (cost[di] ?? 1.0e18) < cb { cb = cost[di] ?? 1.0e18; cur = di; }
+      }
+      if cur < 0 { break; }
+      if cur < len(done2) { done2[cur] = true; }
+      cc2 = (cur % OV_NX) ?? 0;
+      cr2 = ((cur - cc2) / OV_NX) ?? 0;
+      for d in 0..6 {
+        (nc, nr) = hex_neighbor(cc2, cr2, d);
+        if nc < 0 || nc >= OV_NX || nr < 0 || nr >= OV_NY { continue; }
+        j = nr * OV_NX + nc;
+        nm = ov_mat(mats, nc, nr);
+        if nm == 0 || nm == 1 { continue; }      // never through open water
+        step = 1.0 + abs(ov_hgt_of(ov_mat(mats, cc2, cr2)) - ov_hgt_of(nm)) / 90.0;
+        if nm == 5 { step = step + 6.0; }
+        if nm == 4 { step = step + 1.2; }
+        if (acc[j] ?? 1.0) >= 4.0 { step = step + 1.0; }   // fording a river
+        ncst = cb + step;
+        if ncst < (cost[j] ?? 1.0e18) {
+          if j < len(cost) { cost[j] = ncst; }
+          if j < len(from) { from[j] = cur; }
+        }
+      }
+    }
+    // walk back, build the road polyline through vertex points + edge bits
+    ei = er2 * OV_NX + ec2;
+    chain: vector<integer> = [];
+    guard = 0;
+    cur = ei;
+    while cur >= 0 && guard < 100 {
+      chain += [cur];
+      if cur == si2 { cur = -1; } else { cur = from[cur] ?? -1; }
+      guard = guard + 1;
+    }
+    if len(chain) >= 2 {
+      rxs: vector<float> = [];
+      rys: vector<float> = [];
+      k = len(chain) - 1;
+      while k >= 0 {
+        ci3 = chain[k] ?? 0;
+        c3 = (ci3 % OV_NX) ?? 0;
+        r3 = ((ci3 - c3) / OV_NX) ?? 0;
+        if k < len(chain) - 1 {
+          pi3 = chain[k + 1] ?? 0;
+          pc3 = (pi3 % OV_NX) ?? 0;
+          pr3 = ((pi3 - pc3) / OV_NX) ?? 0;
+          (ex2, ey2) = ov_edge_bit(pc3, pr3, c3, r3);
+          rxs += [ex2];
+          rys += [ey2];
+        }
+        (vx2, vy2) = ov_vertex(c3, r3);
+        rxs += [vx2];
+        rys += [vy2];
+        k = k - 1;
+      }
+      dxs: vector<float> = [];
+      dys: vector<float> = [];
+      ov_displace(rxs, rys, 0.30, 0, dxs, dys);
+      x0 = dxs[0] ?? 0.0; y0 = dys[0] ?? 0.0; x1 = x0; y1 = y0;
+      for q in 0..len(dxs) {
+        x0 = min(x0, dxs[q] ?? 0.0); x1 = max(x1, dxs[q] ?? 0.0);
+        y0 = min(y0, dys[q] ?? 0.0); y1 = max(y1, dys[q] ?? 0.0);
+      }
+      roads += [OvRoad { rd_x: dxs, rd_y: dys,
+                         rd_x0: x0 - 40.0, rd_y0: y0 - 40.0,
+                         rd_x1: x1 + 40.0, rd_y1: y1 + 40.0, rd_faded: 0 }];
+    }
+  }
+  // the ruins' SPOTTED paths: each ruin once had a road to the living world —
+  // a straight-enough displaced trace remains, faded to patches
+  for rri in 0..len(ruins) {
+    ru = ruins[rri];
+    if ru != null {
+      bj2 = -1;
+      bd2 = 1.0e18;
+      for tj2 in 0..len(towns) {
+        tb2 = towns[tj2];
+        if tb2 != null {
+          dd2 = sqrt((tb2.ot_x - ru.ru_x) * (tb2.ot_x - ru.ru_x) + (tb2.ot_y - ru.ru_y) * (tb2.ot_y - ru.ru_y)) ?? 0.0;
+          if dd2 < bd2 { bd2 = dd2; bj2 = tj2; }
+        }
+      }
+      tbn2 = towns[bj2 ?? 0];
+      if tbn2 != null {
+        tb2 = tbn2 as OvTown;
+        fxs: vector<float> = [ru.ru_x, (ru.ru_x + tb2.ot_x) * 0.5, tb2.ot_x];
+        fys: vector<float> = [ru.ru_y, (ru.ru_y + tb2.ot_y) * 0.5, tb2.ot_y];
+        gxs: vector<float> = [];
+        gys: vector<float> = [];
+        ov_displace(fxs, fys, 0.5, 0, gxs, gys);
+        x0 = gxs[0] ?? 0.0; y0 = gys[0] ?? 0.0; x1 = x0; y1 = y0;
+        for q in 0..len(gxs) {
+          x0 = min(x0, gxs[q] ?? 0.0); x1 = max(x1, gxs[q] ?? 0.0);
+          y0 = min(y0, gys[q] ?? 0.0); y1 = max(y1, gys[q] ?? 0.0);
+        }
+        roads += [OvRoad { rd_x: gxs, rd_y: gys,
+                           rd_x0: x0 - 40.0, rd_y0: y0 - 40.0,
+                           rd_x1: x1 + 40.0, rd_y1: y1 + 40.0, rd_faded: 1 }];
+      }
+    }
+  }
+  // ROAD STOPS: a cart goes SLOW — where a road leg outruns one day's travel,
+  // waystations sit at day-interval points so the merchants can park the night
+  stops: vector<OvStop> = [];
+  dayrange = 2800.0;                      // a cart's day of travel, natural meters
+  for rdi in 0..len(roads) {
+    rd0 = roads[rdi];
+    if rd0 != null {
+      arc = 0.0;
+      for k in 0..len(rd0.rd_x) - 1 {
+        dxr = (rd0.rd_x[k + 1] ?? 0.0) - (rd0.rd_x[k] ?? 0.0);
+        dyr = (rd0.rd_y[k + 1] ?? 0.0) - (rd0.rd_y[k] ?? 0.0);
+        arc = arc + sqrt(dxr * dxr + dyr * dyr);
+      }
+      nst = floor((arc / dayrange) ?? 0.0) as integer;
+      for sti in 0..nst {
+        want = dayrange * ((sti as float) + 1.0);
+        run3 = 0.0;
+        for k in 0..len(rd0.rd_x) - 1 {
+          ax3 = rd0.rd_x[k] ?? 0.0;
+          ay3 = rd0.rd_y[k] ?? 0.0;
+          bx3 = rd0.rd_x[k + 1] ?? 0.0;
+          by3 = rd0.rd_y[k + 1] ?? 0.0;
+          seg3 = sqrt((bx3 - ax3) * (bx3 - ax3) + (by3 - ay3) * (by3 - ay3)) ?? 0.0;
+          if run3 + seg3 >= want && run3 < want {
+            t3 = ((want - run3) / seg3) ?? 0.0;
+            stops += [OvStop { op2_x: ax3 + (bx3 - ax3) * t3,
+                               op2_y: ay3 + (by3 - ay3) * t3 }];
+          }
+          run3 = run3 + seg3;
+        }
+      }
+    }
+  }
+  ov0 = Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
+                   ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
+                   ov_towns: towns, ov_roads: roads, ov_forts: [], ov_swamps: swamps,
+                   ov_stops: stops, ov_ruins: ruins, ov_wiz: wiz };
+  forts = ov_fort_sites(ov0);
+  Overland { ov_seed: 7, ov_mat: mats, ov_flow: flow, ov_acc: acc,
+             ov_sides: sides, ov_peaks: peaks, ov_ridges: ridges,
+             ov_towns: towns, ov_roads: roads, ov_forts: forts, ov_swamps: swamps,
+             ov_stops: stops, ov_ruins: ruins, ov_wiz: wiz }
+}
+
+// distance to the nearest LIVING road centerline (faded paths claim nothing)
+fn ov_road_dist(o: Overland, x: float, y: float) -> float {
+  gd = 1.0e9;
+  for ri in 0..len(o.ov_roads) {
+    rd = o.ov_roads[ri];
+    if rd != null && rd.rd_faded == 0 && x >= rd.rd_x0 && x <= rd.rd_x1 && y >= rd.rd_y0 && y <= rd.rd_y1 {
+      for k in 0..len(rd.rd_x) - 1 {
+        ax = rd.rd_x[k] ?? 0.0;
+        ay = rd.rd_y[k] ?? 0.0;
+        bx = rd.rd_x[k + 1] ?? 0.0;
+        by = rd.rd_y[k + 1] ?? 0.0;
+        ex = bx - ax;
+        ey = by - ay;
+        ee = ex * ex + ey * ey;
+        if ee > 0.000000001 {
+          t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
+          ddx = x - (ax + t * ex);
+          ddy = y - (ay + t * ey);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
+          if d < gd { gd = d; }
+        }
+      }
+    }
+  }
+  gd
+}
+
+// ── sampling (pure functions of the world + natural-meter position) ────────
+
+// kernel blend of the cells around (x, y): height, wateriness, lake weight,
+// dominant LAND material (steeper wins, weight contest)
+fn ov_blend(o: Overland, x: float, y: float) -> (float, float, float, integer) {
+  ry0 = round((y / OV_VS) ?? 0.0) as integer;
+  rk2 = OV_TILE * 1.02 * OV_TILE * 1.02;
+  wsum = 0.0;
+  hsum = 0.0;
+  watsum = 0.0;
+  laksum = 0.0;
+  wm0 = 0.0; wm1 = 0.0; wm2 = 0.0; wm3 = 0.0; wm4 = 0.0; wm5 = 0.0; wm6 = 0.0;
+  for dr in 0..3 {
+    rr = ry0 + dr - 1;
+    off = 0.5 * ((rr & 1) as float);
+    c0 = floor((x / OV_TILE ?? 0.0) - off) as integer;
+    for dc in 0..4 {
+      cc = c0 + dc - 1;
+      cx = ((cc as float) + off) * OV_TILE;
+      cy = (rr as float) * OV_VS;
+      d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+      if d2 < rk2 {
+        w = 1.0 - ((d2 / rk2) ?? 0.0);
+        w = w * w;
+        m = ov_mat(o.ov_mat, cc, rr);
+        hv = ov_hgt_of(m);
+        wsum = wsum + w;
+        hsum = hsum + w * hv;
+        if m == 0 || m == 1 {
+          watsum = watsum + w;
+          if m == 1 { laksum = laksum + w; }
+        }
+        if m == 0 { wm0 = wm0 + w; }
+        if m == 1 { wm1 = wm1 + w; }
+        if m == 2 { wm2 = wm2 + w; }
+        if m == 3 { wm3 = wm3 + w; }
+        if m == 4 { wm4 = wm4 + w; }
+        if m == 5 { wm5 = wm5 + w; }
+        if m == 6 { wm6 = wm6 + w; }
+      }
+    }
+  }
+  iw = (1.0 / max(wsum, 0.000000000001)) ?? 1.0;
+  // the contest over LAND materials only (sqrt(steep) bias: steeper wins)
+  sc2 = wm2 * 1.5811;
+  sc3 = wm3 * 2.2360;
+  sc4 = wm4 * 5.2915;
+  sc5 = wm5 * 8.9442;
+  sc6 = wm6 * 2.0;
+  bestm = 2;
+  bestsc = sc2;
+  if sc3 > bestsc { bestm = 3; bestsc = sc3; }
+  if sc4 > bestsc { bestm = 4; bestsc = sc4; }
+  if sc5 > bestsc { bestm = 5; bestsc = sc5; }
+  if sc6 > bestsc { bestm = 6; bestsc = sc6; }
+  (hsum * iw, watsum * iw, laksum * iw, bestm)
+}
+
+// nearest-course fields at a point: (dist, bed, width, icew, vw)
+fn ov_course(o: Overland, x: float, y: float) -> (float, float, float, float, float) {
+  gd = 1.0e9;
+  gbed = 0.0;
+  gw = 0.0;
+  gice = 0.0;
+  gvw = 150.0;
+  for si in 0..len(o.ov_sides) {
+    sd = o.ov_sides[si];
+    if sd != null && x >= sd.os_x0 && x <= sd.os_x1 && y >= sd.os_y0 && y <= sd.os_y1 {
+      for k in 0..len(sd.os_x) - 1 {
+        ax = sd.os_x[k] ?? 0.0;
+        ay = sd.os_y[k] ?? 0.0;
+        bx = sd.os_x[k + 1] ?? 0.0;
+        by = sd.os_y[k + 1] ?? 0.0;
+        ex = bx - ax;
+        ey = by - ay;
+        ee = ex * ex + ey * ey;
+        if ee > 0.000000001 {
+          t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
+          ddx = x - (ax + t * ex);
+          ddy = y - (ay + t * ey);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
+          if d < gd {
+            gd = d;
+            gbed = (sd.os_bed[k] ?? 0.0) * (1.0 - t) + (sd.os_bed[k + 1] ?? 0.0) * t;
+            gw = (sd.os_ws[k] ?? sd.os_w) * (1.0 - t) + (sd.os_ws[k + 1] ?? sd.os_w) * t;
+            gice = sd.os_ice;
+            gvw = sd.os_vw;
+          }
+        }
+      }
+    }
+  }
+  (gd, gbed, gw, gice, gvw)
+}
+
+// the vertical structure (peaks + ridges, p-norm smooth max), pre-ceiling
+fn ov_vert(o: Overland, x: float, y: float) -> float {
+  // ridge noise: low-frequency warped ridged field (peaks consolidate)
+  wx = hex_terrain::terrain_fbm(7, x, y, 1400.0, 2, 87);
+  wy = hex_terrain::terrain_fbm(7, x, y, 1400.0, 2, 88);
+  rn = 1.0 - abs(hex_terrain::terrain_fbm(7, x + 420.0 * wx, y + 420.0 * wy, 700.0, 3, 86));
+  vp = 0.0;
+  for q in 0..len(o.ov_peaks) {
+    pk = o.ov_peaks[q];
+    if pk != null {
+      if x > pk.op_x - pk.op_rad && x < pk.op_x + pk.op_rad
+         && y > pk.op_y - pk.op_rad && y < pk.op_y + pk.op_rad {
+        d = sqrt((x - pk.op_x) * (x - pk.op_x) + (y - pk.op_y) * (y - pk.op_y)) ?? 0.0;
+        f = max(0.0, 1.0 - ((d / pk.op_rad) ?? 1.0));
+        f = pow(f, 2.1) ?? 0.0;
+        m = pk.op_amp * f * (0.62 + 0.38 * rn * min(1.0, pk.op_steep / 60.0));
+        vp = vp + pow(m, 5.0);
+      }
+    }
+  }
+  for q in 0..len(o.ov_ridges) {
+    rg = o.ov_ridges[q];
+    if rg != null && x > rg.or_x0 && x < rg.or_x1 && y > rg.or_y0 && y < rg.or_y1 {
+      tot = 0.0;
+      for k in 0..len(rg.or_x) - 1 {
+        dx2 = (rg.or_x[k + 1] ?? 0.0) - (rg.or_x[k] ?? 0.0);
+        dy2 = (rg.or_y[k + 1] ?? 0.0) - (rg.or_y[k] ?? 0.0);
+        tot = tot + sqrt(dx2 * dx2 + dy2 * dy2);
+      }
+      if tot < 0.001 { tot = 0.001; }
+      run = 0.0;
+      for k in 0..len(rg.or_x) - 1 {
+        ax = rg.or_x[k] ?? 0.0;
+        ay = rg.or_y[k] ?? 0.0;
+        bx = rg.or_x[k + 1] ?? 0.0;
+        by = rg.or_y[k + 1] ?? 0.0;
+        ex = bx - ax;
+        ey = by - ay;
+        ee = ex * ex + ey * ey;
+        seg = sqrt(ee) ?? 0.0;
+        if ee > 0.000000001 {
+          t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
+          ddx = x - (ax + t * ex);
+          ddy = y - (ay + t * ey);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
+          if d < 460.0 {
+            tg = ((run + t * seg) / tot) ?? 0.0;
+            prof = (rg.or_aamp * (1.0 - tg) + rg.or_bamp * tg)
+                 * (1.0 - rg.or_sadl * 4.0 * tg * (1.0 - tg));
+            f = 1.0 - ((d / 460.0) ?? 1.0);
+            m = prof * (pow(f, 1.6) ?? 0.0) * (0.7 + 0.3 * rn);
+            vp = vp + pow(m, 5.0);
+          }
+        }
+        run = run + seg;
+      }
+    }
+  }
+  pow(vp, 0.2)
+}
+
+fn ov_tanh(v: float) -> float {
+  e2 = exp(2.0 * v);
+  ((e2 - 1.0) / (e2 + 1.0)) ?? 1.0
+}
+
+// the full pre-zonation height at a natural-meter point (carved, lake-level)
+pub fn ov_height(o: Overland, x: float, y: float) -> float {
+  (hb, watery, lakew, _) = ov_blend(o, x, y);
+  (dist, bed, wf, icew, vw) = ov_course(o, x, y);
+  vert = ov_vert(o, x, y);
+  vert = 1560.0 * ov_tanh((vert / 1560.0) ?? 0.0);          // cut the verticality
+  gapr = max(130.0 + 3.0 * wf, icew * 1.7);                 // the water-gap rule
+  vert = vert * min(max((dist / gapr) ?? 1.0, 0.22), 1.0);
+  h = hb + vert * min(max(1.0 - watery * 1.6, 0.0), 1.0)
+    + 18.0 * hex_terrain::terrain_fbm(7, x, y, 300.0, 5, 3);
+  if watery < 0.10 { h = max(h, 0.5); }                     // I1: no inland sea
+  // carve OR FILL to the monotone bed (I3): the channel blends the terrain
+  // toward the bed from BOTH sides — cutting through rises, aggrading over
+  // dips (sediment fill) — so the centerline IS the bed, exactly
+  if hb > 0.0 && dist < 4.0 * vw {
+    shape = exp(0.0 - ((dist / vw) ?? 0.0)) * max(0.0, 1.0 - ((dist / (4.0 * vw)) ?? 1.0));
+    h = h + (bed - h) * shape;
+  }
+  // the lake: bank descends to the owned level, the surface IS the level (I2)
+  lkj = lakew + 0.09 * hex_terrain::terrain_fbm(7, x, y, 700.0, 3, 70);
+  if lkj > 0.42 {
+    h = OV_LAKE_LVL;
+  } else {
+    if lkj > 0.16 && h > OV_LAKE_LVL {
+      bank = pow(((lkj - 0.16) / 0.26) ?? 0.0, 1.4) ?? 0.0;
+      h = h - (h - (OV_LAKE_LVL + 2.4)) * bank;
+    }
+  }
+  h
+}
+
+// the full sample: height + terrain KIND (the zangband zonation pass)
+pub fn ov_sample(o: Overland, x: float, y: float) -> (float, integer) {
+  h = ov_height(o, x, y);
+  (hb, watery, lakew, mdom) = ov_blend(o, x, y);
+  (dist, bed, wf, icew, vw) = ov_course(o, x, y);
+  lkj = lakew + 0.09 * hex_terrain::terrain_fbm(7, x, y, 700.0, 3, 70);
+  if lkj > 0.42 { return (h, K_LAKE); }
+  if h <= OV_SEA { return (h, K_SEA); }
+  // slope from forward differences of the true surface. Heights are real metres (~3x the
+  // old compressed scale) on the SAME horizontal grid, so the raw gradient is ~3x; divide by
+  // that vertical scale to keep the design's tuned slope thresholds (beach/scree/face) valid.
+  e = 12.0;
+  hx = ov_height(o, x + e, y);
+  hy = ov_height(o, x, y + e);
+  slope = (sqrt((hx - h) * (hx - h) + (hy - h) * (hy - h)) / (e * 3.0)) ?? 0.0;
+  // glacier ice above the melt line
+  if icew > 0.0 && dist < icew && h > MELT { return (h, K_ICE); }
+  // the ROAD: fords rivers, yields only to open water and ice
+  rdist = ov_road_dist(o, x, y);
+  if rdist < 9.0 { return (h, K_ROAD); }
+  // the SPOTTED PATH to a ruin: only patches of it survive the years
+  fdist = ov_faded_dist(o, x, y);
+  if fdist < 8.0 {
+    spotc = ov_chash(round(x / 26.0) as integer, round(y / 26.0) as integer, 0, 0, 33);
+    if spotc < 0.45 { return (h, K_ROAD); }
+  }
+  // running water (shallow, fordable)
+  if dist < wf * 0.5 && watery < 0.5 { return (h, K_RIVER); }
+  // TOWNS: the farmers' rule — fields on the flat ground near town; the
+  // forest near town is CUT (cleared to grass); farther forest stands for
+  // wood-gathering. Buildings are stamped by the map generator (sim side).
+  for tq2 in 0..len(o.ov_towns) {
+    tw = o.ov_towns[tq2];
+    if tw != null {
+      td = sqrt((x - tw.ot_x) * (x - tw.ot_x) + (y - tw.ot_y) * (y - tw.ot_y)) ?? 0.0;
+      if td < tw.ot_fld {
+        bwx2 = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 57);
+        bwy2 = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 58);
+        band2 = hex_terrain::terrain_fbm(7, x + 260.0 * bwx2, y + 260.0 * bwy2, 240.0, 4, 55) * 0.5 + 0.5;
+        e2 = 12.0;
+        hx2 = ov_height(o, x + e2, y);
+        hy2 = ov_height(o, x, y + e2);
+        sl2 = (sqrt((hx2 - h) * (hx2 - h) + (hy2 - h) * (hy2 - h)) / (e2 * 3.0)) ?? 0.0;
+        if td < tw.ot_bld { return (h, K_GRASS); }          // the building ground
+        if sl2 < 0.14 && band2 > 0.34 { return (h, K_FIELD); }
+        return (h, K_GRASS);                                // cleared (was forest)
+      }
+    }
+  }
+  // ROADSIDE FARMS: the road makes outlying land reachable — scattered
+  // fields along it, sparser than the town belt
+  if rdist < 70.0 {
+    bwx3 = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 57);
+    bwy3 = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 58);
+    band3 = hex_terrain::terrain_fbm(7, x + 260.0 * bwx3, y + 260.0 * bwy3, 240.0, 4, 55) * 0.5 + 0.5;
+    if band3 > 0.52 {
+      e3 = 12.0;
+      hx3 = ov_height(o, x + e3, y);
+      hy3 = ov_height(o, x, y + e3);
+      sl3 = (sqrt((hx3 - h) * (hx3 - h) + (hy3 - h) * (hy3 - h)) / (e3 * 3.0)) ?? 0.0;
+      if sl3 < 0.12 { return (h, K_FIELD); }
+    }
+  }
+  // SWAMP: water against FLAT TERRAIN — flatness is judged on the COARSE land
+  // (the floodplain), not the carved channel banks: riverside marsh beside
+  // sizable water, lake-shore marsh, and the CONFLUENCE pools where two
+  // rivers meet (towns/roads above have already drained their ground)
+  if h > 0.5 && h < 800.0 {
+    nearw = dist < wf * 5.0 + 60.0 || (lakew > 0.16 && lakew < 0.42);
+    swsite = -1;
+    for sw9 in 0..len(o.ov_swamps) {
+      sp9 = o.ov_swamps[sw9];
+      if sp9 != null {
+        sd9 = sqrt((x - sp9.ow_x) * (x - sp9.ow_x) + (y - sp9.ow_y) * (y - sp9.ow_y)) ?? 0.0;
+        if sd9 < sp9.ow_r { swsite = sw9; }
+      }
+    }
+    if nearw || swsite >= 0 {
+      ec = 60.0;
+      (cbe, w1, l1, m1) = ov_blend(o, x + ec, y);
+      (cbw, w2, l2, m2) = ov_blend(o, x - ec, y);
+      (cbs, w3, l3, m3) = ov_blend(o, x, y + ec);
+      (cbn, w4, l4, m4) = ov_blend(o, x, y - ec);
+      slc = (sqrt((cbe - cbw) * (cbe - cbw) + (cbs - cbn) * (cbs - cbn)) / (2.0 * ec * 3.0)) ?? 0.0;
+      flatf = max(0.0, 1.0 - slc / 0.060);
+      swf = flatf * max(0.0, 1.0 - ((dist / (wf * 5.0 + 60.0)) ?? 1.0)) * min(1.0, wf / 4.0);
+      if lakew > 0.16 && lakew < 0.42 { swf = max(swf, flatf * 0.55); }
+      if swsite >= 0 {
+        sp0 = o.ov_swamps[swsite];
+        if sp0 != null {
+          sd0 = sqrt((x - sp0.ow_x) * (x - sp0.ow_x) + (y - sp0.ow_y) * (y - sp0.ow_y)) ?? 0.0;
+          swf = max(swf, flatf * (1.0 - ((sd0 / sp0.ow_r) ?? 1.0)) * 1.6);
+        }
+      }
+      if swf > 0.22 { return (h, K_SWAMP); }
+    }
+  }
+  // the table band (domain-warped: no axis stripes)
+  bwx = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 57);
+  bwy = hex_terrain::terrain_fbm(7, x, y, 800.0, 2, 58);
+  band = hex_terrain::terrain_fbm(7, x + 260.0 * bwx, y + 260.0 * bwy, 240.0, 4, 55) * 0.5 + 0.5;
+  // beach: near sea level, AT the water, gentle ground
+  if h < 15.0 && watery > 0.12 && slope < 0.08 { return (h, K_SAND); }
+  steep = ov_steep_of(mdom);
+  // snow crouches down onto gentle ground; faces cut through
+  if h >= SNOWL || (steep > 20.0 && h >= SNOW_REACH && slope < 0.46) {
+    if slope > 0.55 { return (h, K_FACE); }
+    if band < 0.10 && h < SNOWL + 180.0 { return (h, K_SCREE); }
+    return (h, K_SNOW);
+  }
+  if steep > 20.0 {
+    // ── THE ALPINE ZONE — BANDED BY ELEVATION, NOT BY SLOPE ─────────────────────────
+    // ⚠ The real Ortler data (@PLN1 tuned-defaults.md, OSM class + EU-DEM) is explicit:
+    // "at 1.5 km, terrain type is an ELEVATION function, not slope" — per-class slope p50
+    // is 17-22° for EVERY class, because a 1.5 km hex averages real cliff faces into a
+    // gentle ramp. Splitting meadow from scree on slope therefore separates nothing; it
+    // just scatters both. The measured crossovers are the bands below.
+    // Faces still cut through every band: a cliff is a cliff at any height.
+    if h >= TREEL {
+      if slope >= 0.60 { return (h, K_FACE); }
+      // 2500+ — scree (p50 2664), and above 2800 the real class is BARE ROCK, which the
+      // 14-kind vocabulary cannot say without conflating walkable rock with impassable
+      // K_FACE. Mapped to scree deliberately; it is @PLN1's open taxonomy gap, not a slip.
+      if h >= ALPINE_TOP { return (h, K_SCREE); }
+      return (h, K_MEADOW);          // 2150-2500 — alpine meadow (grass p50 2316)
+    }
+    // mountain/hill slopes below the tree line
+    if h > ALPINE_MIN && band > 0.34 && slope < 0.50 { return (h, K_FOREST); }
+    if slope > 0.60 { return (h, K_FACE); }
+    if h > ALPINE_MIN && band <= 0.34 {
+      if slope > 0.34 { return (h, K_FACE); }
+      return (h, K_SCREE);
+    }
+    return (h, K_GRASS);
+  }
+  if mdom == 3 {
+    if band > 0.30 { return (h, K_FOREST); }
+    return (h, K_GRASS);
+  }
+  if mdom == 6 {
+    // the DESERT floor: sand with rocky patches, never green
+    if band > 0.62 { return (h, K_SCREE); }
+    return (h, K_SAND);
+  }
+  (h, K_GRASS)
+}
+
+// distance to the nearest FADED ruin-path centerline
+fn ov_faded_dist(o: Overland, x: float, y: float) -> float {
+  gd = 1.0e9;
+  for ri in 0..len(o.ov_roads) {
+    rd = o.ov_roads[ri];
+    if rd != null && rd.rd_faded == 1 && x >= rd.rd_x0 && x <= rd.rd_x1 && y >= rd.rd_y0 && y <= rd.rd_y1 {
+      for k in 0..len(rd.rd_x) - 1 {
+        ax = rd.rd_x[k] ?? 0.0;
+        ay = rd.rd_y[k] ?? 0.0;
+        bx = rd.rd_x[k + 1] ?? 0.0;
+        by = rd.rd_y[k + 1] ?? 0.0;
+        ex = bx - ax;
+        ey = by - ay;
+        ee = ex * ex + ey * ey;
+        if ee > 0.000000001 {
+          t = min(max((((x - ax) * ex + (y - ay) * ey) / ee) ?? 0.0, 0.0), 1.0);
+          ddx = x - (ax + t * ex);
+          ddy = y - (ay + t * ey);
+          d = sqrt(ddx * ddx + ddy * ddy) ?? 0.0;
+          if d < gd { gd = d; }
+        }
+      }
+    }
+  }
+  gd
+}
+
+// the blended wateriness at a point (I1's gate value; tests + gen use it)
+pub fn ov_watery(o: Overland, x: float, y: float) -> float {
+  (_, watery, _, _) = ov_blend(o, x, y);
+  watery
+}
+
+// cell info for consumers (the surface generator reads the wider world)
+pub fn ov_cell_mat(o: Overland, c: integer, r: integer) -> integer {
+  ov_mat(o.ov_mat, c, r)
+}
+pub fn ov_cell_center(c: integer, r: integer) -> (float, float) {
+  ov_center(c, r)
+}
+
+// the walked lattice: fine hex (q, r) -> natural meters (OV_STEP per step)
+pub fn ov_hex_world(q: integer, r: integer) -> (float, float) {
+  (hx, hy) = hex_to_px(q, r);
+  s = OV_STEP / HEX_LEN;
+  (hx * s, hy * s)
+}
+
+// The home-town scan's grid: 13x13 over the same 1500 m window the old rule sampled at 7x7.
+const HT_N    = 13;
+const HT_STEP = 125.0;
+const HT_HALF = 750.0;
+// The mine test's reach: THE WHOLE WINDOW, not a day's walk.
+//
+// ⚠ IT WAS 330 m (`WORK_MAX_D` = 22 walked hexes x OV_STEP) AND THAT WAS THE WRONG QUESTION —
+// measured, plan #11 P6. A miner's day is mine -> furnace -> mine, and plan #17 already moved
+// the furnace to the mine and posted a guard on the works, so what has to be short is that
+// leg, not the town's view of it. Asked at 330 m, the one walkable town in the world had "no
+// mine" and its ore chain died; asked over the window, its rock is 46 hexes out and delivers
+// 13 loads in four peaceful days against the mountain town's 3.
+const MINE_REACH = 750.0;
+const MINE_STEP  = 30.0;
+
+// Is there rock to MINE within a working day of this town centre?
+//
+// ⚠ ASKED OF `ov_kind_at`, NEVER PREDICTED FROM SLOPE. K_FACE looks like a slope threshold
+// and is not: the sub-treeline arm also wants `band <= 0.34`, an fbm field. Measured, a
+// slope-only proxy says town 2 has 50 face-like samples within a day's walk while the real
+// classifier puts its NEAREST face 46 hexes out — so the proxy would have been a second
+// classifier that disagrees with the first, which is the failure this repo keeps finding.
+//
+// A face is rare (~0.3 % of a window) and clustered, so this samples at 30 m rather than at the
+// gradient scan's 125 m: coarse sampling of a rare event finds it by luck, not by looking.
+fn ov_has_rock(o: Overland, tx: float, ty: float) -> boolean {
+  n = ((2.0 * MINE_REACH) / MINE_STEP ?? 1.0) as integer ?? 20;
+  for ry in 0..n + 1 {
+    for rx in 0..n + 1 {
+      px = tx - MINE_REACH + (rx as float) * MINE_STEP;
+      py = ty - MINE_REACH + (ry as float) * MINE_STEP;
+      (_, k) = ov_sample(o, px, py);
+      if k == K_FACE { return true; }
+    }
+  }
+  false
+}
+
+// WHICH TOWN THE PLAYER STARTS AT — the home window's anchor.
+//
+// ⚠ NOT simply `towns[0]`, and the reason is structural rather than cosmetic. The home
+// window is the ONLY window that gets town life: `sim.loft` sets `intown = wwx == 0 &&
+// wwy == 0`, so houses, people, harbour and industry exist there and nowhere else. Whatever
+// that town's surroundings cannot support, the game does not have — in any world.
+//
+// Measured 2026-08-09, the four towns of the example world reach **88, 90, 689 and 2108 m**
+// within a window. Anchored at `towns[0]` (a coastal town at 88 m) the alchemist's gatherer
+// was **unspawnable in every world**: its picking ground needs scree or meadow, and neither
+// occurs at sea level — while the two towns that DO have picking grounds got no people at
+// all. So the home town must be the one whose surroundings can carry a WHOLE economy:
+// fields in the valley AND high ground for a mine and a picking ground.
+//
+// ⚠ HEIGHT REACH IS A CONSTRAINT, NOT AN OBJECTIVE — corrected 2026-08-11 (plan #11 P6).
+//
+// The rule above used to *maximise* height reach, and that was wrong in a way nothing could
+// see while the ground rendered flat: inside a 1500 m window, "reaches highest" IS "steepest",
+// so the rule selected for the one property that makes terrain unwalkable. Measured over the
+// passable ground of each town's window, at the true slope (heights take the same 10x
+// compression the horizontal already takes — `SCALE.md`):
+//
+//   town 0  relief  232 m   mean gradient 0.18   no alpine ground at all (tops out at 91 m)
+//   town 1  relief  218 m                 0.15   no alpine ground at all (tops out at 92 m)
+//   town 2  relief  663 m                 0.63   101 alpine hexes, 20 of them gentle
+//   town 3  relief 2354 m                 1.54   124 alpine hexes, 0 of them gentle   <- picked
+//
+// So the game started the player on a 45-degree mountainside, and the two towns with GENTLE
+// high ground were the ones the rule threw away. What the requirement actually says is
+// *"scree or meadow must EXIST here"* — a floor, which more height does not improve; past it,
+// extra height only buys slope. Hence: reaching `ALPINE_MIN` is the gate, and among the towns
+// that clear it the **most walkable** window wins.
+//
+// The gradient is measured on a 13x13 grid over the same 1500 m window. That density is a
+// measurement, not a guess: against a 101x101 (10201-point) reference the four means come out
+// 0.178 / 0.144 / 0.573 / 1.362 versus 0.188 / 0.155 / 0.628 / 1.543 — within 6 %, same
+// ordering, on 1/60th of the samples. It reads `ov_height` only (no `ov_sample`), so the whole
+// rule costs 169 height probes per town, against the 49 it used to cost.
+//
+// ⚠ The residual limit, stated rather than papered over: clearing `ALPINE_MIN` makes the
+// alpine kinds POSSIBLE, not certain — they also want `band <= 0.34` and gentle ground, which
+// only `ov_kind_at` knows. Verifying presence needs a fine `ov_sample` grid (alpine is ~1 % of
+// a window, so a coarse one finds it by luck: 75 m spacing scored the two alpine towns 3-3
+// where 15 m separates them 20-to-0), and that costs ~1 s per level. The old rule guaranteed
+// nothing here either, and siting still checks reachability downstream (`walk_reach`).
+pub fn ov_home_town(o: Overland) -> integer {
+  best = -1;
+  bestg = 1.0e18;
+  fb = 0;                      // if no town reaches alpine ground, fall back to the old answer
+  fbh = 0.0 - 1.0e18;
+  for hti in 0..len(o.ov_towns) {
+    tw4 = o.ov_towns[hti];
+    if tw4 != null {
+      // One coarse pass over the town's own window: every height once, kept, so the gradient
+      // below is finite differences on the SAME samples rather than four fresh probes each.
+      hs4: vector<float> = [];
+      hi4 = 0.0 - 1.0e18;
+      for dy4 in 0..HT_N {
+        for dx4 in 0..HT_N {
+          hx4 = tw4.ot_x - HT_HALF + (dx4 as float) * HT_STEP;
+          hy4 = tw4.ot_y - HT_HALF + (dy4 as float) * HT_STEP;
+          h4 = ov_height(o, hx4, hy4);
+          hs4 += [h4];
+          if h4 > hi4 { hi4 = h4; }
+        }
+      }
+      // Mean true gradient over the interior, where a central difference exists.
+      gs4 = 0.0;
+      gn4 = 0;
+      for gy4 in 1..HT_N - 1 {
+        for gx4 in 1..HT_N - 1 {
+          ax4 = ((hs4[gy4 * HT_N + gx4 + 1] ?? 0.0) - (hs4[gy4 * HT_N + gx4 - 1] ?? 0.0))
+                / (2.0 * HT_STEP) ?? 0.0;
+          ay4 = ((hs4[(gy4 + 1) * HT_N + gx4] ?? 0.0) - (hs4[(gy4 - 1) * HT_N + gx4] ?? 0.0))
+                / (2.0 * HT_STEP) ?? 0.0;
+          gs4 = gs4 + (sqrt(ax4 * ax4 + ay4 * ay4) ?? 0.0);
+          gn4 = gn4 + 1;
+        }
+      }
+      g4 = gs4 / (gn4 as float) ?? 0.0;
+      if hi4 > fbh { fbh = hi4; fb = hti; }
+      // Both halves of the requirement, then the objective. The rock test is LAST and lazy
+      // because it is the only part that costs `ov_sample`: a town that cannot beat the best
+      // gradient so far, or that never reaches alpine ground, is never asked.
+      if hi4 > ALPINE_MIN && g4 < bestg && ov_has_rock(o, tw4.ot_x, tw4.ot_y) {
+        bestg = g4;
+        best = hti;
+      }
+    }
+  }
+  if best < 0 { return fb; }
+  best
+}
+
+// FORTRESSES: above and away from the towns they protect — but not too far,
+// and with CLEAR SIGHT on the waterways and roads they watch. (Defined after
+// the sampling functions: tuple destructuring needs the callee known.)
+fn ov_fort_sites(ov0: Overland) -> vector<OvFort> {
+  forts: vector<OvFort> = [];
+  for fti in 0..len(ov0.ov_towns) {
+    tw3 = ov0.ov_towns[fti];
+    if tw3 != null && tw3.ot_size >= 2 {
+      th3 = ov_height(ov0, tw3.ot_x, tw3.ot_y);
+      bx3 = 0.0;
+      by3 = 0.0;
+      bsc3 = 0.0 - 1.0e18;
+      for ai in 0..16 {
+        ang3 = (ai as float) * 0.39269908;
+        for ri3 in 0..3 {
+          rad3 = 330.0 + 160.0 * (ri3 as float);
+          sx3 = tw3.ot_x + rad3 * cos(ang3);
+          sy3 = tw3.ot_y + rad3 * sin(ang3);
+          hh3 = ov_height(ov0, sx3, sy3);
+          if hh3 > th3 + 6.0 {                          // must stand ABOVE the town
+            (wd3, fb3, fw3, fi3, fv3) = ov_course(ov0, sx3, sy3);
+            rd3 = ov_road_dist(ov0, sx3, sy3);
+            watch = min(wd3, rd3);
+            if watch < 450.0 {                          // clear sight on the ways
+              sc3 = (hh3 - th3) - watch * 0.04 - (rad3 - 330.0) * 0.02;
+              if sc3 > bsc3 { bsc3 = sc3; bx3 = sx3; by3 = sy3; }
+            }
+          }
+        }
+      }
+      if bsc3 > 0.0 - 1.0e17 {
+        forts += [OvFort { of_x: bx3, of_y: by3, of_tw: fti }];
+      }
+    }
+  }
+  forts
+}

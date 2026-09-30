@@ -1,0 +1,61 @@
+# descend.play — WALKING ONTO A STAIR REBUILDS THE WORLD AND KEEPS THE PLAYER.
+#
+# The claim is flow_move's walk-onto rule: a hex change whose new tile is '>' (2) or a
+# natural cave mouth (6) descends. That rule lives in the movement path, not in
+# sim_descend, so it can only be tested by moving — which is why `findstair` puts the
+# player on the stair and then STOPS, leaving the descent to the `move` row below.
+#
+# ⚠ WHAT MUST SURVIVE A DESCENT IS THE POINT. A new level is generated, so the map,
+# the enemies and the floor loot are all replaced — but the CHARACTER is not. A descent
+# that quietly dropped the kit, the gold or the XP would look like a working stair and
+# be a ruined run, and nothing else in the gate walks that seam.
+
+genesis 1337 1
+echo --- depth 1, before going anywhere
+
+expect depth == 1
+expect alive == 1
+note enemies
+note inv
+note gold
+
+echo --- stand on the way down (a poke: teleport only, no descent yet)
+findstair
+
+# The poke has not descended anything: still depth 1, and now standing on a stair.
+# ⚠ This row is what makes the next one mean something — without it, a descent could
+# come from the teleport itself and the walk-onto rule would never be exercised.
+expect depth == 1
+expect stair >= 2
+
+echo --- one movement tick: the walk-onto rule fires and the world is rebuilt
+move 0 0 1
+
+expect depth == 2
+expect alive == 1
+
+echo --- the character crossed intact; the level did not
+# The kit and the purse are the player's, so they cross unchanged. Relations, not
+# numbers: the starting kit's size is content and may be retuned.
+expect inv > 0
+expect gold >= 0
+expect hp > 0
+expect hp <= hpmax
+
+# ⚠ A REBUILT LEVEL IS POPULATED. `enemies == 0` after a descent would mean the new
+# level generated empty — a silent, run-ruining defect that reads as a quiet dungeon.
+expect enemies > 0
+
+echo --- and the checkpoint followed us down
+# save_depth is the respawn target; it tracks the deepest safe point, so after a
+# descent it must not still be pointing at a level we have left behind.
+note savedepth
+
+echo --- descend again: the rule is not a one-off
+findstair
+expect stair >= 2
+move 0 0 1
+expect depth == 3
+expect alive == 1
+expect enemies > 0
+expect inv > 0

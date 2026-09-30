@@ -1,7 +1,9 @@
-# loft build caches / artifacts
-.loft/
-**/.loft/
+# loft build caches / artifacts — ignore everything under .loft/ EXCEPT the
+# committed, agent-readable dep API stubs (loft#362)
+**/.loft/*
+!**/.loft/api/
 *.wasm
+native-auto/
 
 # generated game builds
 /story.html
@@ -11,3 +13,13 @@
 *.swp
 *~
 .DS_Store
+tools/__pycache__/
+tools/_overland/
+tools/_triangle/
+.story_next
+
+# @PLN1 Ortler fixture: regenerable OSM polygon cache (large) + python bytecode
+plans/1-ortler-worldgen-fixture/data/osm_polys.npz
+**/__pycache__/
+plans/1-ortler-worldgen-fixture/out/
+plans/5-geometry/out/

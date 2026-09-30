@@ -1,0 +1,333 @@
+// realworld::hydro — the hydrology derivations on a `const Region`.
+//
+// Three derived signals built bottom-up from the raw EU-DEM heights:
+//
+//   filled[i]  — priority-flood pit-filled height (i32 metres). Every interior
+//                cell has at least one strictly-lower neighbour, so steepest-
+//                descent flow is well-defined everywhere. Boundary cells stay
+//                at their real height and "drain off-grid" (flow_dir = -1).
+//
+//   flow[i]    — 0..5 neighbour direction (matching hex_grid::hex_neighbor) of
+//                the strictly-lower neighbour the cell drains to. -1 on a
+//                boundary cell that drains off-grid (or, in a pathological
+//                input, a cell with no lower neighbour at all — which the
+//                I-FLOW gate would then surface).
+//
+//   acc[i]     — flow accumulation: number of cells that drain THROUGH cell i
+//                (including itself; ≥ 1). The natural river-width signal.
+//
+// Region-agnostic: this same module runs against Ortler, Wales, and any
+// future region. No mention of Ortler-specific constants anywhere.
+
+use region;
+use hex_grid;
+
+pub struct Hydro {
+  filled: vector<integer> not null,
+  flow:   vector<integer> not null,
+  acc:    vector<integer> not null,
+}
+
+// ── parallel-vector min-heap on (key=filled_height, val=cell_index) ──────
+//
+// Why parallel vectors of integer instead of a vector<HeapEntry>: loft#338's
+// "swap struct elements of a vector via a temp DUPLICATES one of them"
+// applies to struct elements. Plain integers in vector slots copy by value
+// and swap correctly. So we keep two parallel integer vectors and swap
+// matched pairs whenever the heap reshapes itself.
+//
+// Pre-allocate to capacity (== number of cells); a size counter tracks the
+// active heap. Avoids any vector growth or removal during the inner loop.
+
+fn heap_swap(hk: vector<integer>, hv: vector<integer>, a: integer, b: integer) {
+  ak = hk[a] ?? 0;
+  av = hv[a] ?? 0;
+  hk[a] = hk[b] ?? 0;
+  hv[a] = hv[b] ?? 0;
+  hk[b] = ak;
+  hv[b] = av;
+}
+
+// Sift the element at index `start` up toward the root. The result of one
+// push: caller writes at hk[size]/hv[size], then sifts_up(hk, hv, size).
+fn heap_sift_up(hk: vector<integer>, hv: vector<integer>, start: integer) {
+  i = start;
+  done = false;
+  while !done {
+    if i <= 0 {
+      done = true;
+    } else {
+      p = (i - 1) / 2 ?? 0;
+      if (hk[p] ?? 0) <= (hk[i] ?? 0) {
+        done = true;
+      } else {
+        heap_swap(hk, hv, p, i);
+        i = p;
+      }
+    }
+  }
+}
+
+// Sift the element at index 0 down toward a leaf. The size argument is the
+// CURRENT active heap size; the caller has already moved the last entry to
+// slot 0 and decremented its size counter before calling this.
+fn heap_sift_down(hk: vector<integer>, hv: vector<integer>, size: integer) {
+  i = 0;
+  done = false;
+  while !done {
+    l = 2 * i + 1;
+    r = 2 * i + 2;
+    smallest = i;
+    if l < size && (hk[l] ?? 0) < (hk[smallest] ?? 0) { smallest = l; }
+    if r < size && (hk[r] ?? 0) < (hk[smallest] ?? 0) { smallest = r; }
+    if smallest == i {
+      done = true;
+    } else {
+      heap_swap(hk, hv, i, smallest);
+      i = smallest;
+    }
+  }
+}
+
+// ── priority-flood pit-fill ──────────────────────────────────────────────
+//
+// Standard Wang & Liu '06: push the boundary into a min-heap, drain inward,
+// raise each unseen interior cell to one metre above the popped level if it's
+// below it. Result: every interior cell has at least one strictly-lower
+// neighbour. The +1 metre flats-epsilon is integer-safe and keeps every flat
+// plateau monotonically descending toward the boundary.
+
+pub fn hydro_pitfill(rgn: const Region) -> vector<integer> {
+  cols = rgn.rgn_cols;
+  rows = rgn.rgn_rows;
+  n = cols * rows;
+
+  filled: vector<integer> = [for _ in 0..n { 0 }];
+  seen:   vector<integer> = [for _ in 0..n { 0 }];
+  for i in 0..n {
+    filled[i] = rgn.hex_h[i] ?? 0;
+    seen[i] = 0;
+  }
+  // Pre-allocated heap capacity = n (every cell is pushed at most once).
+  hk: vector<integer> = [for _ in 0..n { 0 }];
+  hv: vector<integer> = [for _ in 0..n { 0 }];
+  size = 0;
+
+  // Push every boundary cell.
+  for c in 0..cols {
+    for r in 0..rows {
+      if c == 0 || c == cols - 1 || r == 0 || r == rows - 1 {
+        i = r * cols + c;
+        hk[size] = filled[i] ?? 0;
+        hv[size] = i;
+        seen[i] = 1;
+        heap_sift_up(hk, hv, size);
+        size = size + 1;
+      }
+    }
+  }
+
+  // Drain.
+  while size > 0 {
+    lvl = hk[0] ?? 0;
+    idx = hv[0] ?? 0;
+    // pop
+    size = size - 1;
+    if size > 0 {
+      hk[0] = hk[size] ?? 0;
+      hv[0] = hv[size] ?? 0;
+      heap_sift_down(hk, hv, size);
+    }
+    // unpack the popped cell's (c, r)
+    cr = idx / cols ?? 0;
+    cc = idx - cr * cols;
+    // walk the 6 hex neighbours
+    for d in 0..6 {
+      (nc, nr) = hex_neighbor(cc, cr, d);
+      if nc >= 0 && nc < cols && nr >= 0 && nr < rows {
+        ni = nr * cols + nc;
+        if (seen[ni] ?? 0) == 0 {
+          new_f = rgn.hex_h[ni] ?? 0;
+          if new_f < lvl + 1 { new_f = lvl + 1; }
+          filled[ni] = new_f;
+          seen[ni] = 1;
+          hk[size] = new_f;
+          hv[size] = ni;
+          heap_sift_up(hk, hv, size);
+          size = size + 1;
+        }
+      }
+    }
+  }
+
+  filled
+}
+
+// ── flow direction (steepest descent over pit-filled heights) ────────────
+//
+// For each cell, the direction (0..5) of the strictly-lower neighbour with
+// the largest drop. -1 if no in-bounds neighbour is strictly lower (boundary
+// cells "drain off-grid"; interior cells with no lower neighbour are an
+// I-FLOW failure that the validator surfaces).
+
+pub fn hydro_flow_dir(rgn: const Region,
+                      filled: const vector<integer>) -> vector<integer> {
+  cols = rgn.rgn_cols;
+  rows = rgn.rgn_rows;
+  n = cols * rows;
+  flow: vector<integer> = [for _ in 0..n { -1 }];
+  for r in 0..rows {
+    for c in 0..cols {
+      i = r * cols + c;
+      h_self = filled[i] ?? 0;
+      best_drop = 0;
+      best_d = -1;
+      for d in 0..6 {
+        (nc, nr) = hex_neighbor(c, r, d);
+        if nc >= 0 && nc < cols && nr >= 0 && nr < rows {
+          ni = nr * cols + nc;
+          h_n = filled[ni] ?? 0;
+          drop = h_self - h_n;
+          if drop > best_drop {
+            best_drop = drop;
+            best_d = d;
+          }
+        }
+      }
+      flow[i] = best_d;
+    }
+  }
+  flow
+}
+
+// ── flow accumulation ────────────────────────────────────────────────────
+//
+// Sort cells by filled-height descending (counting sort — heights are
+// integers in a small range), then walk that order adding each cell's acc
+// to its flow-target's acc. Pit-fill guarantees the target is in-bounds and
+// at strictly-lower filled-height for every interior cell, so the high-to-
+// low pass is correct: by the time we touch a cell, every upstream donor
+// has already contributed.
+
+pub fn hydro_flow_acc(rgn: const Region,
+                      filled: const vector<integer>,
+                      flow: const vector<integer>) -> vector<integer> {
+  cols = rgn.rgn_cols;
+  rows = rgn.rgn_rows;
+  n = cols * rows;
+
+  acc: vector<integer> = [for _ in 0..n { 1 }];
+
+  // Find min / max filled height.
+  hi = 0 - 1000000;
+  lo = 1000000;
+  for i in 0..n {
+    fv = filled[i] ?? 0;
+    if fv > hi { hi = fv; }
+    if fv < lo { lo = fv; }
+  }
+  k = hi - lo + 1;
+
+  // Counting sort: counts[h - lo] = #cells with that filled height.
+  counts: vector<integer> = [for _ in 0..k { 0 }];
+  for i in 0..n {
+    b = (filled[i] ?? 0) - lo;
+    counts[b] = (counts[b] ?? 0) + 1;
+  }
+  // Prefix-sum to get starting position of each bucket in the sorted array
+  // (ascending order).
+  pos: vector<integer> = [for _ in 0..k { 0 }];
+  run = 0;
+  for j in 0..k {
+    pos[j] = run;
+    run = run + (counts[j] ?? 0);
+  }
+  // Place each cell index in its bucket slot.
+  order: vector<integer> = [for _ in 0..n { 0 }];
+  for i in 0..n {
+    b = (filled[i] ?? 0) - lo;
+    p = pos[b] ?? 0;
+    order[p] = i;
+    pos[b] = p + 1;
+  }
+
+  // Walk in DESCENDING filled-height order so each cell's acc is finalised
+  // before it donates to its (lower) flow target.
+  j = n - 1;
+  while j >= 0 {
+    i = order[j] ?? 0;
+    d = flow[i] ?? -1;
+    if d >= 0 {
+      cr = i / cols ?? 0;
+      cc = i - cr * cols;
+      (nc, nr) = hex_neighbor(cc, cr, d);
+      if nc >= 0 && nc < cols && nr >= 0 && nr < rows {
+        ni = nr * cols + nc;
+        acc[ni] = (acc[ni] ?? 0) + (acc[i] ?? 0);
+      }
+    }
+    j = j - 1;
+  }
+
+  acc
+}
+
+// ── one-call wrapper ─────────────────────────────────────────────────────
+
+pub fn hydro_compute(rgn: const Region) -> Hydro {
+  filled = hydro_pitfill(rgn);
+  flow   = hydro_flow_dir(rgn, filled);
+  acc    = hydro_flow_acc(rgn, filled, flow);
+  Hydro { filled: filled, flow: flow, acc: acc }
+}
+
+// ── I-FLOW validation ────────────────────────────────────────────────────
+//
+// For every river-mask cell, check that the flow target is STRICTLY LOWER
+// than the cell itself on the PIT-FILLED heights (the renderer's source of
+// truth). After pit-fill this should be 0 uphill by construction; a
+// non-zero count surfaces a bug in pit-fill or flow_dir.
+//
+// We also report the count on the RAW EU-DEM heights — those will not
+// generally be 0, because the OSM waterway densification puts river-cells
+// inside real pits the DEM has at this resolution. That second count is the
+// "how much pit-fill is hiding" number, useful when validating a new
+// region against the data.
+//
+// Returns a 4-tuple:
+//   (n_river_cells, n_filled_uphill, n_filled_flat, n_raw_uphill)
+//
+// The viewer prints something like:
+//   river flow: 5464 cells; 5464 strict-downhill on filled; 0 uphill (PASS)
+//                                                              ; raw-uphill 1873
+// Non-zero filled-uphill is the gate; raw-uphill is informational.
+
+pub fn hydro_validate(rgn: const Region,
+                      hyd: const Hydro) -> (integer, integer, integer, integer) {
+  cols = rgn.rgn_cols;
+  rows = rgn.rgn_rows;
+  n_river = 0;
+  n_filled_uphill = 0;
+  n_filled_flat = 0;
+  n_raw_uphill = 0;
+  for r in 0..rows {
+    for c in 0..cols {
+      i = r * cols + c;
+      if (rgn.hex_river[i] ?? 0) == 0 { continue; }
+      n_river = n_river + 1;
+      d = hyd.flow[i] ?? -1;
+      if d < 0 { continue; }
+      (nc, nr) = hex_neighbor(c, r, d);
+      if nc < 0 || nc >= cols || nr < 0 || nr >= rows { continue; }
+      ni = nr * cols + nc;
+      f_self = hyd.filled[i] ?? 0;
+      f_tgt  = hyd.filled[ni] ?? 0;
+      if f_tgt > f_self { n_filled_uphill = n_filled_uphill + 1; }
+      if f_tgt == f_self { n_filled_flat = n_filled_flat + 1; }
+      h_self = rgn.hex_h[i] ?? 0;
+      h_tgt  = rgn.hex_h[ni] ?? 0;
+      if h_tgt > h_self { n_raw_uphill = n_raw_uphill + 1; }
+    }
+  }
+  (n_river, n_filled_uphill, n_filled_flat, n_raw_uphill)
+}

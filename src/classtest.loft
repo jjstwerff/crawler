@@ -1,0 +1,118 @@
+// classtest — classes apply-to-play + the SPELL chain (Phase C/D of BUNDLE-MIGRATION.md).
+// Warrior + mage now live in their own bundles (one class per bundle) and merge via
+// class_catalog(); sim_set_class bakes the stat block, hit-die HP and the SP pool; spells are
+// bundle content (defs + fx routines in bundles/mage/) cast through castfx -> the GENERATED
+// routine-by-id dispatch. Default pclass "" stays the unclassed baseline (kernel neutrality).
+use sim::*;
+use catalog::*;
+use classes::*;
+use castfx::*;
+use itemfx;
+use hex_grid::*;
+use player::*;
+
+fn maxhp_of_class(key: text) -> integer { s = sim_new(); sim_set_class(s, key); sim_player_hp_max(s) }
+fn sp_of_class(key: text) -> integer { s = sim_new(); sim_set_class(s, key); sim_player_sp_max(s) }
+fn level_at(key: text, xp: integer) -> integer {
+  s = sim_new(); sim_set_class(s, key); sim_award_xp(s, xp); sim_clevel(s)
+}
+
+fn main() {
+  println("=== story class test (bundle merge / apply / SP / the spell chain) ===");
+
+  // 1) MERGE: all 8 classes come from their bundles; the engine table is EMPTY.
+  ct = class_catalog();
+  merged = len(ct) == 8 && len(class_table()) == 0
+        && class_find(ct, "warrior").c_hd == 9 && class_find(ct, "mage").c_realm == "arcane"
+        && class_find(ct, "priest").c_realm == "divine" && class_find(ct, "druid").c_realm == "nature";
+
+  // 2) APPLY: the class's HP against the unclassed 30 — hit-die AND, since plan #16 `M4`,
+  //    ENDURANCE (§0's soak). ⚠ The mage row is the one that moved and it is the point of the
+  //    re-key: it used to land exactly ON the baseline (hit-die 0), and now its Endurance -2
+  //    puts it BELOW — a class can be frailer than a person with no training at all, which is
+  //    what "Endurance is the HP ceiling" has to mean if the axis is doing any work.
+  base_hp = maxhp_of_class("");
+  hp_apply = maxhp_of_class("warrior") == base_hp + 14 && maxhp_of_class("mage") == base_hp - 1;
+  m = sim_new(); sim_set_class(m, "mage");
+  // ⚠ ON THE EIGHT, RE-AUTHORED (plan #16 `M3`): the mage states all eight axes itself, so
+  // this row reads Might (16-4 = 12) and WILL (16+4 = 20). There is no Intelligence to assert.
+  stat_apply = sim_stat(m, "might") == 12 && sim_stat(m, "will") == 20;
+
+  // 3) SP POOL: the mage draws from its DECLARED casting axis — `c_spell_stat: "will"`, the one
+  //    casting axis under the eight — so 2+1+4 = 7/7; realm-less classes stay 0/0.
+  sp_pool = sp_of_class("mage") == 7 && sp_of_class("warrior") == 0 && sp_of_class("") == 0
+         && sim_player_sp(m) == 7;
+
+  // 4) XP FACTOR: level 2 costs the mage (130%) 13 XP, the warrior (100%) 10.
+  xp_fac = level_at("warrior", 10) == 2 && level_at("mage", 10) == 1 && level_at("mage", 13) == 2;
+
+  // 5) RE-SPEC is clean (the crystal's contract): mage -> warrior re-derives from base.
+  sim_set_class(m, "warrior");
+  respec = sim_stat(m, "might") == 19 && sim_player_sp_max(m) == 0;
+
+  // 6) KERNEL BOLT: adjacent + facing + FOV -> sim_bolt strikes the training rat (hp 8, dart 7).
+  b = sim_new(); sim_set_class(b, "mage");
+  pb = player_new(0);
+  (ex, ey) = sim_enemy_pos(b, 0);
+  (eq, er) = px_to_hex(ex, ey);
+  (nq, nr) = hex_neighbor(eq, er, 0);
+  (nx, ny) = hex_to_px(nq, nr);
+  b.px = nx; b.py = ny;
+  pb.face(b, eq, er);
+  sim_compute_fov(b);
+  br = sim_bolt(b, 7);
+  bolt = br >= 3 && sim_enemy_hp(b, 0) < 8;
+
+  // 7) THE CAST CHAIN (castfx -> generated dispatch -> the bundle's routine): the mage quick-casts
+  //    magic_dart first (cheapest known); casting Blink SPENDS SP even on a concentration fail
+  //    (Angband), and within a few tries the blink fires and moves the caster.
+  c = sim_new(); sim_set_class(c, "mage");
+  qc = first_castable(c) == "magic_dart" && first_castable(b) != "" ;
+  wq = sim_new();   // unclassed: knows nothing, E quick-cast finds no spell
+  no_realm = first_castable(wq) == "" && !cast_spell(wq, "blink");
+  x0 = c.px; y0 = c.py;
+  moved = false;
+  for _ in 0..3 {
+    if !moved {
+      cast_spell(c, "blink");
+      if c.px != x0 || c.py != y0 { moved = true; }
+    }
+  }
+  spent = sim_player_sp(c) < sim_player_sp_max(c);   // every attempt spends (fail included)
+  cast_ok = moved && spent;
+
+  // 8) SP REGEN: mana returns over the clock (rat slept + player far away; 12 ticks => +2).
+  //    ⚠ 7-5+2 = 4, not 3: the mage's pool grew by one when `M3` authored its Will (+4 against
+  //    the old c_int 3), because Will now carries casting AND saves AND Tension-resistance.
+  g = sim_new(); sim_set_class(g, "mage");
+  sim_set_awake(g, 0, false);
+  (gx, gy) = hex_to_px(2, 2);
+  g.px = gx; g.py = gy;
+  sim_spend_sp(g, 5);
+  for _ in 0..12 { sim_tick(g); }
+  sp_regen = sim_player_sp(g) == 4;
+
+  // 9) THE REALM MATRIX: realm-mates share books (the Angband model). A priest casts the
+  //    divine Mend Wounds (heals); a druid the nature Knit Flesh; a rogue quick-casts the
+  //    ARCANE book it shares with the mage; a paladin knows the divine book.
+  // (cast can honestly fizzle — every fresh Sim shares the same first roll, so single-shot
+  //  checks fail deterministically together; retry within the SP budget, like the blink check)
+  pr = sim_new(); sim_set_class(pr, "priest");
+  pr.php = 5;
+  for _ in 0..4 { if sim_player_hp(pr) <= 5 { cast_spell(pr, "mend_wounds"); } }
+  pr_heal = sim_player_hp(pr) > 5;
+  dr = sim_new(); sim_set_class(dr, "druid");
+  dr.php = 5;
+  for _ in 0..3 { if sim_player_hp(dr) <= 5 { cast_spell(dr, "knit_flesh"); } }
+  dr_heal = sim_player_hp(dr) > 5;
+  rg = sim_new(); sim_set_class(rg, "rogue");
+  rg_arc = first_castable(rg) == "magic_dart";
+  pl = sim_new(); sim_set_class(pl, "paladin");
+  pl_div = first_castable(pl) == "mend_wounds";
+  realms = pr_heal && dr_heal && rg_arc && pl_div;
+
+  println("merged={merged} hp_apply={hp_apply} stat_apply={stat_apply} sp_pool={sp_pool}");
+  println("xp_fac={xp_fac} respec={respec} bolt={bolt}(r={br}) qc={qc} no_realm={no_realm} cast_ok={cast_ok}(moved={moved} spent={spent}) sp_regen={sp_regen} realms={realms}");
+  ok = merged && hp_apply && stat_apply && sp_pool && xp_fac && respec && bolt && qc && no_realm && cast_ok && sp_regen && realms;
+  if ok { println("=== CLASS OK ==="); } else { println("=== FAIL ==="); }
+}

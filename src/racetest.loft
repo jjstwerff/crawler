@@ -1,0 +1,101 @@
+// racetest — the chosen RACE applies to the live character (apply-to-play). The 10 races now live
+// in per-race bundles (race_catalog); sim_set_race bakes the stat block and the rest derives live:
+// hit-die -> max HP, skill/save mods, and the ability flags wired to existing systems (free-action
+// gates the gaze paralysis; resist-poison gates venom). Default "human" is the all-zero baseline.
+use sim::*;
+use catalog;
+use monsters;
+use hex_grid::*;
+
+// Each helper builds a fresh char, sets its race, reads ONE value -> never holds several Sims (C22).
+fn maxhp_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_player_hp_max(s) }
+fn melee_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_skill_melee(s) }
+fn save_of(key: text)  -> integer { s = sim_new(); sim_set_race(s, key); sim_player_save(s) }
+fn level_after(key: text, xp: integer) -> integer {
+  s = sim_new(); sim_set_race(s, key); sim_award_xp(s, xp); sim_clevel(s)
+}
+fn stat_after_drain(key: text, stat: text) -> integer {
+  s = sim_new(); sim_set_race(s, key); sim_drain_stat(s, stat, 3); sim_stat(s, stat)
+}
+// HP after `ticks` of pure resting from 5 HP: the rat is put to sleep AND the player moved out of
+// its wake range, so the only actor is the regen clock. pois=1 poisons harmlessly (dmg 0) to show
+// poison BLOCKS regeneration.
+fn hp_regen(key: text, ticks: integer, pois: integer) -> integer {
+  s = sim_new(); sim_set_race(s, key);
+  sim_set_awake(s, 0, false);
+  (fx, fy) = hex_to_px(2, 2);
+  s.px = fx; s.py = fy;
+  s.php = 5;
+  if pois == 1 { s.poison_until = s.ticks + 1000; s.poison_dmg = 0; }
+  for _ in 0..ticks { sim_tick(s); }
+  sim_player_hp(s)
+}
+
+fn main() {
+  println("=== story race-apply test (stat block / hit-die HP / skills / save / free-action) ===");
+
+  // 1) STAT BLOCK bakes onto the base, ON THE EIGHT AND RE-AUTHORED (plan #16 `M3`): the dwarf
+  //    states all eight itself now, so this reads +2 Might / -3 Charisma / +2 Will off the
+  //    uniform 16 — and, the reason the row grew a fourth axis, **+3 HANDINESS**.
+  //
+  // ⚠ THE ROW USED TO ASSERT `int == 13`, AND THAT IS THE WHOLE POINT OF THE PLAN: there is no
+  // Intelligence axis any more, and it was never a rename. The dwarf is the case that proves
+  // it — under the six it paid -3 Intelligence and -3 Charisma, taxes on axes a miner has no
+  // use for, and read as a weak race; Handiness is the axis that repays it (CRAFTING.md — the
+  // stat that gates repairs and improvised gear). Asserting `hand` here is what stops a future
+  // edit from quietly flattening the new axes back to zero, which is `M0`'s named failure.
+  d = sim_new(); sim_set_race(d, "dwarf");
+  dmig = sim_stat(d, "might"); dcha = sim_stat(d, "char");
+  dwil = sim_stat(d, "will");  dhnd = sim_stat(d, "hand");
+  statblock = dmig == 18 && dcha == 13 && dwil == 18 && dhnd == 19;
+  if !statblock { println("  stat block on the eight: might={dmig} char={dcha} will={dwil} hand={dhnd} (want 18/13/18/19)"); }
+
+  // 2) HIT-DIE shifts max HP: half_troll (r_hd +4) > human (0) > elf (-2).
+  ht = maxhp_of("half_troll"); hu = maxhp_of("human"); el = maxhp_of("elf");
+  hp_order = ht > hu && hu > el;
+
+  // 3) SKILL + SAVE mods: half_troll out-melees human (r_melee +5); dwarf out-saves human (r_save +6).
+  melee_race = melee_of("half_troll") > melee_of("human");
+  save_race  = save_of("dwarf") > save_of("human");
+
+  // 4) FREE-ACTION flag: accessor (gnome yes, human no) + behaviour (a gnome adjacent to a gazer is
+  //    NEVER paralysed, where a default char would be — specialtest lands it in ~6 ticks).
+  g = sim_new(); sim_set_race(g, "gnome");
+  hmn = sim_new();   // default "human"
+  fa_acc = sim_player_free_action(g) && !sim_player_free_action(hmn);
+  gz = sim_new(); sim_set_race(gz, "gnome"); sim_make_gaze(gz, 0);
+  (ex, ey) = sim_enemy_pos(gz, 0); (eq, er) = px_to_hex(ex, ey);
+  (nq, nr) = hex_neighbor(eq, er, 0); (nx, ny) = hex_to_px(nq, nr);
+  gz.px = nx; gz.py = ny;
+  for _ in 0..40 { sim_tick(gz); }
+  fa_immune = !sim_player_paralysed(gz);
+
+  // 5) RES-POISON: no base race carries it, so a human reads false (the gate is wired for custom races).
+  respois = !sim_player_res_poison(hmn);
+
+  // 6) XP FACTOR (expfact): level 2 costs a human 10 XP but a half_troll (r_xp 137) 13.
+  xp_pace = level_after("human", 10) == 2
+         && level_after("half_troll", 10) == 1
+         && level_after("half_troll", 13) == 2;
+
+  // 7) SUSTAIN: the halfling's Dexterity (RF_SUST_DEX, 20) shrugs the drain; its unsustained
+  //    Might (14) drops to 11. ⚠ The flags name the EIGHT now (plan #16 `M3` renamed
+  //    RF_SUST_STR/CON -> RF_SUST_MIGHT/ENDU): they are a RACE vocabulary rather than a stat
+  //    index, so nothing forced the rename — but a flag still spelling STR would have been the
+  //    last thing in the tree claiming six.
+  sustain = stat_after_drain("halfling", "dex") == 20 && stat_after_drain("halfling", "might") == 11;
+
+  // 8) REGENERATION: resting 20 ticks from 5 HP — human +2 (every 10), half_troll +4 (RF_REGEN
+  //    halves the interval), poisoned human +0 (poison blocks the knitting).
+  rg_h = hp_regen("human", 20, 0);
+  rg_t = hp_regen("half_troll", 20, 0);
+  rg_p = hp_regen("human", 20, 1);
+  regen = rg_h == 7 && rg_t == 9 && rg_p == 5;
+
+  println("statblock={statblock}(might={dmig} char={dcha} will={dwil}) hp_order={hp_order}({ht}>{hu}>{el})");
+  println("melee_race={melee_race} save_race={save_race} fa_acc={fa_acc} fa_immune={fa_immune} respois={respois}");
+  println("xp_pace={xp_pace} sustain={sustain} regen={regen}(h={rg_h} t={rg_t} pois={rg_p})");
+  ok = statblock && hp_order && melee_race && save_race && fa_acc && fa_immune && respois
+    && xp_pace && sustain && regen;
+  if ok { println("=== RACE OK ==="); } else { println("=== FAIL ==="); }
+}

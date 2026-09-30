@@ -1,0 +1,71 @@
+// catalog — the GAME catalogs = engine base tables + every active bundle's contributed defs
+// (bundle_defs, generated). Consumers read game_monsters()/game_items() so bundle content is
+// first-class. The base table is a PREFIX of the merged one (base defs keep their indices, so any
+// stored defidx stays valid); bundle defs append after. The random pools deliberately stay on the
+// base tables (monster_table/item_table) — bundle monsters/items never random-spawn/drop unless a
+// bundle's own placement rule puts them there. This is the engine's merge MECHANISM; the content
+// is all bundle-side.
+use monsters::*;
+use items::*;
+use races::*;
+use classes::*;
+use bundle_defs::*;
+use race_defs_gen::*;
+use class_defs_gen::*;
+use production_gen::*;   // bundle_production_len/key — the `production` sections
+
+pub fn game_monsters() -> vector<MonsterDef> {
+  t = monster_table();
+  src = bundle_monsters();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}
+
+pub fn game_items() -> vector<ItemDef> {
+  t = item_table();
+  src = bundle_items();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}
+
+// The playable-race roster = engine base (now empty — content moved to bundles) + every kind:"race"
+// bundle's RaceDef (one race per bundle). Same merge MECHANISM as the catalogs above; the race
+// content is entirely bundle-side, so a modder ships a limited game by including only the race
+// folders they want.
+pub fn race_catalog() -> vector<RaceDef> {
+  t = race_table();
+  src = bundle_races();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}
+
+// The playable-class roster = the not-yet-migrated engine rows + every migrated class's bundle
+// def (one class per bundle). Same merge; each class leaves class_table() as its bundle lands.
+pub fn class_catalog() -> vector<ClassDef> {
+  t = class_table();
+  src = bundle_classes();
+  for i in 0..len(src) { if i < len(src) { t += [src[i]]; } }
+  t
+}
+
+// ── The producer merge: engine repertoire, then every bundle's ───────────────────────
+//
+// I-PROD (BUNDLE.md): a producer's repertoire is the ENGINE's entries followed by each
+// contributing bundle's, in bundle-sort order, and the caller indexes it modulo the TOTAL.
+// With no bundle contributing the total equals the engine's own, so the sequence is exactly
+// what it was — the seam is inert until content uses it.
+//
+// ⚠ len()+key(i) rather than a merged vector<text>: a vector<text> literal in a large
+// function can hang the interpreter (loft#336, LOFT-NOTES). The concatenation is arithmetic
+// on an index, which needs no allocation at all.
+pub fn game_production_len(producer: text) -> integer {
+  engine_production_len(producer) + bundle_production_len(producer)
+}
+
+// The i-th entry of the merged repertoire. Engine entries occupy [0, engine_len); a bundle's
+// follow. Out of range yields "" — the caller drops nothing rather than an unnamed item.
+pub fn game_production_key(producer: text, i: integer) -> text {
+  en = engine_production_len(producer);
+  if i < en { return engine_production_key(producer, i); }
+  bundle_production_key(producer, i - en)
+}

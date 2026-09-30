@@ -1,0 +1,94 @@
+// Trimesh smoke test — build the 18-tri-per-hex VBO for the active region,
+// sanity-check size + watertight property.
+//
+// Run via `make trimesh-test` (the LOFT_REGION env var selects the region).
+use region;
+use trimesh;
+use ortler;
+
+fn main() {
+  name = env_variable("LOFT_REGION");
+  if name == "" || name == null { name = "ortler"; }
+  println("=== trimesh_test({name}) ===");
+  if name != "ortler" {
+    println("  only `ortler` is wired today.");
+    return;
+  }
+  rgn = region_load_ortler();
+  println("  region : {rgn.rgn_cols} x {rgn.rgn_rows} hexes");
+
+  // Watertight spot-check: for each interior hex (c, r), every one of its 6
+  // corners is shared by 2 OTHER hexes. From every one of those 3 sides the
+  // corner's WORLD (x, z) AND HEIGHT must match exactly. We do this across
+  // a small interior block and count any mismatches.
+  mismatch_xz = 0;
+  mismatch_h = 0;
+  matches = 0;
+  for hr in 30..40 {
+    for hc in 30..40 {
+      for k in 0..6 {
+        (xa, za) = tri_vertex_xz(hc, hr, 1 + k);
+        ha = tri_vertex_h(rgn, hc, hr, 1 + k);
+        // The same corner from neighbouring hexes — search each adjacent
+        // hex's 6 corners for one that lands at the same (x, z).
+        for nc in (hc - 1)..(hc + 2) {
+          for nr in (hr - 1)..(hr + 2) {
+            if nc == hc && nr == hr { continue; }
+            if nc < 0 || nc >= rgn.rgn_cols || nr < 0 || nr >= rgn.rgn_rows { continue; }
+            for nk in 0..6 {
+              (xb, zb) = tri_vertex_xz(nc, nr, 1 + nk);
+              dx = xa - xb;
+              dz = za - zb;
+              if dx * dx + dz * dz < 0.01 {
+                hb = tri_vertex_h(rgn, nc, nr, 1 + nk);
+                if (ha - hb) * (ha - hb) > 0.0001 { mismatch_h = mismatch_h + 1; }
+                matches = matches + 1;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  println("  watertight: {matches} shared-corner matches, {mismatch_h} height mismatches (want 0)");
+
+  // Build the whole-region mesh and look at the size.
+  t0 = ticks();
+  buf = region_mesh_tri(rgn, TRI_COLOR_OSM);
+  dt = (ticks() - t0) / 1000;
+  ntri = region_tri_count(rgn);
+  println("  region_mesh_tri: {dt} ms");
+  println("  vertices = {len(buf) / 6 ?? 0} (want {ntri * 3 ?? 0})");
+  println("  floats   = {len(buf)} (want {ntri * 18 ?? 0})");
+
+  // Spot check chunk_mesh_tri size on chunk (1, 1) — a 32×32 interior block.
+  t1 = ticks();
+  cbuf = chunk_mesh_tri(rgn, 1, 1, TRI_COLOR_OSM);
+  dt2 = (ticks() - t1) / 1000;
+  println("  chunk_mesh_tri(1,1): {dt2} ms, {len(cbuf) / 6 ?? 0} verts (want {32 * 32 * 18 * 3 ?? 0})");
+
+  // Sample a few vertex colours: at the Ortler summit (40,40) all 18 triangles
+  // share OSM=0 (none) → pale neutral.
+  c0 = osm_rgb_dump(0);
+  c1 = osm_rgb_dump(1);
+  c2 = osm_rgb_dump(2);
+  println("  osm palette: none={c0} water={c1} glacier={c2}");
+}
+
+// Tiny helper to format an osm_rgb triple as text for the printout.
+fn osm_rgb_dump(code: integer) -> text {
+  rr = 0.0;
+  gg = 0.0;
+  bb = 0.0;
+  (rr, gg, bb) = osm_rgb_text_helper(code);
+  "({rr:.3},{gg:.3},{bb:.3})"
+}
+
+// Re-implement the palette to expose for the printout (the trimesh::osm_rgb
+// is private; we don't need to surface it for production callers).
+fn osm_rgb_text_helper(code: integer) -> (float, float, float) {
+  if code == 1  { return (60.0/255.0, 110.0/255.0, 165.0/255.0); }
+  if code == 2  { return (236.0/255.0, 240.0/255.0, 250.0/255.0); }
+  if code == 0  { return (180.0/255.0, 175.0/255.0, 165.0/255.0); }
+  (0.0, 0.0, 0.0)
+}

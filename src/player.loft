@@ -1,0 +1,108 @@
+// player.loft — the Player class + methods: the internal API that bundle load-scripts
+// (and later, events) call to act on a player.
+//
+// MULTI-PLAYER-SHAPED FROM THE START. A Player is a handle — scripts never pass a raw id,
+// they call methods on a Player. Methods take the shared world (&Sim). Today there is one
+// player (pid 0) and the methods set values on the *current* Sim structs (via the sim_*
+// primitives); when real multi-player lands, `pid` indexes a players vector and the method
+// bodies route there — every call-site written today (p.equip(s, ...), p.give_item(...))
+// stays exactly the same. That's the point: get the functions right now, no rewrite later.
+
+use sim::*;
+
+// `Player` is now the kernel-side character record (defined in sim.loft, beside Enemy).
+// These methods are the bundle/event-facing facade over it. Today they still delegate to
+// the sim_* primitives (the data lives on s.player); a later step routes them through
+// `self` directly (DESIGN.md §2 — scalars-first data move came first).
+
+// The handle for player `pid`. Today a fresh record with default scalars; multi-player /
+// the method-self rewiring will replace this with the LIVE s.player (player_new → s.player).
+pub fn player_new(pid: integer) -> Player { Player { pid: pid, clevel: 1, xp: 0, gold: 0 } }
+
+// Put an item (by key) into this player's inventory.
+pub fn give_item(self: Player, s: &Sim, key: text) {
+  sim_give_item(s, key);
+}
+
+// Equip an item (by key) onto this player — auto-routed to the item's slot.
+pub fn equip(self: Player, s: &Sim, key: text) {
+  sim_equip_by_key(s, key);
+}
+
+// Permanently RAISE a statistic (one of the EIGHT, CATALOG.md §0) — innate max and current both rise.
+pub fn grant_stat(self: Player, s: &Sim, stat: text, n: integer) {
+  sim_grant_stat(s, stat, n);
+}
+
+// Permanently DRAIN a statistic (restorable): lowers current only; restore_stat brings it back.
+pub fn drain_stat(self: Player, s: &Sim, stat: text, n: integer) {
+  sim_drain_stat(s, stat, n);
+}
+
+// Restore a drained statistic back up to its innate max.
+pub fn restore_stat(self: Player, s: &Sim, stat: text) {
+  sim_restore_stat(s, stat);
+}
+
+// Temporarily modify a statistic for `turns` ticks — good potion (+n) or bad potion (-n).
+// Last-wins: a new potion overrides the active modifier (opposite signs cancel).
+pub fn buff_stat(self: Player, s: &Sim, stat: text, n: integer, turns: integer) {
+  sim_buff_stat(s, stat, n, turns);
+}
+
+// Spend a banked level-up point to raise a stat (player-chosen growth; the player defers + times
+// these). Capped at once per STAT_COOLDOWN levels per stat. Returns whether it applied.
+pub fn raise_stat(self: Player, s: &Sim, stat: text) -> boolean {
+  sim_raise_stat(s, stat)
+}
+
+// Teach in a class skill (melee/bow/device/disarm/stealth). The per-player skill store
+// lands with the skill system; the API is stable from the start so scripts/events written
+// today keep working unchanged.
+pub fn grant_skill(self: Player, s: &Sim, skill: text, n: integer) {
+  sim_grant_skill(s, skill, n);
+}
+
+// Teach in a saving throw. Same — API now, backing later.
+pub fn grant_save(self: Player, s: &Sim, save: text, n: integer) {
+  sim_grant_save(s, save, n);
+}
+
+// Give the player gold; a NEGATIVE amount spends it (shopping / paying / selling-back).
+pub fn grant_gold(self: Player, s: &Sim, amount: integer) {
+  sim_grant_gold(s, amount);
+}
+
+// Award experience to the player (drives levelling).
+pub fn grant_xp(self: Player, s: &Sim, amount: integer) {
+  sim_award_xp(s, amount);
+}
+
+// Heal the player (clamped to max HP).
+pub fn heal(self: Player, s: &Sim, amount: integer) {
+  sim_heal(s, amount);
+}
+
+// Hurt the player with `amount` damage of a `kind` (physical/fire/cold/poison/…). Generic
+// HP loss today; per-kind resistances/effects land later — the API is fixed from the start.
+pub fn damage(self: Player, s: &Sim, amount: integer, kind: text) {
+  sim_damage(s, amount, kind);
+}
+
+// Move the player to hex (q,r) — placement, level arrival, scripted movement.
+pub fn teleport(self: Player, s: &Sim, q: integer, r: integer) {
+  sim_teleport(s, q, r);
+}
+
+// Reveal monsters (see them through walls) for `turns` ticks — detection items/spells.
+pub fn reveal_monsters(self: Player, s: &Sim, turns: integer) {
+  sim_reveal_monsters(s, turns);
+}
+
+// Turn the player to face hex (q,r) — facing an NPC or a scripted event.
+// TODO: use SPARINGLY — it takes heading control from the player. And it must NOT be
+// instant: ease/animate the turn over a short time (a scripted rotate), not the snap this
+// stub does. Wire the smooth turn when the cutscene/event timing layer lands.
+pub fn face(self: Player, s: &Sim, q: integer, r: integer) {
+  sim_face(s, q, r);
+}

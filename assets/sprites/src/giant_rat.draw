@@ -1,0 +1,131 @@
+# GIANT RAT — MENACING through POSTURE + FUR, not ornament (no spikes): a LEAN body with a
+# ROUNDED/ARCHED SPINE (coiled to propel itself at you — from above: a tense narrow capsule
+# with a dark spine ridge and gathered haunches), DARKER STRIPES in the fur (dorsal ridge +
+# flank striations), pinned-back ears, red eyeshine, bared incisors over a dark gape, clawed
+# forepaws. Whip tail trails DOWN (may overhang). FRONT=UP.
+# Techniques: lean-capsule mass + dark DORSAL-RIDGE stroke + flank striation strokes =
+# the menacing-animal recipe (posture + fur, reusable for jackal/wolf kin).
+#
+# --- FUR recipe, APPLIED (ref assets/sprites/ref/fur: Mus decumanus + Dürer hare) ---
+# Fur reads by VALUE + a BROKEN EDGE, not by lines inside a clean circle. How it's built here
+# (the canonical recipe — mouse/king copy it, jackal/wolf kin reuse it):
+#  1. VALUE — the body Circles are RADIAL GRADIENTS lit from the head (crown light -> flank shadow).
+#  2. CLUMP — the coat is `Lock` strokes (the brush, formal/draw.md): short sleek locks laid
+#     from the haunches FORWARD so each shingles over the roots behind it, dark along the
+#     dorsal ridge fanning outward, a transition row fading into the flank, small tufts at the
+#     silhouette and over the haunch bulges ("fur", not a moulded edge; a coat, never a wig).
+#  3. VALUE IN THE STROKE — each lock is lit on its upper-left and dark underneath (the
+#     brush's ramp), so the coat has depth without a second pass of dark gaps.
+# Layer: gradient mass -> dark dorsal ridge -> Locks. Keep it SPARSE (notan stays clear).
+# The tail stays BARE. The render is byte-identical through draw.py and the loft `drawing`
+# library.
+# Source for assets/sprites/giant_rat.png.
+size 256x256
+Background transparent
+# the one footprint every Lock below drags — a Brush must precede its locks
+Brush fur hair w=12 period=36 seed=5 gap=0.3
+
+# whip tail first (under the body) — thick base, hard S-curve
+name tail
+Poly (0.50,0.66)@8 (0.61,0.80)@4.5 (0.49,0.91)@2.5 (0.34,0.985)@1.5 stroke=148,112,102
+
+# body — LEAN tense capsule, spine arched: narrow flanks, the mass gathered forward
+name haunches
+Circle (0.50,0.585) r=0.112 radial=96,66,48>56,38,26 at=0.50,0.55,0.15
+name midbody
+Circle (0.50,0.470) r=0.122 radial=102,72,52>60,40,28 at=0.50,0.425,0.16
+name shoulders
+Circle (0.50,0.375) r=0.114 radial=102,72,52>60,40,28 at=0.50,0.335,0.15
+
+# gathered haunch bulges — the hind legs coiled under, ready to spring
+name haunchL
+Circle (0.418,0.615) r=0.052 rgb=74,50,36
+name haunchR
+Circle (0.582,0.615) r=0.052 rgb=74,50,36
+
+# the ROUNDED SPINE — a dark dorsal ridge down the midline (the arch, seen from above),
+# running INTO the skull so head and body read as one animal
+name spine
+Poly (0.50,0.300)@6 (0.50,0.460)@11 (0.50,0.600)@7 (0.50,0.675)@4 stroke=56,36,26
+
+# flank FUR — LOCKS (the brush, formal/draw.md) laid from the haunches FORWARD so each shingles
+# over the roots behind it: dark locks along the dorsal ridge fanning outward, a transition
+# row fading into the flank, small tufts at the SILHOUETTE and over the haunch bulges (the
+# "fur" read: the edge is broken, not moulded). Short and sleek — a rat's coat, not a wig.
+# The tail stays BARE, as the reference says.
+name fur
+Lock (0.440,0.625) (0.417,0.658)~ (0.402,0.686) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=1 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.560,0.622) (0.584,0.654)~ (0.600,0.680) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=2 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.500,0.632) (0.500,0.668)~ (0.503,0.698) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=3 rgb=78,54,40 dark=44,30,22 lit=118,88,66
+Lock (0.478,0.560) (0.466,0.598)~ (0.457,0.628) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=4 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.522,0.562) (0.535,0.600)~ (0.544,0.628) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=5 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.416,0.556) (0.393,0.586)~ (0.379,0.612) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=6 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.586,0.548) (0.610,0.576)~ (0.624,0.600) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=7 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.470,0.510) (0.455,0.548)~ (0.446,0.580) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=8 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.500,0.505) (0.502,0.548)~ (0.504,0.584) brush=fur w0=2 w=8 tips=2 tipvar=0.35 spread=10 seed=9 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.530,0.512) (0.545,0.548)~ (0.555,0.578) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=10 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.440,0.500) (0.425,0.536)~ (0.415,0.566) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=11 rgb=78,54,40 dark=44,30,22 lit=118,88,66
+Lock (0.560,0.498) (0.575,0.532)~ (0.585,0.562) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=12 rgb=78,54,40 dark=44,30,22 lit=118,88,66
+Lock (0.398,0.490) (0.376,0.516)~ (0.362,0.538) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=13 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.604,0.476) (0.626,0.500)~ (0.640,0.522) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=14 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.468,0.456) (0.453,0.494)~ (0.444,0.526) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=15 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.500,0.450) (0.498,0.494)~ (0.497,0.530) brush=fur w0=2 w=8 tips=2 tipvar=0.35 spread=10 seed=16 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.532,0.458) (0.547,0.494)~ (0.557,0.524) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=17 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.436,0.446) (0.420,0.480)~ (0.410,0.510) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=18 rgb=78,54,40 dark=44,30,22 lit=118,88,66
+Lock (0.564,0.442) (0.580,0.476)~ (0.590,0.506) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=19 rgb=78,54,40 dark=44,30,22 lit=118,88,66
+Lock (0.404,0.430) (0.382,0.456)~ (0.368,0.478) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=20 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.472,0.400) (0.458,0.438)~ (0.449,0.470) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=21 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.500,0.395) (0.501,0.440)~ (0.503,0.476) brush=fur w0=2 w=8 tips=2 tipvar=0.35 spread=10 seed=22 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.528,0.402) (0.542,0.438)~ (0.552,0.468) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=23 rgb=50,32,24 dark=26,16,12 lit=80,58,44
+Lock (0.442,0.396) (0.427,0.428)~ (0.417,0.456) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=24 rgb=78,54,40 dark=44,30,22 lit=118,88,66
+Lock (0.558,0.394) (0.573,0.426)~ (0.583,0.454) brush=fur w0=2 w=7 tips=2 tipvar=0.35 spread=10 seed=25 rgb=78,54,40 dark=44,30,22 lit=118,88,66
+Lock (0.412,0.392) (0.392,0.416)~ (0.378,0.438) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=26 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+Lock (0.590,0.386) (0.612,0.410)~ (0.626,0.432) brush=fur w0=2 w=6 tips=2 tipvar=0.35 spread=10 seed=27 rgb=112,82,60 dark=70,48,34 lit=152,116,86
+
+# clawed forepaws — splayed beside the muzzle (the lunge)
+name pawL
+Circle (0.405,0.272) r=0.036 rgb=66,44,32
+# claws — HOOKED tapered talons (curved ~ ribbons), larger + fanned forward (the lunge)
+Poly (0.386,0.252)@3.2 (0.372,0.208)~@1.6 (0.366,0.164)@0.3 stroke=210,200,170
+Poly (0.404,0.248)@3.2 (0.400,0.202)~@1.6 (0.396,0.156)@0.3 stroke=210,200,170
+Poly (0.422,0.250)@3.2 (0.432,0.204)~@1.6 (0.440,0.162)@0.3 stroke=210,200,170
+name pawR
+Circle (0.595,0.272) r=0.036 rgb=66,44,32
+Poly (0.614,0.252)@3.2 (0.628,0.208)~@1.6 (0.634,0.164)@0.3 stroke=210,200,170
+Poly (0.596,0.248)@3.2 (0.600,0.202)~@1.6 (0.604,0.156)@0.3 stroke=210,200,170
+Poly (0.578,0.250)@3.2 (0.568,0.204)~@1.6 (0.560,0.162)@0.3 stroke=210,200,170
+
+# head — emerges FROM the shoulder mass, never bolted on: a SKULL circle bridges the joint
+# (tone between body and muzzle), the muzzle wedge's base corners are BURIED inside it, and
+# the spine ridge (above) runs into the skull to tie body and head together.
+name skull
+Circle (0.50,0.340) r=0.090 rgb=72,48,35
+name muzzle
+Poly (0.425,0.355) (0.575,0.355) (0.50,0.150) rgb=62,40,30
+
+# ears — PINNED BACK: angular, swept from the skull sides (aggression)
+name earL
+Poly (0.458,0.318) (0.372,0.285) (0.436,0.362) rgb=50,30,22
+name earR
+Poly (0.542,0.318) (0.628,0.285) (0.564,0.362) rgb=50,30,22
+
+# eyes — small, mean, RED eyeshine
+name eyes
+Circle (0.472,0.296) r=0.013 rgb=120,16,12
+Circle (0.528,0.296) r=0.013 rgb=120,16,12
+Circle (0.475,0.291) r=0.005 rgb=255,84,60
+Circle (0.525,0.291) r=0.005 rgb=255,84,60
+
+# the gape — dark open mouth at the muzzle tip, incisors bared OVER it
+name gape
+Poly (0.476,0.212) (0.524,0.212) (0.500,0.156) rgb=28,14,10
+name incisors
+Poly (0.474,0.215) (0.487,0.112) (0.500,0.209) rgb=214,196,140
+Poly (0.500,0.209) (0.513,0.112) (0.526,0.215) rgb=214,196,140
+
+# bristly whiskers
+name whiskers
+Line (0.464,0.236) - (0.322,0.176) w=1
+Line (0.468,0.258) - (0.304,0.246) w=1
+Line (0.536,0.236) - (0.678,0.176) w=1
+Line (0.532,0.258) - (0.696,0.246) w=1

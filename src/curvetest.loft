@@ -1,0 +1,58 @@
+// curvetest — G2: a gentle, FAIR level curve. Max HP is class-INDEPENDENT (a pure
+// function of character level — every class gets the same HP; durability is gear, not
+// class — §3a #3) and grows gently: the whole-game span is a few×, not 10×+ (§3a #2).
+// Asserts the curve grows, is monotonic, is linear (constant per-level), and stays
+// gentle. Deterministic.
+
+use hex_grid;
+use sim::*;
+
+fn main() {
+  println("=== story curve + ratio-cap test (G2) ===");
+
+  s = sim_new();
+  cl0 = sim_clevel(s);            // 1
+  hp0 = sim_player_hp_max(s);     // hero_maxhp(1)
+
+  // Two more samples up the curve (sim_award_xp levels while the threshold holds).
+  sim_award_xp(s, 200);
+  clA = sim_clevel(s);
+  hpA = sim_player_hp_max(s);
+
+  sim_award_xp(s, 2000);
+  clB = sim_clevel(s);
+  hpB = sim_player_hp_max(s);
+
+  // A fresh hero pushed to the level cap — the whole-game span.
+  s2 = sim_new();
+  sim_award_xp(s2, 2000000000);
+  clM = sim_clevel(s2);
+  hpM = sim_player_hp_max(s2);
+
+  grew   = hpM > hp0;
+  mono   = hpA >= hp0 && hpB >= hpA && hpM >= hpB;
+  gentle = hpM < hp0 * 8;                         // a few×, well under the 10× line (§3a #2)
+  // linear / constant per-level (the class-independent slope), cross-multiplied:
+  spread = clA > cl0 && clB > clA;
+  linear = spread && (hpA - hp0) * (clB - clA) == (hpB - hpA) * (clA - cl0);
+
+  // ── G2 ratio cap: level shifts a fight by a bounded %, symmetric, never to 0 (§3a #2) ──
+  cap_eq    = combat_mult_pct(10, 10) == 100;          // equal level -> no level bonus
+  cap_hi    = combat_mult_pct(110, 10);                // far over-level, capped
+  cap_lo    = combat_mult_pct(10, 110);                // far under-level, capped
+  cap_bound = cap_hi <= 148 && cap_lo >= 52 && cap_hi > 100 && cap_lo < 100;
+  cap_sym   = combat_mult_pct(7, 3) + combat_mult_pct(3, 7) == 200;
+  cap_mono  = combat_mult_pct(11, 10) > 100 && combat_mult_pct(9, 10) < 100;
+  // never fully negated (>=1 chip), and over-levelling helps but stays bounded:
+  cap_chip  = capped_dmg(1, 10, 110) >= 1 && capped_dmg(20, 110, 10) > 20;
+  capok = cap_eq && cap_bound && cap_sym && cap_mono && cap_chip;
+
+  println("curve: L{cl0}={hp0}  L{clA}={hpA}  L{clB}={hpB}  Lcap{clM}={hpM}");
+  println("grew={grew} monotonic={mono} gentle(<8x)={gentle} linear={linear}");
+  println("cap: eq={cap_eq} hi={cap_hi} lo={cap_lo} bound={cap_bound} sym={cap_sym} mono={cap_mono} chip={cap_chip}");
+  if grew && mono && gentle && linear && capok {
+    println("=== CURVE OK ===");
+  } else {
+    println("=== FAIL ===");
+  }
+}
