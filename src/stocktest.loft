@@ -9,10 +9,10 @@
 // producers happen to be switched on today.
 //
 // ⚠ EVERY CLAIM IS SEEN BOTH WAYS. A stock that is never empty gates nothing.
-use sim;
-use items;
-use catalog;
-use monsters;                 // TAG_RUIN_BOSS — the den whose absence is the peaceful arm
+use sim::*;
+use items::*;
+use catalog::*;
+use monsters::*;                 // TAG_RUIN_BOSS — the den whose absence is the peaceful arm
 use hex_grid;                 // hex_distance, for the gatherer's round trip
 
 fn main() {

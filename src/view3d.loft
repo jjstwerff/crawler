@@ -15,15 +15,16 @@
 // in `hex_scene` with the camera; the COLOURS and HEIGHTS below are crawler's and stay.
 // That split is stated in EXTRACTION.md -> "The runtime half".
 use graphics;
-use sim;
-use hex_grid;
-use hexscene;
-use worldtex;
-use overland;
-use farfield;      // the terrain BEYOND the window — the far half of I-HORIZON (P6)
-use scale;         // m_to_wu — the haze distance is stated in metres (SCALE.md)
-use ground;        // the near field's SURFACE — one construction for standing and drawing (P6)
-use hextower;      // tower_face_pt — an arc edge's corners sit ON the recorded circle (P5 step B)
+use sim::*;
+use hex_grid::*;
+use hexscene::*;
+use worldtex::*;
+use overland::*;
+use farfield::*;      // the terrain BEYOND the window — the far half of I-HORIZON (P6)
+use scale::*;         // m_to_wu — the haze distance is stated in metres (SCALE.md)
+use ground::*;        // the near field's SURFACE — one construction for standing and drawing (P6)
+use hextower::*;      // tower_face_pt — an arc edge's corners sit ON the recorded circle (P5 step B)
+use hex_field::*;
 
 WALL3D_H = 3.2;          // world units ~ 2.77 m: a room you can stand up in (SCALE.md)
 EYE3D_Z  = 1.847;        // 1.6 m eye height at 0.866 m per world unit

@@ -1,7 +1,7 @@
 // chunkgeotest — @PLN2 S1: the two-tier coordinate mapping. Tier sizes are right; the
 // overworld hex and detail-cell mappings round-trip exactly; one overworld hex covers ~32
 // detail chunks across. Headless, deterministic.
-use chunk;
+use chunk::*;
 
 fn main() {
   println("=== story chunk-geo test (S1: two-tier coord mapping) ===");

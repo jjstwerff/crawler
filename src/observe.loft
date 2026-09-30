@@ -10,12 +10,12 @@
 //
 // Esc / window close leaves. The window title shows the replica's tick count.
 use graphics;
-use sim;
-use view;
-use wallgeo;
+use sim::*;
+use view::*;
+use wallgeo::*;
 use engine_host;
-use gameflow;
-use framekey;
+use gameflow::*;
+use framekey::*;
 use hex_grid;
 
 OBS_PORT = 18099;     // = story's STORY_PORT

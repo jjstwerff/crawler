@@ -4,9 +4,9 @@
 // sim_new_gen (the real-game constructor, which seeds the starting kit). Deterministic.
 
 use hex_grid;
-use sim;
-use items;
-use player;
+use sim::*;
+use items::*;
+use player::*;
 
 fn main() {
   println("=== story equip test (G3: wield + effects) ===");

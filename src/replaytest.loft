@@ -3,9 +3,9 @@
 // codec stay scene_key-identical at every step. This is the foundation under
 // the observer slice (and K4 lockstep): the wire-side replica IS the host's
 // world. Headless, deterministic.
-use sim;
-use gameflow;
-use framekey;
+use sim::*;
+use gameflow::*;
+use framekey::*;
 use hex_grid;
 
 DT = 0.016666;   // the K1 fixed quantum

@@ -3,9 +3,9 @@
 // routine-by-id seam (SCRIPTING.md): the generated spell_defs_gen.loft aggregates the defs and
 // dispatches each s_effect id to the fx_* routine below. The engine never names a spell; routines
 // compose engine primitives (the Player API + pub sim verbs). s_power is the routine's data knob.
-use sim;
+use sim::*;
 use player;
-use spells;
+use spells::*;
 
 pub fn mage_spells_defs() -> vector<SpellDef> {
   t: vector<SpellDef> = [];

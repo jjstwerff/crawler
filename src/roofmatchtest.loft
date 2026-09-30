@@ -11,9 +11,9 @@
 // cone back within the quantisation bound.
 //
 // The negative half matters as much: the matcher must REFUSE to call a gable a cone.
-use hex_field;
-use hex_way;
-use hex_roof;
+use hex_field::*;
+use hex_way::*;
+use hex_roof::*;
 
 fn main() {
   println("=== story roof-matching test ===");
@@ -90,19 +90,20 @@ fn main() {
   eb = fit3.rf_y + 0.1; if eb < 0.0 { eb = 0.0 - eb; }
   if ea > 0.001 || eb > 0.001 { ok = false; }
 
-  // ── 4. the NEGATIVE: a gable is neither, and must not be claimed ─────────
-  // A gable's iso-height sets are parallel line PAIRS, not circles and not a plane. The
-  // matcher has no primitive for it, so the honest answer is a large residual — never a
-  // confident wrong shape. This is the check that stops the renderer drawing a cone
-  // wherever it fails to recognise something.
+  // ── 4. a gable is a RIDGE, never a cone ────────────────────────────────
+  // A gable's iso-height sets are parallel line PAIRS, not circles and not a plane.
+  // hex_roof 0.1.2 gave the matcher that primitive (`ROOF_RIDGE`); before it the honest
+  // answer was a large residual, and a gable came back a cone at 1.209.  Either way this is
+  // the check that stops the renderer drawing a cone wherever it fails to recognise
+  // something: the gable must be named a ridge, within tolerance.
   ridge = track_new();
   track_straight(ridge, -24.0, 0.0, 24.0, 0.0);   // past the footprint: a TRUE gable,
                                                   // no hipped ends (which are conical)
   fgab = heights_new(hexset_q0(hall), hexset_r0(hall), hexset_w(hall), hexset_h(hall));
   roof_ridge(hall, fgab, ridge, 8.0, 0.7, 1000.0);
   fit4 = roof_match(hall, fgab, 0.05);
-  println("gable -> kind {fit4.rf_kind}, residual {fit4.rf_res} (must exceed the 0.05 tolerance)");
-  if fit4.rf_res <= 0.05 { ok = false; }
+  println("gable -> kind {fit4.rf_kind} (4 = ridge), residual {fit4.rf_res} (within the 0.05 tolerance)");
+  if fit4.rf_kind != ROOF_RIDGE || fit4.rf_res > 0.05 { ok = false; }
 
   // ── 5. the quantised hip roof still reads as a cone, with an honest error ─
   // roof_hip stores ring indices, so its heights are a STAIRCASE approximation of a cone.

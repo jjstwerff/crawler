@@ -9,11 +9,11 @@
 // falling back to coloured squares if the font cannot be loaded.
 
 use graphics;
-use hex_grid;
-use sim;
-use wallgeo;
-use worldmesh;  // the kernel-side terrain mesh (R4 tint bake)
-use items;
+use hex_grid::*;
+use sim::*;
+use wallgeo::*;
+use worldmesh::*;  // the kernel-side terrain mesh (R4 tint bake)
+use items::*;
 
 VIEW_W   = 800.0;
 VIEW_H   = 600.0;

@@ -12,7 +12,7 @@
 // Collision note: a missed redraw needs two CONSECUTIVE states to collide, and a
 // collision only delays the redraw until the next change — cosmetic, never sticky.
 
-use sim;
+use sim::*;
 
 KMOD = 281474976710656;   // 2^48 keeps k*31 < 2^53 (loft integers trap on overflow)
 

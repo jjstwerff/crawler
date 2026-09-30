@@ -19,10 +19,10 @@
 //   row 2  the mapping the SHADER uses round-trips: texel centre -> world -> uv -> texel
 //   row 3  standing on a hex, the ground under you is that hex's landcover
 //   row 4  negative controls: one flipped texel is seen; a frame off by one lattice unit is seen
-use sim;
-use worldtex;
-use hex_field;
-use hex_grid;
+use sim::*;
+use worldtex::*;
+use hex_field::*;
+use hex_grid::*;
 use overland;
 use sprite_draw;
 

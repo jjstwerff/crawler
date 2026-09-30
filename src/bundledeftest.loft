@@ -2,9 +2,9 @@
 // definitions (authored in bundles/desert_surprise/ds_*.loft, NOT in the engine catalogs) resolve
 // in game_monsters()/game_items(), AND the engine's base content is still present (the merge is
 // additive, base is a prefix). This is the foundation the quest's placement/grant build on.
-use catalog;
-use monsters;
-use items;
+use catalog::*;
+use monsters::*;
+use items::*;
 
 fn main() {
   println("=== story bundle-def test (desert_surprise enemies + items merge into the catalog) ===");

@@ -7,9 +7,9 @@
 //
 // ⚠ EVERY CLAIM IS SEEN BOTH WAYS. A predicate that has only ever answered `true` is not
 // known to work; each row below has its opposite beside it.
-use sim;
-use gameflow;
-use hex_grid;
+use sim::*;
+use gameflow::*;
+use hex_grid::*;
 
 DT = 0.016666;
 

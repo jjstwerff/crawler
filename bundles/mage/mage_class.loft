@@ -1,7 +1,7 @@
 // Mage — the class DEFINITION (authored content; one bundle = one class). Merged into
 // class_catalog() via the generated class_defs_gen.loft. The mage's starter spells live BESIDE
 // this in mage_spells.loft (spells belong to the owning class bundle — BUNDLE.md granularity).
-use classes;
+use classes::*;
 
 pub fn mage_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];

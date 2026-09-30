@@ -20,7 +20,7 @@
 // Invariants (tested in overlandtest): I1 no inland sea (solid land floored
 // above sea level), I2 lakes exactly level, I3 water never flows uphill.
 
-use hex_grid;
+use hex_grid::*;
 use hex_terrain;
 
 // ── terrain kinds (the game-facing vocabulary) ─────────────────────────────

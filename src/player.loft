@@ -8,7 +8,7 @@
 // bodies route there — every call-site written today (p.equip(s, ...), p.give_item(...))
 // stays exactly the same. That's the point: get the functions right now, no rewrite later.
 
-use sim;
+use sim::*;
 
 // `Player` is now the kernel-side character record (defined in sim.loft, beside Enemy).
 // These methods are the bundle/event-facing facade over it. Today they still delegate to

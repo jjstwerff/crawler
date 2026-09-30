@@ -13,9 +13,9 @@
 // Slip is therefore an opt-in TERM rather than a bug to fight: `slip = 0.1` means the wheel
 // turns 10% more than the ground it covers, which is a spinning drive wheel — a deliberate
 // effect, stated once.
-use mesh3d;
-use hex_way;
-use hexprim;
+use mesh3d::*;
+use hex_way::*;
+use hexprim::*;
 
 // Turns, not radians: a phase of 1.0 is one revolution, which is the number a wheel's
 // contact point actually cares about.

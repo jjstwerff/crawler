@@ -14,9 +14,9 @@
 //   - **I-POOL** — a stored pool derives from the PERMANENT stat layers only. This was already
 //     broken for the SP pool before `M4` measured it, and keying Endurance into max HP would
 //     have added a second instance.
-use sim;
+use sim::*;
 use catalog;
-use hex_grid;
+use hex_grid::*;
 
 // Each helper builds a FRESH character, raises ONE axis, reads ONE derived number — so no
 // helper ever holds two Sims (the C22 shape the other kernel tests keep to).

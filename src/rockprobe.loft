@@ -18,7 +18,7 @@
 // slope term exceeds 0.34, and that term is the raw gradient over 3 — so the question is
 // whether a coarse max-gradient near the centre separates the towns the way the real K_FACE
 // map does.
-use overland;
+use overland::*;
 use hex_grid;
 
 fn grad_at(o: Overland, x: float, y: float, e: float) -> float {

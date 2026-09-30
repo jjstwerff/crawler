@@ -8,7 +8,7 @@
 // canonical proportions — 7.5 heads tall, shoulders two head-widths — at exactly 1.75 m,
 // which under the scale contract is 2.021 world units. No external asset, no licence, and
 // an exact known size, which is the whole point of a reference.
-use mesh3d;
+use mesh3d::*;
 
 pub const FIGURE_M  = 1.75;
 pub const FIGURE_WU = 2.0207259421636903;      // 1.75 m / 0.8660254 m-per-wu

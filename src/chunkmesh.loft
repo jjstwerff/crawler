@@ -4,8 +4,8 @@
 // vertices exactly (watertight, I-SEAM in the rendered surface). Vertex stride = 6 floats
 // (x, height, z, r, g, b). The renderable VBO + the gridmesh dirty/group batching come at S5;
 // this step is the per-chunk mesh DATA, verifiable headlessly.
-use chunk;
-use overland;
+use chunk::*;
+use overland::*;
 
 pub const MESH_STRIDE = 6;
 

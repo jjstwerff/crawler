@@ -1,10 +1,10 @@
 // unknowntest — the Angband "mystery" (SLICE): magic goods read as a shuffled FLAVOUR until the KIND
 // is identified by using one (quaff/read/wield) or a Scroll of Identify. The flavour↔kind map is
 // per-game (seeded), carried across levels/death; IF_KNOWN items (the antivenin) are exempt.
-use sim;
-use catalog;
-use itemfx;
-use items;
+use sim::*;
+use catalog::*;
+use itemfx::*;
+use items::*;
 
 fn idx(key: text) -> integer { item_index(game_items(), key) }
 

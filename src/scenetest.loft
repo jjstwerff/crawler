@@ -8,8 +8,8 @@
 // The round-trip is only DEFINED for pixels below the horizon (a ray above it never meets
 // the ground ahead of the camera). The test therefore skips those explicitly and counts
 // what it skipped, so "0 failures" can never mean "0 tested".
-use hexscene;
-use hex_grid;
+use hexscene::*;
+use hex_grid::*;
 
 fn main() {
   println("=== story scene test (plan #11 P3: hex -> pixel -> the same hex) ===");

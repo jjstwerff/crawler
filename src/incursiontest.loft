@@ -28,9 +28,9 @@
 // ticking (row 2); the eligibility rule is then gated directly through `sim_dawn`, which is
 // a faithful stand-in precisely because the rule does not read the calendar. If those two
 // ever disagreed, a timer would have crept in — which is the thing `S5` exists to avoid.
-use sim;
-use monsters;
-use hex_grid;
+use sim::*;
+use monsters::*;
+use hex_grid::*;
 
 fn live_raiders(s: Sim) -> integer {
   n = 0;

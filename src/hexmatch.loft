@@ -11,8 +11,8 @@
 // is the quantisation scale measured throughout this plan, and it is therefore the
 // tolerance: large enough to absorb the zigzag (worst measured residual on a straight
 // wall is 0.81), small enough that a real corner never fits inside it.
-use hex_field;
-use hex_edge;
+use hex_field::*;
+use hex_edge::*;
 
 pub const MATCH_TOL = 1.0;
 

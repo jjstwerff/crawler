@@ -2,9 +2,9 @@
 //
 // Cell-authored content has no surfaces, so it has no NORMALS. This proves the matcher
 // gives it the same downstream behaviour as curve-authored content.
-use hex_field;
-use hex_edge;
-use hexmatch;
+use hex_field::*;
+use hex_edge::*;
+use hexmatch::*;
 
 fn main() {
   println("=== story match test (cells -> surfaces) ===");

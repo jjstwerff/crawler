@@ -5,9 +5,9 @@
 //   flatten err <= c^2/(8R) — near-exact is cheap, name a tolerance
 //   I-CURV  an offset degenerates when |d| >= R  (the minimum curve radius)
 //   one pass: every blocked edge carries the surface of its nearest segment
-use hex_field;
-use hex_edge;
-use hex_way;
+use hex_field::*;
+use hex_edge::*;
+use hex_way::*;
 
 fn main() {
   println("=== story way test (exact curves -> cells + edges + surfaces) ===");

@@ -12,8 +12,8 @@
 // Anti-vacuous by construction (the plan #11 P1 lesson — a control that cannot fire is
 // not a check): every world must contribute a substantial number of BLOCKED answers and
 // a substantial number of OPEN ones, or the run fails even with zero mismatches.
-use sim;
-use hex_grid;
+use sim::*;
+use hex_grid::*;
 
 // ── the reference: the model as it stood before P2, written out once ──────────
 // Deliberately duplicated rather than shared. A reference that calls the thing it

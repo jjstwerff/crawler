@@ -14,9 +14,9 @@
 // The mechanism is one call, `seat_z(seat, x, y)`. A generator that respects a seat asks it
 // for a height PER VERTEX rather than once per object, and that single habit is the whole
 // of this phase.
-use mesh3d;
+use mesh3d::*;
 use hex_field;
-use hexprim;
+use hexprim::*;
 
 pub const SEAT_PLANE = 1;
 pub const SEAT_FIELD = 2;

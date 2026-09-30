@@ -1,5 +1,5 @@
 // Rogue — the class DEFINITION (one bundle = one class; merged via class_catalog()).
-use classes;
+use classes::*;
 
 pub fn rogue_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];

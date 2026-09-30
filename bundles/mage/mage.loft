@@ -1,6 +1,6 @@
 // Mage bundle — loading script (see explorer/ for the model). Travels light: a dagger,
 // a torch, a cloak, extra healing, a little coin. Uses only the internal Player API.
-use sim;
+use sim::*;
 use player;
 
 pub fn activate(s: &Sim, p: Player) {

@@ -16,8 +16,8 @@
 // Per BUNDLE.md's settled seam, this file is MECHANISM: it knows PART_BOX and PART_DRUM and
 // nothing about carts. What a cart *is* — which parts, which dimensions — is content, and
 // lives with the caller.
-use mesh3d;
-use hexprim;
+use mesh3d::*;
+use hexprim::*;
 
 pub const PART_BOX  = 1;
 pub const PART_DRUM = 2;

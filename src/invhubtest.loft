@@ -1,9 +1,9 @@
 // invhubtest — the inventory hub's KERNEL pieces: the two ring locations (L = SLOT_RING, R =
 // SLOT_RING2; a ring fills the first free, a third swaps the left), the equipped-name accessor for
 // the EQUIPPED column, and reslot-binding a carried item to a quick-slot (the same bind primitive).
-use sim;
-use catalog;
-use items;
+use sim::*;
+use catalog::*;
+use items::*;
 
 fn main() {
   println("=== story inventory-hub test (two ring slots + equipped names + reslot) ===");

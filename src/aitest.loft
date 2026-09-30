@@ -3,9 +3,9 @@
 // when the player is within vision + line-of-sight; a NEVER_MOVE monster never
 // steps even while awake with the player in view. Deterministic.
 
-use hex_grid;
-use sim;
-use monsters;
+use hex_grid::*;
+use sim::*;
+use monsters::*;
 
 fn main() {
   println("=== story AI test (awareness + never-move) ===");

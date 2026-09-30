@@ -1,6 +1,6 @@
-# hex_terrain 0.1.1 — public API surface
-# generated from /home/jurjens/.loft/registry/hex_terrain-0.1.1
-# use it with: use hex_terrain;
+# hex_terrain 0.1.3 — public API surface
+# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/hex_terrain-0.1.3
+# use it with: use hex_terrain::*;
 
 ## src/hex_terrain.loft
 
@@ -13,24 +13,36 @@ pub struct TerrainType
 // user-tuned defaults; every field is meters unless noted.
 pub struct TerrainParams
 
+// The knobs a generated terrain is built from: a seed and a tile size, plus the thresholds
+// that follow.  Hold one and the terrain is reproducible — same params, same world.
 pub fn terrain_params(seed: integer, tile: float) -> TerrainParams
 
 // Parallel per-cell vectors, index = r * tr_nx + c (odd-r offset coords).
 pub struct Terrain
 
+// An empty nx-by-ny terrain: height, material and moisture per cell, all parallel, so a
+// cell index means the same thing in each.
 pub fn terrain_new(nx: integer, ny: integer) -> Terrain
 
+// The flat index of column c, row r.  The one place the row-major layout is written down.
 pub fn terrain_idx(t: Terrain, c: integer, r: integer) -> integer
 
 // Cell center in world meters — hex_grid's odd-r lattice scaled so the
 // horizontal pitch equals tp_tile (hex_grid's unit pitch is SQRT3).
+// 
+// Example: @HXT-001
 pub fn terrain_center(p: TerrainParams, c: integer, r: integer) -> (float, float)
 
 // The downstream cell of (c, r) — itself when it has no flow direction.
 pub fn terrain_flow_to(t: Terrain, c: integer, r: integer) -> (integer, integer)
 
+// A reproducible value in 0..1 for this seed and cell.  A hash, not a random: the same
+// inputs give the same answer on every machine and every run, which is what makes a
+// generated world shareable by seed alone.
 pub fn terrain_hash01(seed: integer, ix: integer, iy: integer, ch: integer) -> float
 
+// Smooth value noise at a world point, at the given wavelength.  Built on `terrain_hash01`,
+// so it inherits the same reproducibility.
 pub fn terrain_vnoise(seed: integer, x: float, y: float, wl: float, ch: integer) -> float
 
 // Fractal sum, roughly in [-1, 1].
@@ -48,10 +60,14 @@ pub fn terrain_ridge_at(p: TerrainParams, x: float, y: float) -> float
 // every land cell drains to the sea; cells the flood raised by more than
 // tp_lake_fill become lakes (material set to lake_mat).  Selection-based
 // flood (O(n^2)) — overland grids are small and this runs once at gen time.
+// 
+// Example: @HXT-003
 pub fn terrain_hydrology(t: Terrain, p: TerrainParams, lake_mat: integer)
 
 // Wet flags + the compounded neighbor relief.  Call AFTER the caller has
 // classified land materials (relief reads the final wet set).
+// 
+// Example: @HXT-004
 pub fn terrain_relief_pass(t: Terrain, types: vector<TerrainType>, p: TerrainParams)
 
 // One blended surface record at a fine point.
@@ -59,9 +75,15 @@ pub struct TerrainSurf
 
 // Smooth kernel blend of the overland cells around (x, y) + the boundary-line
 // contest + the fine height.  Pure function — THE seam invariant lives here.
+// 
+// Example: @HXT-002
+// Example: @HXT-008
 pub fn terrain_surface_at(t: Terrain, types: vector<TerrainType>, p: TerrainParams, x: float, y: float) -> TerrainSurf
 
 // Lightweight coarse-blend height only (for slopes along river courses).
+// 
+// Example: @HXT-005
+// Example: @HXT-006
 pub fn terrain_blend_h(t: Terrain, p: TerrainParams, x: float, y: float) -> float
 
 // The fractally jittered lake contour field (>= 0.5 = lake water).
@@ -69,6 +91,8 @@ pub fn terrain_lake_field(p: TerrainParams, x: float, y: float, lakey: float) ->
 
 // Is (x, y) open water (sea by the fine height contour, or lake)?  PRE-carve —
 // this is the shoreline rivers attach to.
+// 
+// Example: @HXT-007
 pub fn terrain_water_at(t: Terrain, types: vector<TerrainType>, p: TerrainParams, x: float, y: float) -> boolean
 
 // One river course PIECE: fine polyline (ends ON the shorelines) with
@@ -87,6 +111,8 @@ pub fn terrain_control_pt(p: TerrainParams, c: integer, r: integer) -> (float, f
 // All river course pieces, fully shaped: anchors (edge bits + control points)
 // -> fractal displacement -> corner-cut smoothing -> shoreline trim -> width/
 // depth/valley-width per vertex (slope-shaped + the estuary depth bonus).
+// 
+// Example: @HXT-002
 pub fn terrain_rivers(t: Terrain, types: vector<TerrainType>, p: TerrainParams) -> vector<TerrainRiver>
 
 pub struct TerrainSample
@@ -94,4 +120,6 @@ pub struct TerrainSample
 // The full sample: surface + ADDITIVE valley carving from every course near
 // the point + the water classification (sea floods the carved mouth).  Pure
 // function of (t, types, p, rivers, x, y) — THE window-independence invariant.
+// 
+// Example: @HXT-007
 pub fn terrain_sample(t: Terrain, types: vector<TerrainType>, p: TerrainParams, rivers: vector<TerrainRiver>, x: float, y: float) -> TerrainSample

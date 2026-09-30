@@ -1,9 +1,9 @@
 // chunkgentest — @PLN2 S2: an overworld chunk is a FAITHFUL sample of the loft engine
 // (each cell == ov_sample at the hex centre, height within the 0.05 m quantisation, kind exact)
 // and DETERMINISTIC (regenerate -> identical). Headless.
-use chunk;
-use chunkgen;
-use overland;
+use chunk::*;
+use chunkgen::*;
+use overland::*;
 
 fn main() {
   println("=== story chunk-gen test (S2: overworld chunk from the loft engine) ===");

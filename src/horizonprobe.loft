@@ -14,8 +14,8 @@
 // 10x makes it exactly as steep as reality. This prints the numbers that decide it, from the
 // world players start in.
 use sim;
-use overland;
-use hex_grid;
+use overland::*;
+use hex_grid::*;
 
 fn main() {
   println("=== P6 horizon probe: what the two readings actually measure (seed 1337) ===");

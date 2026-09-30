@@ -1,7 +1,7 @@
 // Warrior — the class DEFINITION (authored content; one bundle = one class). Merged into
 // class_catalog() via the generated class_defs_gen.loft; the loadout script (warrior.loft) grants
 // the kit, this row owns the numbers. Uses only the engine vocabulary from `classes`.
-use classes;
+use classes::*;
 
 pub fn warrior_class_defs() -> vector<ClassDef> {
   t: vector<ClassDef> = [];

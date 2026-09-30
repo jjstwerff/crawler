@@ -34,8 +34,8 @@
 //                               ties in the frame and the two sides agreeing on 186 by luck.
 //                               The invariant was simply under-specified at ties. Fixed by
 //                               making the tie class EMPTY — see TEX_SX/TEX_SY below.
-use hex_field;
-use hex_grid;
+use hex_field::*;
+use hex_grid::*;
 use sprite_draw;
 
 // ⚠ ANISOTROPIC, AND THAT IS THE FIX RATHER THAN A TUNING (see the localisation below).

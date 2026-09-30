@@ -1,9 +1,9 @@
 // deftest — headless check of the classes / races / items databases.
 
-use classes;
-use races;
-use items;
-use catalog;   // race_catalog() — engine base (now empty) + the per-race kind:"race" bundles
+use classes::*;
+use races::*;
+use items::*;
+use catalog::*;   // race_catalog() — engine base (now empty) + the per-race kind:"race" bundles
 
 fn main() {
   println("=== story definition tables test ===");

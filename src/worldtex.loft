@@ -42,8 +42,8 @@
 //     rasterises a traced loop (P6's cached layers, the editor); it does not bind this.
 //   - `trace` is NOT retired and must not be: the loops are what GEOMETRY and silhouettes
 //     (I-AGREE) are built from. What is measured here is that a RASTER does not need them.
-use sim;
-use hex_grid;
+use sim::*;
+use hex_grid::*;
 use overland;
 
 // Texels per lattice unit. One dial: k spans SQRT3/2 world units and m spans 1/2, so

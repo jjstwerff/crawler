@@ -2,9 +2,9 @@
 // Spell defs + the effect-id -> routine dispatch, aggregated from the "spells" section of
 // the owning class/race bundles. The engine never names a spell; bundles ship def AND
 // routine (the routine-by-id seam -- SCRIPTING.md). See BUNDLE.md.
-use sim;
-use player;
-use spells;
+use sim::*;
+use player::*;
+use spells::*;
 use druid_spells;
 use mage_spells;
 use priest_spells;

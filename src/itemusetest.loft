@@ -3,11 +3,11 @@
 //   1) a DEFAULT-effect heal potion — take damage, drink it, HP recovers, potion is consumed;
 //   2) a CUSTOM-script detect-monsters potion (bundles/explorer/items/) — drink it, monster
 //      detection turns on, the potion is consumed, and detection expires after its duration.
-use sim;
+use sim::*;
 use items;
-use player;
-use bundles;
-use itemfx;
+use player::*;
+use bundles::*;
+use itemfx::*;
 
 fn main() {
   println("=== story item-use test (Explorer potions: heal + detect) ===");

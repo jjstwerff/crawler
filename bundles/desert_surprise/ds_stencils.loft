@@ -2,7 +2,7 @@
 // engine stamps; this one is the naga throne. Uses only the engine's RoomStencil vocabulary. The legend
 // (boss/guard) references monster keys the bundle defined in ds_enemies.loft — resolved at stamp
 // time through the merged catalog, so it all stays bundle-side.
-use worldtypes;
+use worldtypes::*;
 
 pub fn room_stencils() -> vector<RoomStencil> {
   t: vector<RoomStencil> = [];

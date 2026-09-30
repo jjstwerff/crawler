@@ -2,7 +2,7 @@
 // resolves deterministically; the three CONTRACT INVARIANTS hold (I1 no inland
 // sea, I2 lakes exactly level, I3 water never flows uphill); the walked scale
 // is 100 steps across a dual-triangle side; terrain kinds map to walkability.
-use overland;
+use overland::*;
 use hex_grid;
 
 fn main() {

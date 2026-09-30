@@ -14,9 +14,9 @@
 //
 // ARCHES are the mirror: an opening whose SOFFIT varies between the pillars, so the clear
 // height varies along the span and what can pass depends on where you stand.
-use hex_field;
-use hex_way;
-use hex_roof;
+use hex_field::*;
+use hex_way::*;
+use hex_roof::*;
 
 fn main() {
   println("=== story roof / arch test ===");

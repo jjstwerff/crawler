@@ -8,9 +8,10 @@
 // It sits here rather than in ds_items.loft because that module is reached from
 // bundle_defs <- catalog <- sim; importing sim for the effect would close a cycle. The
 // def side stays dependency-free, exactly as the explorer's potion does.
-use sim;
+use sim::*;
 use player;
-use catalog;   // game_items() — to read this item's OWN i_power, so the number lives in the def
+use catalog::*;   // game_items() — to read this item's OWN i_power, so the number lives in the def
+use items::*;
 
 // Ward duration is the def's i_power (ticks), not a constant repeated here.
 pub fn apply(s: &Sim, p: Player) {

@@ -2,7 +2,7 @@
 // pile, sometimes an item); walking over gold auto-collects it; 'g' (sim_pickup)
 // grabs items under the player. Deterministic.
 
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story item test (gold + drops + pickup) ===");

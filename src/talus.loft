@@ -14,8 +14,8 @@
 // shared edge from the NEIGHBOUR chunk's cells, and talus_chunk is deterministic, so adjacent
 // chunks agree at the seam. CAPPED iterations -> approximate (not exact) repose equilibrium.
 // Design + pins: plans/2-chunked-lod-world/s6-subhex-finding.md
-use chunk;
-use overland;
+use chunk::*;
+use overland::*;
 
 pub const TALUS_HALO = 4;
 pub const TALUS_ITERS = 120;          // capped (generation-time precompute; not per-frame)

@@ -2,9 +2,9 @@
 // Realm-shared: every divine caster (priest, paladin) knows these — the priest bundle OWNS
 // them (spells live with their owning class; realm-mates share, the Angband book model).
 // Defs + fx routines together: the routine-by-id seam.
-use sim;
+use sim::*;
 use player;
-use spells;
+use spells::*;
 
 pub fn priest_spells_defs() -> vector<SpellDef> {
   t: vector<SpellDef> = [];

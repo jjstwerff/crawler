@@ -15,9 +15,9 @@
 //                             4 raise-stat(a1) · 5 inv-bind(a1,a2) ·
 //                             6 equip(a1) · 7 shrine-apply(col a1, idx a2)
 
-use sim;
-use itemfx;
-use bundles;   // bundle_activate — genesis grants the class kit
+use sim::*;
+use itemfx::*;
+use bundles::*;   // bundle_activate — genesis grants the class kit
 
 // Genesis — the ONE world-boot used by the host, every observer replica, and
 // the replay test: gen + class + the class KIT. Shared so a replica can never

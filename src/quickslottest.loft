@@ -3,10 +3,10 @@
 // 4 Arrows, and the bar must come out type-routed (potion->1, scroll->2, launcher auto-equipped +
 // FIRE bound to Q, ammo = quiver fuel, E empty). Then it exercises the verbs: press 1 drinks, press
 // Q fires, an empty slot is a no-op, a manual reslot MOVES a binding, and bindings survive a descent.
-use sim;
-use items;
-use itemfx;
-use player;
+use sim::*;
+use items::*;
+use itemfx::*;
+use player::*;
 
 fn main() {
   println("=== story quick-slot test (type-routed auto-slot + bind + dispatch) ===");

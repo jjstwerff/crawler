@@ -10,8 +10,8 @@
 // So this converts each one and checks it against what the real thing measures. It also
 // pins the one place the answer comes out WRONG — a staircase — because a limitation that
 // is merely written down drifts, and one that is gated cannot.
-use hex_grid;
-use scale;
+use hex_grid::*;
+use scale::*;
 
 fn inrange(v: float, lo: float, hi: float) -> boolean { v >= lo && v <= hi }
 

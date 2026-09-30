@@ -2,11 +2,11 @@
 // paralysed player's clock still advances + the status expires), the struggle fast-forward (pressing
 // move advances MORE ticks, same outcome), venom damage over time, the antivenin ward (clears + blocks
 // poison), and the gaze (an adjacent gazer paralyses, save-gated). Full boss kill->drop is in questtest.
-use sim;
-use catalog;
+use sim::*;
+use catalog::*;
 use monsters;
-use items;
-use hex_grid;
+use items::*;
+use hex_grid::*;
 
 fn main() {
   println("=== story special-attacks test (deadlock + struggle + venom + ward + gaze) ===");

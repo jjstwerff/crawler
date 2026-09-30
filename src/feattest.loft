@@ -4,10 +4,10 @@
 // vertex, so an opening CUT FROM CELLS can never be straight beyond one 1.0-unit edge.
 // As an interval on an exact surface it is straight at any width — and a DOUBLE DOOR is
 // simply a wider interval, which is what this proves.
-use hex_field;
-use hex_edge;
-use hex_way;
-use hexmatch;
+use hex_field::*;
+use hex_edge::*;
+use hex_way::*;
+use hexmatch::*;
 
 // Count each edge ONCE. Iterating all six directions from every cell visits a shared
 // edge twice, which silently doubled every figure in an earlier version of this test.

@@ -11,11 +11,12 @@
 //                     the Circle's line (merchant points -> mage asks -> reward + the WRIT
 //                     reveals the POOL -> fill the phial at the naga pool (tile 9) -> deliver,
 //                     repeatable). Plus: the way OUT of the dungeon exists (depth 1 -> surface).
-use sim;
-use catalog;
-use monsters;
-use items;
-use hex_grid;
+use sim::*;
+use catalog::*;
+use monsters::*;
+use items::*;
+use hex_grid::*;
+use world_place_gen::*;
 
 fn count_glyph(s: Sim, g: text) -> integer {
   n = 0;

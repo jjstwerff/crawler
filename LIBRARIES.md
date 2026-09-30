@@ -19,13 +19,16 @@ flight), and `loft api --registry` / `.loft/api/_available.api` (the live catalo
 Found one? Declare it in `loft.toml`, compile once, check `loft.lock` names it, and
 `make apidoc` — then it is in here.
 
-## `graphics` 0.5.0
+## `graphics` 0.9.4
 
 ```
 fn audio_load(path: text) -> integer;
-fn audio_play(clip: integer, volume: float) -> integer;
+fn audio_play(clip: integer, volume: float, looping: boolean = false,
 fn audio_play_raw(samples: vector<single>, sample_rate: integer, volume: float) -> integer;
+fn audio_seek(sink: integer, seconds: float) -> boolean;
+fn audio_set_pan(sink: integer, pan: float);
 fn audio_set_volume(sink: integer, volume: float);
+fn audio_stop_all();
 fn audio_stop(sink: integer);
 fn blend(dst: integer, src: integer) -> integer
 fn blend_pixel(self: Canvas, bx: integer, by: integer, color: integer)
@@ -54,6 +57,7 @@ fn draw_texture_at(painter: const Painter2D, tex: integer,
 fn elapsed(self: const Renderer) -> float
 fn fill_circle(self: Canvas, fcx: integer, fcy: integer, radius: integer, color: integer)
 fn fill_ellipse(self: Canvas, fex: integer, fey: integer, ferx: integer, fery: integer, color: integer)
+fn fill_polygon(self: Canvas, pts: const vector<Coord>, color: integer)
 fn fill_rect(self: Canvas, rx: integer, ry: integer, rw: integer, rh: integer, color: integer)
 fn fill_triangle(self: Canvas, tx0: integer, ty0: integer, tx1: integer, ty1: integer, tx2: integer, ty2: integer, color: integer)
 fn get_pixel(self: const Canvas, gx: integer, gy: integer) -> integer
@@ -90,13 +94,14 @@ fn gl_event_touch_id() -> integer;
 fn gl_event_wheel() -> integer;
 fn gl_event_x() -> float;
 fn gl_event_y() -> float;
+fn gl_finish();
 fn gl_font_ascent(font: integer, size: float) -> float;
 fn gl_framebuffer_texture(fbo: integer, attachment: integer, tex: integer);
 fn gl_generate_mipmap(tex: integer);
 fn gl_instance_attrib(vao: integer, ivbo: integer, location: integer, components: integer, stride_floats: integer, offset_floats: integer);
 fn gl_key_pressed(key_code: integer) -> boolean;
 fn gl_line_width(width: float);
-fn gl_load_font(path: text) -> integer;
+fn gl_load_font(path: text) -> integer
 fn gl_load_texture(path: text) -> integer;
 fn gl_measure_text(font: integer, content: text, size: float) -> float;
 fn gl_mouse_button() -> integer;
@@ -111,7 +116,7 @@ fn gl_screenshot(width: integer, height: integer, path: text) -> boolean;
 fn gl_set_fullscreen(on: boolean);
 fn gl_set_uniform_float(program: integer, name: text, val: float);
 fn gl_set_uniform_int(program: integer, name: text, val: integer);
-fn gl_set_uniform_mat4(program: integer, name: text, mat: vector<float>);
+fn gl_set_uniform_mat4(program: integer, name: text, mat: const vector<float>);
 fn gl_set_uniform_vec2(program: integer, name: text, x: float, y: float);
 fn gl_set_uniform_vec3(program: integer, name: text, x: float, y: float, z: float);
 fn gl_set_uniform_vec4(program: integer, name: text, x: float, y: float, z: float, w: float);
@@ -120,7 +125,7 @@ fn gl_text_height(font: integer, size: float) -> integer;
 fn gl_texture_filter(tex: integer, nearest: boolean);
 fn gl_texture_subimage(tex: integer, x: integer, y: integer, w: integer, h: integer, data: vector<integer>);
 fn gl_update_buffer(vbo: integer, data: vector<single>);
-fn gl_upload_canvas(data: vector<integer>, width: integer, height: integer) -> integer;
+fn gl_upload_canvas(data: const vector<integer>, width: integer, height: integer) -> integer;
 fn gl_upload_indices(vao: integer, data: vector<integer>) -> integer;
 fn gl_upload_instance_buffer(data: vector<single>) -> integer;
 fn gl_upload_vertices(data: vector<single>, stride: integer) -> integer;
@@ -129,7 +134,7 @@ fn gl_viewport(x: integer, y: integer, w: integer, h: integer);
 fn gl_window_height() -> integer;
 fn gl_window_width() -> integer;
 fn group_vbos_destroy(set: GroupVboSet)
-fn group_vbos_draw_all(set: GroupVboSet)
+fn group_vbos_draw_all(set: const GroupVboSet)
 fn group_vbos_new(stride: integer, draw_mode: integer) -> GroupVboSet
 fn group_vbos_upsert(set: GroupVboSet, gk: integer, verts: vector<single>,
 fn hline(self: Canvas, hx0: integer, hx1: integer, hy: integer, color: integer)
@@ -137,6 +142,8 @@ fn painter_vao(self: const Painter2D) -> integer
 fn render_frame_no_swap(self: Renderer, sc: const scene::Scene,
 fn render_frame(self: Renderer, sc: const scene::Scene,
 fn render_loop(self: Renderer, sc: const scene::Scene, cam: const scene::Camera)
+fn resize_bicubic(self: const Canvas, ow: integer, oh: integer) -> Canvas
+fn resize_lanczos(self: const Canvas, ow: integer, oh: integer) -> Canvas
 fn rgba(cr: integer, cg: integer, cb: integer, ca: integer) -> integer
 fn rgb(cr: integer, cg: integer, cb: integer) -> integer
 fn save_png(self: const Canvas, path: text) -> boolean
@@ -149,13 +156,14 @@ fn sfx_noise(sn_dur: single, sn_vol: single) -> integer
 fn upload_scene(self: Renderer, sc: const scene::Scene)
 fn vline(self: Canvas, vx: integer, vy0: integer, vy1: integer, color: integer)
 struct Canvas
+struct Coord
 struct GroupVboSet
 struct Painter2D
 struct Renderer
 struct SpriteSheet
 ```
 
-## `hex_grid` 0.1.0
+## `hex_grid` 0.1.2
 
 ```
 const GRID_LEN  = 1.0;   // distance between adjacent cells = the distance-clock unit
@@ -184,7 +192,7 @@ fn px_to_cell(x: float, y: float) -> (integer, integer)
 fn px_to_hex(x: float, y: float) -> (integer, integer)
 ```
 
-## `hex_terrain` 0.1.1
+## `hex_terrain` 0.1.3
 
 ```
 fn terrain_blend_h(t: Terrain, p: TerrainParams, x: float, y: float) -> float
@@ -215,7 +223,7 @@ struct TerrainSurf
 struct TerrainType
 ```
 
-## `random` 0.3.0
+## `random` 0.3.3
 
 ```
 fn get(self: RandStream, lo: integer, hi: integer) -> integer?
@@ -227,16 +235,18 @@ fn seed_stream(seed: integer) -> RandStream
 struct RandStream
 ```
 
-## `glb` 0.1.2
+## `glb` 0.1.3
 
 ```
 fn save_glb(m: Mesh, path: text)
 fn save_scene_glb(sc: Scene, path: text)
 ```
 
-## `hex_field` 0.1.0
+## `hex_field` 0.1.3
 
 ```
+const EDGE_MAT_MAX = 255;
+const HXF_BAD_EXTENT    = 7;   // w or h impossible for a file this size
 const HXF_BAD_MAGIC     = 1;
 const HXF_BAD_RESERVED  = 3;
 const HXF_BAD_SCHEMA    = 2;
@@ -275,6 +285,7 @@ fn edge_set_mat(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer, 
 fn edgeset_new(q0: integer, r0: integer, w: integer, h: integer) -> EdgeSet
 fn edgeset_q0(e: EdgeSet) -> integer
 fn edgeset_r0(e: EdgeSet) -> integer
+fn edgeset_refused(e: EdgeSet) -> integer
 fn edgeset_surf_count(e: EdgeSet) -> integer
 fn edge_set_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
 fn edgeset_w(e: EdgeSet) -> integer
@@ -319,6 +330,7 @@ fn layers_r0(ls: Layers) -> integer
 fn layers_w(ls: Layers) -> integer
 fn nb_q(q: integer, r: integer, d: integer) -> integer
 fn nb_r(_q: integer, r: integer, d: integer) -> integer
+fn outline_count(v: VecMap) -> integer
 fn shoelace2(v: VecMap, i: integer) -> integer
 fn shoelace_total(v: VecMap) -> integer
 fn stencil_from(s: HexSet, hz: Heights, lb: Labels, has_h: boolean, has_l: boolean) -> Stencil
@@ -329,6 +341,9 @@ fn stencil_stamp(
 fn stencil_stamp_all(
 fn stencil_stamp_edges(
 fn stencil_stamp_layers(
+fn stencil_unstamp(
+fn stencil_unstamp_all(
+fn stencil_unstamp_layers(
 fn stencil_with_edges(s: HexSet, hz: Heights, lb: Labels, eg: EdgeSet,
 fn trace(s: HexSet) -> VecMap
 fn validate(v: VecMap, cells: integer) -> integer
@@ -343,7 +358,7 @@ struct Stencil
 struct VecMap
 ```
 
-## `hex_edge` 0.1.0
+## `hex_edge` 0.2.1
 
 ```
 const FEAT_DOOR     = 1;
@@ -391,13 +406,14 @@ fn surf_param(s: Surfaces, id: integer, px: float, py: float) -> float
 fn surf_point(s: Surfaces, id: integer, t: float) -> (float, float)
 fn surf_straight(s: Surfaces, nx: float, ny: float, c: float) -> integer
 fn sweep_path(e: EdgeSet, x0: float, y0: float, x1: float, y1: float)
+fn sweep_path_from(e: EdgeSet, sq: integer, sr: integer,
 struct Features
 struct Junctions
 struct Materials
 struct Surfaces
 ```
 
-## `hex_way` 0.1.0
+## `hex_way` 0.1.2
 
 ```
 const WAY_ARC      = 2;
@@ -425,12 +441,13 @@ fn way_surfaces(t: Track, sf: Surfaces) -> integer
 struct Track
 ```
 
-## `hex_roof` 0.1.0
+## `hex_roof` 0.1.5
 
 ```
 const ROOF_CONE    = 2;
 const ROOF_DOME    = 3;   // rf_z = base, rf_slope = sphere radius
 const ROOF_PLANE   = 1;
+const ROOF_RIDGE   = 4;   // rf_x,rf_y = one end; rf_x2,rf_y2 = the other
 const ROOF_UNKNOWN = 0;
 fn clear_height(fl: Heights, so: Heights, q: integer, r: integer) -> float
 fn dome(s: HexSet, f: Heights, cx: float, cy: float, base: float, radius: float)
@@ -443,6 +460,7 @@ fn roof_hip(s: HexSet, f: Heights, eave: float, per_ring: float) -> integer
 fn roof_match(s: HexSet, f: Heights, tol: float) -> RoofFit
 fn roof_plane_fit(s: HexSet, f: Heights) -> RoofFit
 fn roof_ponds(s: HexSet, f: Heights) -> integer
+fn roof_ridge_fit(s: HexSet, f: Heights) -> RoofFit
 fn roof_ridge(s: HexSet, f: Heights, t: Track,
 fn vault_arc(s: HexSet, f: Heights, t: Track, spring: float, radius: float)
 fn vault_cloister(s: HexSet, f: Heights, t1: Track, t2: Track,

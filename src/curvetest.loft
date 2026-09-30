@@ -5,7 +5,7 @@
 // gentle. Deterministic.
 
 use hex_grid;
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story curve + ratio-cap test (G2) ===");

@@ -3,7 +3,7 @@
 //   ' ' sea   '~' river   '=' lake   ',' sand   '.' grass   '+' field
 //   '-' road  'T' forest  '"' meadow ':' scree  '^' rock face (wall)
 //   '*' snow  '%' glacier 's' swamp  1/2/3 town (by size)  'X' ruin  'W'/'w' wizard tower (lit/abandoned)
-use overland;
+use overland::*;
 
 fn kind_ch(k: integer) -> text {
   if k == K_SEA { return " "; }

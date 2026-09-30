@@ -15,10 +15,10 @@
 // only (walls keep the wall tone), kind >= 0 (the dungeon draws none), never
 // K_FACE (stone faces read as wall).
 
-use sim;
-use hex_grid;
-use overland;
-use wallgeo;
+use sim::*;
+use hex_grid::*;
+use overland::*;
+use wallgeo::*;
 
 // R5 wall strokes — capsule-SDF quads (plan #7 P3; blueprint:
 // tools/blueprints/wall_sdf.py — interior pure, ~1px AA ramp, joins continuous

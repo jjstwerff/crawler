@@ -11,9 +11,9 @@
 // it is an interval in a cell, so a ray is stopped by passing THROUGH it. What comes out is
 // the sky fraction, and that one number decides everything about the understory —
 // including forest-gap regeneration, which is not scripted anywhere.
-use hex_field;
-use hexcanopy;
-use hexcache;
+use hex_field::*;
+use hexcanopy::*;
+use hexcache::*;
 use hex_edge;
 
 fn fill(s: HexSet) {

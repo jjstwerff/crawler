@@ -2,7 +2,7 @@
 // same way as the enemies. Uses only the engine vocabulary from `items`: the ItemDef record, the
 // IT_*/SLOT_* categories, and the IF_QUEST flag (a keepsake — never auto-slotted/consumed, inspected
 // for its lore). i_depth 0 keeps it out of the random drop pool; the bundle grants it at the start.
-use items;
+use items::*;
 
 pub fn item_defs() -> vector<ItemDef> {
   t: vector<ItemDef> = [];

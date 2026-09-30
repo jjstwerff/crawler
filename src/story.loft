@@ -10,16 +10,16 @@
 // (fire arrow / cast spell); that's why stairs are taken by walking, not a key.
 
 use graphics;
-use sim;
-use wallgeo;
-use view;
-use view3d;     // plan #11 P3: the first-person 3D pass (V toggles)
+use sim::*;
+use wallgeo::*;
+use view::*;
+use view3d::*;     // plan #11 P3: the first-person 3D pass (V toggles)
 use itemfx;
 use bundles;   // bundle_activate — the quick-start class kit (generated registry)
-use framekey;    // scene_key — the idle skip (redraw only when the frame would differ)
+use framekey::*;    // scene_key — the idle skip (redraw only when the frame would differ)
 use engine_host; // run — the games kernel owns the loop; crawler is the HOST (K1/K2)
-use gameflow;    // the deterministic intent seam: apply + broadcast (K2)
-use genbundles;  // the bundle scanner — N ("next world") re-scans before restart (K5)
+use gameflow::*;    // the deterministic intent seam: apply + broadcast (K2)
+use genbundles::*;  // the bundle scanner — N ("next world") re-scans before restart (K5)
 
 WIN_W   = 800;
 WIN_H   = 600;

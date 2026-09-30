@@ -8,9 +8,9 @@
 //   3. NEGATIVE CONTROL — the same walk with caching never invalidated must blow past 1 px
 //   4. THE COMPRESSION IS A TERM, and DESIGN.md's table omits it: every cache lifetime there
 //      is exactly TERRAIN_COMPRESS times too long
-use scale;
-use hex_grid;
-use parallax;
+use scale::*;
+use hex_grid::*;
+use parallax::*;
 
 fn absf(v: float) -> float { if v < 0.0 { return 0.0 - v; } v }
 

@@ -3,22 +3,22 @@
 // Block-in pass: big masses first, detail last.  Everything stands on the hex field —
 // the ground is displaced hexes, the walls are edges, the roofs are the profile x distance
 // table from plan #5, the trees are plan #9's canopy.
-use hex_field;
+use hex_field::*;
 use hex_edge;
 use hex_way;
 use hex_roof;
-use hexprim;
-use hexpart;
-use hexseat;
-use hexhinge;
+use hexprim::*;
+use hexpart::*;
+use hexseat::*;
+use hexhinge::*;
 use hexwheel;
 use hexlink;
 use hexcanopy;
 use hexskel;
-use scenemesh;
-use figure;
-use mesh3d;
-use glb;
+use scenemesh::*;
+use figure::*;
+use mesh3d::*;
+use glb::*;
 
 fn m(v: float) -> float { v / 0.8660254037844386 ?? 0.0 }
 

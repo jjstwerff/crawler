@@ -1,9 +1,9 @@
 // Druid — the NATURE starter book (clean-room names, Angband nature-realm mechanics).
 // Realm-shared: every nature caster (druid, ranger) knows these — the druid bundle OWNS
 // them (spells live with their owning class; realm-mates share, the Angband book model).
-use sim;
+use sim::*;
 use player;
-use spells;
+use spells::*;
 
 pub fn druid_spells_defs() -> vector<SpellDef> {
   t: vector<SpellDef> = [];

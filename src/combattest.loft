@@ -1,7 +1,7 @@
 // combattest — headless check of the melee loop (player kills enemy by bumping;
 // enemy hits back). Deterministic; no graphics.
 
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story combat test ===");

@@ -4,7 +4,7 @@
 // down-stair; the same (seed, depth) regenerates identically. Deterministic.
 
 use hex_grid;
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story level test (stairs + descent) ===");

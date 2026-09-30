@@ -1,11 +1,11 @@
 // scenetree — the branch structure, drawn, so the spoke fix can be SEEN.
-use hex_field;
-use hexcanopy;
-use hexskel;
-use scenemesh;
-use figure;
-use mesh3d;
-use glb;
+use hex_field::*;
+use hexcanopy::*;
+use hexskel::*;
+use scenemesh::*;
+use figure::*;
+use mesh3d::*;
+use glb::*;
 
 fn main() {
   q0 = -20; r0 = -16; gw = 41; gh = 33;

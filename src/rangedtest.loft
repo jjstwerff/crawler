@@ -2,7 +2,7 @@
 // Q/E or 1-9 will trigger it). Equip a bow in SLOT_BOW, carry ammo, face an enemy so it is SEEN,
 // then fire: damage = ammo dice * launcher multiplier + shooting skill (auto-hit-capped like melee);
 // ammo is consumed; a kill awards XP. With no launcher equipped it is a no-op.
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story ranged test (launcher + ammo -> fire) ===");

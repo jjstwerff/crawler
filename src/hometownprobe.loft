@@ -20,7 +20,7 @@
 // This prints what that score picks, at three sampling densities and three notions of
 // "gentle", plus the resulting window's walkability — so the choice is made on the numbers
 // rather than on the argument above.
-use overland;
+use overland::*;
 use hex_grid;
 
 // True gradient (rise/run) in natural metres at (x,y), from central differences at ±e.

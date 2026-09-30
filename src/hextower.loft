@@ -25,10 +25,10 @@
 // a curve where it used to extrude a facet. The door stops being an accident of a cleared
 // cell and becomes an interval ON that surface, with a head height and a clear width in
 // metres.
-use hex_grid;
-use hex_field;
-use hex_edge;
-use scale;
+use hex_grid::*;
+use hex_field::*;
+use hex_edge::*;
+use scale::*;
 
 // A door's head, in metres: the opening runs from the ground to here, and the wall carries
 // on above it. 2.2 m is a real doorway head — high enough to walk through in a helmet.

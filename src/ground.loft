@@ -26,8 +26,8 @@
 // name of the accessor it reads through, and it belongs beside the camera in `hexscene`
 // (EXTRACTION.md -> "The runtime half"). It stays here until the far field has a second
 // consumer for it, because a library with one caller is a guess about the second.
-use hex_grid;
-use sim;
+use hex_grid::*;
+use sim::*;
 
 // The two edge directions that meet at corner `k`. Derived from `hex_edge_corners` rather
 // than written out, so the corner/edge convention lives in exactly one place — the library's.

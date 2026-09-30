@@ -1,9 +1,9 @@
 // msgtest — the message-log system: the kernel ring buffer (sim_log / sim_msg_count / sim_msg_at,
 // newest-first, wraps at MSG_MAX) and that real events push lines (level-up, descend, a kill, and
 // the honest "Nothing happens" for an item whose effect is not built yet).
-use sim;
+use sim::*;
 use catalog;
-use itemfx;
+use itemfx::*;
 
 fn main() {
   println("=== story message-log test ===");

@@ -13,11 +13,11 @@
 // So: for each bearing, the horizon angle computed over ALL ground, and again over only the
 // ground the renderer emits a floor for. If (b) is what is happening, the two profiles differ
 // and the difference is the mountain.
-use sim;
-use ground;
-use hex_grid;
-use scale;
-use overland;
+use sim::*;
+use ground::*;
+use hex_grid::*;
+use scale::*;
+use overland::*;
 
 fn main() {
   s = sim_new_gen(1337, 0);

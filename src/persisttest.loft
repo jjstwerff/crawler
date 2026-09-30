@@ -3,7 +3,7 @@
 // spot, persist ONLY the dead set, then regenerate the level from the same seed and replay the
 // delta: the killed stay dead, the survivor is back at its NATURAL place, and the rooms we skipped
 // are still full -- ready to be cleaned out on the return trip.
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story persist test (deterministic base + death delta; round-trip = identity) ===");

@@ -4,22 +4,22 @@
 // enemies; a distance-driven clock: every HEX_LEN of player travel = one tick,
 // turning costs no distance and therefore no time.  NO graphics dependency.
 
-use hex_grid;
-use hex_field;        // HexSet — the solid cell set the edge field is sealed from (plan #11 P2)
-use hex_edge;          // EdgeSet + passable() — THE crossing predicate (plan #5's edge model)
-use hextower;         // the round towers' exact arcs — recorded by the builder (plan #11 P5)
-use gen;
-use monsters;
-use items;
-use catalog;          // game_monsters()/game_items()/race_catalog()/class_catalog() — the merges
-use races;            // RaceDef + RF_* ability flags + race_find/race_has_flag (the chosen race applies)
-use classes;          // ClassDef + class_find (the chosen class applies: stats/HP/SP/skills/realm)
+use hex_grid::*;
+use hex_field::*;        // HexSet — the solid cell set the edge field is sealed from (plan #11 P2)
+use hex_edge::*;          // EdgeSet + passable() — THE crossing predicate (plan #5's edge model)
+use hextower::*;         // the round towers' exact arcs — recorded by the builder (plan #11 P5)
+use gen::*;
+use monsters::*;
+use items::*;
+use catalog::*;          // game_monsters()/game_items()/race_catalog()/class_catalog() — the merges
+use races::*;            // RaceDef + RF_* ability flags + race_find/race_has_flag (the chosen race applies)
+use classes::*;          // ClassDef + class_find (the chosen class applies: stats/HP/SP/skills/realm)
 use random;           // RandStream (loft-libs-core): owned deterministic streams — combat rolls,
                       //   monster placement, flavour shuffles (EXTRACTION.md item 4 adoption)
-use overland;         // the contract wilderness: the surface samples ov_sample (OVERLAND.md 12)
-use scale;            // terrain_m_to_wu — THE vertical reading (SCALE.md; plan #11 P6)
+use overland::*;         // the contract wilderness: the surface samples ov_sample (OVERLAND.md 12)
+use scale::*;            // terrain_m_to_wu — THE vertical reading (SCALE.md; plan #11 P6)
 use worldtypes;       // RoomStencil / Placement — the world-bundle vocabulary
-use world_place_gen;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
+use world_place_gen::*;  // world_stencils()/world_placement() — the active bundle's set-piece + rules
 
 MOVE_SPEED = 6.0;     // world units / second (brisk, Angband-paced; clock is distance)
 TURN_SPEED = 2.6;     // radians / second
@@ -5093,6 +5093,24 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
   tiles = lvl.g_tiles;
   tk = zeros(w * h);
   th: vector<float> = [];
+  // The surface block below binds these, and the later `depth == 0` blocks read them.  A
+  // local bound inside a block ends with it, so they are declared here; a run below the
+  // surface never reads them, and every one is reassigned before its first read.
+  ovw = Overland { ov_seed: 0, ov_mat: [], ov_flow: [], ov_acc: [], ov_sides: [], ov_peaks: [],
+                   ov_ridges: [], ov_towns: [], ov_roads: [], ov_forts: [], ov_swamps: [],
+                   ov_stops: [], ov_ruins: [], ov_wiz: [] };
+  ax = 0.0;
+  ay = 0.0;
+  cwx = 0.0;
+  cwy = 0.0;
+  intown = false;
+  tsize = 1;
+  sstep = 0.0;
+  pier_aq = -1;
+  pier_ar = -1;
+  pier_sea = false;
+  nhouse = 0;
+  hring = 0.0;
   if depth == 0 {
     // The CONTRACT WILDERNESS (OVERLAND.md 12): the window anchors at the
     // biggest town of the example world; each walked hex samples the pure
@@ -5799,10 +5817,10 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
           }
         }
       }
-      if intown {
       farq = w / 2;
       farr = h / 2;
       bfar = -1;
+      if intown {
       for rr7 in 1..h - 1 {
         for rq7 in 1..w - 1 {
           ti10 = rr7 * w + rq7;

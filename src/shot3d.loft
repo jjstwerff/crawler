@@ -10,10 +10,10 @@
 // It prints the numbers a still frame cannot show — scene vertex count, actor count, the
 // camera's own position — so a black PNG can be told apart from an empty world.
 use graphics;
-use sim;
-use hex_grid;
-use hexscene;
-use view3d;
+use sim::*;
+use hex_grid::*;
+use hexscene::*;
+use view3d::*;
 
 fn shot_at(s: Sim, name: text, prog: integer, avbo: integer, vw: float, vh: float) {
   shot_far(s, name, prog, avbo, vw, vh, true, true);

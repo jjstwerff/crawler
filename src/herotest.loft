@@ -2,7 +2,7 @@
 // hero up, growing max HP and healing the gained amount; killing a monster in
 // combat awards XP. Deterministic.
 
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story hero test (XP + level-up) ===");

@@ -2,9 +2,9 @@
 // deterministic (I-DET), is watertight across chunk bases (I-SEAM), and is consistent with the
 // overworld tier on zoom (I-LOD: the detail surface passes through the overworld hex centres,
 // since both sample the SAME engine field). Headless.
-use chunk;
-use chunkgen;
-use overland;
+use chunk::*;
+use chunkgen::*;
+use overland::*;
 
 fn main() {
   println("=== story detail-chunk test (S3: LOD tier — I-HEIGHT / I-DET / I-SEAM / I-LOD) ===");

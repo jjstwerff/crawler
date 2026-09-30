@@ -13,9 +13,9 @@
 //
 // A bundle's items are NOT here. They ship their own routine in
 // bundles/<b>/items/<item_key>.loft and are reached through the generated item_fx_gen.
-use sim;
-use items;
-use catalog;   // game_items() — the merged catalog (effect magnitudes come from the def)
+use sim::*;
+use items::*;
+use catalog::*;   // game_items() — the merged catalog (effect magnitudes come from the def)
 use player;
 
 // Run the engine item `key`'s effect. Returns false for a key with no effect yet, which the

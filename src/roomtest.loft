@@ -2,7 +2,7 @@
 // bundles and emits src/rooms_gen.loft (the default room set + how corridors connect them); this
 // verifies the registry is well-formed and carries the staple rectangle + the connection model.
 // (gen.loft consuming this registry is the deliberate next step — see the commit notes.)
-use rooms_gen;
+use rooms_gen::*;
 
 fn main() {
   println("=== story rooms test (rooms bundle -> registry) ===");

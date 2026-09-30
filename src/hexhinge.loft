@@ -8,8 +8,8 @@
 // exists: `material_set_solid` was written for level-crossing barriers and gated there as
 // costing zero edge writes and not invalidating the L2 cache. A gate written for a railway
 // is, unchanged, the door-opening mechanism.
-use mesh3d;
-use hex_edge;
+use mesh3d::*;
+use hex_edge::*;
 
 // A leaf hinged at (hx, hy), swinging `angle` from its closed heading `yaw`.
 //

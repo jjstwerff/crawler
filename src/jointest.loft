@@ -6,9 +6,9 @@
 // each build is self-consistent.
 //
 // THE RULE: nearest surface to the edge's contact point wins; ties to the lower id.
-use hex_field;
-use hex_edge;
-use hex_way;
+use hex_field::*;
+use hex_edge::*;
+use hex_way::*;
 
 // Build the same scene in a given order; return the EdgeSet for comparison.
 fn scene(order: integer, sf: Surfaces, mat: integer,

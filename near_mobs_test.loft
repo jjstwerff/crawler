@@ -16,7 +16,7 @@
 // feature landed as `spatial`, which is the spelling the parser accepts.  One word, sixteen
 // cascading errors, and nothing compiled this file, so the validation never ran.  First green
 // run 2026-08-11 on toolchain 2026.8.0: 22x fewer candidates, 344 ms -> 39 ms, 500/500 match.
-use hex_grid;   // hex_distance(q1,r1,q2,r2) — steps in odd-r offset coords
+use hex_grid::*;   // hex_distance(q1,r1,q2,r2) — steps in odd-r offset coords
 
 struct Mob { q: integer, r: integer, id: integer }
 

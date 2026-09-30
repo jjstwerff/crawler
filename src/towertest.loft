@@ -20,12 +20,12 @@
 //      height, and its clear width REPORTED in metres (the plan's stated debt).
 //
 // Every one of them carries a negative control, and the controls run on the same world.
-use sim;
-use hex_grid;
-use hex_field;
-use hex_edge;
-use hextower;
-use scale;
+use sim::*;
+use hex_grid::*;
+use hex_field::*;
+use hex_edge::*;
+use hextower::*;
+use scale::*;
 
 // cos(30 degrees): the six hex directions quantise a continuous radial normal to at most
 // half a sector, so this is the bound the fabric imposes — not a tuned tolerance.

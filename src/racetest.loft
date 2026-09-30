@@ -2,10 +2,10 @@
 // in per-race bundles (race_catalog); sim_set_race bakes the stat block and the rest derives live:
 // hit-die -> max HP, skill/save mods, and the ability flags wired to existing systems (free-action
 // gates the gaze paralysis; resist-poison gates venom). Default "human" is the all-zero baseline.
-use sim;
+use sim::*;
 use catalog;
 use monsters;
-use hex_grid;
+use hex_grid::*;
 
 // Each helper builds a fresh char, sets its race, reads ONE value -> never holds several Sims (C22).
 fn maxhp_of(key: text) -> integer { s = sim_new(); sim_set_race(s, key); sim_player_hp_max(s) }

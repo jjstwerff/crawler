@@ -5,14 +5,14 @@
 // base tables (monster_table/item_table) — bundle monsters/items never random-spawn/drop unless a
 // bundle's own placement rule puts them there. This is the engine's merge MECHANISM; the content
 // is all bundle-side.
-use monsters;
-use items;
-use races;
-use classes;
-use bundle_defs;
-use race_defs_gen;
-use class_defs_gen;
-use production_gen;   // bundle_production_len/key — the `production` sections
+use monsters::*;
+use items::*;
+use races::*;
+use classes::*;
+use bundle_defs::*;
+use race_defs_gen::*;
+use class_defs_gen::*;
+use production_gen::*;   // bundle_production_len/key — the `production` sections
 
 pub fn game_monsters() -> vector<MonsterDef> {
   t = monster_table();

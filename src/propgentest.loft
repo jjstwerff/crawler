@@ -5,9 +5,9 @@
 // single hole in a wall, and a derivation that placed two — or none — would be wrong in a
 // way that only shows when someone tries to walk through it.
 use hex_field;
-use hex_edge;
-use hexplace;
-use hexderive;
+use hex_edge::*;
+use hexplace::*;
+use hexderive::*;
 
 fn main() {
   println("=== story derived-placement test (plan #10 P5) ===");

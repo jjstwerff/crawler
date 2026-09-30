@@ -5,7 +5,7 @@
 // prior grave. Deterministic.
 
 use hex_grid;
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story save-point + grave test (G4) ===");

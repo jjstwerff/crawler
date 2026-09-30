@@ -2,8 +2,8 @@
 // towns/roads/sized rivers/fields/swamps via ov_sample, so an OVERWORLD chunk is just a faithful
 // 32x32 sample of it (height + kind), base+0.1 m encoded. Renderer-follows-data: this produces
 // chunk DATA from the engine; nothing is invented here.
-use chunk;
-use overland;
+use chunk::*;
+use overland::*;
 
 // Fill a 32x32 overworld chunk (cells = 1.5 km hexes). Cell (hx,hz) is overworld hex
 // (cx*CHUNK+hx, cz*CHUNK+hz); its height + kind come from ov_sample at the hex centre.

@@ -1,6 +1,6 @@
-# hex_way 0.1.0 — public API surface
-# generated from /home/jurjens/.loft/registry/hex_way-0.1.0
-# use it with: use hex_way;
+# hex_way 0.1.2 — public API surface
+# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/hex_way-0.1.2
+# use it with: use hex_way::*;
 
 ## src/hex_way.loft
 
@@ -10,40 +10,75 @@ pub const WAY_ARC      = 2
 
 pub struct Track
 
+// An empty track.  Append straights and arcs in order; the track IS the sequence, and
+// segment index is the only identity a caller needs.
 pub fn track_new() -> Track
 
+// Append a straight from one point to another.
 pub fn track_straight(t: Track, x0: float, y0: float, x1: float, y1: float)
 
+// Append an arc: centre, radius and the angles it runs between.  Arcs and straights are
+// measured and sampled through the same routines, so a mixed track needs no special case.
 pub fn track_arc(t: Track, cx: float, cy: float, r: float, a0: float, a1: float)
 
+// One segment's length.  The unit `track_len` sums and the unit a position along the track
+// is measured in.
 pub fn seg_len(t: Track, i: integer) -> float
 
+// The whole track's length, for pacing a mover or normalising a position to 0..1.
 pub fn track_len(t: Track) -> float
 
 // Point at arc-length `s` along segment i.
 pub fn seg_point(t: Track, i: integer, s: float) -> (float, float)
 
+// The direction of travel a distance `s` into segment `i` — what a mover faces, and what a
+// carriage or a camera is aligned to.
 pub fn seg_tangent(t: Track, i: integer, s: float) -> (float, float)
 
 // Signed curvature: + turning left (centre on the left of travel), - turning right.
+// 
+// The same left-positive convention `track_offset` uses, which is why the two are checked
+// against each other: on a turn signed positive, the positive offset is the INSIDE rail.
+// 
+// Example: @HXY-001
 pub fn seg_curvature(t: Track, i: integer) -> float
 
 // I-CURV — an offset degenerates when |d| >= R.  This IS the minimum curve radius, and
 // it falls out of the geometry rather than being a tuning constant.
+// 
+// |d|, not d, because a way has BOTH rails: the outer one is never in trouble and the
+// inner one collapses at the tightest turn anywhere on the track.  So the question is
+// "may this WAY be this wide", and past the answer `track_offset` still returns a Track —
+// one whose inner arc has a NEGATIVE length and is no longer equidistant.
+// 
+// Example: @HXY-003
 pub fn offset_legal(t: Track, d: float) -> boolean
 
 // The parallel track at distance d (left normal positive).  For straights and arcs the
 // offset is again a straight / a concentric arc, so equidistance is EXACT here — the
 // only cost anywhere is flattening, err ~ c^2/(8R).
+// 
+// EQUIDISTANCE DOES NOT PICK A SIDE, and that is the trap this function fell into.  A
+// left offset of a turn moves TOWARDS the centre, so its radius SHRINKS by d; only a
+// right offset grows.  Reading the sweep direction the other way up puts every arc on
+// the far side of the way from its straights — still exactly d from the centreline,
+// still passing an equidistance gate, and no longer JOINED.  The number that sees it is
+// the gap at a joint, not the distance to the line.
+// 
+// Example: @HXY-001
 pub fn track_offset(t: Track, d: float) -> Track
 
 // Distance from a point to the centreline (min over segments).
 pub fn seg_distance(t: Track, i: integer, px: float, py: float) -> float
 
+// How far a point lies from the track.  The test for "am I on the road", and the reason the
+// per-segment distance is kept cheap.
 pub fn track_distance(t: Track, px: float, py: float) -> float
 
 // Register this track's segments as surfaces; returns the id of the FIRST one (ids are
 // contiguous, so segment i has id first+i).
+// 
+// Example: @HXY-004
 pub fn way_surfaces(t: Track, sf: Surfaces) -> integer
 
 // Which segment of the track is nearest this point?  This is the P3 arbitration rule in
@@ -56,22 +91,40 @@ pub fn nearest_seg(t: Track, px: float, py: float) -> integer
 // part cuts its own boundary as it lands, a later part can turn an already-blocked edge
 // into an interior one — and that stale edge is never cleared, so the result depends on
 // which part ran first. Mark every part, THEN cut once.
+// 
+// A cell is marked on its CENTRE, so the footprint quantises and `halfwidth` does not
+// survive the trip: between two rings of centres, every width gives the same cells.
+// 
+// Example: @HXY-002
+// Example: @HXY-004
 pub fn way_mark(t: Track, halfwidth: float, s: HexSet)
 
 // CUT ONCE — phase 2. For each boundary edge of the FINAL footprint, pick the nearest
 // surface among ALL registered ones (ties to the lower id). Order-independent by
 // construction: it never looks at what was stamped when, only at the finished cells.
+// 
+// Example: @HXY-004
 pub fn cut_arb(s: HexSet, e: EdgeSet, sf: Surfaces, nsurf: integer, mat: integer)
 
 // Mark the way's footprint into `s`, cut its boundary into `e`, and tag every blocked
 // edge with the surface of the NEAREST segment.  One walk, one source of truth.
+// 
+// For ONE way.  Calling it once per part of a multi-part way is the interleaving the
+// phase-1 note above forbids — same cells, walls left standing inside the finished
+// footprint, and their owner decided by the stamping order.
+// 
+// Example: @HXY-004
 pub fn way_stamp(t: Track, halfwidth: float, s: HexSet, e: EdgeSet,
 
 // Arc length from the start of segment i to the point on it nearest (px,py).
+// 
+// Example: @HXY-005
 pub fn seg_param(t: Track, i: integer, px: float, py: float) -> float
 
 // Arc length from the START OF THE WAY to the point on it nearest (px,py).  This is the
 // milepost: the parameter stations, signals, steps and mileage markers are all stated in.
+// 
+// Example: @HXY-005
 pub fn way_param(t: Track, px: float, py: float) -> float
 
 // A STAIRCASE: every `tread` of travel along the way raises the ground by `rise`.
@@ -82,4 +135,10 @@ pub fn way_param(t: Track, px: float, py: float) -> float
 // is clean along one heading skips whole steps along another, which shows up as a DOUBLE
 // RISER between adjacent cells.  That is a real defect (a trip hazard), and it is what
 // sets the minimum tread per direction.
+// 
+// The number: a flight's shortest safe tread is the spacing of its own cells along the
+// way — sqrt(3) = 1.732 down a row, 1.5 down a column.  There is no tread that is fine
+// enough for every heading.
+// 
+// Example: @HXY-006
 pub fn way_steps(t: Track, s: HexSet, f: Heights, rise: float, tread: float)

@@ -3,11 +3,11 @@
 // sim_shrine_apply re-derives the character (race/class), heals whole, keeps the inventory
 // (the kit is a new-game grant — no re-spec farming). Plus the roster accessors the
 // crystal page lists (merged catalogs: dropped-in bundles appear automatically).
-use sim;
+use sim::*;
 use catalog;
 use monsters;
-use player;
-use hex_grid;
+use player::*;
+use hex_grid::*;
 
 fn main() {
   println("=== story crystal test (shrine bump -> event; re-spec applies; roster) ===");

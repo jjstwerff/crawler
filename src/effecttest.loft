@@ -1,12 +1,12 @@
 // effecttest — the use-item EFFECTS now wired (SLICE §2): the inert consumables actually do their
 // faithful thing. Phase Door blinks the player; Cure Serious heals; Restoration undoes a stat drain;
 // Magic Mapping reveals the level. (Unbuilt effects still return false -> "Nothing happens.")
-use sim;
+use sim::*;
 use catalog;
-use itemfx;
-use player;
+use itemfx::*;
+use player::*;
 use items;
-use hex_grid;
+use hex_grid::*;
 
 fn main() {
   println("=== story use-item effects test (blink / heal / restore / mapping) ===");

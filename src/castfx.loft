@@ -4,10 +4,10 @@
 // primitives (sim_bolt, sim_blink, …); the spells themselves are bundle content reached through
 // the GENERATED spell_defs_gen (defs + the effect-id -> routine dispatch). The engine never names
 // a spell (the routine-by-id seam — SCRIPTING.md). The view calls cast_spell()/cast_first().
-use sim;
-use spells;
-use player;
-use spell_defs_gen;   // bundle_spells() + spell_effect() — the owning bundles' defs + routines
+use sim::*;
+use spells::*;
+use player::*;
+use spell_defs_gen::*;   // bundle_spells() + spell_effect() — the owning bundles' defs + routines
 
 // The player's KNOWN spells: every bundle spell of their class realm (level-gated at cast time).
 pub fn known_spells(s: Sim) -> vector<SpellDef> {

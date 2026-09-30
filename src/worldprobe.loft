@@ -5,10 +5,10 @@
 // one deterministic frame. gl_screenshot → /tmp/probe_world.png; asserted by
 // probes/world_r4.probe (expected colors derived from the bake formula).
 use graphics;
-use sim;
-use view;
-use wallgeo;
-use hex_grid;
+use sim::*;
+use view::*;
+use wallgeo::*;
+use hex_grid::*;
 
 fn main() {
   if !graphics::gl_create_window(800, 600, "world r4 probe") {

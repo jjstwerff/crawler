@@ -4,12 +4,12 @@
 // leaf and the material, so a door that looks open is open — and that the toggle costs the
 // field nothing, which is the level-crossing barrier result reused verbatim.
 use mesh3d;
-use hex_field;
-use hex_edge;
-use hex_way;
-use hexcache;
-use hexplace;
-use hexhinge;
+use hex_field::*;
+use hex_edge::*;
+use hex_way::*;
+use hexcache::*;
+use hexplace::*;
+use hexhinge::*;
 
 fn main() {
   println("=== story hinge test (plan #10 P6) ===");

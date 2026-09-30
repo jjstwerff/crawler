@@ -4,11 +4,11 @@
 // tint — expected values hardcoded from the design numbers (floor 0.80/0.745/0.59,
 // sand tint 0.86/0.78/0.55 @ a=0.50 → 0.83/0.7625/0.57), an independent oracle,
 // not the bake formula re-run. Headless, deterministic.
-use sim;
-use worldmesh;
-use wallgeo;
-use hex_grid;
-use overland;
+use sim::*;
+use worldmesh::*;
+use wallgeo::*;
+use hex_grid::*;
+use overland::*;
 
 // Color floats ride the mesh as singles; compare against float literals loosely.
 fn near(a: float, b: float) -> boolean {

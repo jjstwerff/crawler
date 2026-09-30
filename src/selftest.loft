@@ -2,9 +2,9 @@
 // Proves the distance-driven clock: turning is free, forward movement ticks
 // the world, and the enemy closes on the player.  Deterministic.
 
-use hex_grid;
-use sim;
-use wallgeo;
+use hex_grid::*;
+use sim::*;
+use wallgeo::*;
 
 fn main() {
   println("=== story M0 kernel self-test ===");

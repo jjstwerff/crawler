@@ -5,8 +5,8 @@
 // distance, and both are wrong — which is exactly the kind of fault a picture cannot catch
 // and a number can.
 use mesh3d;
-use hexprim;
-use hexseat;
+use hexprim::*;
+use hexseat::*;
 
 fn main() {
   println("=== story seat test (plan #10 P3) ===");

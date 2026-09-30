@@ -11,7 +11,7 @@
 // renderer bakes into the terrain mesh); impassables (sea/lake/face) use their
 // full tone (in-game they read as the dark wall mass; a map wants water blue).
 use graphics;
-use overland;
+use overland::*;
 
 W = 1350;     // 10 m / px over 13500 x 9100 m
 H = 910;

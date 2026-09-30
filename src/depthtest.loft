@@ -3,7 +3,7 @@
 // native depth 20) would trip this. mon_pool already filters m_depth <= eff && !MF_UNIQUE, and item
 // drops are gated the same way in item_choose_idx (i_depth <= eff) — this locks the monster half so
 // a future catalog edit can't sneak something deep into the beginner dungeon.
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story depth test (beginner-dungeon spawn pool) ===");

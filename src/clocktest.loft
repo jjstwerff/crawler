@@ -3,7 +3,7 @@
 // per step/attack, so speed maps to actions per tick: m_speed 0 -> 1.0 (keeps pace with the
 // player), +5 -> 1.5 (one tick a step, the next tick two). We let a chaser pursue a STATIONARY
 // player (sim_tick directly, no player movement) and verify a +5 chaser closes 1.5x the ground.
-use sim;
+use sim::*;
 
 // Ground a chaser of the given per-tick energy gain closes over 3 clock ticks (player still).
 // The first tick is the "decide" tick (sets its first target, cur unmoved), so a normal mover

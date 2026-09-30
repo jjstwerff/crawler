@@ -51,8 +51,8 @@
 // ⚠ PREFER A RELATION TO A GOLDEN NUMBER. `expect hp <= hpmax` survives a content change;
 // `expect hp == 47` fails on the next tuning pass and teaches the reader to delete rows. Use
 // an exact value only where the exact value IS the claim, and say so in the comment above it.
-use sim;
-use gameflow;
+use sim::*;
+use gameflow::*;
 use items;
 use catalog;
 

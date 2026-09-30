@@ -3,10 +3,10 @@
 // of the game; a development aid.
 
 use graphics;
-use hex_grid;
-use sim;
-use wallgeo;
-use view;
+use hex_grid::*;
+use sim::*;
+use wallgeo::*;
+use view::*;
 
 fn main() {
   if !graphics::gl_create_window(800, 600, "story — shot") {

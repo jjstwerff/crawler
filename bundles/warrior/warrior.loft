@@ -1,6 +1,6 @@
 // Warrior bundle — loading script (see explorer/ for the model). Heavy arms + armour,
 // toughest constitution, a little coin. Uses only the internal Player API.
-use sim;
+use sim::*;
 use player;
 
 pub fn activate(s: &Sim, p: Player) {

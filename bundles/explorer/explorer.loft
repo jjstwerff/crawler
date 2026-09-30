@@ -4,7 +4,7 @@
 // outside points here; tools/gen_bundles.py discovers this dir and emits src/bundles.loft
 // with the dispatch. A bundle can grow (stat tilt, starting quest, house/save-point,
 // script hooks — BUNDLE.md "classes-are-bundles"); today it seeds the kit.
-use sim;
+use sim::*;
 use player;
 
 pub fn activate(s: &Sim, p: Player) {

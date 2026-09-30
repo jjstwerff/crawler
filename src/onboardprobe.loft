@@ -14,9 +14,9 @@
 // the opening curve is actually about.
 //
 // DESIGN §3a pillar #8 (a gentle curve) owns the verdict; this only supplies the numbers.
-use sim;
+use sim::*;
 use overland;
-use hex_grid;
+use hex_grid::*;
 
 // How long a level-1 hero lives standing still here, capped at `cap` ticks. Standing still is
 // the floor, not the experience — it measures what comes TO you, which is the part of the

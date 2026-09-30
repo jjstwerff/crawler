@@ -16,11 +16,11 @@
 // ⚠ AND NO RUNNING DEGRADATION. Row 7 stands still for a day and asserts nothing wore out —
 // the negative control for the whole design, because event damage and wear-per-use are
 // indistinguishable from a single damaged item and opposite in what they cost the player.
-use sim;
-use items;
+use sim::*;
+use items::*;
 use catalog;
 use monsters;
-use hex_grid;
+use hex_grid::*;
 
 // The sandbox WITH a character in it. `sim_new()` builds a level and a chaser but no kit,
 // and gear damage has nothing to say about a hero who is wearing nothing — measured: every

@@ -12,7 +12,7 @@
 //
 // The gate for this phase is BIT-IDENTITY on that vertical case, which is what makes a
 // refactor of four call sites safe to do first.
-use mesh3d;
+use mesh3d::*;
 
 // A stable orthonormal right-handed frame from one direction.
 //

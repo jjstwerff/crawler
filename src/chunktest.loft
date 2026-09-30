@@ -1,7 +1,7 @@
 // chunktest — @PLN2 P0/P1 pin: the 32x32 detail chunk's base+0.1 m encoding round-trips
 // exactly (I-HEIGHT), is watertight across chunk bases (I-SEAM), base = lowest point, offsets
 // fit u16, and the 32x32 addressing is correct. Headless, deterministic.
-use chunk;
+use chunk::*;
 
 fn main() {
   println("=== story chunk test (32x32 detail chunk: base + 0.1 m, round-trip / seam) ===");

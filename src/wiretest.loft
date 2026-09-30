@@ -3,7 +3,7 @@
 // and every spawned monster sits on a floor hex with a glyph. Deterministic.
 
 use hex_grid;
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story dungeon-wiring test ===");

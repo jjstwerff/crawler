@@ -3,8 +3,8 @@
 // def AND the routine: bundles/<b>/items/<item_key>.loft exposing `pub fn apply`, where
 // the FILE NAME is the key -- so the engine names neither. Engine-owned item effects
 // live in itemeffects.loft. See BUNDLE.md + SCRIPTING.md.
-use sim;
-use player;
+use sim::*;
+use player::*;
 use naga_antivenin;
 use potion_detect_monsters;
 

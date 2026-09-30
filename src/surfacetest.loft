@@ -3,8 +3,8 @@
 // kinds drive walkability (faces are walls, lake/sea block, rivers ford), the start ring is
 // cleared ground, the spawning crystal + knot stand west. The dungeon entrance is NOT
 // here: it opens from the rain-shadow desert, windows to the north (see traveltest).
-use sim;
-use hex_grid;
+use sim::*;
+use hex_grid::*;
 
 fn main() {
   println("=== story surface test (depth-0 desert + entrance) ===");

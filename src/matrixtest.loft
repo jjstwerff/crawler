@@ -10,10 +10,10 @@
 //   4 attribution  no blocked edge left without a surface
 //   5 seal         a closed run still separates inside from outside
 //   6 matcher      the joined form still yields recoverable surfaces
-use hex_field;
-use hex_edge;
-use hex_way;
-use hexmatch;
+use hex_field::*;
+use hex_edge::*;
+use hex_way::*;
+use hexmatch::*;
 
 fn scene_name(i: integer) -> text {
   if i == 0 { return "collinear walls"; }

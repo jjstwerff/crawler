@@ -30,10 +30,10 @@
 // Kernel-side (no graphics): this emits POINTS, and the view loops over them to build its
 // buffer inline — which is also what loft#392 requires, since a `vector<single>` may never be
 // routed through a returning function into an FFI upload.
-use sim;
-use overland;
-use hex_grid;
-use scale;
+use sim::*;
+use overland::*;
+use hex_grid::*;
+use scale::*;
 
 // 45 rings growing 9% each reach 47.6x the window radius — about 36 km, past which the
 // overland has no more world to show. The first band is then ~4.5 hexes wide, so the step

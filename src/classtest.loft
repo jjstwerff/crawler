@@ -3,13 +3,13 @@
 // class_catalog(); sim_set_class bakes the stat block, hit-die HP and the SP pool; spells are
 // bundle content (defs + fx routines in bundles/mage/) cast through castfx -> the GENERATED
 // routine-by-id dispatch. Default pclass "" stays the unclassed baseline (kernel neutrality).
-use sim;
-use catalog;
-use classes;
-use castfx;
+use sim::*;
+use catalog::*;
+use classes::*;
+use castfx::*;
 use itemfx;
-use hex_grid;
-use player;
+use hex_grid::*;
+use player::*;
 
 fn maxhp_of_class(key: text) -> integer { s = sim_new(); sim_set_class(s, key); sim_player_hp_max(s) }
 fn sp_of_class(key: text) -> integer { s = sim_new(); sim_set_class(s, key); sim_player_sp_max(s) }

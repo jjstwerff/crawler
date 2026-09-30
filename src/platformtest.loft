@@ -18,9 +18,9 @@
 // And the platform face is the mirror image of a level crossing: a crossing must have no
 // cut edge between the two ways (passable), a platform must HAVE one along its face (a
 // drop). Same machinery, opposite answer — which is the check that they are both right.
-use hex_field;
-use hex_edge;
-use hex_way;
+use hex_field::*;
+use hex_edge::*;
+use hex_way::*;
 
 fn deg(d: float) -> float { d * 0.017453292519943295 }
 

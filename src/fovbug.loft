@@ -1,4 +1,4 @@
-use sim;
+use sim::*;
 fn main() {
   s = sim_new_gen(1337, 1);            // a 41x41 generated dungeon level
   println("lw by-value = {s.lw}");    // 41 (correct)

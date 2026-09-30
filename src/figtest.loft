@@ -1,7 +1,7 @@
 // figtest — the reference figure, checked before anything is rendered against it.
-use mesh3d;
-use glb;
-use figure;
+use mesh3d::*;
+use glb::*;
+use figure::*;
 
 fn main() {
   println("=== story figure test ===");

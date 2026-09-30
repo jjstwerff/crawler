@@ -2,9 +2,9 @@
 // emits src/bundles.loft; activating a bundle runs its load-script, which sets up the active
 // player through the Player API. Verifies >= 3 bundles are discovered and each one equips a
 // weapon and a light (i.e. its load-script ran and the player methods mutated the Sim).
-use sim;
-use items;
-use bundles;
+use sim::*;
+use items::*;
+use bundles::*;
 
 fn main() {
   println("=== story bundle test (character bundles) ===");

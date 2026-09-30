@@ -5,7 +5,7 @@
 //   - once the throne boss dies (boss_slain), flood the way OUT with the snake brood — depth 1
 //     crawling (11), depth 2 some (4).
 // References everything by KEY (engine vocabulary + the bundle's own defs); no engine source changes.
-use worldtypes;
+use worldtypes::*;
 
 pub fn place_rules() -> Placement {
   Placement {

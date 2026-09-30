@@ -5,9 +5,9 @@
 //   loft <libs> src/bootprobe.loft                 (native — the real ratio)
 // (Compiling AT ALL on the native tier is also the loft#354 verification.)
 use sim;
-use gameflow;
-use wallgeo;
-use worldmesh;
+use gameflow::*;
+use wallgeo::*;
+use worldmesh::*;
 
 fn main() {
   t0 = ticks();

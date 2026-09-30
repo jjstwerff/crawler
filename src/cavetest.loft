@@ -2,7 +2,7 @@
 // (the mine is one; water-undercut cliffs make more), descending it lands in a
 // NATURAL cave level — narrow, winding, never-straight walls, NOT the Angband
 // rooms+corridors layout — with its own way deeper that KEEPS the cave style.
-use sim;
+use sim::*;
 use hex_grid;
 
 fn main() {

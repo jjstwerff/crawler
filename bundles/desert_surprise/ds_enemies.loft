@@ -2,7 +2,7 @@
 // quest's monsters). The engine merges these into the game catalog via the generated bundle_defs
 // aggregator + catalog.loft — NO engine source changes, so the bundle stays shareable. Defs use the
 // engine's vocabulary only: the MonsterDef record + the MF_* flags from `monsters`.
-use monsters;
+use monsters::*;
 
 pub fn monster_defs() -> vector<MonsterDef> {
   t: vector<MonsterDef> = [];

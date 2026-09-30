@@ -21,12 +21,12 @@
 // off-by-one in the window anchoring, a transposed index, or a vertical dial applied twice
 // all show up here — and row 3 proves the comparison can see exactly that class of error, by
 // making it on purpose.
-use sim;
-use overland;
-use hex_grid;
-use scale;
-use ground;
-use farfield;
+use sim::*;
+use overland::*;
+use hex_grid::*;
+use scale::*;
+use ground::*;
+use farfield::*;
 
 fn absf(v: float) -> float { if v < 0.0 { return 0.0 - v; } v }
 

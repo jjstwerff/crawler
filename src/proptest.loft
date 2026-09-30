@@ -6,7 +6,7 @@
 // rather than asserted.
 use mesh3d;
 use hexprim;
-use hexpart;
+use hexpart::*;
 
 // CONTENT: a handcart, from PROPS §Class 3.
 fn build_cart(seed: float) -> Parts {

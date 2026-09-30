@@ -1,10 +1,10 @@
 // meshchunktest — @PLN2 S4: the detail-chunk heightfield mesh. Correct vertex count, the mesh
 // FOLLOWS THE DATA (vertex height == chunk_height), it is WATERTIGHT across chunks (a chunk's
 // right edge == the east neighbour's cell-0 column), and DETERMINISTIC. Headless.
-use chunk;
-use chunkgen;
-use chunkmesh;
-use overland;
+use chunk::*;
+use chunkgen::*;
+use chunkmesh::*;
+use overland::*;
 
 fn main() {
   println("=== story mesh-chunk test (S4: heightfield mesh — count / follows-data / watertight) ===");

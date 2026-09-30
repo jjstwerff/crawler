@@ -2,8 +2,8 @@
 // identical roster; the budgeted count lands in range; no monster spawns within
 // the start-safety radius of the player; every spawn sits on floor. Deterministic.
 
-use hex_grid;
-use sim;
+use hex_grid::*;
+use sim::*;
 
 fn main() {
   println("=== story placement test ===");

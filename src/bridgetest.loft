@@ -15,10 +15,10 @@
 // about the ways changes — only the sheet.
 //
 // A tunnel is the same operation with the opposite sign, which is why they are one gate.
-use hex_field;
-use hex_edge;
-use hex_way;
-use hexcache;
+use hex_field::*;
+use hex_edge::*;
+use hex_way::*;
+use hexcache::*;
 
 fn deg(v: float) -> float { v * 0.017453292519943295 }
 

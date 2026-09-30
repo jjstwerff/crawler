@@ -21,8 +21,8 @@
 // one fork to the next and carries a direction free of the grid — which is what T9's
 // branch-aligned cards need, and the same "recover runs, never emit per-cell geometry"
 // discipline as the 2D boundary matcher.
-use hex_field;
-use hexcanopy;
+use hex_field::*;
+use hexcanopy::*;
 
 pub const NODE_PLAIN = 0;
 pub const NODE_FORK  = 1;

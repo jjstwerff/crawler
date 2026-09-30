@@ -3,8 +3,8 @@
 // The whole safety of this phase is the FIRST check: the vertical case must be bit-identical
 // to what the hardcoded-z drum produced. A refactor of four call sites is only safe to do
 // first if it can be proven to change nothing, and "looks the same" is not that proof.
-use mesh3d;
-use hexprim;
+use mesh3d::*;
+use hexprim::*;
 
 fn dot(a: Vec3, b: Vec3) -> float { a.x * b.x + a.y * b.y + a.z * b.z }
 fn len3(a: Vec3) -> float { sqrt(a.x * a.x + a.y * a.y + a.z * a.z) ?? 0.0 }

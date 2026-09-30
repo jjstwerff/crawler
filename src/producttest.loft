@@ -9,9 +9,9 @@
 // depend on the current content — which is what a gate over an OPEN enumeration has to do. If
 // it asserted "forge_weapon has 11 entries" it would fail the first time a bundle used the
 // feature, i.e. exactly when the feature started working.
-use items;
-use catalog;
-use production_gen;
+use items::*;
+use catalog::*;
+use production_gen::*;
 
 fn producer(i: integer) -> text {
   if i == 0 { return "forge_weapon"; }

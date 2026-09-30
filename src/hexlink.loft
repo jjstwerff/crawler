@@ -14,9 +14,9 @@
 // length varies with the crank angle — and nothing else about the motion will tell you.
 // The wheels still turn, the crosshead still slides, the picture still moves. That is why
 // the gate measures the rod rather than the look.
-use mesh3d;
-use hexwheel;
-use hexprim;
+use mesh3d::*;
+use hexwheel::*;
+use hexprim::*;
 
 pub fn crank_pin_x(r: float, th: float) -> float { r * cos(th) }
 pub fn crank_pin_y(r: float, th: float) -> float { r * sin(th) }

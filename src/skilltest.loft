@@ -2,7 +2,7 @@
 // character level + effective MIGHT, folded into the player's damage (wdam). It is 0 at the baseline
 // (level 1, starting Might) — so early combat is unchanged — and grows BOTH as you level AND as you
 // spend banked stat points on Might, so the level/stat systems feed combat (the stat-choice payoff).
-use sim;
+use sim::*;
 
 fn main() {
   println("=== story skill test (passive melee: level + Might -> damage) ===");

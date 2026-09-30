@@ -2,9 +2,9 @@
 // invariants (rubble CONSERVED + repose satisfied after relaxation), DETERMINISM (which gives the
 // watertight seam for free — chunk_mesh shares edges from the neighbour's deterministic cells),
 // and that bare ROCK FACES actually appear on a steep flank. Headless.
-use chunk;
-use talus;
-use overland;
+use chunk::*;
+use talus::*;
+use overland::*;
 
 fn main() {
   println("=== story talus test (S6.2: angle-of-repose talus on the detail tier) ===");

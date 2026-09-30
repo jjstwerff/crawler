@@ -3,9 +3,9 @@
 // neighbouring 1.5 km window, hero intact), and the dungeon entrance stands
 // in the rain-shadow desert two windows north of town — on TRUE desert sand
 // (material 6, dry all around: never the beaches), descending into depth 1.
-use sim;
-use hex_grid;
-use overland;
+use sim::*;
+use hex_grid::*;
+use overland::*;
 
 fn main() {
   println("=== story travel test (window crossing / the desert gate) ===");

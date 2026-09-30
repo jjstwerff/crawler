@@ -16,12 +16,12 @@
 // ⚠ AND THE A/B RUNS BOTH ARMS WITH THE DEN ALIVE. The two arms share their whole history —
 // same world, same six raiders killed — and differ by exactly one act: the petition. An arm
 // that had cleared the source instead would be measuring `S5` over again.
-use sim;
+use sim::*;
 use items;
 use catalog;
-use monsters;                 // TAG_RUIN_BOSS — the source the militia stalls at
-use hex_grid;                 // hex_distance — a picket's cover is a distance
-use overland;                 // K_LAKE/K_SEA/K_FACE — walking to a window edge
+use monsters::*;                 // TAG_RUIN_BOSS — the source the militia stalls at
+use hex_grid::*;                 // hex_distance — a picket's cover is a distance
+use overland::*;                 // K_LAKE/K_SEA/K_FACE — walking to a window edge
 
 // Earn standing the way a player does: stand between the town and what the source sends.
 // Returns how many raiders were put down. ⚠ `sim_dawn` has no time term (`S5`), so calling it
