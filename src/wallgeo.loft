@@ -45,27 +45,24 @@ struct WCorner {
 
 struct WEdge { a: integer not null, b: integer not null }
 
-struct CornerRef { ck: text, idx: integer not null }
+struct CornerRef { kx: integer not null, ky: integer not null, idx: integer not null }
 
 struct WallGraph {
   corners: vector<WCorner> not null,
   edges:   vector<WEdge> not null,
-  lookup:  hash<CornerRef[ck]>,
+  lookup:  hash<CornerRef[kx, ky]>,
 }
 
-fn corner_key(x: float, y: float) -> text {
+// A corner is identified by its coordinates rounded to thousandths: two integers, keyed
+// directly (no text formatted per probe).
+fn get_or_add(g: &WallGraph, x: float, y: float) -> integer {
   kx = round(x * 1000.0) as integer;
   ky = round(y * 1000.0) as integer;
-  "{kx}_{ky}"
-}
-
-fn get_or_add(g: &WallGraph, x: float, y: float) -> integer {
-  k = corner_key(x, y);
-  found = g.lookup[k];
+  found = g.lookup[kx, ky];
   if found != null { return found.idx; }
   idx = len(g.corners);
   g.corners += [WCorner { x: x, y: y, deg: 0, n1: -1, n2: -1, anc: 0 }];
-  g.lookup += [CornerRef { ck: k, idx: idx }];
+  g.lookup += [CornerRef { kx: kx, ky: ky, idx: idx }];
   idx
 }
 
