@@ -1,14 +1,15 @@
 # hex_grid 0.1.2 — public API surface
-# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/hex_grid-0.1.2
+# generated from /Users/Jurjen/.loft/registry/hex_grid-0.1.2
 # use it with: use hex_grid::*;
 
 ## src/hex_grid.loft
 
-pub const SQRT3    = 1.7320508075688772
+pub const SQRT3 = 1.7320508075688772
 
 pub const HEX_SIZE = 1.0
 
-pub const HEX_LEN  = 1.7320508075688772
+// = SQRT3 * HEX_SIZE; one hex step
+pub const HEX_LEN = 1.7320508075688772
 
 // Hex (col,row) -> world-plane centre (x,y). Pointy-top, ODD-R OFFSET (moros's
 // convention): odd rows shifted half a hex right, so a rectangle of cells stays
@@ -74,7 +75,8 @@ pub fn hex_canon_edge(q: integer, r: integer, dir: integer) -> (integer, integer
 
 pub const GRID_SIZE = 1.0
 
-pub const GRID_LEN  = 1.0
+// distance between adjacent cells = the distance-clock unit
+pub const GRID_LEN = 1.0
 
 // Cell (q,r) -> world centre.
 pub fn cell_to_px(q: integer, r: integer) -> (float, float)

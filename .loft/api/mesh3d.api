@@ -1,5 +1,5 @@
-# mesh3d 0.1.2 — public API surface
-# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/mesh3d-0.1.2
+# mesh3d 0.1.3 — public API surface
+# generated from /Users/Jurjen/.loft/registry/mesh3d-0.1.3
 # use it with: use mesh3d::*;
 
 ## src/math.loft
@@ -7,13 +7,20 @@
 // --- Vectors ---
 
 // A 2D vector / point.
-pub struct Vec2
+pub struct Vec2 {
+  x: float,
+  y: float,
+}
 
 // Make one.  Texture coordinates are what this is usually carrying.
 pub fn vec2(vx: float, vy: float) -> Vec2
 
 // A 3D vector / point.
-pub struct Vec3
+pub struct Vec3 {
+  x: float,
+  y: float,
+  z: float,
+}
 
 // Make one.  The workhorse of the package — positions, normals and directions
 // are all this type, and which of the three a value is depends on what the
@@ -21,7 +28,12 @@ pub struct Vec3
 pub fn vec3(vx: float, vy: float, vz: float) -> Vec3
 
 // A 4D vector (homogeneous coordinates).
-pub struct Vec4
+pub struct Vec4 {
+  x: float,
+  y: float,
+  z: float,
+  w: float,
+}
 
 // Make one.  The w is what separates a POINT (w = 1, moved by a translation)
 // from a DIRECTION (w = 0, which a translation must leave alone).
@@ -66,7 +78,9 @@ pub fn normalize3(nv: const Vec3) -> Vec3
 
 // A 4x4 transformation matrix stored as 16 floats in column-major order.
 // m[0..3] = column 0, m[4..7] = column 1, m[8..11] = column 2, m[12..15] = column 3.
-pub struct Mat4
+pub struct Mat4 {
+  m: vector<float>,
+}
 
 // Create an identity matrix.
 pub fn mat4_identity() -> Mat4
@@ -74,7 +88,8 @@ pub fn mat4_identity() -> Mat4
 // Create a translation matrix.
 pub fn mat4_translate(tx: float, ty: float, tz: float) -> Mat4
 
-// Create a uniform scale matrix.
+// Create a scale matrix: `sx`, `sy`, `sz` scale each axis on its own, so equal
+// values scale uniformly.
 pub fn mat4_scale(sx: float, sy: float, sz: float) -> Mat4
 
 // Multiply two 4x4 matrices (A * B). Result = A applied after B.
@@ -112,7 +127,11 @@ pub fn mat4_trs(tx: float, ty: float, tz: float, ry: float, sx: float, sy: float
 // --- Vertex and mesh ---
 
 // A single vertex with position, normal, and texture coordinates.
-pub struct Vertex
+pub struct Vertex {
+  pos: math::Vec3,
+  normal: math::Vec3,
+  uv: math::Vec2,
+}
 
 // One vertex: where it is, which way it faces, and where it samples a texture.
 // `mesh_to_floats_uv` writes those three in exactly this order, so a GL
@@ -120,10 +139,18 @@ pub struct Vertex
 pub fn vertex(vp: math::Vec3, vn: math::Vec3, vuv: math::Vec2) -> Vertex
 
 // A triangle defined by three vertex indices.
-pub struct Triangle
+pub struct Triangle {
+  a: integer,
+  b: integer,
+  c: integer,
+}
 
 // A mesh: a collection of vertices and triangles.
-pub struct Mesh
+pub struct Mesh {
+  name: text,
+  vertices: vector<Vertex>,
+  triangles: vector<Triangle>,
+}
 
 // An empty mesh under a name.  Fill it with `add_vertex`, then `add_triangle`
 // with the indices `add_vertex` handed back — the triangles index the vertex
@@ -156,7 +183,8 @@ pub fn plane(pn: text, pw: float, pd: float) -> Mesh
 
 // Create a UV sphere centered at origin.
 // sr = radius, ss = longitudinal slices (≥3), st = latitudinal stacks (≥2).
-// Produces (ss+1)*(st+1) vertices and ss*st*2 triangles.
+// Produces (ss+1)*(st+1) vertices and ss*st*2 triangles.  Fewer slices or stacks
+// are not refused: they build that many, a flat or degenerate solid.
 pub fn sphere(sn: text, sr: float, ss: integer, st: integer) -> Mesh
 
 // Flatten a mesh to a vector<single> for GL upload.
@@ -187,7 +215,15 @@ pub use scene::*
 // --- Materials ---
 
 // A simple PBR-like material.
-pub struct Material
+pub struct Material {
+  name: text,
+  base_color_r: float,
+  base_color_g: float,
+  base_color_b: float,
+  base_color_a: float,
+  metallic: float,
+  roughness: float,
+}
 
 // A neutral material: light grey, half rough, not metal.  Everything below
 // adjusts this rather than building one from nothing, so a new field gets a
@@ -207,7 +243,12 @@ pub fn set_color(self: Material, scr: float, scg: float, scb: float)
 // --- Scene nodes ---
 
 // A node in the scene graph with a mesh, material, and transform.
-pub struct Node
+pub struct Node {
+  name: text,
+  mesh_idx: integer,
+  material_idx: integer,
+  transform: math::Mat4,
+}
 
 // Put a mesh in the scene at the origin, naming the mesh and the material by
 // the indices `add_mesh` and `add_material` answered.  `node_at` is this with a
@@ -220,7 +261,16 @@ pub fn node_at(nn: text, nm: integer, nmat: integer, xf: math::Mat4) -> Node
 
 // --- Camera ---
 
-pub struct Camera
+// A camera as data: where it stands, what it looks at, its vertical field in
+// DEGREES and its clipping planes.  `camera` below builds one with defaults.
+pub struct Camera {
+  name: text,
+  fov: float,
+  near: float,
+  far: float,
+  position: math::Vec3,
+  target: math::Vec3,
+}
 
 // A camera with usable defaults: field 60, clipping at 0.1 and 100, standing at
 // z = 5 and looking at the origin.
@@ -234,9 +284,26 @@ pub fn camera(cname: text) -> Camera
 
 // --- Lights (KHR_lights_punctual) ---
 
-pub enum LightType
+// Which kind a `Light` is.  `directional_light` and `point_light` build the first
+// two; a `Spot` is written by setting `light_type` on a `Light` directly.
+pub enum LightType {
+  Directional,
+  Point,
+  Spot,
+}
 
-pub struct Light
+// A punctual light (glTF's KHR_lights_punctual): its kind, colour, intensity, and
+// the position or direction the kind uses.
+pub struct Light {
+  name: text,
+  light_type: LightType,
+  color_r: float,
+  color_g: float,
+  color_b: float,
+  intensity: float,
+  position: math::Vec3,
+  direction: math::Vec3,
+}
 
 // A light with a direction and no place — the sun.  Every surface in the scene
 // receives it at the same angle, however far away it is.
@@ -249,7 +316,14 @@ pub fn point_light(ln: text, lr: float, lg: float, lb: float, li: float, lpos: m
 // --- Scene ---
 
 // A complete 3D scene.
-pub struct Scene
+pub struct Scene {
+  name: text,
+  meshes: vector<mesh::Mesh>,
+  materials: vector<Material>,
+  nodes: vector<Node>,
+  cameras: vector<Camera>,
+  lights: vector<Light>,
+}
 
 // An empty scene.  The five `add_*` below fill it, and each answers the INDEX
 // the rest of the scene refers to that thing by.

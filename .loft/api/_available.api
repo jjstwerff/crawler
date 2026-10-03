@@ -1,46 +1,47 @@
-# loft registry — 43 available packages
+# loft registry — 44 available packages
 # install: `loft install <name>`   ·   surface: `loft api <name>`
 
-arguments 0.2.3 — CLI argument parsing — positional args + flags + auto-generated --help.
-assets 0.2.3 — A game's content pack that IS a loft store — art, audio and the scenes that place them, range-read off a static file server.  No codec, no parse step, no server-side code.
-cbor 0.1.8 — Signable canonical CBOR (RFC 8949), pure loft — canonical map-key ordering, full decode, byte-identical encode->decode->encode, native == wasm.
-crypto 0.3.10 — Cryptographic primitives — SHA-256, HMAC, base64; Ed25519, X25519, HPKE (RFC 9180), ChaCha20-Poly1305 / XChaCha20-Poly1305 / AES-256-GCM, HKDF, OS CSPRNG.
-drawing 0.3.1 — Render a .draw scene — a sprite authored as lines of text — pixel-identically to the Python renderer it replaces
-fixstep 0.1.2 — A fixed simulation step in exact integer time — clock, bank, one-shot timer
-game_protocol 0.1.4 — Per-tick state-update and event framing for loft multiplayer games — pure loft, over web + server
-glb 0.1.3 — glTF 2.0 binary (.glb) writer — exports Mesh / Scene as a glb file readable by Blender, three.js, gltf-validator.  Standalone (pure-loft, no GPU).
-graphics 0.9.4 — 2D canvas + 3D rendering for loft (Canvas pixel surface, Mesh / Scene / glTF, OpenGL bindings).
-gridmesh 0.2.3 — Chunk-local mesh-generation primitives for world-building algorithms.
-hex_body 0.3.2 — The moving body — rigs, revolute joints with computed limits, pure poses, and collision proxies. hexbody's own body model, part of the hex_* family.
-hex_draw 0.1.1 — Draw a model into the field, and read its wall surface back.
-hex_edge 0.2.1 — Collision as an edge set, and the analytic surfaces behind it.
-hex_field 0.1.3 — Exact-integer hex cell sets and their outlines — the base of the hex_* family.
-hex_fit 0.1.2 — The doorstep — refuse at authoring time what would not round-trip.
-hex_form 0.1.5 — The exact turtle form on the hex lattice, and its canonical text.
-hex_grid 0.1.2 — Hex-grid geometry — pointy-top, ODD-R OFFSET coordinates: coordinate/pixel conversion, neighbours, distance, corners and canonical edges, plus a square local basis for right-angled structures placed on the hex world.
-hex_place 0.1.1 — Place, seat and combine — the operations a model survives.
-hex_recover 0.1.3 — Rebuild a model from the field — exactly, or with a reported residual.
-hex_roof 0.1.5 — Roof profiles as a height field, and the fit that recovers them.
-hex_shape 0.1.3 — The line primitive, the box and the arc — the shape vocabulary of the hex_* family.
-hex_terrain 0.1.3 — The OVERLAND terrain layer of the `hex_*` family: a coarse overland hex lattice
-hex_way 0.1.2 — A way is an exact centreline plus offsets, never a rasterised band.
-hex_world 0.2.1 — Sparse 32x32-chunk hex-grid world data model — Cell / Chunk / World with binary save/load.
-html 0.1.1 — HTML escaping helpers for loft.
-imaging 0.4.1 — PNG load/save + pixel manipulation for loft (Stage A — interpreter + native; wasm bridge deferred pending loft-host-ffi crate).
-input 0.2.2 — Game input for loft — action/axis bindings resolved to per-tick input state.
+arguments 0.2.5 — CLI argument parsing — positional args + flags + auto-generated --help.
+assets 0.3.0 — A game's content pack that IS a loft store — art, audio and the scenes that place them, range-read off a static file server.  No codec, no parse step, no server-side code.
+audio_bus 0.1.0 — A mixer for game audio — buses that multiply, and a duck that restores exactly
+cbor 0.1.9 — Signable canonical CBOR (RFC 8949), pure loft — canonical map-key ordering, full decode, byte-identical encode->decode->encode, native == wasm.
+crypto 0.3.11 — Cryptographic primitives — SHA-256, HMAC, base64; Ed25519, X25519, HPKE (RFC 9180), ChaCha20-Poly1305 / XChaCha20-Poly1305 / AES-256-GCM, HKDF, OS CSPRNG.
+drawing 0.4.1 — Render a .draw scene — a sprite authored as lines of text — pixel-identically to the Python renderer it replaces
+fixstep 0.1.3 — A fixed simulation step in exact integer time — clock, bank, one-shot timer
+game_protocol 0.1.5 — The message types a multiplayer game's client and server share — envelopes, kinds and constructors; pure loft, transport-agnostic
+glb 0.1.5 — glTF 2.0 binary (.glb) writer — exports Mesh / Scene as a glb file readable by Blender, three.js, gltf-validator.  Standalone (pure-loft, no GPU).
+graphics 0.9.7 — 2D canvas + 3D rendering for loft (Canvas pixel surface, Mesh / Scene / glTF, OpenGL bindings).
+gridmesh 0.2.5 — Chunk-local mesh-generation primitives for world-building algorithms.
+hex_body 0.3.4 — The moving body — rigs, revolute joints with computed limits, pure poses, and collision proxies. hexbody's own body model, part of the hex_* family.
+hex_draw 0.1.2 — Draw a model into the field, and read its wall surface back.
+hex_edge 0.2.3 — Collision as an edge set, and the analytic surfaces behind it.
+hex_field 0.1.5 — Exact-integer hex cell sets and their outlines — the base of the hex_* family.
+hex_fit 0.1.4 — The doorstep — refuse at authoring time what would not round-trip.
+hex_form 0.1.6 — The exact turtle form on the hex lattice, and its canonical text.
+hex_grid 0.1.3 — Hex-grid geometry — pointy-top, ODD-R OFFSET coordinates: coordinate/pixel conversion, neighbours, distance, corners and canonical edges, plus a square local basis for right-angled structures placed on the hex world.
+hex_place 0.1.2 — Place, seat and combine — the operations a model survives.
+hex_recover 0.1.5 — Rebuild a model from the field — exactly, or with a reported residual.
+hex_roof 0.1.7 — Roof profiles as a height field, and the fit that recovers them.
+hex_shape 0.1.5 — The line primitive, the box and the arc — the shape vocabulary of the hex_* family.
+hex_terrain 0.1.6 — The OVERLAND terrain layer of the `hex_*` family: a coarse overland hex lattice
+hex_way 0.1.4 — A way is an exact centreline plus offsets, never a rasterised band.
+hex_world 0.2.2 — Sparse 32x32-chunk hex-grid world data model — Cell / Chunk / World with binary save/load.
+html 0.1.2 — HTML escaping helpers for loft.
+imaging 0.4.2 — PNG load/save + pixel manipulation for loft (Stage A — interpreter + native; wasm bridge deferred pending loft-host-ffi crate).
+input 0.2.4 — Game input for loft — action/axis bindings resolved to per-tick input state.
 lavition_ui 0.1.1 — Panel layout, hit-testing and text metrics for an in-engine editor UI: rectangles and hits, with no world, no lattice, no window and no GL.
-loft 2026.9.0 — The loft toolchain: compiler, interpreter and standard library.
-markdown 0.2.3 — Markdown-to-HTML rendering for loft — headings, inline spans, slugify, link rewriting.
-mesh3d 0.1.2 — 3D geometry primitives — Vec/Mat, Mesh, Scene, Camera, Light.  Standalone (pure-loft, no GPU).
-pluginabi 0.1.3 — Plugin call protocol — the six-operation contract (initial_state / apply_op / make_op / render / snapshot / load_snapshot) as canonical-CBOR frames over a byte channel. Not a runtime, ABI or sandbox: loft already provides those.
-random 0.3.3 — Pseudo-random number generation — PCG-64 thread-local PRNG with rand_seed reproducibility.
-regex 0.3.3 — Small-script regex: matches / find / split / match_groups / replace, with a thread-local pattern cache.
-server 0.7.1 — HTTP + WebSocket server for loft — TCP sockets + tungstenite via cdylib.
-shapes 0.5.1 — 2D geometry primitives — Rect, Circle, overlap tests, clamp.  Pure-loft, no other deps.
-ssh 0.1.2 — SSH client for loft — drive an interactive remote shell (e.g. attach tmux) over password auth, never stored. Native-only.
-stage 0.18.5 — A retained 2-D scene for loft: a node tree you mutate, with transforms, clipping, batching, pointer routing and widget states
-text2d 0.4.1 — Text that always draws — a built-in face, a glyph atlas, measured metrics, wrapping and alignment, with no font file and no GL context
+loft 2026.10.0 — The loft toolchain: compiler, interpreter and standard library.
+markdown 0.2.4 — Markdown-to-HTML rendering for loft — headings, inline spans, slugify, link rewriting.
+mesh3d 0.1.3 — 3D geometry primitives — Vec/Mat, Mesh, Scene, Camera, Light.  Standalone (pure-loft, no GPU).
+pluginabi 0.1.5 — Plugin call protocol — the six-operation contract (initial_state / apply_op / make_op / render / snapshot / load_snapshot) as canonical-CBOR frames over a byte channel. Not a runtime, ABI or sandbox: loft already provides those.
+random 0.3.4 — Pseudo-random number generation — PCG-64 thread-local PRNG with rand_seed reproducibility.
+regex 0.4.2 — Small-script regex: `search`, `matches` and a lazy `split_on`, with a thread-local pattern cache.
+server 0.7.2 — HTTP + WebSocket server for loft — TCP sockets + tungstenite via cdylib.
+shapes 0.5.2 — 2D geometry primitives — Rect, Circle, overlap tests, clamp.  Pure-loft, no other deps.
+ssh 0.1.3 — SSH client for loft — drive an interactive remote shell (e.g. attach tmux) over password auth, never stored. Native-only.
+stage 0.18.8 — A retained 2-D scene for loft: a node tree you mutate, with transforms, clipping, batching, pointer routing and widget states
+text2d 0.4.5 — Text that always draws — a built-in face, a glyph atlas, measured metrics, wrapping and alignment, with no font file and no GL context
 time 0.3.2 — Date/time arithmetic on millisecond-since-epoch integers — proleptic Gregorian, same model as JavaScript Date.  Pure-loft; identical results on interp, --native, WASM.
-tween 0.1.1 — Property tweens in exact integer time — eleven easing curves, chains and groups
-web 0.4.2 — HTTP client + WebSocket client for loft — ureq + tungstenite via cdylib.
-zttext 0.1.2 — A text engine for loft: piece-table content core, transactional undo, and portable layout with measurement injected
+tween 0.1.2 — Property tweens in exact integer time — eleven easing curves, chains and groups
+web 0.4.3 — HTTP client + WebSocket client for loft — ureq + tungstenite via cdylib.
+zttext 0.1.3 — A text engine for loft: piece-table content core, transactional undo, and portable layout with measurement injected

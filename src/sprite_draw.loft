@@ -23,17 +23,17 @@ use graphics;
 
 // ---- buffer + pixel helpers (all native-safe: bare vector mutation, scalar colour ops) ----
 
-fn new_buffer(w: integer, h: integer, fill: integer) -> vector<integer> {
+pub fn new_buffer(w: integer, h: integer, fill: integer) -> vector<integer> {
   [for _i in 0..w * h { fill }]
 }
 
-fn px_get(buf: vector<integer>, w: integer, x: integer, y: integer) -> integer {
+pub fn px_get(buf: vector<integer>, w: integer, x: integer, y: integer) -> integer {
   i = y * w + x;
   if i >= 0 and i < len(buf) { buf[i] ?? 0 } else { 0 }
 }
 
 // Opaque set, bounds-clipped.
-fn px_set(buf: vector<integer>, w: integer, h: integer, x: integer, y: integer, color: integer) {
+pub fn px_set(buf: vector<integer>, w: integer, h: integer, x: integer, y: integer, color: integer) {
   if x >= 0 and x < w and y >= 0 and y < h {
     i = y * w + x;
     if i < len(buf) { buf[i] = color; }
@@ -203,7 +203,7 @@ fn clamp01(v: float) -> float {
 
 // Gradient-filled polygon (draw.py's _make_gradient + mask, fused — no resize). LINEAR:
 // t projects each inside-pixel onto axis (ax,ay)→(bx,by). Pixels composite with px_blend.
-fn fill_polygon_linear(buf: vector<integer>, w: integer, h: integer,
+pub fn fill_polygon_linear(buf: vector<integer>, w: integer, h: integer,
                        xs: vector<float>, ys: vector<float>, c1: integer, c2: integer,
                        ax: float, ay: float, bx: float, by: float) {
   if len(xs) < 3 { return; }
@@ -231,7 +231,7 @@ fn fill_polygon_linear(buf: vector<integer>, w: integer, h: integer,
 }
 
 // RADIAL: t = distance to (cx,cy) / r.
-fn fill_polygon_radial(buf: vector<integer>, w: integer, h: integer,
+pub fn fill_polygon_radial(buf: vector<integer>, w: integer, h: integer,
                        xs: vector<float>, ys: vector<float>, c1: integer, c2: integer,
                        cx: float, cy: float, r: float) {
   if len(xs) < 3 { return; }
@@ -264,7 +264,7 @@ fn fill_polygon_radial(buf: vector<integer>, w: integer, h: integer,
 // along its local normal by half the per-point width, fill the left-fwd + right-back band.
 // Butt caps; `widths` is per-point (pass a uniform vector for constant width).
 // @FR-Mark-Ribbon
-fn stroke_path(buf: vector<integer>, w: integer, h: integer,
+pub fn stroke_path(buf: vector<integer>, w: integer, h: integer,
                xs: vector<float>, ys: vector<float>, widths: vector<float>, color: integer) {
   n = len(xs);
   if n < 2 { return; }
@@ -313,7 +313,7 @@ fn stroke_path(buf: vector<integer>, w: integer, h: integer,
 // each factor×factor block. Fills the caller-provided `dst` (size ow*oh, ow=sw/factor) —
 // NOT a returned vector, so the result can be handed straight to gl_upload_canvas without
 // the return-vector-to-FFI silent-abort trap (loft#392). Verified == PIL BOX (max=1).
-fn downscale(src: vector<integer>, sw: integer, factor: integer,
+pub fn downscale(src: vector<integer>, sw: integer, factor: integer,
              dst: vector<integer>, ow: integer, oh: integer) {
   if factor < 1 { return; }
   area = factor * factor;

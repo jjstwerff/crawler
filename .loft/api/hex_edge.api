@@ -1,12 +1,18 @@
 # hex_edge 0.2.1 — public API surface
-# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/hex_edge-0.2.1
+# generated from /Users/Jurjen/.loft/registry/hex_edge-0.2.1
 # use it with: use hex_edge::*;
 
 ## src/hex_edge.loft
 
 // The surfaces a collision can reference.  Small and flat on purpose: a normal must be
 // cheap to evaluate at contact time.
-pub struct Surfaces
+pub struct Surfaces {
+  sf_kind: vector<integer>,  // 1 = straight, 2 = arc (radial normal)
+  sf_a: vector<float>,  // straight: nx      arc: centre x
+  sf_b: vector<float>,  // straight: ny      arc: centre y
+  sf_c: vector<float>,  // straight: offset  arc: radius
+  sf_n: integer,
+}
 
 // Example: @HXE-001
 pub fn surfaces_new() -> Surfaces
@@ -34,7 +40,15 @@ pub fn surf_normal(s: Surfaces, id: integer, px: float, py: float) -> (float, fl
 // The consumers do not all want "blocked".  A low wall blocks movement but not sight; a
 // hedge muffles sound without stopping it; water runs along a wall it cannot cross.  So a
 // material carries a small vector of transmission terms rather than one flag.
-pub struct Materials
+pub struct Materials {
+  mt_solid: vector<boolean>,  // stops movement outright
+  mt_height: vector<float>,  // world units — step over / see over
+  mt_opacity: vector<float>,  // 0 clear .. 1 opaque        (sight)
+  mt_sound: vector<float>,  // attenuation in dB          (sound)
+  mt_perm: vector<float>,  // 0 sealed .. 1 open         (water / air)
+  mt_bounce: vector<float>,  // restitution 0..1           (balls)
+  mt_n: integer,
+}
 
 // An empty palette.  Id 0 is reserved for "nothing there", so the first `material_add`
 // returns 1 and an unmarked edge never looks like a real material.
@@ -42,7 +56,7 @@ pub fn materials_new() -> Materials
 
 // Add a material and get its id.  One call fixes everything the simulation asks later —
 // whether it blocks, how tall, how opaque, how loud, how permeable, how bouncy.
-pub fn material_add(m: Materials, solid: boolean, height: float, opacity: float,
+pub fn material_add(m: Materials, solid: boolean, height: float, opacity: float, sound_db: float, perm: float, bounce: float) -> integer
 
 // A DYNAMIC material — a level-crossing barrier, a door, a portcullis.  Flipping the
 // table entry retargets every edge already carrying this id, so the geometry layer is not
@@ -89,7 +103,7 @@ pub fn edge_m(qa: integer, ra: integer, qb: integer, rb: integer) -> integer
 // shared edge would own it. `edge_block_arb` is the version that resolves the contest on
 // geometry instead of order; this is the cheap one for edges only one part can claim.
 // Example: @HXE-006
-pub fn edge_block_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+pub fn edge_block_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer, surf: integer)
 
 // The world point where the two cells' shared edge sits (its midpoint) — the contact
 // point a normal is evaluated at.
@@ -105,22 +119,30 @@ pub fn edge_point(qa: integer, ra: integer, qb: integer, rb: integer) -> (float,
 // break to the LOWER surface id. Both halves matter — nearest is what a ball should
 // actually bounce off, and the tie-break is what makes it deterministic.
 // Example: @HXE-006
-pub fn edge_block_arb(e: EdgeSet, sf: Surfaces, qa: integer, ra: integer,
+pub fn edge_block_arb(e: EdgeSet, sf: Surfaces, qa: integer, ra: integer, qb: integer, rb: integer, surf: integer, mat: integer)
 
 // A junction records WHICH surfaces meet and what continuity was INTENDED there, so a
 // deliberate corner is never mistaken for an accidental kink (FORMS.md's junction policy).
 pub const JOIN_SMOOTH = 1
 
+// a deliberate angle — a corner on purpose
 pub const JOIN_CORNER = 2
 
-pub struct Junctions
+pub struct Junctions {
+  jn_a: vector<integer>,
+  jn_b: vector<integer>,
+  jn_kind: vector<integer>,
+  jn_x: vector<float>,
+  jn_y: vector<float>,
+  jn_n: integer,
+}
 
 // An empty set of junctions: where walls meet, for consumers that draw a corner post or
 // need to know a wall's ends rather than just its middle.
 pub fn junctions_new() -> Junctions
 
 // Record that two surfaces meet here, of this kind, at this world point.
-pub fn junction_add(j: Junctions, sa: integer, sb: integer, kind: integer,
+pub fn junction_add(j: Junctions, sa: integer, sb: integer, kind: integer, x: float, y: float)
 
 // Does the junction honour what was intended?  G0 is exact by construction (both
 // surfaces pass through the seam point); this checks the TANGENT.
@@ -146,13 +168,22 @@ pub fn junction_g0(j: Junctions, i: integer, sf: Surfaces, tol: float) -> boolea
 // changes `solid`, a window changes `opacity`/`sound`/`permeability` but NOT `solid`
 // (you cannot walk through it). Pointing at a material expresses "override this subset"
 // without inventing a per-term override mechanism.
-pub const FEAT_DOOR     = 1
+pub const FEAT_DOOR = 1
 
-pub const FEAT_WINDOW   = 2
+pub const FEAT_WINDOW = 2
 
 pub const FEAT_LOOPHOLE = 3
 
-pub struct Features
+pub struct Features {
+  fe_surf: vector<integer>,
+  fe_s0: vector<float>,  // interval along the surface parameter
+  fe_s1: vector<float>,
+  fe_z0: vector<float>,  // vertical extent: sill..head
+  fe_z1: vector<float>,
+  fe_kind: vector<integer>,
+  fe_mat: vector<integer>,  // the material INSIDE the feature
+  fe_n: integer,
+}
 
 // An empty set of features: doors, windows and openings placed ALONG a surface rather
 // than replacing it, so the wall stays one wall with holes in it.
@@ -160,7 +191,7 @@ pub fn features_new() -> Features
 
 // Place a feature on a surface, between two positions along it and two heights up it, so a
 // door or a window is a hole IN a wall rather than a break in it.
-pub fn feature_add(f: Features, surf: integer, s0: float, s1: float,
+pub fn feature_add(f: Features, surf: integer, s0: float, s1: float, z0: float, z1: float, kind: integer, mat: integer) -> integer
 
 // Where along surface `id` does this point sit?  Straight: distance along its direction.
 // Arc: arc length from angle 0.  This is the parameter a feature interval is stated in.
@@ -170,12 +201,12 @@ pub fn surf_param(s: Surfaces, id: integer, px: float, py: float) -> float
 // feature's interval takes that feature's material.  The SURFACE is untouched — which is
 // why the body never fragments and the matcher still sees one wall.
 // Example: @HXE-008
-pub fn apply_features(e: EdgeSet, sf: Surfaces, f: Features,
+pub fn apply_features(e: EdgeSet, sf: Surfaces, f: Features, q0: integer, r0: integer, w: integer, h: integer) -> integer
 
 // Record BOTH halves: which surface (geometry) and which material (physics).  The surface
 // keeps first-writer-wins; the material does NOT, because a feature (a door, a window)
 // legitimately retargets the material of an edge whose surface is already settled.
-pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer,
+pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer, surf: integer, mat: integer)
 
 // A bare blocker with no recoverable geometry.  u16 cannot hold -1, so the sentinel is
 // the top of the range: blocked, but collide() will report no usable normal.
@@ -190,7 +221,7 @@ pub fn edge_blocked(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integ
 
 // THE COLLISION RESPONSE QUERY: blocked?, and the EXACT outward normal to bounce off.
 // Example: @HXE-007
-pub fn collide(e: EdgeSet, s: Surfaces,
+pub fn collide(e: EdgeSet, s: Surfaces, qa: integer, ra: integer, qb: integer, rb: integer) -> (boolean, float, float)
 
 // THE collision query.  Everything else is construction.
 // Example: @HXE-010
@@ -225,7 +256,7 @@ pub fn passable(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) 
 // Example: @HXE-002
 // Example: @HXE-004
 // Example: @HXE-005
-pub fn sweep_path(e: EdgeSet, x0: float, y0: float, x1: float, y1: float)
+pub fn sweep_path(e: EdgeSet, x0: float, y0: float, x1: float, y1: float) -> (float, integer, integer, integer)
 
 // THE SAME SWEEP, TOLD WHICH CELL IT STARTS IN — and the one to call in a movement loop.
 // 
@@ -257,7 +288,7 @@ pub fn sweep_path(e: EdgeSet, x0: float, y0: float, x1: float, y1: float)
 // 
 // Example: @HXE-002
 // Example: @HXE-003
-pub fn sweep_path_from(e: EdgeSet, sq: integer, sr: integer,
+pub fn sweep_path_from(e: EdgeSet, sq: integer, sr: integer, x0: float, y0: float, x1: float, y1: float) -> (float, integer, integer, integer)
 
 // A THIN wall: the cut between the cells of `s` and everything else.  One edge thick,
 // and it separates by construction — in every one of the 24 headings.
@@ -272,11 +303,11 @@ pub fn edges_solid(s: HexSet, e: EdgeSet)
 
 // Block every edge a straight line crosses: the wall runs along `n·p = c` in world
 // units, with n the unit normal.  A thin wall in ANY heading, one edge thick.
-pub fn edges_halfplane_surf(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+pub fn edges_halfplane_surf(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer, nx: float, ny: float, c: float, surf: integer)
 
 // Back-compat: a halfplane wall with no surface recorded.
 // Example: @HXE-009
-pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer,
+pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: integer, nx: float, ny: float, c: float)
 
 // ── SIGHT ───────────────────────────────────────────────────────────────────
 // 
@@ -296,7 +327,7 @@ pub fn edges_halfplane(e: EdgeSet, q0: integer, r0: integer, w: integer, h: inte
 // samples cannot skip a cell: every cell change is a step to a NEIGHBOUR, and the edge
 // between them is exactly the one to test.
 // Example: @HXE-010
-pub fn sight_clear(e: EdgeSet, m: Materials, x0: float, y0: float, z0: float,
+pub fn sight_clear(e: EdgeSet, m: Materials, x0: float, y0: float, z0: float, x1: float, y1: float, z1: float, opaque_at: float) -> boolean
 
 // The inverse of surf_param: where along a surface does this parameter land?
 // 

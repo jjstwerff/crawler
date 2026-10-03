@@ -1,5 +1,5 @@
-# graphics 0.9.4 — public API surface
-# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/graphics-0.9.4
+# graphics 0.9.7 — public API surface
+# generated from /Users/Jurjen/.loft/registry/graphics-0.9.7
 # use it with: use graphics::*;
 
 ## src/graphics.loft
@@ -33,7 +33,13 @@ pub fn color_b(color: integer) -> integer
 // here, which is what makes it composite to nothing.
 pub fn color_a(color: integer) -> integer
 
-pub struct Canvas
+// A 2D pixel canvas backed by a flat vector of RGBA integers.
+// Pixels are stored row-major: data[y * width + x].
+pub struct Canvas {
+  const width: integer,
+  const height: integer,
+  const data: vector<integer>,
+}
 
 // Create a canvas filled with a solid color.
 pub fn canvas(cw: integer, ch: integer, fill_color: integer) -> Canvas
@@ -139,7 +145,10 @@ pub fn fill_triangle(self: Canvas, tx0: integer, ty0: integer, tx1: integer, ty1
 // ("struct 'Point' conflicts with a enumvalue of the same name"). `Vertex` is
 // mesh3d's too. Reach for `Coord` in 2-D graphics code and the 3-D names stay
 // where they belong.
-pub struct Coord
+pub struct Coord {
+  px: integer,
+  py: integer,
+}
 
 // Fill a closed polygon under the EVEN-ODD rule.
 // 
@@ -276,7 +285,13 @@ pub fn gl_update_buffer(vbo: integer, data: vector<single>)
 // gl_draw_elements(vao, index_count, mode) draws indexed. Returns the EBO handle.
 pub fn gl_upload_indices(vao: integer, data: vector<integer>) -> integer
 
-pub struct GroupVboSet
+// The vertex buffers of a grouped mesh: one `GroupVbo` per group key in `slots`, all
+// sharing one vertex layout (`stride` floats per vertex) and one `draw_mode`.
+pub struct GroupVboSet {
+  slots: hash<GroupVbo[gk]>,  // not const: reassigned (`set.slots = []`) + grown via `+=`
+  const stride: integer,  // floats per vertex (e.g. 14 crystal, 10 ground)
+  const draw_mode: integer,  // DRAW_TRIANGLES / DRAW_LINES / …
+}
 
 // Create an empty set for a fixed vertex stride + draw mode.
 pub fn group_vbos_new(stride: integer, draw_mode: integer) -> GroupVboSet
@@ -285,7 +300,7 @@ pub fn group_vbos_new(stride: integer, draw_mode: integer) -> GroupVboSet
 // if present, upload the new data, and record the handle + vertex count + world
 // bounds.  Call this only for the DIRTY groups each edit; untouched groups keep
 // their cached VBOs.
-pub fn group_vbos_upsert(set: GroupVboSet, gk: integer, verts: vector<single>,
+pub fn group_vbos_upsert(set: GroupVboSet, gk: integer, verts: vector<single>, min_x: single, min_z: single, max_x: single, max_z: single)
 
 // Draw every group's cached VBO with the set's draw mode.  (Per-group frustum
 // culling — skip groups whose world bounds fall outside the view — is a future
@@ -318,11 +333,33 @@ pub fn gl_set_uniform_vec4(program: integer, name: text, x: float, y: float, z: 
 
 // --- GL state ---
 
+// Capability constants for gl_enable/gl_disable:
+pub const GL_DEPTH_TEST = 1
+
+pub const GL_BLEND = 2
+
+pub const GL_CULL_FACE = 3
+
+pub const GL_SCISSOR_TEST = 4
+
 // Enable a GL capability (GL_DEPTH_TEST, GL_BLEND, GL_CULL_FACE, GL_SCISSOR_TEST).
 pub fn gl_enable(cap: integer)
 
 // Disable a GL capability.
 pub fn gl_disable(cap: integer)
+
+// Blend factor constants for gl_blend_func:
+pub const BLEND_ZERO = 0
+
+pub const BLEND_ONE = 1
+
+pub const BLEND_SRC_ALPHA = 2
+
+pub const BLEND_ONE_MINUS_SRC_ALPHA = 3
+
+pub const BLEND_DST_ALPHA = 4
+
+pub const BLEND_ONE_MINUS_DST_ALPHA = 5
 
 // Set blend function (e.g. gl_blend_func(BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA)).
 pub fn gl_blend_func(src: integer, dst: integer)
@@ -383,6 +420,13 @@ pub fn gl_draw_fullscreen_quad()
 
 // --- Draw modes ---
 
+// Draw mode constants for gl_draw_mode and gl_draw_elements:
+pub const DRAW_TRIANGLES = 0
+
+pub const DRAW_LINES = 1
+
+pub const DRAW_POINTS = 2
+
 // Draw a VAO with explicit mode (DRAW_TRIANGLES, DRAW_LINES, DRAW_POINTS).
 pub fn gl_draw_mode(vao: integer, vertex_count: integer, mode: integer)
 
@@ -396,6 +440,109 @@ pub fn gl_line_width(width: float)
 pub fn gl_point_size(size: float)
 
 // --- Input ---
+
+// Key code constants for gl_key_pressed:
+pub const KEY_W = 119
+
+pub const KEY_A = 97
+
+pub const KEY_S = 115
+
+pub const KEY_D = 100
+
+pub const KEY_Q = 113
+
+pub const KEY_E = 101
+
+pub const KEY_SPACE = 32
+
+pub const KEY_ESCAPE = 27
+
+pub const KEY_UP = 128
+
+pub const KEY_DOWN = 129
+
+pub const KEY_LEFT = 130
+
+pub const KEY_RIGHT = 131
+
+pub const KEY_SHIFT = 132
+
+pub const KEY_CTRL = 133
+
+// Initiative 03 Phase 1: extra keys for the editor hotkey set.
+// Digits route through ASCII (`gl_key_pressed(KEY_1)` etc).
+pub const KEY_0 = 48
+
+pub const KEY_1 = 49
+
+pub const KEY_2 = 50
+
+pub const KEY_3 = 51
+
+pub const KEY_4 = 52
+
+pub const KEY_5 = 53
+
+pub const KEY_6 = 54
+
+pub const KEY_7 = 55
+
+pub const KEY_8 = 56
+
+pub const KEY_9 = 57
+
+// Common editor hotkey letters (lowercase ASCII; `gl_key_pressed` is
+// case-insensitive — the native key_index lowercases).
+pub const KEY_O = 111
+
+// raise-layer
+pub const KEY_R = 114
+
+// lower-layer
+pub const KEY_F = 102
+
+// undo (with Ctrl)
+pub const KEY_Z = 122
+
+// redo (with Ctrl)
+pub const KEY_Y = 121
+
+// Bracket keys for wall-direction cycling.
+pub const KEY_LBRACKET = 91
+
+// ]
+pub const KEY_RBRACKET = 93
+
+// Tab for camera-mode toggle.
+pub const KEY_TAB = 9
+
+// F-key range for save / load / fullscreen-toggle.  Values match
+// `lib/graphics/native/src/lib.rs::key_index` mapping of
+// `NamedKey::F1..F12` → 135..146.
+pub const KEY_F1 = 135
+
+pub const KEY_F2 = 136
+
+pub const KEY_F3 = 137
+
+pub const KEY_F4 = 138
+
+pub const KEY_F5 = 139
+
+pub const KEY_F6 = 140
+
+pub const KEY_F7 = 141
+
+pub const KEY_F8 = 142
+
+pub const KEY_F9 = 143
+
+pub const KEY_F10 = 144
+
+pub const KEY_F11 = 145
+
+pub const KEY_F12 = 146
 
 // Returns true if the key is currently pressed (use KEY_* constants).
 pub fn gl_key_pressed(key_code: integer) -> boolean
@@ -416,6 +563,57 @@ pub fn gl_mouse_button() -> integer
 pub fn gl_mouse_wheel() -> integer
 
 // --- Input events (Gap 01): an ordered, drained-per-frame event queue ---
+
+// Event type tags returned by gl_next_event().
+pub const EV_NONE = 0
+
+pub const EV_KEY_DOWN = 1
+
+pub const EV_KEY_UP = 2
+
+pub const EV_TEXT = 3
+
+pub const EV_MOUSE_DOWN = 4
+
+pub const EV_MOUSE_UP = 5
+
+pub const EV_MOUSE_MOVE = 6
+
+pub const EV_WHEEL = 7
+
+pub const EV_TOUCH_BEGIN = 8
+
+pub const EV_TOUCH_MOVE = 9
+
+pub const EV_TOUCH_END = 10
+
+pub const EV_RESIZE = 11
+
+// Modifier bitmask for gl_event_mods().
+pub const MOD_SHIFT = 1
+
+pub const MOD_CTRL = 2
+
+pub const MOD_ALT = 4
+
+pub const MOD_SUPER = 8
+
+// Named keys the event queue reports (extend the KEY_* set above).
+pub const KEY_ENTER = 13
+
+pub const KEY_BACKSPACE = 8
+
+pub const KEY_DELETE = 147
+
+pub const KEY_INSERT = 148
+
+pub const KEY_HOME = 149
+
+pub const KEY_END = 150
+
+pub const KEY_PAGEUP = 151
+
+pub const KEY_PAGEDOWN = 152
 
 // Pop the next queued input event and latch it; returns its EV_* tag, or
 // EV_NONE when the queue is drained.  Call after gl_poll_events().
@@ -479,7 +677,7 @@ pub fn gl_font_ascent(font: integer, size: float) -> float
 // does NOT work headless: without it the call is a no-op and the canvas keeps
 // whatever was under the text.  `text2d` exists for exactly that case — it
 // carries a baked face and draws through `set_pixel`, so text always appears.
-pub fn draw_text(self: Canvas, font: integer, content: text, size: float,
+pub fn draw_text(self: Canvas, font: integer, content: text, size: float, dt_x: integer, dt_y: integer, color: integer)
 
 // --- Textures (GL5.5) ---
 
@@ -510,7 +708,15 @@ pub fn gl_delete_framebuffer(fbo: integer)
 
 // A sprite sheet backed by a Canvas atlas uploaded as a GL texture.
 // Sprites are arranged in a grid of `ss_cols` x `ss_rows` cells.
-pub struct SpriteSheet
+pub struct SpriteSheet {
+  const ss_tex: integer,  // GL texture handle
+  const ss_shader: integer,  // textured quad shader
+  const ss_vao: integer,  // unit quad VAO (shared)
+  const ss_cols: integer,
+  const ss_rows: integer,
+  const ss_cell_w: integer,
+  const ss_cell_h: integer,
+}
 
 // Create a sprite sheet from a Canvas atlas.
 // The canvas is divided into a grid of `cols` x `rows` cells.
@@ -525,7 +731,12 @@ pub fn draw_sprite(sheet: const SpriteSheet, mvp: const vector<float>, sp_idx: i
 // A 2D painter bundling shaders, a unit-quad VAO, and an orthographic
 // projection. Create once per window with `create_painter_2d`, then use
 // `draw_rect_at`, `draw_sprite_at`, and `draw_texture_at` to render.
-pub struct Painter2D
+pub struct Painter2D {
+  p2_flat: integer,  // flat color shader
+  p2_tex: integer,  // textured quad shader (V-flipped)
+  p2_vao: integer,  // shared unit-quad VAO
+  p2_proj: vector<float>,  // orthographic projection (16 floats)
+}
 
 // Create a Painter2D for a window of size `screen_w` x `screen_h`.
 // Compiles the flat and textured shaders, uploads the unit-quad VAO, and
@@ -539,17 +750,17 @@ pub fn painter_vao(self: const Painter2D) -> integer
 
 // Draw a filled rectangle at screen position (x, y) with size (w, h).
 // Colour channels are in 0.0..1.0. Uses the painter's flat-color shader.
-pub fn draw_rect_at(painter: const Painter2D, x: float, y: float, w: float, h: float,
+pub fn draw_rect_at(painter: const Painter2D, x: float, y: float, w: float, h: float, r: float, g: float, b: float, a: float)
 
 // Draw a sprite from `sheet` at screen position (x, y) with size (w, h).
 // `sp_idx` is the 0-based sprite index (row-major) in the sheet.
 // This is a one-liner replacement for `make_mvp` + `draw_sprite`.
-pub fn draw_sprite_at(sheet: const SpriteSheet, painter: const Painter2D,
+pub fn draw_sprite_at(sheet: const SpriteSheet, painter: const Painter2D, x: float, y: float, w: float, h: float, sp_idx: integer)
 
 // Draw an arbitrary GL texture as a screen-space quad at (x, y, w, h).
 // Uses the painter's textured shader, which flips V to match canvas origin.
 // Suitable for textures created with `create_text_texture` or `gl_upload_canvas`.
-pub fn draw_texture_at(painter: const Painter2D, tex: integer,
+pub fn draw_texture_at(painter: const Painter2D, tex: integer, x: float, y: float, w: float, h: float)
 
 // Rasterize `content` with `font` at `size` pixels, upload the glyph bitmap
 // as a GL texture, and return the texture ID. The texture is sized to fit
@@ -576,7 +787,7 @@ pub fn audio_load(path: text) -> integer
 // A handle is never handed out twice.  When a clip finishes its slot is reused,
 // but the handle carries which use it belongs to, so an `audio_stop` on a
 // finished sound stops nothing instead of stopping whatever took its place.
-pub fn audio_play(clip: integer, volume: float, looping: boolean = false,
+pub fn audio_play(clip: integer, volume: float, looping: boolean = false, pan: float = 0.0, start: float = 0.0) -> integer
 
 // Stop a playing clip by its playback handle.
 pub fn audio_stop(sink: integer)
@@ -624,7 +835,22 @@ pub fn sfx_bounce(sp_freq: single, sp_vol: single) -> integer
 
 ## src/render.loft
 
-pub struct Renderer
+// A window with the 3D renderer's GL state: its size, the PBR and shadow shaders, the
+// shadow-map framebuffer and texture, and the vertex arrays `upload_scene` filled.
+// `create_renderer` makes one.
+pub struct Renderer {
+  const width: integer,
+  const height: integer,
+  const pbr_shader: integer,
+  const shadow_shader: integer,
+  const shadow_fbo: integer,
+  const shadow_tex: integer,
+  const shadow_size: integer,
+  const start_tick: integer,
+  const vaos: vector<integer>,  // const: contents grown via `+=` in upload_scene
+  const vert_counts: vector<integer>,  // const: contents grown via `+=` in upload_scene
+  uploaded: boolean,  // not const: genuinely reassigned (`self.uploaded = true`)
+}
 
 // Create a renderer with a window.  Compiles built-in shaders, allocates
 // shadow map FBO.  Returns null on failure (no display).
@@ -645,13 +871,13 @@ pub fn upload_scene(self: Renderer, sc: const scene::Scene)
 // Introduced by Initiative 03 Phase 3b (native moros editor
 // panel overlay).  The existing `render_frame` wrapper below
 // preserves backward compatibility with every current caller.
-pub fn render_frame_no_swap(self: Renderer, sc: const scene::Scene,
+pub fn render_frame_no_swap(self: Renderer, sc: const scene::Scene, cam: const scene::Camera) -> boolean
 
 // Render one frame (3D passes + buffer swap).  Convenience wrapper
 // for callers that don't need a 2D overlay between the 3D pass and
 // the swap — brick-buster, 24-renderer-demo, and every other current
 // consumer.  Returns false when close requested.
-pub fn render_frame(self: Renderer, sc: const scene::Scene,
+pub fn render_frame(self: Renderer, sc: const scene::Scene, cam: const scene::Camera) -> boolean
 
 // Convenience: render loop until close.
 pub fn render_loop(self: Renderer, sc: const scene::Scene, cam: const scene::Camera)
