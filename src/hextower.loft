@@ -155,6 +155,21 @@ pub fn tower_door_clear_m(t: Towers, i: integer) -> float {
   wu_to_m(ang * (rr - HEX_LEN * 0.5))
 }
 
+// Is surface `sid` an ARC? hex_edge keeps the kind in `Surfaces.sf_kind`, which it does not
+// mark `pub` (loft C140: a field is private to its file), and it offers no reader for it. The
+// public `surf_normal` answers it exactly: a straight surface's normal is the same at every
+// point, an arc's is radial — so at one unit east and one unit north of the recorded centre
+// (`sf_a`, `sf_b`) an arc answers (1,0) and (0,1) while a straight answers (sf_a, sf_b) twice.
+// An id out of range answers (0,0) twice, i.e. not an arc, as `sf_kind[sid] ?? 0` did.
+// Replace with the library's reader once hex_edge publishes one.
+pub fn tower_surf_is_arc(sf: Surfaces, sid: integer) -> boolean {
+  cx = sf.sf_a[sid] ?? 0.0;
+  cy = sf.sf_b[sid] ?? 0.0;
+  (ex, ey) = surf_normal(sf, sid, cx + 1.0, cy);
+  (nx, ny) = surf_normal(sf, sid, cx, cy + 1.0);
+  ex != nx || ey != ny
+}
+
 // WHERE A WALL CORNER SITS ON ITS TOWER'S FACE (plan #11 P5 step B).
 //
 // The ring is one cell thick, so the two faces of the wall sit half a hex step either side
