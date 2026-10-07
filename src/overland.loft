@@ -111,11 +111,11 @@ fn ov_steep_of(m: integer) -> float {
 
 // ── the resolved contract world ────────────────────────────────────────────
 pub struct OvSide {
-  os_x:    vector<float> not null,   // the curved course (natural meters)
-  os_y:    vector<float> not null,
-  os_bed:  vector<float> not null,   // monotone bed along the course
+  pub os_x:    vector<float> not null,   // the curved course (natural meters)
+  pub os_y:    vector<float> not null,
+  pub os_bed:  vector<float> not null,   // monotone bed along the course
   os_ws:   vector<float> not null,   // water width per point (estuary funnel)
-  os_acc:  float not null,
+  pub os_acc:  float not null,
   os_w:    float not null,           // water width (nominal; ws carries the taper)
   os_ice:  float not null,           // glacier half-width (0 = none)
   os_vw:   float not null,           // carve falloff width
@@ -146,16 +146,16 @@ pub struct OvRidge {
 }
 
 pub struct OvTown {
-  ot_x:    float not null,    // the town center (the cell's vertex point)
-  ot_y:    float not null,
-  ot_size: integer not null,  // 1 small .. 3 big
+  pub ot_x:    float not null,    // the town center (the cell's vertex point)
+  pub ot_y:    float not null,
+  pub ot_size: integer not null,  // 1 small .. 3 big
   ot_bld:  float not null,    // building-cluster radius
-  ot_fld:  float not null,    // field/clearing radius (the farmers' cut)
+  pub ot_fld:  float not null,    // field/clearing radius (the farmers' cut)
 }
 
 pub struct OvRoad {
-  rd_x:  vector<float> not null,
-  rd_y:  vector<float> not null,
+  pub rd_x:  vector<float> not null,
+  pub rd_y:  vector<float> not null,
   rd_x0: float not null,
   rd_y0: float not null,
   rd_x1: float not null,
@@ -164,15 +164,15 @@ pub struct OvRoad {
 }
 
 pub struct OvWiz {
-  wz_x:    float not null,    // a wizard's tower: REMOTE (they want privacy)
-  wz_y:    float not null,
-  wz_dead: integer not null,  // 1 = abandoned long ago
+  pub wz_x:    float not null,    // a wizard's tower: REMOTE (they want privacy)
+  pub wz_y:    float not null,
+  pub wz_dead: integer not null,  // 1 = abandoned long ago
 }
 
 pub struct OvRuin {
-  ru_x:    float not null,    // a settlement that FELL — the maximal history's loss
-  ru_y:    float not null,
-  ru_size: integer not null,  // 1 village ruin, 2 broken castle-town, 3 dead city
+  pub ru_x:    float not null,    // a settlement that FELL — the maximal history's loss
+  pub ru_y:    float not null,
+  pub ru_size: integer not null,  // 1 village ruin, 2 broken castle-town, 3 dead city
 }
 
 pub struct OvSwamp {
@@ -182,31 +182,31 @@ pub struct OvSwamp {
 }
 
 pub struct OvStop {
-  op2_x: float not null,    // a roadside waystation: carts park here at night
-  op2_y: float not null,
+  pub op2_x: float not null,    // a roadside waystation: carts park here at night
+  pub op2_y: float not null,
 }
 
 pub struct OvFort {
-  of_x:  float not null,    // the keep's spot: ABOVE its town, watching the ways
-  of_y:  float not null,
-  of_tw: integer not null,  // the town it protects
+  pub of_x:  float not null,    // the keep's spot: ABOVE its town, watching the ways
+  pub of_y:  float not null,
+  pub of_tw: integer not null,  // the town it protects
 }
 
 pub struct Overland {
-  ov_seed:   integer not null,
-  ov_mat:    vector<integer> not null,
-  ov_flow:   vector<integer> not null,
-  ov_acc:    vector<float> not null,
-  ov_sides:  vector<OvSide> not null,
-  ov_peaks:  vector<OvPeak> not null,
-  ov_ridges: vector<OvRidge> not null,
-  ov_towns:  vector<OvTown> not null,
-  ov_roads:  vector<OvRoad> not null,
-  ov_forts:  vector<OvFort> not null,
-  ov_swamps: vector<OvSwamp> not null,
-  ov_stops:  vector<OvStop> not null,
-  ov_ruins:  vector<OvRuin> not null,
-  ov_wiz:    vector<OvWiz> not null,
+  pub ov_seed:   integer not null,
+  pub ov_mat:    vector<integer> not null,
+  pub ov_flow:   vector<integer> not null,
+  pub ov_acc:    vector<float> not null,
+  pub ov_sides:  vector<OvSide> not null,
+  pub ov_peaks:  vector<OvPeak> not null,
+  pub ov_ridges: vector<OvRidge> not null,
+  pub ov_towns:  vector<OvTown> not null,
+  pub ov_roads:  vector<OvRoad> not null,
+  pub ov_forts:  vector<OvFort> not null,
+  pub ov_swamps: vector<OvSwamp> not null,
+  pub ov_stops:  vector<OvStop> not null,
+  pub ov_ruins:  vector<OvRuin> not null,
+  pub ov_wiz:    vector<OvWiz> not null,
 }
 
 const OV_RC = 866.0254037844386;     // OV_TILE / sqrt(3): circumradius

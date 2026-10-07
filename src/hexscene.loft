@@ -160,16 +160,16 @@ pub fn horizon_y(c: SceneCamera) -> float {
 // half of I-STAND and is gated in `scenetest`: a board of height h and a wall of height h
 // at one distance must cover the same pixel span.
 pub struct ActorView {
-  av_x:   float,        // world stand point: where the KERNEL says it stands
-  av_y:   float,
-  av_z:   float,
-  av_w:   float,        // metric width, world units
-  av_h:   float,        // metric height, world units
-  av_yaw: float,        // facing — a board ignores it, a mesh will need it
-  av_r:   float,        // presentation tone; a stand-in until the sprite ATLAS lands
-  av_g:   float,
-  av_b:   float,
-  av_tex: integer,      // presentation handle, carried but unused: a per-actor texture
+  pub av_x:   float,        // world stand point: where the KERNEL says it stands
+  pub av_y:   float,
+  pub av_z:   float,
+  pub av_w:   float,        // metric width, world units
+  pub av_h:   float,        // metric height, world units
+  pub av_yaw: float,        // facing — a board ignores it, a mesh will need it
+  pub av_r:   float,        // presentation tone; a stand-in until the sprite ATLAS lands
+  pub av_g:   float,
+  pub av_b:   float,
+  pub av_tex: integer,      // presentation handle, carried but unused: a per-actor texture
 }                       //   means one draw per actor, so it waits for the atlas (P8)
 
 // THE PRESENTER, board implementation. An upright billboard: width along the camera's

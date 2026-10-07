@@ -40,17 +40,17 @@ pub const IF_QUEST     = 2;    // a quest keepsake: never auto-slotted/consumed;
 pub const IF_KNOWN     = 4;    // always identified by sight (skips the unknown-flavour system)
 
 pub struct ItemDef {
-  i_key: text, i_name: text, i_glyph: text,
-  i_cr: integer not null, i_cg: integer not null, i_cb: integer not null,
-  i_cat: integer not null, i_slot: integer not null,
-  i_depth: integer not null, i_rarity: integer not null,
-  i_weight: integer not null,   // tenths of a pound
-  i_cost: integer not null,     // base gold value
-  i_dd: integer not null, i_ds: integer not null,   // damage dice (weapons/ammo)
-  i_ac: integer not null,       // base armour class
-  i_power: integer not null,    // generic magnitude (see header)
-  i_flags: integer not null,
-  i_desc: text,
+  pub i_key: text, pub i_name: text, pub i_glyph: text,
+  pub i_cr: integer not null, pub i_cg: integer not null, pub i_cb: integer not null,
+  pub i_cat: integer not null, pub i_slot: integer not null,
+  pub i_depth: integer not null, pub i_rarity: integer not null,
+  pub i_weight: integer not null,   // tenths of a pound
+  pub i_cost: integer not null,     // base gold value
+  pub i_dd: integer not null, pub i_ds: integer not null,   // damage dice (weapons/ammo)
+  pub i_ac: integer not null,       // base armour class
+  pub i_power: integer not null,    // generic magnitude (see header)
+  pub i_flags: integer not null,
+  pub i_desc: text,
 }
 
 fn item_none() -> ItemDef {

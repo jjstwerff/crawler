@@ -47,23 +47,23 @@ pub TAG_CAVE_ROOST    = 8;   // sleeps at a cave mouth
 pub TAG_TOWER_DWELLER = 16;  // haunts an abandoned tower
 
 pub struct MonsterDef {
-  m_key:    text,                 // stable id, e.g. "giant_rat"
-  m_name:   text,                 // display name
-  m_glyph:  text,                 // single-char map symbol
-  m_cr: integer not null,         // display colour 0..255
-  m_cg: integer not null,
-  m_cb: integer not null,
-  m_depth:  integer not null,     // native dungeon level (min depth seen)
-  m_rarity: integer not null,     // 1 common .. higher rarer; 0 = unique/special
-  m_hp:     integer not null,
-  m_ac:     integer not null,     // armour class / defence
-  m_speed:  integer not null,     // 0 normal, +N faster, -N slower
-  m_dam:    integer not null,     // base melee damage
-  m_vision: integer not null,     // aggro / detection range (hexes)
-  m_xp:     integer not null,     // experience reward
-  m_flags:  integer not null,
-  m_habitat: integer,             // terrain bitmask (HB_*; null = dungeon-only)
-  m_tags:    integer,             // placement roles (TAG_*; null = none)
+  pub m_key:    text,                 // stable id, e.g. "giant_rat"
+  pub m_name:   text,                 // display name
+  pub m_glyph:  text,                 // single-char map symbol
+  pub m_cr: integer not null,         // display colour 0..255
+  pub m_cg: integer not null,
+  pub m_cb: integer not null,
+  pub m_depth:  integer not null,     // native dungeon level (min depth seen)
+  pub m_rarity: integer not null,     // 1 common .. higher rarer; 0 = unique/special
+  pub m_hp:     integer not null,
+  pub m_ac:     integer not null,     // armour class / defence
+  pub m_speed:  integer not null,     // 0 normal, +N faster, -N slower
+  pub m_dam:    integer not null,     // base melee damage
+  pub m_vision: integer not null,     // aggro / detection range (hexes)
+  pub m_xp:     integer not null,     // experience reward
+  pub m_flags:  integer not null,
+  pub m_habitat: integer,             // terrain bitmask (HB_*; null = dungeon-only)
+  pub m_tags:    integer,             // placement roles (TAG_*; null = none)
 }
 
 pub fn mon_none() -> MonsterDef {

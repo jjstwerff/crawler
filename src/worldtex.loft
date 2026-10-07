@@ -53,11 +53,11 @@ pub const TEX_SX = 4;
 pub const TEX_SY = 2;
 
 pub struct WorldTex {
-  wt_w:    integer,          // texels across
-  wt_h:    integer,          // texels down
-  wt_k0:   integer,          // lattice k at the left edge of column 0
-  wt_m0:   integer,          // lattice m at the top edge of row 0
-  wt_kind: vector<integer>,  // terrain kind per texel, row-major; -1 = no kind
+  pub wt_w:    integer,          // texels across
+  pub wt_h:    integer,          // texels down
+  pub wt_k0:   integer,          // lattice k at the left edge of column 0
+  pub wt_m0:   integer,          // lattice m at the top edge of row 0
+  pub wt_kind: vector<integer>,  // terrain kind per texel, row-major; -1 = no kind
 }
 
 // The lattice bounding box of a level's window. A hex centre sits at (2q + (r&1), 3r) and

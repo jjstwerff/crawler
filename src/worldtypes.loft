@@ -10,25 +10,25 @@
 // STENCILS.md's scheduled design makes crawler's real stencil a small FIELD, i.e. that very
 // type; this placeholder was squatting on the name its successor needs.
 pub struct RoomStencil {
-  sk:      text,                  // stencil key (a placement rule references it)
-  shape:   text,                  // "round" — a hex disc of floor; later: "grid" with explicit cells
-  radius:  integer not null,      // round-shape radius in hexes
-  boss:    text,                  // legend: monster seated at the centre ("" = none)
-  guard:   text,                  // legend: monster ringing the centre ("" = none)
-  guards:  integer not null,      // how many guards to place around the boss
-  pool:    integer,               // radius of a MAGICAL POOL around the centre (null/0 = none):
+  pub sk:      text,                  // stencil key (a placement rule references it)
+  pub shape:   text,                  // "round" — a hex disc of floor; later: "grid" with explicit cells
+  pub radius:  integer not null,      // round-shape radius in hexes
+  pub boss:    text,                  // legend: monster seated at the centre ("" = none)
+  pub guard:   text,                  // legend: monster ringing the centre ("" = none)
+  pub guards:  integer not null,      // how many guards to place around the boss
+  pub pool:    integer,               // radius of a MAGICAL POOL around the centre (null/0 = none):
                                   //   shallow, walkable water (tile 9) a phial can be filled from
 }
 
 pub struct Placement {
-  setpiece_stencil: text,             // which stencil to stamp...
-  setpiece_depth:   integer not null, // ...at which depth (on the linked place)
-  boss_drop:        text,             // item key the set-piece boss drops on death ("" = none)
-  quest_item:       text,             // a keepsake handed to the player ("" = none)...
-  quest_depth:      integer not null, // ...on first entering this depth
-  infest_trigger:   text,             // "boss_slain" = release the brood once the set-piece boss dies
-  infest_a:         text,             // first infestation monster key
-  infest_b:         text,             // second infestation monster key (alternated with the first)
-  infest_d1:        integer not null, // how many to spawn at depth 1 (crawling)
-  infest_d2:        integer not null, // how many at depth 2 (some)
+  pub setpiece_stencil: text,             // which stencil to stamp...
+  pub setpiece_depth:   integer not null, // ...at which depth (on the linked place)
+  pub boss_drop:        text,             // item key the set-piece boss drops on death ("" = none)
+  pub quest_item:       text,             // a keepsake handed to the player ("" = none)...
+  pub quest_depth:      integer not null, // ...on first entering this depth
+  pub infest_trigger:   text,             // "boss_slain" = release the brood once the set-piece boss dies
+  pub infest_a:         text,             // first infestation monster key
+  pub infest_b:         text,             // second infestation monster key (alternated with the first)
+  pub infest_d1:        integer not null, // how many to spawn at depth 1 (crawling)
+  pub infest_d2:        integer not null, // how many at depth 2 (some)
 }

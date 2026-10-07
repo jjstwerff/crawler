@@ -2,10 +2,10 @@
 // Room registry from the rooms section of the kind:"world" bundles (bundles/*/bundle.json)
 // — the default room set and the way corridors connect them. Consumed by gen.loft. See BUNDLE.md.
 pub struct RoomDef {
-  rk: text, shape: text,
-  w_min: integer not null, w_max: integer not null,
-  h_min: integer not null, h_max: integer not null,
-  weight: integer not null,
+  pub rk: text, shape: text,
+  pub w_min: integer not null, pub w_max: integer not null,
+  pub h_min: integer not null, pub h_max: integer not null,
+  pub weight: integer not null,
 }
 
 pub fn room_table() -> vector<RoomDef> {

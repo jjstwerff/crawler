@@ -116,19 +116,19 @@ fn zeros(n: integer) -> vector<integer> {
 }
 
 pub struct Enemy {
-  cur_q: integer not null,
-  cur_r: integer not null,
-  tgt_q: integer not null,
-  tgt_r: integer not null,
-  hp:    integer not null,
+  pub cur_q: integer not null,
+  pub cur_r: integer not null,
+  pub tgt_q: integer not null,
+  pub tgt_r: integer not null,
+  pub hp:    integer not null,
   maxhp: integer not null,
   dam:   integer not null,
   xp:     integer not null,   // experience awarded on death (m_xp)
   mlvl:   integer not null,   // native level (m_depth) — scales the kill XP
-  vision: integer not null,   // aggro / detection range in hexes (from the DB)
-  flags:  integer not null,   // MF_* bitmask (from the DB)
+  pub vision: integer not null,   // aggro / detection range in hexes (from the DB)
+  pub flags:  integer not null,   // MF_* bitmask (from the DB)
   tags:   integer not null,   // the def's placement-role tags (TAG_*) — quest hooks read these
-  awake:  boolean not null,   // false = asleep: won't act until it perceives you
+  pub awake:  boolean not null,   // false = asleep: won't act until it perceives you
   speed:  integer not null,   // energy banked per clock tick = ENERGY_STEP + m_speed
   energy: integer not null,   // action-credit saved toward the next step (the 0..9 leftover between ticks)
   slow_until: integer not null,  // status expiry ticks (0 = none); active while ticks <= until
@@ -179,10 +179,10 @@ pub struct Enemy {
 // Scalars-first slice (DESIGN.md §2): scalar fields migrate here in groups; the
 // stat/inventory/equipment VECTORS stay on Sim until the vector slice.
 pub struct Player {
-  pid:    integer not null,   // 0 = the single active player today; players-vector index later
-  clevel: integer not null,   // character level (1..MAX_CLEVEL)
-  xp:     integer not null,   // experience points
-  gold:   integer not null,   // gold (income arrives with items, I1)
+  pub pid:    integer not null,   // 0 = the single active player today; players-vector index later
+  pub clevel: integer not null,   // character level (1..MAX_CLEVEL)
+  pub xp:     integer not null,   // experience points
+  pub gold:   integer not null,   // gold (income arrives with items, I1)
 }
 
 pub struct Sim {
@@ -195,10 +195,10 @@ pub struct Sim {
   // a step in the ground at every window seam a traveller crosses.
   // Empty on a dungeon level, which is flat by construction.
   theight: vector<float> not null,
-  lw:      integer not null,
-  lh:      integer not null,
-  qmin:    integer not null,
-  rmin:    integer not null,
+  pub lw:      integer not null,
+  pub lh:      integer not null,
+  pub qmin:    integer not null,
+  pub rmin:    integer not null,
   tiles:   vector<integer> not null,   // hex kind: 0 floor, 1 solid full-hex wall
   walls:   vector<integer> not null,   // edge walls: idx = hex*3 + edge(0=N,1=NE,2=SE)
   // THE passability field (plan #11 P2). Derived from `tiles` + `walls` at build time by
@@ -207,31 +207,31 @@ pub struct Sim {
   // features) not passage, and `walls` because it is still the edge authoring surface
   // until fences move onto an EdgeSet of their own.
   solid:   HexSet,                     //   cell occupancy — what fills a hex
-  field:   EdgeSet,                    //   the crossing layer — what a path may not cross
+  pub field:   EdgeSet,                    //   the crossing layer — what a path may not cross
   // THE GEOMETRY BEHIND THE EDGES (plan #11 P5). An edge of the field records WHICH surface
   // blocks it; these are the surfaces. Cell-authored walls carry SURF_NONE and have no
   // recoverable normal — a round tower now carries its own arc, so `collide` returns an
   // exact radial normal and the renderer can draw a curve instead of six facets. `feats`
   // records the openings in those surfaces (a door's span and its head height), which is
   // what lets a doorway be an opening in a wall rather than a missing piece of one.
-  surfs:   Surfaces,
-  feats:   Features,
-  seen:    vector<integer> not null,   // FOV memory: 1 = hex ever seen (revealed map; lost on death)
-  vis:     vector<integer> not null,   // FOV current: 1 = hex visible this frame (recomputed)
-  px:      float not null,
-  py:      float not null,
-  heading: float not null,             // radians; forward = (cos,sin)
+  pub surfs:   Surfaces,
+  pub feats:   Features,
+  pub seen:    vector<integer> not null,   // FOV memory: 1 = hex ever seen (revealed map; lost on death)
+  pub vis:     vector<integer> not null,   // FOV current: 1 = hex visible this frame (recomputed)
+  pub px:      float not null,
+  pub py:      float not null,
+  pub heading: float not null,             // radians; forward = (cos,sin)
   accrued: float not null,             // remainder distance in [0, tick_span(s)) — Speed-scaled
-  ticks:   integer not null,
-  enemies: vector<Enemy> not null,
-  php:     integer not null,   // player hit points
+  pub ticks:   integer not null,
+  pub enemies: vector<Enemy> not null,
+  pub php:     integer not null,   // player hit points
   phpmax:  integer not null,
-  over:    boolean not null,   // game over (player died)
-  player:  Player not null,    // the player's own record — scalars migrating here (clevel/xp/gold so far)
+  pub over:    boolean not null,   // game over (player died)
+  pub player:  Player not null,    // the player's own record — scalars migrating here (clevel/xp/gold so far)
   race:    text not null,      // chosen race key (default "human"); its RaceDef applies to stats/HP/skills/flags
   pclass:  text not null,      // chosen class key ("" = the unclassed baseline; the FRONT-END picks the
                                //   quick-start default — story boots a warrior; the crystal re-specs)
-  sp:      integer not null,   // spell points (0/0 for realm-less classes; regenerates over the clock)
+  pub sp:      integer not null,   // spell points (0/0 for realm-less classes; regenerates over the clock)
   spmax:   integer not null,
   // CACHED race+class derivations (the wdam/pac idiom): apply_creation bakes these so the hot
   // paths (skills per tick, save rolls, xp checks, regen) read FIELDS — never re-merging the
@@ -245,7 +245,7 @@ pub struct Sim {
   rc_xpf:     integer not null,   // combined experience factor % (100 = baseline)
   rc_realm:   text not null,      // the class's casting realm ("none" = no SP/cast)
   rc_spi:     integer not null,   // spell-stat index (stat_index of c_spell_stat; -1 = none)
-  shrine_ev:  integer not null,   // pending shrine INTERACT (bumped a MF_SHRINE entity); the view
+  pub shrine_ev:  integer not null,   // pending shrine INTERACT (bumped a MF_SHRINE entity); the view
                                   //   polls sim_shrine_pending + clears — the crystal page opens
   // Statistics — three layers per stat (STR/INT/WIS/DEX/CON/CHR, see stat_index):
   //   stat_max = innate; stat_cur = current (permanent drain lowers, restore returns to max);
@@ -257,10 +257,10 @@ pub struct Sim {
   // Player-chosen stat growth (never forced): each level-up BANKS one point here; the player
   // spends it whenever they like (sim_raise_stat), deferring until needed. stat_grown_at[i] = the
   // clevel stat i last rose (0 = never), enforcing the once-per-STAT_COOLDOWN-levels cap.
-  stat_pts:   integer not null,
+  pub stat_pts:   integer not null,
   stat_grown_at: vector<integer> not null,
   detect_t:   integer not null,   // monster-detection (see-through-walls) turns remaining
-  depth:   integer not null,   // dungeon level (1 = shallowest)
+  pub depth:   integer not null,   // dungeon level (1 = shallowest)
   save_depth: integer not null,   // checkpoint: deepest save-point level reached (respawn target)
   anc_kind:  integer not null,    // the ACTIVE SPAWN ANCHOR: 0 none (legacy save-stair fallback),
   anc_depth: integer not null,    //   1 = a save stair, 2 = the crystal, 3 = a bed (plan #4 H), ...
@@ -268,32 +268,32 @@ pub struct Sim {
   anc_wy:    integer not null,    //   wins; death wakes the player there, whole again
   anc_q:     integer not null,
   anc_r:     integer not null,
-  q_poster:  integer not null,    // the WANTED poster bounty: 0 unread, 1 taken, 2 boss down, 3 paid
+  pub q_poster:  integer not null,    // the WANTED poster bounty: 0 unread, 1 taken, 2 boss down, 3 paid
   q_mage:    integer not null,    // the Circle's line: 0 nothing, 1 merchant pointed, 2 asked, 3 the writ
   grave_depth: integer not null,  // death-stake grave: depth / hex / gold (0 gold = no grave).
   grave_q:     integer not null,  //   SP keeps one grave (re-death forfeits it); MP would hold a
   grave_r:     integer not null,  //   list (owner-less, persistent) — a later, non-rewrite variant.
   grave_gold:  integer not null,
-  boss_slain:  integer not null,  // quest progress: 1 once a set-piece UNIQUE has died (releases the
+  pub boss_slain:  integer not null,  // quest progress: 1 once a set-piece UNIQUE has died (releases the
                                   //   bundle's infestation on the way out). Carried across levels.
   msg_q:   vector<text> not null,  // message-log ring buffer (size MSG_MAX); index-written, never grown
-  msg_n:   integer not null,       // total messages ever logged (the ring write head)
+  pub msg_n:   integer not null,       // total messages ever logged (the ring write head)
   // PLAYER status (the single player today; per-player when MP lands — "they take a player slot").
-  para_until:   integer not null,  // paralysed while ticks < this (the floating-eye gaze)
-  poison_until: integer not null,  // poisoned while ticks < this, taking poison_dmg HP per tick
-  poison_dmg:   integer not null,
+  pub para_until:   integer not null,  // paralysed while ticks < this (the floating-eye gaze)
+  pub poison_until: integer not null,  // poisoned while ticks < this, taking poison_dmg HP per tick
+  pub poison_dmg:   integer not null,
   venom_until:  integer not null,  // venom-WARD (antivenin): poison can't apply/tick while ticks < this
   // Unknown items (per GAME, carried across levels): which item TYPES are identified, and each def's
   // shuffled flavour index (the unidentified display). Indexed by catalog def index.
   known:        vector<integer> not null,
   flavour_idx:  vector<integer> not null,
-  wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
+  pub wseed:   integer not null,   // world seed (per-level gen seed = mix(wseed, depth))
   win_x:   integer not null,   // which wilderness WINDOW this surface is ((0,0) = the home town;
   win_y:   integer not null,   //  neighbours abut — walking off an edge crosses over)
   up_q:    integer not null,   // up-stair hex (player start / arrival from below)
   up_r:    integer not null,
-  dn_q:    integer not null,   // down-stair hex
-  dn_r:    integer not null,
+  pub dn_q:    integer not null,   // down-stair hex
+  pub dn_r:    integer not null,
   rs1:     integer not null,   // the combat-roll RandStream's state words (random lib) — the
   rs2:     integer not null,   //   stream RIDES the Sim: saves/replays/descends deterministically
   ninv:    integer not null,   // inventory count
@@ -350,10 +350,10 @@ pub struct Sim {
   // a level, replayed on re-entry. Compact fixed blocks indexed by depth (dd_idx[depth*MAX_SPAWNS+k]).
   dd_idx:  vector<integer> not null,
   dd_n:    vector<integer> not null,   // dead count per depth (overwritten each time you leave)
-  room_q0: vector<integer> not null,   // room rects (axial) — wall straightener snaps to their
-  room_r0: vector<integer> not null,   //   exact rhombus side-lines; empty = pure-smooth fallback
-  room_w:  vector<integer> not null,
-  room_h:  vector<integer> not null,
+  pub room_q0: vector<integer> not null,   // room rects (axial) — wall straightener snaps to their
+  pub room_r0: vector<integer> not null,   //   exact rhombus side-lines; empty = pure-smooth fallback
+  pub room_w:  vector<integer> not null,
+  pub room_h:  vector<integer> not null,
 }
 
 // ── World queries ────────────────────────────────────────────────────

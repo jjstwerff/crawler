@@ -30,14 +30,14 @@ pub const NODE_TIP   = 2;
 pub const NODE_ROOT  = 3;
 
 pub struct Skeleton {
-  sk_q:     vector<integer>,
-  sk_r:     vector<integer>,
-  sk_par:   vector<integer>,   // parent node index, -1 at the root
+  pub sk_q:     vector<integer>,
+  pub sk_r:     vector<integer>,
+  pub sk_par:   vector<integer>,   // parent node index, -1 at the root
   sk_depth: vector<integer>,   // cells from the trunk
-  sk_load:  vector<integer>,   // crown cells carried, including itself — T5's pipe input
-  sk_kind:  vector<integer>,
-  sk_n:     integer,
-  sk_id:    integer,           // which tree
+  pub sk_load:  vector<integer>,   // crown cells carried, including itself — T5's pipe input
+  pub sk_kind:  vector<integer>,
+  pub sk_n:     integer,
+  pub sk_id:    integer,           // which tree
 }
 
 pub fn skeleton_new(id: integer) -> Skeleton {
@@ -250,11 +250,11 @@ pub fn node_y(sk: Skeleton, j: integer) -> float {
 pub struct Branches {
   br_a:    vector<integer>,   // node index this segment starts at
   br_b:    vector<integer>,   // node index it ends at
-  br_dx:   vector<float>,
-  br_dy:   vector<float>,
-  br_len:  vector<float>,
+  pub br_dx:   vector<float>,
+  pub br_dy:   vector<float>,
+  pub br_len:  vector<float>,
   br_load: vector<integer>,   // crown cells beyond its end — the pipe-model input
-  br_n:    integer,
+  pub br_n:    integer,
 }
 
 pub fn branches_new() -> Branches {
@@ -499,15 +499,15 @@ fn hash01(k: integer, m: integer, salt: integer) -> float {
 }
 
 pub struct Cards {
-  cd_x:    vector<float>,
-  cd_y:    vector<float>,
-  cd_z:    vector<float>,
-  cd_dx:   vector<float>,     // branch-aligned, never camera-facing
-  cd_dy:   vector<float>,
-  cd_size: vector<float>,
-  cd_q:    vector<integer>,
-  cd_r:    vector<integer>,
-  cd_n:    integer,
+  pub cd_x:    vector<float>,
+  pub cd_y:    vector<float>,
+  pub cd_z:    vector<float>,
+  pub cd_dx:   vector<float>,     // branch-aligned, never camera-facing
+  pub cd_dy:   vector<float>,
+  pub cd_size: vector<float>,
+  pub cd_q:    vector<integer>,
+  pub cd_r:    vector<integer>,
+  pub cd_n:    integer,
 }
 
 pub fn cards_new() -> Cards {
