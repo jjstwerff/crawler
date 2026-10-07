@@ -9,8 +9,8 @@
 //
 // The region name comes from the LOFT_REGION env var; default = "ortler".
 
-use region;
-use region_io;
+use region::*;
+use region_io::*;
 
 fn main() {
   name = env_variable("LOFT_REGION");

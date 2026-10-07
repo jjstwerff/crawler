@@ -26,8 +26,8 @@
 // Output is stride-6 (x, h, z, r, g, b), the same format chunk_mesh_ov
 // emits, so the viewer's existing shader / upload path is unchanged.
 
-use region;
-use hex_grid;
+use region::*;
+use hex_grid::*;
 
 pub const SLOTS_PER_HEX = 19;          // 1 centre + 6 corners + 12 edge-thirds
 pub const FLOATS_PER_TRI = 18;         // 3 verts × 6 floats (stride 6)

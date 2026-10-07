@@ -2,9 +2,9 @@
 // sanity-check size + watertight property.
 //
 // Run via `make trimesh-test` (the LOFT_REGION env var selects the region).
-use region;
-use trimesh;
-use ortler;
+use region::*;
+use trimesh::*;
+use ortler::*;
 
 fn main() {
   name = env_variable("LOFT_REGION");
