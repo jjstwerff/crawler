@@ -1,5 +1,5 @@
-# hex_edge 0.2.1 — public API surface
-# generated from /Users/Jurjen/.loft/registry/hex_edge-0.2.1
+# hex_edge 0.2.5 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_edge-0.2.5
 # use it with: use hex_edge::*;
 
 ## src/hex_edge.loft
@@ -26,7 +26,7 @@ pub fn surf_straight(s: Surfaces, nx: float, ny: float, c: float) -> integer
 // along the curve — no faceting, no mesh.
 pub fn surf_arc(s: Surfaces, cx: float, cy: float, r: float) -> integer
 
-// Distance from a world point to surface `id` — the ARBITRATION metric (P3).
+// Distance from a world point to surface `id` — the metric junction arbitration uses.
 pub fn surf_distance(s: Surfaces, id: integer, px: float, py: float) -> float
 
 // The outward normal of surface `id` at world point (px,py).
@@ -58,11 +58,14 @@ pub fn materials_new() -> Materials
 // whether it blocks, how tall, how opaque, how loud, how permeable, how bouncy.
 pub fn material_add(m: Materials, solid: boolean, height: float, opacity: float, sound_db: float, perm: float, bounce: float) -> integer
 
-// A DYNAMIC material — a level-crossing barrier, a door, a portcullis.  Flipping the
-// table entry retargets every edge already carrying this id, so the geometry layer is not
-// touched at all: no edge writes, no surface change, and therefore NO L2 cache
-// invalidation (P6 keys the cache on the world version, which a material toggle does not
-// bump).  That is the whole reason material is a separate axis from surface.
+// Change whether a material counts as solid.  Flipping the table entry retargets every
+// edge already carrying this id, with no edge write and no surface change — that is why
+// material is a separate axis from surface.
+// 
+// ⚠ It changes what `mat_solid` answers, and NOTHING in this package's movement:
+// `passable` and `sweep_path` read the edge's surface mark and no material.  To open a
+// gate, clear the mark (`edge_set_surf(e, …, 0)`); the material says what kind of gate it
+// was, for the consumer that reads it.
 // Example: @HXE-010
 pub fn material_set_solid(m: Materials, id: integer, solid: boolean)
 
@@ -109,11 +112,11 @@ pub fn edge_block_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: in
 // point a normal is evaluated at.
 pub fn edge_point(qa: integer, ra: integer, qb: integer, rb: integer) -> (float, float)
 
-// ── P3: JUNCTION ARBITRATION ─────────────────────────────────────────────────
+// ── JUNCTION ARBITRATION ─────────────────────────────────────────────────────
 // 
-// When two parts meet, one edge is claimed by two surfaces. First-writer-wins made that
-// order-dependent — stamp the wall then the tower and you got a different world than the
-// other way round, which is exactly the class of bug that never shows up in a unit test.
+// When two parts meet, one edge is claimed by two surfaces. First-writer-wins is
+// order-dependent there — stamp the wall then the tower and you get a different world than
+// the other way round, which is the class of bug that never shows up in a unit test.
 // 
 // THE RULE: the surface whose geometry is NEAREST the edge's contact point wins; ties
 // break to the LOWER surface id. Both halves matter — nearest is what a ball should
@@ -122,12 +125,14 @@ pub fn edge_point(qa: integer, ra: integer, qb: integer, rb: integer) -> (float,
 pub fn edge_block_arb(e: EdgeSet, sf: Surfaces, qa: integer, ra: integer, qb: integer, rb: integer, surf: integer, mat: integer)
 
 // A junction records WHICH surfaces meet and what continuity was INTENDED there, so a
-// deliberate corner is never mistaken for an accidental kink (FORMS.md's junction policy).
+// deliberate corner is never mistaken for an accidental kink.
 pub const JOIN_SMOOTH = 1
 
 // a deliberate angle — a corner on purpose
 pub const JOIN_CORNER = 2
 
+// Where surfaces meet: for each junction, the two surfaces, the continuity intended there
+// (`JOIN_SMOOTH`, `JOIN_CORNER`) and its position.  `junctions_new` makes an empty set.
 pub struct Junctions {
   jn_a: vector<integer>,
   jn_b: vector<integer>,
@@ -153,7 +158,7 @@ pub fn junction_ok(j: Junctions, i: integer, sf: Surfaces) -> boolean
 // Example: @HXE-011
 pub fn junction_g0(j: Junctions, i: integer, sf: Surfaces, tol: float) -> boolean
 
-// ── P5: FEATURES — doors, windows, loopholes ────────────────────────────────
+// ── FEATURES — doors, windows, loopholes ────────────────────────────────────
 // 
 // A feature is an INTERVAL ON THE SURFACE, never a hole cut in the cell outline. That is
 // forced by measurement: the traced boundary turns at every vertex, so an opening cut
@@ -174,6 +179,9 @@ pub const FEAT_WINDOW = 2
 
 pub const FEAT_LOOPHOLE = 3
 
+// The openings cut into surfaces — doors, windows, loopholes (`FEAT_*`): for each, its
+// surface, its interval along it, its vertical extent (sill to head), its kind and the
+// material inside it.  `features_new` makes an empty set.
 pub struct Features {
   fe_surf: vector<integer>,
   fe_s0: vector<float>,  // interval along the surface parameter
@@ -208,8 +216,8 @@ pub fn apply_features(e: EdgeSet, sf: Surfaces, f: Features, q0: integer, r0: in
 // legitimately retargets the material of an edge whose surface is already settled.
 pub fn edge_block_full(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer, surf: integer, mat: integer)
 
-// A bare blocker with no recoverable geometry.  u16 cannot hold -1, so the sentinel is
-// the top of the range: blocked, but collide() will report no usable normal.
+// A bare blocker with no recoverable geometry: an id no `Surfaces` table reaches, so the
+// edge is blocked but `collide` reports a (0,0) normal.
 pub const SURF_NONE = 65535
 
 // Example: @HXE-007
@@ -227,7 +235,7 @@ pub fn collide(e: EdgeSet, s: Surfaces, qa: integer, ra: integer, qb: integer, r
 // Example: @HXE-010
 pub fn passable(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> boolean
 
-// ── SWEPT MOVEMENT (plan #11 P2b — invariant I-CROSS) ────────────────────────
+// ── SWEPT MOVEMENT ───────────────────────────────────────────────────────────
 // 
 // `passable` answers about one edge; this answers about a PATH. Walk the segment
 // (x0,y0) -> (x1,y1) across the lattice one edge at a time and stop at the first edge
@@ -247,12 +255,9 @@ pub fn passable(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) 
 // Returns the fraction of the segment that may be travelled (1.0 = all of it), the cell
 // it stopped in, and the DIRECTION of the blocking edge — `dir < 0` meaning nothing
 // blocked. The signal is the direction and never a coordinate: hex coordinates are
-// signed, so a -1 sentinel in q or r collides with real cells in any chunk that spans
-// the origin. (It did: the first version reported "no hit" for every wall at q = -1.)
-// Feed (q, r, dir) to `nb_q`/`nb_r` and `collide` for the exact bounce normal.
-// 
-// EXTRACTION: this belongs with `passable`/`collide` and travels with them when hexedge
-// is packaged — every consumer that moves a body over the field needs it.
+// signed, so a -1 sentinel in q or r would collide with real cells in any chunk that
+// spans the origin.  Feed (q, r, dir) to `nb_q`/`nb_r` and `collide` for the exact
+// bounce normal.
 // Example: @HXE-002
 // Example: @HXE-004
 // Example: @HXE-005
@@ -273,8 +278,8 @@ pub fn sweep_path(e: EdgeSet, x0: float, y0: float, x1: float, y1: float) -> (fl
 // from one step to the next. Pressing on into the wall then answers `t = 0` in the cell you
 // are in, which is the honest answer, and sliding along the wall works from the same call.
 // 
-// WHY NOT A SKIN. The consumer-side workaround is to come to rest a small distance short
-// (moros#10 used 1 cm at its scale), and it does work — but the smallest distance that works
+// WHY NOT A SKIN. The consumer-side workaround is to come to rest a small distance short,
+// and it does work — but the smallest distance that works
 // is not a constant. Measured: 1e-15 at the origin, 1e-11 about 1.7e3 world units out,
 // 1e-9 about 1.7e6 out. It is a float-resolution floor, not a geometric clearance, so a
 // constant chosen at one extent is silently wrong at another and the library has no better
@@ -332,7 +337,7 @@ pub fn sight_clear(e: EdgeSet, m: Materials, x0: float, y0: float, z0: float, x1
 // The inverse of surf_param: where along a surface does this parameter land?
 // 
 // surf_param answers "where is this point on that surface"; derived placement needs the
-// other direction — a Feature states an INTERVAL in surface parameters (plan #5 P5), and
+// other direction — a Feature states an INTERVAL in surface parameters, and
 // putting a door there means turning that interval back into a position. Without this the
 // only way to place a door on an existing opening is to search for it.
 // Example: @HXE-008

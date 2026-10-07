@@ -1,5 +1,5 @@
-# graphics 0.9.7 — public API surface
-# generated from /Users/Jurjen/.loft/registry/graphics-0.9.7
+# graphics 0.9.11 — public API surface
+# generated from /home/jurjens/.loft/registry/graphics-0.9.11
 # use it with: use graphics::*;
 
 ## src/graphics.loft

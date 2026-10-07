@@ -1,5 +1,5 @@
-# random 0.3.3 — public API surface
-# generated from /Users/Jurjen/.loft/registry/random-0.3.3
+# random 0.3.6 — public API surface
+# generated from /home/jurjens/.loft/registry/random-0.3.6
 # use it with: use random::*;
 
 ## src/random.loft
@@ -24,12 +24,15 @@ pub fn rand_seed(seed: integer)
 
 // Returns a vector of n integers [0, 1, ..., n-1] in a random order.
 // Useful for random iteration, shuffling, or sampling without replacement.
-// Returns an empty vector when n is 0 or null.
+// Returns an empty vector when n is 0, negative or null.
 // Example: @RND-001 — this draws from the shared global generator too.
 pub fn rand_indices(n: integer) -> vector<integer>
 
 // --- RandStream: owned random streams (the value tier) ---
 
+// An independent random stream: the two Lehmer generator states.  Seed one with `seed_stream`
+// and draw from it with its methods, so its sequence does not depend on any other draw in the
+// program.
 pub struct RandStream {
   s1: integer,  // Lehmer state A in [1, 2147483562]
   s2: integer,  // Lehmer state B in [1, 2147483398]

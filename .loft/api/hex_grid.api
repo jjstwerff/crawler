@@ -1,5 +1,5 @@
-# hex_grid 0.1.2 — public API surface
-# generated from /Users/Jurjen/.loft/registry/hex_grid-0.1.2
+# hex_grid 0.1.4 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_grid-0.1.4
 # use it with: use hex_grid::*;
 
 ## src/hex_grid.loft

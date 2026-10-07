@@ -1,5 +1,5 @@
-# hex_field 0.1.3 — public API surface
-# generated from /Users/Jurjen/.loft/registry/hex_field-0.1.3
+# hex_field 0.1.7 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_field-0.1.7
 # use it with: use hex_field::*;
 
 ## src/hex_field.loft
@@ -307,6 +307,9 @@ pub fn cell_rot(q: integer, r: integer, n: integer) -> (integer, integer)
 // gives the 12 orientations handed content needs — an L-shaped house, a stair.
 pub fn cell_mirror(q: integer, r: integer) -> (integer, integer)
 
+// A stencil: a set of cells with optional heights, labels and edges (`sn_has_*` say which
+// are present) and its named layers.  `stencil_from` builds one; `stencil_rotate` and
+// `stencil_mirror` transform it.
 pub struct Stencil {
   sn_cells: HexSet,
   sn_heights: Heights,
@@ -507,6 +510,8 @@ pub fn edgeset_count_all(e: EdgeSet) -> integer
 // edge is counted once however many cells touch it.
 pub fn edgeset_count(e: EdgeSet) -> integer
 
+// Named integer layers over a `ly_w × ly_h` window anchored at `(ly_q0, ly_r0)`: the layer
+// names, and every value in one flat vector, layer i and cell (q,r) at i*w*h + r*w + q.
 pub struct Layers {
   ly_q0: integer,
   ly_r0: integer,

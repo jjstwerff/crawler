@@ -1,5 +1,5 @@
-# hex_terrain 0.1.3 — public API surface
-# generated from /Users/Jurjen/.loft/registry/hex_terrain-0.1.3
+# hex_terrain 0.1.8 — public API surface
+# generated from /home/jurjens/.loft/registry/hex_terrain-0.1.8
 # use it with: use hex_terrain::*;
 
 ## src/hex_terrain.loft
@@ -166,6 +166,9 @@ pub fn terrain_control_pt(p: TerrainParams, c: integer, r: integer) -> (float, f
 // Example: @HXT-002
 pub fn terrain_rivers(t: Terrain, types: vector<TerrainType>, p: TerrainParams) -> vector<TerrainRiver>
 
+// The terrain at one point, as `terrain_sample` answers it: the carved height, the land
+// material, the water there (0 dry, 1 river, 2 sea, 3 lake) and the distance to the nearest
+// river.
 pub struct TerrainSample {
   ts_h: float,  // carved fine height
   ts_mat: integer,  // winning land material
