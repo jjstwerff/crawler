@@ -17,6 +17,6 @@ glb         = ">=0.1"       # save_scene_glb — verification renders
 # three replace crawler-local copies of the same construction.  The chain runs
 # hex_field <- hex_edge <- hex_way <- hex_roof, so they are declared together.
 hex_field   = ">=0.1.7"       # HexSet/VecMap/Labels/Heights/EdgeSet/Stencil, trace/validate
-hex_edge    = ">=0.2.5"       # collision as an EDGE SET: passable/collide/sweep_path/sight_clear
+hex_edge    = ">=0.2.6"       # collision as an EDGE SET: passable/collide/sweep_path/sight_clear
 hex_way     = ">=0.1.6"     # ways as exact curves + the one rasterising pass
 hex_roof    = ">=0.1.9"     # every roof form as one distance read through a profile

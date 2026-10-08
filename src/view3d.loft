@@ -279,7 +279,7 @@ pub fn build_scene3d_arc(s: Sim, usearc: boolean) -> (integer, integer) {
             acy = 0.0;
             aface = 0.0;
             if usearc && asid > 0 && asid < s.surfs.sf_n {
-              if tower_surf_is_arc(s.surfs, asid) {
+              if (s.surfs.sf_kind[asid] ?? 0) == 2 {
                 isarc = true;
                 acx = s.surfs.sf_a[asid] ?? 0.0;
                 acy = s.surfs.sf_b[asid] ?? 0.0;

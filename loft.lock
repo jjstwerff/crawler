@@ -56,9 +56,9 @@ source = "registry"
 
 [[package]]
 name = "hex_edge"
-version = "0.2.5"
-url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_edge-v0.2.5/hex_edge-0.2.5.tar.gz"
-sha256 = "c4a1d15eadcf4b07f9c1dbb60b64b59e858f06cdea2b624b45eba3a3a371836e"
+version = "0.2.6"
+url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_edge-v0.2.6/hex_edge-0.2.6.tar.gz"
+sha256 = "c68c82c0593be3ae46cfe5d2b7b0476b179b0938fc0564b760f11f757f5bf515"
 source = "registry"
 deps = ["hex_field"]
 
