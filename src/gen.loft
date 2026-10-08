@@ -29,14 +29,14 @@ fn rng_range(r: &Rng, lo: integer, hi: integer) -> integer {
 }
 
 pub struct GenLevel {
-  g_w: integer not null, g_h: integer not null,
-  g_tiles: vector<integer> not null,   // 0 floor, 1 solid wall
-  g_rq: vector<integer> not null,      // room centre q
-  g_rr: vector<integer> not null,      // room centre r
-  g_rq0: vector<integer> not null,     // room rect: origin q (for wall straightening)
-  g_rr0: vector<integer> not null,     // room rect: origin r
-  g_rw:  vector<integer> not null,     // room rect: width  (q span)
-  g_rh:  vector<integer> not null,     // room rect: height (r span)
+  pub g_w: integer not null, pub g_h: integer not null,
+  pub g_tiles: vector<integer> not null,   // 0 floor, 1 solid wall
+  pub g_rq: vector<integer> not null,      // room centre q
+  pub g_rr: vector<integer> not null,      // room centre r
+  pub g_rq0: vector<integer> not null,     // room rect: origin q (for wall straightening)
+  pub g_rr0: vector<integer> not null,     // room rect: origin r
+  pub g_rw:  vector<integer> not null,     // room rect: width  (q span)
+  pub g_rh:  vector<integer> not null,     // room rect: height (r span)
 }
 
 pub fn gen_dungeon(seed: integer, w: integer, h: integer, tries: integer) -> GenLevel {

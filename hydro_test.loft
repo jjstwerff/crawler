@@ -7,9 +7,9 @@
 // or `make hydro-test` (added in the Makefile).
 //
 // LOFT_REGION selects the region; defaults to ortler.
-use region;
-use hydro;
-use ortler;
+use region::*;
+use hydro::*;
+use ortler::*;
 
 fn main() {
   name = env_variable("LOFT_REGION");

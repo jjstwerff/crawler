@@ -38,7 +38,7 @@ SB_NAME_W   = 150.0; // pixel budget for a quick-slot item name (overflow -> ell
 // graphics-free). Built once after the window exists via build_hud(); if the
 // font fails to load (font < 0) the view falls back to coloured squares.
 pub struct Hud {
-  font:   integer not null,
+  pub font:   integer not null,
   ptex:   integer not null,           // the player '@'
   etex:   vector<integer> not null,   // one glyph texture per enemy index
   digits: vector<integer> not null,   // '0'..'9' for numeric HP
@@ -60,7 +60,7 @@ pub struct Hud {
   stair_up: integer not null,         // '<' up-stair sprite (stepped, wider+white)
   stair_dn: integer not null,         // '>' down-stair sprite (stepped, narrower+dark)
   panel:  integer not null,           // dark backdrop for the character page overlay
-  itex:   vector<integer> not null,   // item display name per def index (quick-slot + inventory)
+  pub itex:   vector<integer> not null,   // item display name per def index (quick-slot + inventory)
   statlbl: vector<integer> not null,  // one baked sidebar label per axis — see stat_abbrevs()
   hplbl:  integer not null,           // "HP" sidebar label
   splbl:  integer not null,           // "SP" sidebar label (live bar for casters; dim otherwise)

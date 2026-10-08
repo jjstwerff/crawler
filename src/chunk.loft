@@ -13,11 +13,11 @@ use hex_grid;
 pub const CHUNK = 32;            // cells per axis (the libraries' chunk size)
 
 pub struct DetailChunk {
-  dk_cx:   integer not null,     // chunk coords (cell origin / 32)
-  dk_cz:   integer not null,
-  dk_base: integer not null,     // metres: the chunk's LOWEST point
-  dk_off:  vector<integer> not null,   // 1024 cells, row-major (hz*32+hx); 0.1 m offsets above base
-  dk_kind: vector<integer> not null,   // terrain kind (K_*) per cell
+  pub dk_cx:   integer not null,     // chunk coords (cell origin / 32)
+  pub dk_cz:   integer not null,
+  pub dk_base: integer not null,     // metres: the chunk's LOWEST point
+  pub dk_off:  vector<integer> not null,   // 1024 cells, row-major (hz*32+hx); 0.1 m offsets above base
+  pub dk_kind: vector<integer> not null,   // terrain kind (K_*) per cell
 }
 
 pub fn dk_cell_idx(hx: integer, hz: integer) -> integer { hz * CHUNK + hx }

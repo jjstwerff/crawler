@@ -26,7 +26,7 @@ pub struct Parts {
   pt_kind: vector<integer>,
   pt_px:   vector<float>,   pt_py: vector<float>,   pt_pz: vector<float>,
   pt_ax:   vector<float>,   pt_ay: vector<float>,   pt_az: vector<float>,
-  pt_a:    vector<float>,   pt_b:  vector<float>,   pt_c:  vector<float>,
+  pub pt_a:    vector<float>,   pt_b:  vector<float>,   pt_c:  vector<float>,
   pt_n:    integer,
 }
 

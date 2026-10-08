@@ -10,15 +10,15 @@
 // routine-by-id seam (SCRIPTING.md): never a hardcoded engine ladder.
 
 pub struct SpellDef {
-  s_key: text,               // unique spell key ("magic_dart")
-  s_name: text,              // display name ("Magic Dart")
-  s_realm: text,             // which realm's casters know it: "arcane" / "divine" / "nature"
-  s_level: integer not null, // minimum character level to cast
-  s_cost: integer not null,  // SP spent per cast
-  s_fail: integer not null,  // base fail % (reduced by level headroom; Angband spell failure)
-  s_effect: text,            // effect ROUTINE id (dispatched via the generated spell_effect)
-  s_power: integer not null, // the routine's data knob (damage / heal / blink range / turns)
-  s_desc: text,
+  pub s_key: text,               // unique spell key ("magic_dart")
+  pub s_name: text,              // display name ("Magic Dart")
+  pub s_realm: text,             // which realm's casters know it: "arcane" / "divine" / "nature"
+  pub s_level: integer not null, // minimum character level to cast
+  pub s_cost: integer not null,  // SP spent per cast
+  pub s_fail: integer not null,  // base fail % (reduced by level headroom; Angband spell failure)
+  pub s_effect: text,            // effect ROUTINE id (dispatched via the generated spell_effect)
+  pub s_power: integer not null, // the routine's data knob (damage / heal / blink range / turns)
+  pub s_desc: text,
 }
 
 pub fn spell_none() -> SpellDef {

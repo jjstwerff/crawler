@@ -23,7 +23,7 @@ pub const SEAT_FIELD = 2;
 
 pub struct Seat {
   se_kind: integer,
-  se_nx: float, se_ny: float, se_nz: float, se_d: float,
+  pub se_nx: float, pub se_ny: float, pub se_nz: float, pub se_d: float,
 }
 
 // A plane, stated as n·p = d.  A roof pitch, a sloping yard, a wall face.

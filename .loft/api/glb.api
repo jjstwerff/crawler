@@ -1,5 +1,5 @@
-# glb 0.1.5 — public API surface
-# generated from /Users/Jurjen/.loft/registry/glb-0.1.5
+# glb 0.1.6 — public API surface
+# generated from /home/jurjens/.loft/registry/glb-0.1.6
 # use it with: use glb::*;
 
 ## src/glb.loft

@@ -38,13 +38,13 @@ pub const DOOR_HEAD_M = 2.2;
 // Flat vectors rather than a vector of structs: the same shape as `Surfaces` next door, and
 // it survives loft's struct-in-vector traps.
 pub struct Towers {
-  tw_q:    vector<integer>,    // centre hex
-  tw_r:    vector<integer>,
-  tw_rad:  vector<integer>,    // ring radius in HEX STEPS — the builder's own unit
-  tw_dq:   vector<integer>,    // the door cell (the one ring cell left open), -1 = sealed
-  tw_dr:   vector<integer>,
+  pub tw_q:    vector<integer>,    // centre hex
+  pub tw_r:    vector<integer>,
+  pub tw_rad:  vector<integer>,    // ring radius in HEX STEPS — the builder's own unit
+  pub tw_dq:   vector<integer>,    // the door cell (the one ring cell left open), -1 = sealed
+  pub tw_dr:   vector<integer>,
   tw_surf: vector<integer>,    // the arc surface, filled in by tower_tag
-  tw_n:    integer,
+  pub tw_n:    integer,
 }
 
 pub fn towers_new() -> Towers {

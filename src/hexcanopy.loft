@@ -29,11 +29,11 @@ use hex_field::*;
 pub struct Trees {
   tr_k:  vector<integer>,   // trunk lattice k  (world x = k*sqrt3/2)
   tr_m:  vector<integer>,   // trunk lattice m  (world y = m/2)
-  tr_p:  vector<integer>,   // peak height
-  tr_d:  vector<integer>,   // D = 4*R^2 — the crown reaches while q2 < D
-  tr_id: vector<integer>,   // STABLE identity: ties break on this, never on array order,
+  pub tr_p:  vector<integer>,   // peak height
+  pub tr_d:  vector<integer>,   // D = 4*R^2 — the crown reaches while q2 < D
+  pub tr_id: vector<integer>,   // STABLE identity: ties break on this, never on array order,
                             // which is what makes the partition order-free (I-PART)
-  tr_n:  integer,
+  pub tr_n:  integer,
 }
 
 pub fn trees_new() -> Trees {

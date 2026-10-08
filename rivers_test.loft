@@ -1,9 +1,9 @@
 // Rivers smoke test — load region, run hydro, build the ribbon mesh, print
 // the size + a spot-check on the heights/widths against the source data.
-use region;
-use hydro;
-use rivers;
-use ortler;
+use region::*;
+use hydro::*;
+use rivers::*;
+use ortler::*;
 
 fn main() {
   println("=== rivers_test(ortler) ===");
