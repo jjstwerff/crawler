@@ -5075,6 +5075,848 @@ pub fn sim_new_gen(seed: integer, depth: integer) -> Sim {
   sim_new_gen_s(seed, depth, 0, 0, 0, 0)
 }
 
+// The surface's settlement and wilderness: its people, ruins, towers and the creatures
+// around them, stamped into `tiles` / `tk` and appended to `enemies`.  Its own function
+// because `sim_new_gen_s` would otherwise bind more than loft's 300 variables (C149);
+// the body is the block `sim_new_gen_s` ran for `depth == 0`, unchanged.
+fn sim_gen_surface(w: integer, h: integer, tiles: vector<integer>, tk: vector<integer>,
+                   enemies: vector<Enemy>, gtw: Towers, rng: random::RandStream,
+                   ovw: Overland, intown: boolean, nhouse: integer, tsize: integer,
+                   sstep: float, ax: float, ay: float, cwx: float, cwy: float,
+                   hring: float, pier_aq: integer, pier_ar: integer, pier_sea: boolean) {
+  if intown {
+  // THE PEOPLE: the daily loop — villagers, farmers (field -> food stall),
+    // guards (walls + the fortress), fishers, a lake boat, a sea ship.
+    sqq = w / 2 + 2;
+    sqr = h / 2 - 2;                      // the food stalls on the square
+    for hb in 0..nhouse {
+      hang = (((hb as float) + 0.35) * 6.2831853 / (nhouse as float)) ?? 0.0;
+      hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
+      hx5 = w / 2 + round(hrad * cos(hang)) as integer;
+      hy5 = h / 2 + round(hrad * sin(hang) * 0.866) as integer;
+      if hb < 2 {
+        // FARMERS: home -> the nearest field -> the stall, round and round
+        fldq = -1;
+        fldr = -1;
+        bfd = 999;
+        for fr8 in 1..h - 1 {
+          for fq8 in 1..w - 1 {
+            tif = fr8 * w + fq8;
+            if tif < len(tk) && (tk[tif] ?? 0) == K_FIELD + 1 {
+              df8 = hex_distance(fq8, fr8, hx5, hy5);
+              if df8 < bfd { bfd = df8; fldq = fq8; fldr = fr8; }
+            }
+          }
+        }
+        if fldq >= 0 {
+          enemies += [mk_npc(2, "farmer", "farmer", "p", 205, 185, 95,
+                             hx5, hy5, hx5, hy5, fldq, fldr, sqq, sqr)];
+        }
+      } else if hb == 2 {
+        // THE FISHER: home -> the water's edge
+        fsq = -1;
+        fsr = -1;
+        bfs = 999;
+        for fr9 in 1..h - 1 {
+          for fq9 in 1..w - 1 {
+            tig = fr9 * w + fq9;
+            tk9 = 0;
+            if tig < len(tk) { tk9 = tk[tig] ?? 0; }
+            land9 = tk9 != 0 && tk9 != K_LAKE + 1 && tk9 != K_SEA + 1 && (tiles[tig] ?? 1) == 0;
+            if land9 {
+              wet9 = false;
+              for d9 in 0..6 {
+                (nq9, nr9) = hex_neighbor(fq9, fr9, d9);
+                if nq9 >= 0 && nq9 < w && nr9 >= 0 && nr9 < h {
+                  tj9 = nr9 * w + nq9;
+                  tw9 = 0;
+                  if tj9 < len(tk) { tw9 = tk[tj9] ?? 0; }
+                  if tw9 == K_LAKE + 1 || tw9 == K_RIVER + 1 || tw9 == K_SEA + 1 { wet9 = true; }
+                }
+              }
+              if wet9 {
+                df9 = hex_distance(fq9, fr9, hx5, hy5);
+                if df9 < bfs { bfs = df9; fsq = fq9; fsr = fr9; }
+              }
+            }
+          }
+        }
+        if fsq >= 0 {
+          enemies += [mk_npc(4, "fisher", "fisher", "f", 150, 190, 210,
+                             hx5, hy5, hx5, hy5, fsq, fsr, fsq, fsr)];
+        }
+      } else if hb == 3 {
+        // THE SMITH (plan #17 `S6`): the one townsperson who works on the PLAYER's gear.
+        //
+        // ⚠ AT THE MARKET SEAT, not out at the furnace. The seat is where the forge sets
+        // its day's work out (`sim_tick`) and where the guard master's beat holds ground
+        // safe, so the smith is somewhere a player can reliably find — and a smith who
+        // refused to stand at an unsafe furnace would read as a bug rather than as a
+        // rule, since nothing tells the player why the shop is shut. What the FURNACE
+        // decides is whether there is any iron to work; that is `npc_mine`'s business.
+        enemies += [mk_npc(1, "smith", "smith", "p", 200, 140, 100,
+                           hx5, hy5, hx5, hy5, w / 2 + 2, h / 2 - 2, w / 2 + 2, h / 2 - 2)];
+      } else {
+        // VILLAGERS: sleep home, take the square by day
+        enemies += [mk_npc(1, "villager", "villager", "p", 228, 205, 160,
+                           hx5, hy5, hx5, hy5, w / 2, h / 2, w / 2, h / 2)];
+      }
+    }
+    // GUARDS: the walls and the land — legs between lookout points
+    ngd = 1 + tsize;
+    for gd2 in 0..ngd {
+      ga1 = (gd2 as float) * 2.0943951;
+      ga2 = ga1 + 3.1415927;
+      grad = 15.0;
+      if tsize < 3 { grad = 10.0; }
+      g1q = w / 2 + round(grad * cos(ga1)) as integer;
+      g1r = h / 2 + round(grad * sin(ga1) * 0.866) as integer;
+      g2q = w / 2 + round(grad * cos(ga2)) as integer;
+      g2r = h / 2 + round(grad * sin(ga2) * 0.866) as integer;
+      if gd2 == 0 {
+        // THE GUARD MASTER HOLDS THE TOWN'S OWN SEAT (user, 2026-08-10, plan #17).
+        //
+        // ⚠ A TOWN THAT DOES NOT HOLD ITS OWN CENTRE HAS NO SAFETY TERM AT ALL. Every
+        // guard used to walk the ring at `grad`, transiting the middle and never resting
+        // in it, so `GUARD_R` almost never covered the square: measured 2026-08-10, the
+        // market was unsafe **143 of 400 ticks a day** in the shipped starting town, from
+        // ambient wildlife alone. Nothing read that until `npc_target` began asking
+        // whether a work site is safe — and then six villagers stopped going to work for
+        // a third of every day because a jackal was loose. `S1`'s guard rail is exactly
+        // this: *guards are a term in the safety expression, not spectators.*
+        //
+        // His beat is the two hexes the town lives on — the centre where the villagers
+        // work and the market seat where the makers set out the day's goods. They are 2
+        // apart, so **both stay inside `GUARD_R` from every point of the walk**: the
+        // square is held continuously rather than whenever a patrol happens by, and he
+        // still moves, so the post reads as a watch and not as a statue.
+        //
+        // ⚠ THE RING LOSES NOTHING. Legs are `gd2 * 120°` and its opposite, and `gd2`
+        // runs `0..ngd`, so with `ngd = 4` guard 3 walks 360° — guard 0's leg exactly.
+        // The senior guard was patrolling a duplicate; only the duplicate is spent here.
+        //
+        // It also puts him where the fiction already said he was: the watch's bounties
+        // are claimed from him IN PERSON, and until now he was never at the seat to ask.
+        enemies += [mk_npc(3, "guard_master", "guard master", "g", 210, 190, 150,
+                           w / 2 + 1, h / 2 + 1, w / 2, h / 2,
+                           w / 2, h / 2, w / 2 + 2, h / 2 - 2)];
+      } else {
+        enemies += [mk_npc(3, "guard", "town guard", "g", 175, 180, 210,
+                           w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
+      }
+    }
+    // BOATS: a small one on the lake, a bigger one at sea; both anchor at the
+    // pier (or hold their water) for the night's repairs
+    lkq = -1;
+    lkr = -1;
+    seq = -1;
+    ser = -1;
+    for br9 in 1..h - 1 {
+      for bq9 in 1..w - 1 {
+        tib = br9 * w + bq9;
+        tkb = 0;
+        if tib < len(tk) { tkb = tk[tib] ?? 0; }
+        if tkb == K_LAKE + 1 && lkq < 0 { lkq = bq9; lkr = br9; }
+        if tkb == K_SEA + 1 && seq < 0 { seq = bq9; ser = br9; }
+      }
+    }
+    if lkq >= 0 {
+      baq = lkq;
+      bar = lkr;
+      if pier_aq >= 0 && !pier_sea { baq = pier_aq; bar = pier_ar; }
+      enemies += [mk_npc(5, "boat", "fishing boat", "b", 170, 130, 80,
+                         lkq, lkr, baq, bar, lkq, lkr, lkq, lkr)];
+    }
+    if seq >= 0 {
+      saq = seq;
+      sar = ser;
+      if pier_aq >= 0 && pier_sea { saq = pier_aq; sar = pier_ar; }
+      // the working sea boat is a FISHER with nets
+      enemies += [mk_npc(6, "fishing_ship", "fishing ship", "S", 150, 190, 210,
+                         seq, ser, saq, sar, seq, ser, seq, ser)];
+      // the MERCHANT SHIP brings the goods in from BEYOND the map: it sails
+      // between open water at the window's edge and the harbor anchorage
+      edgeq = seq;
+      edger = ser;
+      bedge = -1;
+      for er9 in 1..h - 1 {
+        for eq9 in 1..w - 1 {
+          tie = er9 * w + eq9;
+          if tie < len(tk) && (tk[tie] ?? 0) == K_SEA + 1 {
+            de9 = hex_distance(eq9, er9, w / 2, h / 2);
+            if de9 > bedge { bedge = de9; edgeq = eq9; edger = er9; }
+          }
+        }
+      }
+      msq = saq;
+      msr = sar;
+      if pier_aq >= 0 && pier_sea { msq = pier_aq; msr = pier_ar; }
+      enemies += [mk_npc(8, "merchant_ship", "merchant ship", "S", 190, 150, 90,
+                         edgeq, edger, msq, msr, edgeq, edger, msq, msr)];
+    }
+
+  }
+    // THE RUINS: where the maximal history broke — tumbled houses, breached
+    // walls, rubble ground; goblins nest in them (a band + its leader),
+    // asleep until someone comes poking
+    ctbl2 = monster_table();
+    for rui in 0..len(ovw.ov_ruins) {
+      ru2 = ovw.ov_ruins[rui];
+      if ru2 != null {
+        rux = ((ru2.ru_x - ax + cwx) / sstep) ?? 0.0;
+        ruy = ((ru2.ru_y - ay + cwy) / sstep) ?? 0.0;
+        (ruq, rur) = px_to_hex(rux, ruy);
+        if ruq >= 8 && ruq < w - 8 && rur >= 7 && rur < h - 7 {
+          // broken houses: stamped, then the years knock holes in them
+          nrh = 2 + ru2.ru_size;
+          for rh2 in 0..nrh {
+            rang = (((rh2 as float) + 0.6) * 6.2831853 / (nrh as float)) ?? 0.0;
+            rhx = ruq + round(5.0 * cos(rang)) as integer - 2;
+            rhy = rur + round(5.0 * sin(rang) * 0.866) as integer - 1;
+            stamp_house(tiles, tk, w, h, rhx, rhy, 5, 4, 2);
+          }
+          if ru2.ru_size >= 2 {
+            stamp_round_tower(tiles, tk, w, h, gtw, ruq + 6, rur - 4, 2, ruq, rur);
+          }
+          if ru2.ru_size >= 3 {
+            for wr3 in 0..h {
+              for wq3 in 0..w {
+                if hex_distance(wq3, wr3, ruq, rur) == 10 {
+                  ti11 = wr3 * w + wq3;
+                  if ((wq3 * 53 + wr3 * 29) & 7) < 4 {
+                    if ti11 < len(tiles) { tiles[ti11] = 1; }
+                  }
+                }
+              }
+            }
+          }
+          // the years: knock holes, scatter rubble
+          for br3 in 0..15 {
+            for bq3 in 0..15 {
+              dq3 = ruq + bq3 - 7;
+              dr3 = rur + br3 - 7;
+              if dq3 >= 1 && dq3 < w - 1 && dr3 >= 1 && dr3 < h - 1 {
+                ti12 = dr3 * w + dq3;
+                hbreak = (dq3 * 2654435761 ^ dr3 * 40503) & 15;
+                if ti12 < len(tiles) && (tiles[ti12] ?? 0) == 1 && hbreak < 6 {
+                  tiles[ti12] = 0;                       // a breach
+                  if hbreak < 3 && ti12 < len(tk) { tk[ti12] = K_SCREE + 1; }
+                }
+                if ti12 < len(tiles) && (tiles[ti12] ?? 0) == 0 && hbreak == 7 {
+                  if ti12 < len(tk) { tk[ti12] = K_SCREE + 1; }   // rubble drifts
+                }
+              }
+            }
+          }
+          // the nest: whoever nests in broken places, and their leader,
+          // sleeping among the stones (trait-picked — never by key)
+          rsalt = (ruq * 2654435761 ^ rur * 40503) & 2147483647;
+          gld = mon_pick_tag(ctbl2, TAG_RUIN_BOSS, rsalt);
+          if gld.m_hp > 0 && !occupied_hex(enemies, ruq, rur) {
+            ne = mk_enemy(gld, ruq, rur); enemies += [ne];
+          }
+          gob = mon_pick_tag(ctbl2, TAG_RUIN_NEST, rsalt);
+          if gob.m_hp > 0 {
+            ngob = 2 + ru2.ru_size;
+            for gb2 in 0..ngob {
+              (gq3, gr3) = hex_neighbor(ruq, rur, gb2 % 6 ?? 0);
+              if !tile_solid(tiles, w, h, gq3, gr3) && !occupied_hex(enemies, gq3, gr3) {
+                ne = mk_enemy(gob, gq3, gr3); enemies += [ne];
+              }
+            }
+          }
+          if ru2.ru_size >= 3 {
+            // the DEAD CITY keeps its dead
+            skl = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt);
+            zmb = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt + 1);
+            if skl.m_hp > 0 && !occupied_hex(enemies, ruq + 3, rur + 2) {
+              ne = mk_enemy(skl, ruq + 3, rur + 2); enemies += [ne];
+            }
+            if zmb.m_hp > 0 && !occupied_hex(enemies, ruq - 3, rur - 2) {
+              ne = mk_enemy(zmb, ruq - 3, rur - 2); enemies += [ne];
+            }
+          }
+        }
+      }
+    }
+
+    // NATURAL CAVES: where running water undercuts steep rock — a floor hex
+    // beside both a FACE wall and the river gets a cave mouth (way down,
+    // cave-style); a bat sleeps at each
+    ncave = 0;
+    for cvr in 2..h - 2 {
+      for cvq in 2..w - 2 {
+        if ncave < 2 {
+          tic2 = cvr * w + cvq;
+          if (tiles[tic2] ?? 1) == 0 {
+            hasface = false;
+            haswater = false;
+            for d12 in 0..6 {
+              (nq12, nr12) = hex_neighbor(cvq, cvr, d12);
+              if nq12 >= 0 && nq12 < w && nr12 >= 0 && nr12 < h {
+                tj12 = nr12 * w + nq12;
+                if tj12 < len(tk) {
+                  if (tk[tj12] ?? 0) == K_FACE + 1 { hasface = true; }
+                  if (tk[tj12] ?? 0) == K_RIVER + 1 { haswater = true; }
+                }
+              }
+            }
+            if hasface && haswater {
+              if tic2 < len(tiles) { tiles[tic2] = 6; }
+              bat2 = mon_pick_tag(ctbl2, TAG_CAVE_ROOST, cvq * 31 + cvr);
+              if bat2.m_hp > 0 && !occupied_hex(enemies, cvq + 1, cvr) {
+                ne = mk_enemy(bat2, cvq + 1, cvr); enemies += [ne];
+              }
+              ncave = ncave + 1;
+            }
+          }
+        }
+      }
+    }
+
+    // WIZARD TOWERS within the window: the living one keeps its wizard at
+    // home; the abandoned one stands breached with a skeleton in the dust
+    for wzi2 in 0..len(ovw.ov_wiz) {
+      wz2 = ovw.ov_wiz[wzi2];
+      if wz2 != null {
+        wzx = ((wz2.wz_x - ax + cwx) / sstep) ?? 0.0;
+        wzy = ((wz2.wz_y - ay + cwy) / sstep) ?? 0.0;
+        (wzq, wzr) = px_to_hex(wzx, wzy);
+        if wzq >= 6 && wzq < w - 6 && wzr >= 5 && wzr < h - 5 {
+          stamp_round_tower(tiles, tk, w, h, gtw, wzq, wzr, 3, wzq, wzr + 1);
+          if wz2.wz_dead == 1 {
+            for br4 in 0..9 {
+              for bq4 in 0..9 {
+                dq4 = wzq + bq4 - 4;
+                dr4 = wzr + br4 - 4;
+                if dq4 >= 1 && dq4 < w - 1 && dr4 >= 1 && dr4 < h - 1 {
+                  ti14 = dr4 * w + dq4;
+                  if ti14 < len(tiles) && (tiles[ti14] ?? 0) == 4
+                     && ((dq4 * 2654435761 ^ dr4 * 40503) & 7) < 3 {
+                    tiles[ti14] = 0;
+                    if ti14 < len(tk) { tk[ti14] = K_SCREE + 1; }
+                  }
+                }
+              }
+            }
+            skl2 = mon_pick_tag(ctbl2, TAG_TOWER_DWELLER, wzi2);
+            if skl2.m_hp > 0 && !occupied_hex(enemies, wzq, wzr) {
+              ne = mk_enemy(skl2, wzq, wzr); enemies += [ne];
+            }
+          } else {
+            enemies += [mk_npc(1, "wizard", "wizard", "@", 170, 140, 220,
+                               wzq, wzr, wzq, wzr, wzq, wzr, wzq, wzr)];
+          }
+        }
+      }
+    }
+
+    // THE WILDS: the land carries its natural fauna — habitat-keyed, far
+    // from town (distance = danger), asleep until disturbed
+    wguard = 0;
+    wplaced = 0;
+    while wplaced < 10 && wguard < 200 {
+      wguard = wguard + 1;
+      wq9 = rng.get(3, w - 4) ?? 3;
+      wr9 = rng.get(3, h - 4) ?? 3;
+      wd9 = hex_distance(wq9, wr9, w / 2, h / 2);
+      if wd9 >= 25 && !tile_solid(tiles, w, h, wq9, wr9) && !occupied_hex(enemies, wq9, wr9) {
+        tiw = wr9 * w + wq9;
+        tkw = (tk[tiw] ?? 1) - 1;
+        if tkw != K_LAKE && tkw != K_SEA && tkw != K_RIVER && tkw != K_ROAD && tkw != K_FIELD {
+          wtier = 1;
+          if wd9 >= 40 { wtier = 2; }
+          wdef = mon_choose_habitat(ctbl2, tkw, wtier, rng.get(0, 2000000000) ?? 0);
+          if wdef.m_hp > 0 {
+            ne = mk_enemy(wdef, wq9, wr9); enemies += [ne];
+            wplaced = wplaced + 1;
+          }
+        }
+      }
+    }
+
+    // ROAD STOPS within the window get a waystation hut; the MERCHANT CART
+    // runs the multi-day route (far road end <-> the home market) and parks
+    // the night at the nearest stop (or on the square if none is visible)
+    sstep2 = OV_STEP / HEX_LEN;
+    stq = -1;
+    str2 = -1;
+    for sp2 in 0..len(ovw.ov_stops) {
+      st2 = ovw.ov_stops[sp2];
+      if st2 != null {
+        sux = ((st2.op2_x - ax + cwx) / sstep2) ?? 0.0;
+        suy = ((st2.op2_y - ay + cwy) / sstep2) ?? 0.0;
+        (sq5, sr5) = px_to_hex(sux, suy);
+        if sq5 >= 5 && sq5 < w - 5 && sr5 >= 4 && sr5 < h - 4 {
+          stamp_house(tiles, tk, w, h, sq5 + 1, sr5 - 1, 4, 3, 3);
+          if stq < 0 { stq = sq5; str2 = sr5; }
+        }
+      }
+    }
+    farq = w / 2;
+    farr = h / 2;
+    bfar = -1;
+    if intown {
+    for rr7 in 1..h - 1 {
+      for rq7 in 1..w - 1 {
+        ti10 = rr7 * w + rq7;
+        if ti10 < len(tk) && (tk[ti10] ?? 0) == K_ROAD + 1 {
+          dr10 = hex_distance(rq7, rr7, w / 2, h / 2);
+          if dr10 > bfar { bfar = dr10; farq = rq7; farr = rr7; }
+        }
+      }
+    }
+    if bfar > 12 {
+      parkq = stq;
+      parkr = str2;
+      if parkq < 0 { parkq = w / 2 + 1; parkr = h / 2 - 1; }
+      enemies += [mk_npc(7, "merchant", "merchant cart", "M", 190, 150, 90,
+                         w / 2 + 2, h / 2 + 2, w / 2 + 2, h / 2 + 2,
+                         farq, farr, parkq, parkr)];
+    }
+    }
+    // LIVESTOCK: cows and horses — the hides come from somewhere. A fenced
+    // PEN beside the first farmhouse; they graze the nearby grass by day.
+    if intown {
+    ph1 = w / 2 + 9;
+    pr1 = h / 2 + 5;
+    for pf in 0..12 {
+      pang = (pf as float) * 0.5235988;
+      pq9 = ph1 + round(2.2 * cos(pang)) as integer;
+      pr9 = pr1 + round(2.2 * sin(pang) * 0.866) as integer;
+      if pf != 0 {                                   // the gap is the gate
+        st_set(tiles, tk, w, h, pq9, pr9, 5, -1);    // fence posts
+      }
+    }
+    enemies += [mk_npc(11, "cow", "cow", "q", 205, 195, 175,
+                       ph1, pr1, ph1, pr1, ph1 + 4, pr1 + 1, ph1, pr1)];
+    enemies += [mk_npc(11, "cow", "cow", "q", 195, 185, 160,
+                       ph1 - 1, pr1, ph1 - 1, pr1, ph1 + 3, pr1 + 2, ph1, pr1)];
+    enemies += [mk_npc(11, "horse", "horse", "q", 150, 110, 70,
+                       ph1 + 1, pr1, ph1 + 1, pr1, ph1 + 5, pr1 - 1, ph1, pr1)];
+    enemies += [mk_npc(11, "horse", "horse", "q", 140, 100, 65,
+                       ph1, pr1 + 1, ph1, pr1 + 1, ph1 + 4, pr1 - 2, ph1, pr1)];
+    // WILDLIFE for the trapper's rounds: a beaver by the water, a fox in
+    // the woods, a goat on the rough ground — where the window provides
+    for wk9 in 0..3 {
+      wkq = -1;
+      wkr = -1;
+      bwk = 999;
+      for ar9 in 2..h - 2 {
+        for aq9 in 2..w - 2 {
+          daw = hex_distance(aq9, ar9, w / 2, h / 2);
+          if daw >= 15 && daw < bwk {
+            tia = ar9 * w + aq9;
+            tka = 0;
+            if tia < len(tk) { tka = tk[tia] ?? 0; }
+            suit = false;
+            if wk9 == 0 {                       // the beaver wants the bank
+              if (tiles[tia] ?? 1) == 0 && tka != K_LAKE + 1 && tka != K_SEA + 1 {
+                for d10 in 0..6 {
+                  (nq10, nr10) = hex_neighbor(aq9, ar9, d10);
+                  if nq10 >= 0 && nq10 < w && nr10 >= 0 && nr10 < h {
+                    tja = nr10 * w + nq10;
+                    tkj = 0;
+                    if tja < len(tk) { tkj = tk[tja] ?? 0; }
+                    if tkj == K_RIVER + 1 || tkj == K_LAKE + 1 { suit = true; }
+                  }
+                }
+              }
+            }
+            if wk9 == 1 { suit = tka == K_FOREST + 1; }
+            if wk9 == 2 { suit = tka == K_SCREE + 1 || tka == K_MEADOW + 1; }
+            if suit { bwk = daw; wkq = aq9; wkr = ar9; }
+          }
+        }
+      }
+      if wkq >= 0 {
+        wglyph = "r";
+        wcr = 120; wcg = 90; wcb = 60;
+        if wk9 == 1 { wglyph = "f"; wcr = 200; wcg = 120; wcb = 60; }
+        if wk9 == 2 { wglyph = "q"; wcr = 190; wcg = 180; wcb = 160; }
+        wkey = "beaver";
+        if wk9 == 1 { wkey = "fox"; }
+        if wk9 == 2 { wkey = "goat"; }
+        enemies += [mk_npc(12, wkey, wkey,
+                           wglyph, wcr, wcg, wcb,
+                           wkq, wkr, wkq, wkr, wkq, wkr, wkq, wkr)];
+      }
+    }
+
+    }
+    // THE MINE + the big SLAG-FURNACE outside the walls (dirty industry
+    // stays out of town): miners cycle ore from the mountain face to the
+    // furnace, day in day out
+    if intown && tsize >= 2 {
+      // ⚠ REACHABLE FIRST, NEAREST SECOND — `walk_reach`'s rule, and the MINE is the third
+      // site this repo has had to learn it on (`raid_objective`'s 45-hex field, the
+      // gatherer's picking grounds, now this). Measured before the fix, on the shipped
+      // world: the ore face sat at (7,49), 42 hexes from the miner's home at (47,53), with
+      // NO PATH between them — and its open neighbours were equally cut off, so it was the
+      // SITE that was unreachable, not the cave mouth. Two miners walked at it for the life
+      // of the world and delivered nothing, and nothing reported it, because until `S6` gave
+      // the forge an input stream nothing depended on their arriving.
+      mhq = w / 2 - 3;                                     // the miners' own doorstep
+      mhr = h / 2 + 3;
+      reachm = walk_reach(tiles, tk, w, h, mhq, mhr);
+      mnq = -1;
+      mnr = -1;
+      bmn = 999;
+      farmq = -1;      // the farthest reachable face, for when none is >= 16 out
+      farmr = -1;
+      bfarm = -1;
+      // ⚠ AND THE NEAREST REACHABLE FACE AT *ANY* DISTANCE (plan #11 P6). A valley town's
+      // rock can sit beyond `WORK_MAX_D` — town 2's nearest is 46 hexes — and the branch
+      // that used to catch that put the mouth at the WINDOW EDGE, which is a site pointing
+      // at rock rather than a site ON it. Aiming at the real face instead is what makes the
+      // "does a distant mine work?" question answerable: the furnace follows the mine and a
+      // guard walks the works, so what has to be short is the mine->furnace leg, not the
+      // town's view of it. `reachm` already gates this on reachability.
+      nearq = -1;
+      nearr = -1;
+      bnear = 9999;
+      for mr8 in 2..h - 2 {
+        for mq8 in 2..w - 2 {
+          tim = mr8 * w + mq8;
+          if tim < len(tiles) && (tiles[tim] ?? 1) == 0 && (reachm[tim] ?? 0) == 1 {
+            facenb = false;
+            for d6 in 0..6 {
+              (nq6, nr6) = hex_neighbor(mq8, mr8, d6);
+              if nq6 >= 0 && nq6 < w && nr6 >= 0 && nr6 < h {
+                tj6 = nr6 * w + nq6;
+                if tj6 < len(tk) && (tk[tj6] ?? 0) == K_FACE + 1 { facenb = true; }
+              }
+            }
+            if facenb {
+              dmn = hex_distance(mq8, mr8, w / 2, h / 2);
+              if dmn < bnear { bnear = dmn; nearq = mq8; nearr = mr8; }
+              // ⚠ AND WITHIN A DAY'S WALK (`WORK_MAX_D`) — the ore face the old scan chose
+              // sat 43 hexes out, and a miner whose leg flips every 90 ticks never
+              // completes that round trip even with a clear path the whole way.
+              if dmn <= WORK_MAX_D {
+                if dmn >= 16 && dmn < bmn { bmn = dmn; mnq = mq8; mnr = mr8; }
+                if dmn > bfarm { bfarm = dmn; farmq = mq8; farmr = mr8; }
+              }
+            }
+          }
+        }
+      }
+      // Dirty industry belongs out of town, but that is the INTENT and not a requirement:
+      // a rock face the miners can walk to at 9 hexes beats one at 20 they cannot. The
+      // gatherer's fallback, for the gatherer's reason.
+      if mnq < 0 { mnq = farmq; mnr = farmr; }
+      if mnq < 0 { mnq = nearq; mnr = nearr; }
+      if mnq < 0 {
+        // no rock in this window: the mine lies BEYOND it — its mouth sits
+        // at the window edge toward the nearest mountain/hill cell
+        bdc = 1.0e18;
+        mdx = 1.0;
+        mdy = 0.0;
+        for mc9 in 0..9 {
+          for mr9 in 0..7 {
+            mt9 = ov_cell_mat(ovw, mc9, mr9);
+            if mt9 == 4 || mt9 == 5 {
+              (mcx, mcy) = ov_cell_center(mc9, mr9);
+              dcx = mcx - ax;
+              dcy = mcy - ay;
+              dc9 = dcx * dcx + dcy * dcy;
+              if dc9 < bdc { bdc = dc9; mdx = dcx; mdy = dcy; }
+            }
+          }
+        }
+        mdl = sqrt(mdx * mdx + mdy * mdy) ?? 0.0;
+        if mdl > 0.001 {
+          exq = w / 2 + round(((mdx / mdl) ?? 0.0) * ((w / 2 - 5) as float)) as integer;
+          exr = h / 2 + round(((mdy / mdl) ?? 0.0) * ((h / 2 - 5) as float)) as integer;
+          // settle on the nearest walkable hex around that edge spot
+          for sr9 in 0..7 {
+            for sq9 in 0..7 {
+              cq9 = exq + sq9 - 3;
+              cr9 = exr + sr9 - 3;
+              if mnq < 0 && cq9 >= 2 && cq9 < w - 2 && cr9 >= 2 && cr9 < h - 2 {
+                tic = cr9 * w + cq9;
+                tkc = 0;
+                if tic < len(tk) { tkc = tk[tic] ?? 0; }
+                // ⚠ AND REACHABLE, AND WITHIN A DAY'S WALK. "Walkable" is a property of the
+                // hex; "reachable" is a property of the hex AND the town; "workable" is a
+                // property of the ROUTE. This branch puts the mouth at the WINDOW EDGE, ~45
+                // hexes out, so it fails the third — and a mine nobody can round-trip is
+                // not a mine, it is two miners standing still forever. Measured: the camp
+                // out there is unsafe 1600 of 1600 ticks (no guard reaches it), delivers
+                // nothing ever, and absorbs every incursion the den sends — which took the
+                // pressure OFF the chain `I-SAFE` is measured on.
+                // ⚠ SO A VALLEY TOWN SIMPLY HAS NO MINE, and that is the honest answer:
+                // `walk_reach`'s own rule ("no reachable picking ground means no gatherer")
+                // applied to the trade whose rock is beyond a day's walk.
+                if (tiles[tic] ?? 1) == 0 && tkc != K_LAKE + 1 && tkc != K_SEA + 1
+                   && (reachm[tic] ?? 0) == 1 {
+                  mnq = cq9;
+                  mnr = cr9;
+                }
+              }
+            }
+          }
+        }
+      }
+      if mnq >= 0 {
+        ti13 = mnr * w + mnq;
+        if ti13 < len(tiles) { tiles[ti13] = 6; }   // the mine IS a cave mouth
+        // THE FURNACE SITS BETWEEN THE TOWN AND THE MINE, AND NEVER FAR FROM THE MINE.
+        //
+        // ⚠ IT USED TO SIT AT A FIXED 20 HEXES FROM THE TOWN, WHICH IS THE WRONG END OF
+        // THE ROUTE. The miners' day is mine -> furnace -> mine, so what has to be short
+        // is *that* leg, not the town's view of it: with an ore face at the window edge
+        // the old placement left a 23-hex haul each way and the miners delivered nothing
+        // in four days. Ore is heavy and slag is filthy — a real works stands at the foot
+        // of the mountain, not at the town's gate.
+        //
+        // So: four hexes back down the line toward town, but never inside the walls
+        // (`wrad + 3`) — dirty industry still stays out of town, which was the original
+        // and correct half of this rule.
+        fdx = (mnq - w / 2) as float;
+        fdy = (mnr - h / 2) as float;
+        fdl = sqrt(fdx * fdx + fdy * fdy) ?? 0.0;
+        fdist = fdl - 4.0;
+        fmin = (round(hring) as integer + 7) as float;
+        if fdist < fmin { fdist = fmin; }
+        if fdist > fdl { fdist = fdl; }
+        fux2 = ((fdx / fdl) ?? 0.0) * fdist;
+        fuy2 = ((fdy / fdl) ?? 0.0) * fdist;
+        fnq = w / 2 + round(fux2) as integer;
+        fnr = h / 2 + round(fuy2) as integer;
+        stamp_round_tower(tiles, tk, w, h, gtw, fnq, fnr, 3, fnq, fnr + 1);   // the BIG furnace
+        for d7 in 0..6 {                                   // its slag ground
+          (sq7, sr7) = hex_neighbor(fnq, fnr, d7);
+          ti7b = sr7 * w + sq7;
+          if ti7b >= 0 && ti7b < len(tk) && (tk[ti7b] ?? 0) != 0
+             && hex_distance(sq7, sr7, fnq, fnr) > 3 {
+            tk[ti7b] = K_SCREE + 1;
+          }
+        }
+        // ⚠ AND THE DELIVERY END, WHICH IS THE ONE THE STOCK TURNS ON. A route is only as
+        // walkable as its WORSE end: a miner that reaches its ore face and not its furnace
+        // raises nothing, and `npc_mine` empties the bag HERE. The ideal spot is four hexes
+        // out from the furnace mouth; take the reachable hex nearest to it instead, and
+        // never one inside the tower itself (radius 3, and stamped after the reach map).
+        daq = fnq;
+        dar = fnr + 4;
+        bda = 9999;
+        for ar9 in 0..9 {
+          for aq9 in 0..9 {
+            cq8 = fnq + aq9 - 4;
+            cr8 = fnr + ar9 - 4;
+            if cq8 >= 1 && cq8 < w - 1 && cr8 >= 1 && cr8 < h - 1 {
+              ti8 = cr8 * w + cq8;
+              if ti8 >= 0 && ti8 < len(tiles) && (reachm[ti8] ?? 0) == 1
+                 && hex_distance(cq8, cr8, fnq, fnr) > 3 {
+                d8 = hex_distance(cq8, cr8, fnq, fnr + 4);
+                if d8 < bda { bda = d8; daq = cq8; dar = cr8; }
+              }
+            }
+          }
+        }
+        // ⚠ AND THE MINERS LIVE AT THE WORKS, NOT IN TOWN. They used to sleep on the
+        // town's doorstep and commute to whatever face worldgen had found — which is only
+        // sane when the rock is a short walk away, and on the shipped world it is 43 hexes.
+        // A mining camp at the foot of the mountain is both the working arrangement and
+        // the real one; the ore still reaches the town's forge, because the stock belongs
+        // to the SETTLEMENT and the furnace is where it is raised (`npc_mine`).
+        (m2q, m2r) = hex_neighbor(daq, dar, 3);
+        enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
+                           daq, dar, daq, dar,
+                           mnq, mnr, daq, dar)];
+        enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
+                           m2q, m2r, m2q, m2r,
+                           mnq, mnr, daq, dar)];
+        // ⚠ AND THE SETTLEMENT POSTS A GUARD ON ITS OWN WORKS (user, 2026-08-10).
+        //
+        // Without one the camp is unsafe **1600 of 1600 ticks** — no guard's `GUARD_R`
+        // reaches the foot of the mountain — so `npc_target` keeps the miners home every
+        // tick of every day and the trade is not merely hindered, it is permanently dead.
+        // That is not `I-SAFE` working: a lever the world holds at zero is not a lever.
+        // It is the same argument that moved the guard master onto the town's own seat —
+        // *guards are a term in the safety expression, not spectators* (`S1`) — applied to
+        // the works instead of the square.
+        //
+        // ⚠ ONE GUARD, WALKING THE WORKS: legs at the ore face and the camp, so each end is
+        // held when the watch is at it and exposed when it is not. That is deliberately not
+        // total cover — the mine still stops when something is standing on it and the guard
+        // is at the other end, which is what leaves `S7`'s pickets something to buy and
+        // keeps the den's raids able to bite.
+        //
+        // ✅ AND `S7` BOUGHT IT (2026-08-10): a picket posted for the ore face takes it from
+        // **775 of 1600 unsafe ticks to 0** and the deliveries from 3 to 6, with the den
+        // alive throughout. ⚠ The picket stands two hexes BEYOND the face rather than on it
+        // — this guard's own ore-face leg is why that rule exists (`militia_stand`).
+        enemies += [mk_npc(3, "guard", "works guard", "g", 175, 180, 210,
+                           daq, dar, daq, dar,
+                           mnq, mnr, daq, dar)];
+      }
+    }
+
+    // THE MILL grinds the bread grain: WATER-powered at the riverbank if
+    // the window has running water, WIND-powered on open ground otherwise
+    if intown {
+    mlq = -1;
+    mlr = -1;
+    bml = 999;
+    for vr8 in 2..h - 2 {
+      for vq8 in 2..w - 2 {
+        dml = hex_distance(vq8, vr8, w / 2, h / 2);
+        if dml >= 8 && dml < bml {
+          tiv = vr8 * w + vq8;
+          tkv = 0;
+          if tiv < len(tk) { tkv = tk[tiv] ?? 0; }
+          if (tiles[tiv] ?? 1) == 0 && tkv != K_LAKE + 1 && tkv != K_SEA + 1 {
+            wetv = false;
+            for d11 in 0..6 {
+              (nq11, nr11) = hex_neighbor(vq8, vr8, d11);
+              if nq11 >= 0 && nq11 < w && nr11 >= 0 && nr11 < h {
+                tjv = nr11 * w + nq11;
+                if tjv < len(tk) && (tk[tjv] ?? 0) == K_RIVER + 1 { wetv = true; }
+              }
+            }
+            if wetv { bml = dml; mlq = vq8; mlr = vr8; }
+          }
+        }
+      }
+    }
+    if mlq < 0 {
+      // no running water: the WINDMILL stands on open ground instead
+      mlq = w / 2 + 14;
+      mlr = h / 2 - 10;
+    }
+    stamp_round_tower(tiles, tk, w, h, gtw, mlq, mlr, 2, mlq, mlr + 1);
+    }
+
+    // THE ALCHEMIST'S GATHERER: a rugged traveler fetching the special
+    // ingredients — met on the roads or the hillsides, shunning the deeper
+    // mountains. There are not many of them: ONE walks the home window.
+    if intown && tsize >= 3 {
+      // ⚠ REACHABLE FIRST, NEAREST SECOND. The picking ground has to be somewhere the
+      // gatherer can actually walk to; on world 777 the nearest one at the old ≥14 bound
+      // had NO path from town, so the worker stood still for the life of the world.
+      ghq = w / 2 + 3;
+      ghr = h / 2 + 3;
+      reach8 = walk_reach(tiles, tk, w, h, ghq, ghr);
+      // ⚠ PICKING GROUND IS A RANKED PREFERENCE, NOT ONE TERRAIN. It used to be meadow or
+      // scree only — the alpine shelves, which is the right *first* choice and was the only
+      // one. Measured on world 777: of 9801 hexes the town can walk to just 498, and they
+      // are 467 grass + 31 road — no meadow, no scree, no forest anywhere inside the
+      // pocket. A gatherer that only picks alpine herbs cannot work in a grass valley, so
+      // it took the best ground it could see and stood 37 hexes short of it forever.
+      bestrank = 99;
+      hsq = -1;
+      hsr = -1;
+      bhs = 999;
+      farq2 = -1;      // within the best rank present: the farthest, when none is >= 14
+      farr2 = -1;
+      bfar2 = -1;
+      for gr8 in 1..h - 1 {
+        for gq8 in 1..w - 1 {
+          tih = gr8 * w + gq8;
+          tkh = 0;
+          if tih < len(tk) { tkh = tk[tih] ?? 0; }
+          rank = pick_rank(tkh);
+          if rank >= 0 && rank <= bestrank && (reach8[tih] ?? 0) == 1 {
+            dh8 = hex_distance(gq8, gr8, ghq, ghr);
+            if dh8 > 0 && dh8 <= WORK_MAX_D {
+              if rank < bestrank {      // a better ground exists: forget the poorer ones
+                bestrank = rank;
+                hsq = -1; hsr = -1; bhs = 999;
+                farq2 = -1; farr2 = -1; bfar2 = -1;
+              }
+              if dh8 >= 14 && dh8 < bhs { bhs = dh8; hsq = gq8; hsr = gr8; }
+              if dh8 > bfar2 { bfar2 = dh8; farq2 = gq8; farr2 = gr8; }
+            }
+          }
+        }
+      }
+      // Working far out is the intent, not a requirement — the farthest reachable ground
+      // beats a distant unreachable one, and beats no gatherer at all.
+      if hsq < 0 { hsq = farq2; hsr = farr2; }
+      // ⚠ NO REACHABLE PICKING GROUND MEANS NO GATHERER. Spawning one anyway is how role 9
+      // came to exist as decoration: placed, walking, and structurally unable to work.
+      if hsq >= 0 && bfar > 12 {
+        enemies += [mk_npc(9, "gatherer", "rugged traveler", "t", 160, 150, 120,
+                           ghq, ghr, ghq, ghr,
+                           hsq, hsr, farq, farr)];
+      }
+
+      // THE DEN OVER THE RIDGE (plan #17 `S5`) — the settlement's own source of pressure,
+      // sited at the FARTHEST hex the town can walk to.
+      //
+      // ⚠ IT IS HERE BECAUSE THE MECHANISM HAD NO CONSUMER, and a seam with no consumer is
+      // a seam with no test (STATE.md, from `producttest`). Measured 2026-08-10 on world
+      // 777: all three ruin bosses stand in windows holding 0 guards and 0 civilians, and
+      // the home window — 4 guards, 24 civilians, the one gatherer, the whole economy —
+      // holds no tagged monster at all. So `send_incursions` was correct code that could
+      // never fire on a settlement in any window of the shipped world.
+      //
+      // ⚠ FARTHEST-REACHABLE IS THE SITING RULE, and it does two jobs. It is *over the
+      // ridge* rather than next door, so it does not make the first minute of a level-1
+      // game lethal; and it is inside the walkable pocket, so the player can go at the
+      // cause on foot and the raiders have a path back in. ⚠ It does NOT try to place the
+      // den near the work it will press on — an earlier version of this comment claimed
+      // the march would cross the picking ground and the measurement said otherwise (0
+      // unsafe ticks in seven days). Where the raid BITES is decided by `raid_objective`,
+      // which aims it at the work; the siting only decides how far away the cause lives.
+      //
+      // ⚠ AND IT MAKES THE STARTING NEIGHBOURHOOD HARDER, on top of a curve STATE.md
+      // already records as unowned (a gnoll 8 hexes from the vantage, a level-1 hero dead
+      // on tick 13). `RAID_CAP` is 2, so this is +1 leader +3 nest and at most 2 walking:
+      // small against the 15 hostiles already here, and it is the first danger in the game
+      // with a CAUSE the player can end. Flagged in the plan, not decided here.
+      //
+      // ⚠ AND IT NEEDS ROOM. Plain farthest-reachable is a CUL-DE-SAC by construction —
+      // the deepest hex of a pocket has the fewest ways out. Measured 2026-08-10: the den
+      // landed with one free neighbour, its three sleepers took it, and the source could
+      // field exactly ONE raider for seven days running. `RAID_CAP` was never the binding
+      // constraint; the geometry was, silently. So a den hex needs four walkable
+      // neighbours — enough for its band and a way out for its people.
+      dnq2 = -1;
+      dnr2 = -1;
+      bdn = 20;                       // never nearer than 20 hexes (300 m) to the square
+      for dr8 in 1..h - 1 {
+        for dq8 in 1..w - 1 {
+          tid = dr8 * w + dq8;
+          if (reach8[tid] ?? 0) == 1 {
+            dd8 = hex_distance(dq8, dr8, ghq, ghr);
+            if dd8 > bdn {
+              room = 0;
+              for dnb in 0..6 {
+                (rq8, rr8) = hex_neighbor(dq8, dr8, dnb);
+                if rq8 >= 1 && rr8 >= 1 && rq8 < w - 1 && rr8 < h - 1 {
+                  if (reach8[rr8 * w + rq8] ?? 0) == 1 { room += 1; }
+                }
+              }
+              if room >= 4 { bdn = dd8; dnq2 = dq8; dnr2 = dr8; }
+            }
+          }
+        }
+      }
+      if dnq2 >= 0 {
+        dtbl = game_monsters();
+        dsalt = (dnq2 * 2654435761 ^ dnr2 * 40503) & 2147483647;
+        dld = mon_pick_tag(dtbl, TAG_RUIN_BOSS, dsalt);
+        if dld.m_hp > 0 && !occupied_hex(enemies, dnq2, dnr2) {
+          ne = mk_enemy(dld, dnq2, dnr2); enemies += [ne];
+          // its people, asleep around it — the same construction as a ruin nest, because
+          // it is the same thing: whoever nests in the broken places, nesting here.
+          dgb = mon_pick_tag(dtbl, TAG_RUIN_NEST, dsalt);
+          if dgb.m_hp > 0 {
+            for db2 in 0..3 {
+              (dgq, dgr) = hex_neighbor(dnq2, dnr2, db2 * 2 % 6 ?? 0);
+              if !tile_solid(tiles, w, h, dgq, dgr) && !occupied_hex(enemies, dgq, dgr) {
+                ne = mk_enemy(dgb, dgq, dgr); enemies += [ne];
+              }
+            }
+          }
+        }
+      }
+    }
+}
+
 pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: integer,
                      wwx: integer, wwy: integer) -> Sim {
   // What the builder stamps, kept as the builder knew it (plan #11 P5): every round tower
@@ -5448,837 +6290,8 @@ pub fn sim_new_gen_s(seed: integer, depth: integer, infest: integer, style: inte
   }
 
   if depth == 0 {
-    if intown {
-    // THE PEOPLE: the daily loop — villagers, farmers (field -> food stall),
-      // guards (walls + the fortress), fishers, a lake boat, a sea ship.
-      sqq = w / 2 + 2;
-      sqr = h / 2 - 2;                      // the food stalls on the square
-      for hb in 0..nhouse {
-        hang = (((hb as float) + 0.35) * 6.2831853 / (nhouse as float)) ?? 0.0;
-        hrad = 6.0 + 3.5 * (((hb * 2654435761) & 1023) as float / 1023.0);
-        hx5 = w / 2 + round(hrad * cos(hang)) as integer;
-        hy5 = h / 2 + round(hrad * sin(hang) * 0.866) as integer;
-        if hb < 2 {
-          // FARMERS: home -> the nearest field -> the stall, round and round
-          fldq = -1;
-          fldr = -1;
-          bfd = 999;
-          for fr8 in 1..h - 1 {
-            for fq8 in 1..w - 1 {
-              tif = fr8 * w + fq8;
-              if tif < len(tk) && (tk[tif] ?? 0) == K_FIELD + 1 {
-                df8 = hex_distance(fq8, fr8, hx5, hy5);
-                if df8 < bfd { bfd = df8; fldq = fq8; fldr = fr8; }
-              }
-            }
-          }
-          if fldq >= 0 {
-            enemies += [mk_npc(2, "farmer", "farmer", "p", 205, 185, 95,
-                               hx5, hy5, hx5, hy5, fldq, fldr, sqq, sqr)];
-          }
-        } else if hb == 2 {
-          // THE FISHER: home -> the water's edge
-          fsq = -1;
-          fsr = -1;
-          bfs = 999;
-          for fr9 in 1..h - 1 {
-            for fq9 in 1..w - 1 {
-              tig = fr9 * w + fq9;
-              tk9 = 0;
-              if tig < len(tk) { tk9 = tk[tig] ?? 0; }
-              land9 = tk9 != 0 && tk9 != K_LAKE + 1 && tk9 != K_SEA + 1 && (tiles[tig] ?? 1) == 0;
-              if land9 {
-                wet9 = false;
-                for d9 in 0..6 {
-                  (nq9, nr9) = hex_neighbor(fq9, fr9, d9);
-                  if nq9 >= 0 && nq9 < w && nr9 >= 0 && nr9 < h {
-                    tj9 = nr9 * w + nq9;
-                    tw9 = 0;
-                    if tj9 < len(tk) { tw9 = tk[tj9] ?? 0; }
-                    if tw9 == K_LAKE + 1 || tw9 == K_RIVER + 1 || tw9 == K_SEA + 1 { wet9 = true; }
-                  }
-                }
-                if wet9 {
-                  df9 = hex_distance(fq9, fr9, hx5, hy5);
-                  if df9 < bfs { bfs = df9; fsq = fq9; fsr = fr9; }
-                }
-              }
-            }
-          }
-          if fsq >= 0 {
-            enemies += [mk_npc(4, "fisher", "fisher", "f", 150, 190, 210,
-                               hx5, hy5, hx5, hy5, fsq, fsr, fsq, fsr)];
-          }
-        } else if hb == 3 {
-          // THE SMITH (plan #17 `S6`): the one townsperson who works on the PLAYER's gear.
-          //
-          // ⚠ AT THE MARKET SEAT, not out at the furnace. The seat is where the forge sets
-          // its day's work out (`sim_tick`) and where the guard master's beat holds ground
-          // safe, so the smith is somewhere a player can reliably find — and a smith who
-          // refused to stand at an unsafe furnace would read as a bug rather than as a
-          // rule, since nothing tells the player why the shop is shut. What the FURNACE
-          // decides is whether there is any iron to work; that is `npc_mine`'s business.
-          enemies += [mk_npc(1, "smith", "smith", "p", 200, 140, 100,
-                             hx5, hy5, hx5, hy5, w / 2 + 2, h / 2 - 2, w / 2 + 2, h / 2 - 2)];
-        } else {
-          // VILLAGERS: sleep home, take the square by day
-          enemies += [mk_npc(1, "villager", "villager", "p", 228, 205, 160,
-                             hx5, hy5, hx5, hy5, w / 2, h / 2, w / 2, h / 2)];
-        }
-      }
-      // GUARDS: the walls and the land — legs between lookout points
-      ngd = 1 + tsize;
-      for gd2 in 0..ngd {
-        ga1 = (gd2 as float) * 2.0943951;
-        ga2 = ga1 + 3.1415927;
-        grad = 15.0;
-        if tsize < 3 { grad = 10.0; }
-        g1q = w / 2 + round(grad * cos(ga1)) as integer;
-        g1r = h / 2 + round(grad * sin(ga1) * 0.866) as integer;
-        g2q = w / 2 + round(grad * cos(ga2)) as integer;
-        g2r = h / 2 + round(grad * sin(ga2) * 0.866) as integer;
-        if gd2 == 0 {
-          // THE GUARD MASTER HOLDS THE TOWN'S OWN SEAT (user, 2026-08-10, plan #17).
-          //
-          // ⚠ A TOWN THAT DOES NOT HOLD ITS OWN CENTRE HAS NO SAFETY TERM AT ALL. Every
-          // guard used to walk the ring at `grad`, transiting the middle and never resting
-          // in it, so `GUARD_R` almost never covered the square: measured 2026-08-10, the
-          // market was unsafe **143 of 400 ticks a day** in the shipped starting town, from
-          // ambient wildlife alone. Nothing read that until `npc_target` began asking
-          // whether a work site is safe — and then six villagers stopped going to work for
-          // a third of every day because a jackal was loose. `S1`'s guard rail is exactly
-          // this: *guards are a term in the safety expression, not spectators.*
-          //
-          // His beat is the two hexes the town lives on — the centre where the villagers
-          // work and the market seat where the makers set out the day's goods. They are 2
-          // apart, so **both stay inside `GUARD_R` from every point of the walk**: the
-          // square is held continuously rather than whenever a patrol happens by, and he
-          // still moves, so the post reads as a watch and not as a statue.
-          //
-          // ⚠ THE RING LOSES NOTHING. Legs are `gd2 * 120°` and its opposite, and `gd2`
-          // runs `0..ngd`, so with `ngd = 4` guard 3 walks 360° — guard 0's leg exactly.
-          // The senior guard was patrolling a duplicate; only the duplicate is spent here.
-          //
-          // It also puts him where the fiction already said he was: the watch's bounties
-          // are claimed from him IN PERSON, and until now he was never at the seat to ask.
-          enemies += [mk_npc(3, "guard_master", "guard master", "g", 210, 190, 150,
-                             w / 2 + 1, h / 2 + 1, w / 2, h / 2,
-                             w / 2, h / 2, w / 2 + 2, h / 2 - 2)];
-        } else {
-          enemies += [mk_npc(3, "guard", "town guard", "g", 175, 180, 210,
-                             w / 2 + 1, h / 2 + 1, w / 2, h / 2, g1q, g1r, g2q, g2r)];
-        }
-      }
-      // BOATS: a small one on the lake, a bigger one at sea; both anchor at the
-      // pier (or hold their water) for the night's repairs
-      lkq = -1;
-      lkr = -1;
-      seq = -1;
-      ser = -1;
-      for br9 in 1..h - 1 {
-        for bq9 in 1..w - 1 {
-          tib = br9 * w + bq9;
-          tkb = 0;
-          if tib < len(tk) { tkb = tk[tib] ?? 0; }
-          if tkb == K_LAKE + 1 && lkq < 0 { lkq = bq9; lkr = br9; }
-          if tkb == K_SEA + 1 && seq < 0 { seq = bq9; ser = br9; }
-        }
-      }
-      if lkq >= 0 {
-        baq = lkq;
-        bar = lkr;
-        if pier_aq >= 0 && !pier_sea { baq = pier_aq; bar = pier_ar; }
-        enemies += [mk_npc(5, "boat", "fishing boat", "b", 170, 130, 80,
-                           lkq, lkr, baq, bar, lkq, lkr, lkq, lkr)];
-      }
-      if seq >= 0 {
-        saq = seq;
-        sar = ser;
-        if pier_aq >= 0 && pier_sea { saq = pier_aq; sar = pier_ar; }
-        // the working sea boat is a FISHER with nets
-        enemies += [mk_npc(6, "fishing_ship", "fishing ship", "S", 150, 190, 210,
-                           seq, ser, saq, sar, seq, ser, seq, ser)];
-        // the MERCHANT SHIP brings the goods in from BEYOND the map: it sails
-        // between open water at the window's edge and the harbor anchorage
-        edgeq = seq;
-        edger = ser;
-        bedge = -1;
-        for er9 in 1..h - 1 {
-          for eq9 in 1..w - 1 {
-            tie = er9 * w + eq9;
-            if tie < len(tk) && (tk[tie] ?? 0) == K_SEA + 1 {
-              de9 = hex_distance(eq9, er9, w / 2, h / 2);
-              if de9 > bedge { bedge = de9; edgeq = eq9; edger = er9; }
-            }
-          }
-        }
-        msq = saq;
-        msr = sar;
-        if pier_aq >= 0 && pier_sea { msq = pier_aq; msr = pier_ar; }
-        enemies += [mk_npc(8, "merchant_ship", "merchant ship", "S", 190, 150, 90,
-                           edgeq, edger, msq, msr, edgeq, edger, msq, msr)];
-      }
-
-    }
-      // THE RUINS: where the maximal history broke — tumbled houses, breached
-      // walls, rubble ground; goblins nest in them (a band + its leader),
-      // asleep until someone comes poking
-      ctbl2 = monster_table();
-      for rui in 0..len(ovw.ov_ruins) {
-        ru2 = ovw.ov_ruins[rui];
-        if ru2 != null {
-          rux = ((ru2.ru_x - ax + cwx) / sstep) ?? 0.0;
-          ruy = ((ru2.ru_y - ay + cwy) / sstep) ?? 0.0;
-          (ruq, rur) = px_to_hex(rux, ruy);
-          if ruq >= 8 && ruq < w - 8 && rur >= 7 && rur < h - 7 {
-            // broken houses: stamped, then the years knock holes in them
-            nrh = 2 + ru2.ru_size;
-            for rh2 in 0..nrh {
-              rang = (((rh2 as float) + 0.6) * 6.2831853 / (nrh as float)) ?? 0.0;
-              rhx = ruq + round(5.0 * cos(rang)) as integer - 2;
-              rhy = rur + round(5.0 * sin(rang) * 0.866) as integer - 1;
-              stamp_house(tiles, tk, w, h, rhx, rhy, 5, 4, 2);
-            }
-            if ru2.ru_size >= 2 {
-              stamp_round_tower(tiles, tk, w, h, gtw, ruq + 6, rur - 4, 2, ruq, rur);
-            }
-            if ru2.ru_size >= 3 {
-              for wr3 in 0..h {
-                for wq3 in 0..w {
-                  if hex_distance(wq3, wr3, ruq, rur) == 10 {
-                    ti11 = wr3 * w + wq3;
-                    if ((wq3 * 53 + wr3 * 29) & 7) < 4 {
-                      if ti11 < len(tiles) { tiles[ti11] = 1; }
-                    }
-                  }
-                }
-              }
-            }
-            // the years: knock holes, scatter rubble
-            for br3 in 0..15 {
-              for bq3 in 0..15 {
-                dq3 = ruq + bq3 - 7;
-                dr3 = rur + br3 - 7;
-                if dq3 >= 1 && dq3 < w - 1 && dr3 >= 1 && dr3 < h - 1 {
-                  ti12 = dr3 * w + dq3;
-                  hbreak = (dq3 * 2654435761 ^ dr3 * 40503) & 15;
-                  if ti12 < len(tiles) && (tiles[ti12] ?? 0) == 1 && hbreak < 6 {
-                    tiles[ti12] = 0;                       // a breach
-                    if hbreak < 3 && ti12 < len(tk) { tk[ti12] = K_SCREE + 1; }
-                  }
-                  if ti12 < len(tiles) && (tiles[ti12] ?? 0) == 0 && hbreak == 7 {
-                    if ti12 < len(tk) { tk[ti12] = K_SCREE + 1; }   // rubble drifts
-                  }
-                }
-              }
-            }
-            // the nest: whoever nests in broken places, and their leader,
-            // sleeping among the stones (trait-picked — never by key)
-            rsalt = (ruq * 2654435761 ^ rur * 40503) & 2147483647;
-            gld = mon_pick_tag(ctbl2, TAG_RUIN_BOSS, rsalt);
-            if gld.m_hp > 0 && !occupied_hex(enemies, ruq, rur) {
-              ne = mk_enemy(gld, ruq, rur); enemies += [ne];
-            }
-            gob = mon_pick_tag(ctbl2, TAG_RUIN_NEST, rsalt);
-            if gob.m_hp > 0 {
-              ngob = 2 + ru2.ru_size;
-              for gb2 in 0..ngob {
-                (gq3, gr3) = hex_neighbor(ruq, rur, gb2 % 6 ?? 0);
-                if !tile_solid(tiles, w, h, gq3, gr3) && !occupied_hex(enemies, gq3, gr3) {
-                  ne = mk_enemy(gob, gq3, gr3); enemies += [ne];
-                }
-              }
-            }
-            if ru2.ru_size >= 3 {
-              // the DEAD CITY keeps its dead
-              skl = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt);
-              zmb = mon_pick_tag(ctbl2, TAG_GRAVE, rsalt + 1);
-              if skl.m_hp > 0 && !occupied_hex(enemies, ruq + 3, rur + 2) {
-                ne = mk_enemy(skl, ruq + 3, rur + 2); enemies += [ne];
-              }
-              if zmb.m_hp > 0 && !occupied_hex(enemies, ruq - 3, rur - 2) {
-                ne = mk_enemy(zmb, ruq - 3, rur - 2); enemies += [ne];
-              }
-            }
-          }
-        }
-      }
-
-      // NATURAL CAVES: where running water undercuts steep rock — a floor hex
-      // beside both a FACE wall and the river gets a cave mouth (way down,
-      // cave-style); a bat sleeps at each
-      ncave = 0;
-      for cvr in 2..h - 2 {
-        for cvq in 2..w - 2 {
-          if ncave < 2 {
-            tic2 = cvr * w + cvq;
-            if (tiles[tic2] ?? 1) == 0 {
-              hasface = false;
-              haswater = false;
-              for d12 in 0..6 {
-                (nq12, nr12) = hex_neighbor(cvq, cvr, d12);
-                if nq12 >= 0 && nq12 < w && nr12 >= 0 && nr12 < h {
-                  tj12 = nr12 * w + nq12;
-                  if tj12 < len(tk) {
-                    if (tk[tj12] ?? 0) == K_FACE + 1 { hasface = true; }
-                    if (tk[tj12] ?? 0) == K_RIVER + 1 { haswater = true; }
-                  }
-                }
-              }
-              if hasface && haswater {
-                if tic2 < len(tiles) { tiles[tic2] = 6; }
-                bat2 = mon_pick_tag(ctbl2, TAG_CAVE_ROOST, cvq * 31 + cvr);
-                if bat2.m_hp > 0 && !occupied_hex(enemies, cvq + 1, cvr) {
-                  ne = mk_enemy(bat2, cvq + 1, cvr); enemies += [ne];
-                }
-                ncave = ncave + 1;
-              }
-            }
-          }
-        }
-      }
-
-      // WIZARD TOWERS within the window: the living one keeps its wizard at
-      // home; the abandoned one stands breached with a skeleton in the dust
-      for wzi2 in 0..len(ovw.ov_wiz) {
-        wz2 = ovw.ov_wiz[wzi2];
-        if wz2 != null {
-          wzx = ((wz2.wz_x - ax + cwx) / sstep) ?? 0.0;
-          wzy = ((wz2.wz_y - ay + cwy) / sstep) ?? 0.0;
-          (wzq, wzr) = px_to_hex(wzx, wzy);
-          if wzq >= 6 && wzq < w - 6 && wzr >= 5 && wzr < h - 5 {
-            stamp_round_tower(tiles, tk, w, h, gtw, wzq, wzr, 3, wzq, wzr + 1);
-            if wz2.wz_dead == 1 {
-              for br4 in 0..9 {
-                for bq4 in 0..9 {
-                  dq4 = wzq + bq4 - 4;
-                  dr4 = wzr + br4 - 4;
-                  if dq4 >= 1 && dq4 < w - 1 && dr4 >= 1 && dr4 < h - 1 {
-                    ti14 = dr4 * w + dq4;
-                    if ti14 < len(tiles) && (tiles[ti14] ?? 0) == 4
-                       && ((dq4 * 2654435761 ^ dr4 * 40503) & 7) < 3 {
-                      tiles[ti14] = 0;
-                      if ti14 < len(tk) { tk[ti14] = K_SCREE + 1; }
-                    }
-                  }
-                }
-              }
-              skl2 = mon_pick_tag(ctbl2, TAG_TOWER_DWELLER, wzi2);
-              if skl2.m_hp > 0 && !occupied_hex(enemies, wzq, wzr) {
-                ne = mk_enemy(skl2, wzq, wzr); enemies += [ne];
-              }
-            } else {
-              enemies += [mk_npc(1, "wizard", "wizard", "@", 170, 140, 220,
-                                 wzq, wzr, wzq, wzr, wzq, wzr, wzq, wzr)];
-            }
-          }
-        }
-      }
-
-      // THE WILDS: the land carries its natural fauna — habitat-keyed, far
-      // from town (distance = danger), asleep until disturbed
-      wguard = 0;
-      wplaced = 0;
-      while wplaced < 10 && wguard < 200 {
-        wguard = wguard + 1;
-        wq9 = rng.get(3, w - 4) ?? 3;
-        wr9 = rng.get(3, h - 4) ?? 3;
-        wd9 = hex_distance(wq9, wr9, w / 2, h / 2);
-        if wd9 >= 25 && !tile_solid(tiles, w, h, wq9, wr9) && !occupied_hex(enemies, wq9, wr9) {
-          tiw = wr9 * w + wq9;
-          tkw = (tk[tiw] ?? 1) - 1;
-          if tkw != K_LAKE && tkw != K_SEA && tkw != K_RIVER && tkw != K_ROAD && tkw != K_FIELD {
-            wtier = 1;
-            if wd9 >= 40 { wtier = 2; }
-            wdef = mon_choose_habitat(ctbl2, tkw, wtier, rng.get(0, 2000000000) ?? 0);
-            if wdef.m_hp > 0 {
-              ne = mk_enemy(wdef, wq9, wr9); enemies += [ne];
-              wplaced = wplaced + 1;
-            }
-          }
-        }
-      }
-
-      // ROAD STOPS within the window get a waystation hut; the MERCHANT CART
-      // runs the multi-day route (far road end <-> the home market) and parks
-      // the night at the nearest stop (or on the square if none is visible)
-      sstep2 = OV_STEP / HEX_LEN;
-      stq = -1;
-      str2 = -1;
-      for sp2 in 0..len(ovw.ov_stops) {
-        st2 = ovw.ov_stops[sp2];
-        if st2 != null {
-          sux = ((st2.op2_x - ax + cwx) / sstep2) ?? 0.0;
-          suy = ((st2.op2_y - ay + cwy) / sstep2) ?? 0.0;
-          (sq5, sr5) = px_to_hex(sux, suy);
-          if sq5 >= 5 && sq5 < w - 5 && sr5 >= 4 && sr5 < h - 4 {
-            stamp_house(tiles, tk, w, h, sq5 + 1, sr5 - 1, 4, 3, 3);
-            if stq < 0 { stq = sq5; str2 = sr5; }
-          }
-        }
-      }
-      farq = w / 2;
-      farr = h / 2;
-      bfar = -1;
-      if intown {
-      for rr7 in 1..h - 1 {
-        for rq7 in 1..w - 1 {
-          ti10 = rr7 * w + rq7;
-          if ti10 < len(tk) && (tk[ti10] ?? 0) == K_ROAD + 1 {
-            dr10 = hex_distance(rq7, rr7, w / 2, h / 2);
-            if dr10 > bfar { bfar = dr10; farq = rq7; farr = rr7; }
-          }
-        }
-      }
-      if bfar > 12 {
-        parkq = stq;
-        parkr = str2;
-        if parkq < 0 { parkq = w / 2 + 1; parkr = h / 2 - 1; }
-        enemies += [mk_npc(7, "merchant", "merchant cart", "M", 190, 150, 90,
-                           w / 2 + 2, h / 2 + 2, w / 2 + 2, h / 2 + 2,
-                           farq, farr, parkq, parkr)];
-      }
-      }
-      // LIVESTOCK: cows and horses — the hides come from somewhere. A fenced
-      // PEN beside the first farmhouse; they graze the nearby grass by day.
-      if intown {
-      ph1 = w / 2 + 9;
-      pr1 = h / 2 + 5;
-      for pf in 0..12 {
-        pang = (pf as float) * 0.5235988;
-        pq9 = ph1 + round(2.2 * cos(pang)) as integer;
-        pr9 = pr1 + round(2.2 * sin(pang) * 0.866) as integer;
-        if pf != 0 {                                   // the gap is the gate
-          st_set(tiles, tk, w, h, pq9, pr9, 5, -1);    // fence posts
-        }
-      }
-      enemies += [mk_npc(11, "cow", "cow", "q", 205, 195, 175,
-                         ph1, pr1, ph1, pr1, ph1 + 4, pr1 + 1, ph1, pr1)];
-      enemies += [mk_npc(11, "cow", "cow", "q", 195, 185, 160,
-                         ph1 - 1, pr1, ph1 - 1, pr1, ph1 + 3, pr1 + 2, ph1, pr1)];
-      enemies += [mk_npc(11, "horse", "horse", "q", 150, 110, 70,
-                         ph1 + 1, pr1, ph1 + 1, pr1, ph1 + 5, pr1 - 1, ph1, pr1)];
-      enemies += [mk_npc(11, "horse", "horse", "q", 140, 100, 65,
-                         ph1, pr1 + 1, ph1, pr1 + 1, ph1 + 4, pr1 - 2, ph1, pr1)];
-      // WILDLIFE for the trapper's rounds: a beaver by the water, a fox in
-      // the woods, a goat on the rough ground — where the window provides
-      for wk9 in 0..3 {
-        wkq = -1;
-        wkr = -1;
-        bwk = 999;
-        for ar9 in 2..h - 2 {
-          for aq9 in 2..w - 2 {
-            daw = hex_distance(aq9, ar9, w / 2, h / 2);
-            if daw >= 15 && daw < bwk {
-              tia = ar9 * w + aq9;
-              tka = 0;
-              if tia < len(tk) { tka = tk[tia] ?? 0; }
-              suit = false;
-              if wk9 == 0 {                       // the beaver wants the bank
-                if (tiles[tia] ?? 1) == 0 && tka != K_LAKE + 1 && tka != K_SEA + 1 {
-                  for d10 in 0..6 {
-                    (nq10, nr10) = hex_neighbor(aq9, ar9, d10);
-                    if nq10 >= 0 && nq10 < w && nr10 >= 0 && nr10 < h {
-                      tja = nr10 * w + nq10;
-                      tkj = 0;
-                      if tja < len(tk) { tkj = tk[tja] ?? 0; }
-                      if tkj == K_RIVER + 1 || tkj == K_LAKE + 1 { suit = true; }
-                    }
-                  }
-                }
-              }
-              if wk9 == 1 { suit = tka == K_FOREST + 1; }
-              if wk9 == 2 { suit = tka == K_SCREE + 1 || tka == K_MEADOW + 1; }
-              if suit { bwk = daw; wkq = aq9; wkr = ar9; }
-            }
-          }
-        }
-        if wkq >= 0 {
-          wglyph = "r";
-          wcr = 120; wcg = 90; wcb = 60;
-          if wk9 == 1 { wglyph = "f"; wcr = 200; wcg = 120; wcb = 60; }
-          if wk9 == 2 { wglyph = "q"; wcr = 190; wcg = 180; wcb = 160; }
-          wkey = "beaver";
-          if wk9 == 1 { wkey = "fox"; }
-          if wk9 == 2 { wkey = "goat"; }
-          enemies += [mk_npc(12, wkey, wkey,
-                             wglyph, wcr, wcg, wcb,
-                             wkq, wkr, wkq, wkr, wkq, wkr, wkq, wkr)];
-        }
-      }
-
-      }
-      // THE MINE + the big SLAG-FURNACE outside the walls (dirty industry
-      // stays out of town): miners cycle ore from the mountain face to the
-      // furnace, day in day out
-      if intown && tsize >= 2 {
-        // ⚠ REACHABLE FIRST, NEAREST SECOND — `walk_reach`'s rule, and the MINE is the third
-        // site this repo has had to learn it on (`raid_objective`'s 45-hex field, the
-        // gatherer's picking grounds, now this). Measured before the fix, on the shipped
-        // world: the ore face sat at (7,49), 42 hexes from the miner's home at (47,53), with
-        // NO PATH between them — and its open neighbours were equally cut off, so it was the
-        // SITE that was unreachable, not the cave mouth. Two miners walked at it for the life
-        // of the world and delivered nothing, and nothing reported it, because until `S6` gave
-        // the forge an input stream nothing depended on their arriving.
-        mhq = w / 2 - 3;                                     // the miners' own doorstep
-        mhr = h / 2 + 3;
-        reachm = walk_reach(tiles, tk, w, h, mhq, mhr);
-        mnq = -1;
-        mnr = -1;
-        bmn = 999;
-        farmq = -1;      // the farthest reachable face, for when none is >= 16 out
-        farmr = -1;
-        bfarm = -1;
-        // ⚠ AND THE NEAREST REACHABLE FACE AT *ANY* DISTANCE (plan #11 P6). A valley town's
-        // rock can sit beyond `WORK_MAX_D` — town 2's nearest is 46 hexes — and the branch
-        // that used to catch that put the mouth at the WINDOW EDGE, which is a site pointing
-        // at rock rather than a site ON it. Aiming at the real face instead is what makes the
-        // "does a distant mine work?" question answerable: the furnace follows the mine and a
-        // guard walks the works, so what has to be short is the mine->furnace leg, not the
-        // town's view of it. `reachm` already gates this on reachability.
-        nearq = -1;
-        nearr = -1;
-        bnear = 9999;
-        for mr8 in 2..h - 2 {
-          for mq8 in 2..w - 2 {
-            tim = mr8 * w + mq8;
-            if tim < len(tiles) && (tiles[tim] ?? 1) == 0 && (reachm[tim] ?? 0) == 1 {
-              facenb = false;
-              for d6 in 0..6 {
-                (nq6, nr6) = hex_neighbor(mq8, mr8, d6);
-                if nq6 >= 0 && nq6 < w && nr6 >= 0 && nr6 < h {
-                  tj6 = nr6 * w + nq6;
-                  if tj6 < len(tk) && (tk[tj6] ?? 0) == K_FACE + 1 { facenb = true; }
-                }
-              }
-              if facenb {
-                dmn = hex_distance(mq8, mr8, w / 2, h / 2);
-                if dmn < bnear { bnear = dmn; nearq = mq8; nearr = mr8; }
-                // ⚠ AND WITHIN A DAY'S WALK (`WORK_MAX_D`) — the ore face the old scan chose
-                // sat 43 hexes out, and a miner whose leg flips every 90 ticks never
-                // completes that round trip even with a clear path the whole way.
-                if dmn <= WORK_MAX_D {
-                  if dmn >= 16 && dmn < bmn { bmn = dmn; mnq = mq8; mnr = mr8; }
-                  if dmn > bfarm { bfarm = dmn; farmq = mq8; farmr = mr8; }
-                }
-              }
-            }
-          }
-        }
-        // Dirty industry belongs out of town, but that is the INTENT and not a requirement:
-        // a rock face the miners can walk to at 9 hexes beats one at 20 they cannot. The
-        // gatherer's fallback, for the gatherer's reason.
-        if mnq < 0 { mnq = farmq; mnr = farmr; }
-        if mnq < 0 { mnq = nearq; mnr = nearr; }
-        if mnq < 0 {
-          // no rock in this window: the mine lies BEYOND it — its mouth sits
-          // at the window edge toward the nearest mountain/hill cell
-          bdc = 1.0e18;
-          mdx = 1.0;
-          mdy = 0.0;
-          for mc9 in 0..9 {
-            for mr9 in 0..7 {
-              mt9 = ov_cell_mat(ovw, mc9, mr9);
-              if mt9 == 4 || mt9 == 5 {
-                (mcx, mcy) = ov_cell_center(mc9, mr9);
-                dcx = mcx - ax;
-                dcy = mcy - ay;
-                dc9 = dcx * dcx + dcy * dcy;
-                if dc9 < bdc { bdc = dc9; mdx = dcx; mdy = dcy; }
-              }
-            }
-          }
-          mdl = sqrt(mdx * mdx + mdy * mdy) ?? 0.0;
-          if mdl > 0.001 {
-            exq = w / 2 + round(((mdx / mdl) ?? 0.0) * ((w / 2 - 5) as float)) as integer;
-            exr = h / 2 + round(((mdy / mdl) ?? 0.0) * ((h / 2 - 5) as float)) as integer;
-            // settle on the nearest walkable hex around that edge spot
-            for sr9 in 0..7 {
-              for sq9 in 0..7 {
-                cq9 = exq + sq9 - 3;
-                cr9 = exr + sr9 - 3;
-                if mnq < 0 && cq9 >= 2 && cq9 < w - 2 && cr9 >= 2 && cr9 < h - 2 {
-                  tic = cr9 * w + cq9;
-                  tkc = 0;
-                  if tic < len(tk) { tkc = tk[tic] ?? 0; }
-                  // ⚠ AND REACHABLE, AND WITHIN A DAY'S WALK. "Walkable" is a property of the
-                  // hex; "reachable" is a property of the hex AND the town; "workable" is a
-                  // property of the ROUTE. This branch puts the mouth at the WINDOW EDGE, ~45
-                  // hexes out, so it fails the third — and a mine nobody can round-trip is
-                  // not a mine, it is two miners standing still forever. Measured: the camp
-                  // out there is unsafe 1600 of 1600 ticks (no guard reaches it), delivers
-                  // nothing ever, and absorbs every incursion the den sends — which took the
-                  // pressure OFF the chain `I-SAFE` is measured on.
-                  // ⚠ SO A VALLEY TOWN SIMPLY HAS NO MINE, and that is the honest answer:
-                  // `walk_reach`'s own rule ("no reachable picking ground means no gatherer")
-                  // applied to the trade whose rock is beyond a day's walk.
-                  if (tiles[tic] ?? 1) == 0 && tkc != K_LAKE + 1 && tkc != K_SEA + 1
-                     && (reachm[tic] ?? 0) == 1 {
-                    mnq = cq9;
-                    mnr = cr9;
-                  }
-                }
-              }
-            }
-          }
-        }
-        if mnq >= 0 {
-          ti13 = mnr * w + mnq;
-          if ti13 < len(tiles) { tiles[ti13] = 6; }   // the mine IS a cave mouth
-          // THE FURNACE SITS BETWEEN THE TOWN AND THE MINE, AND NEVER FAR FROM THE MINE.
-          //
-          // ⚠ IT USED TO SIT AT A FIXED 20 HEXES FROM THE TOWN, WHICH IS THE WRONG END OF
-          // THE ROUTE. The miners' day is mine -> furnace -> mine, so what has to be short
-          // is *that* leg, not the town's view of it: with an ore face at the window edge
-          // the old placement left a 23-hex haul each way and the miners delivered nothing
-          // in four days. Ore is heavy and slag is filthy — a real works stands at the foot
-          // of the mountain, not at the town's gate.
-          //
-          // So: four hexes back down the line toward town, but never inside the walls
-          // (`wrad + 3`) — dirty industry still stays out of town, which was the original
-          // and correct half of this rule.
-          fdx = (mnq - w / 2) as float;
-          fdy = (mnr - h / 2) as float;
-          fdl = sqrt(fdx * fdx + fdy * fdy) ?? 0.0;
-          fdist = fdl - 4.0;
-          fmin = (round(hring) as integer + 7) as float;
-          if fdist < fmin { fdist = fmin; }
-          if fdist > fdl { fdist = fdl; }
-          fux2 = ((fdx / fdl) ?? 0.0) * fdist;
-          fuy2 = ((fdy / fdl) ?? 0.0) * fdist;
-          fnq = w / 2 + round(fux2) as integer;
-          fnr = h / 2 + round(fuy2) as integer;
-          stamp_round_tower(tiles, tk, w, h, gtw, fnq, fnr, 3, fnq, fnr + 1);   // the BIG furnace
-          for d7 in 0..6 {                                   // its slag ground
-            (sq7, sr7) = hex_neighbor(fnq, fnr, d7);
-            ti7b = sr7 * w + sq7;
-            if ti7b >= 0 && ti7b < len(tk) && (tk[ti7b] ?? 0) != 0
-               && hex_distance(sq7, sr7, fnq, fnr) > 3 {
-              tk[ti7b] = K_SCREE + 1;
-            }
-          }
-          // ⚠ AND THE DELIVERY END, WHICH IS THE ONE THE STOCK TURNS ON. A route is only as
-          // walkable as its WORSE end: a miner that reaches its ore face and not its furnace
-          // raises nothing, and `npc_mine` empties the bag HERE. The ideal spot is four hexes
-          // out from the furnace mouth; take the reachable hex nearest to it instead, and
-          // never one inside the tower itself (radius 3, and stamped after the reach map).
-          daq = fnq;
-          dar = fnr + 4;
-          bda = 9999;
-          for ar9 in 0..9 {
-            for aq9 in 0..9 {
-              cq8 = fnq + aq9 - 4;
-              cr8 = fnr + ar9 - 4;
-              if cq8 >= 1 && cq8 < w - 1 && cr8 >= 1 && cr8 < h - 1 {
-                ti8 = cr8 * w + cq8;
-                if ti8 >= 0 && ti8 < len(tiles) && (reachm[ti8] ?? 0) == 1
-                   && hex_distance(cq8, cr8, fnq, fnr) > 3 {
-                  d8 = hex_distance(cq8, cr8, fnq, fnr + 4);
-                  if d8 < bda { bda = d8; daq = cq8; dar = cr8; }
-                }
-              }
-            }
-          }
-          // ⚠ AND THE MINERS LIVE AT THE WORKS, NOT IN TOWN. They used to sleep on the
-          // town's doorstep and commute to whatever face worldgen had found — which is only
-          // sane when the rock is a short walk away, and on the shipped world it is 43 hexes.
-          // A mining camp at the foot of the mountain is both the working arrangement and
-          // the real one; the ore still reaches the town's forge, because the stock belongs
-          // to the SETTLEMENT and the furnace is where it is raised (`npc_mine`).
-          (m2q, m2r) = hex_neighbor(daq, dar, 3);
-          enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
-                             daq, dar, daq, dar,
-                             mnq, mnr, daq, dar)];
-          enemies += [mk_npc(10, "miner", "miner", "m", 140, 120, 100,
-                             m2q, m2r, m2q, m2r,
-                             mnq, mnr, daq, dar)];
-          // ⚠ AND THE SETTLEMENT POSTS A GUARD ON ITS OWN WORKS (user, 2026-08-10).
-          //
-          // Without one the camp is unsafe **1600 of 1600 ticks** — no guard's `GUARD_R`
-          // reaches the foot of the mountain — so `npc_target` keeps the miners home every
-          // tick of every day and the trade is not merely hindered, it is permanently dead.
-          // That is not `I-SAFE` working: a lever the world holds at zero is not a lever.
-          // It is the same argument that moved the guard master onto the town's own seat —
-          // *guards are a term in the safety expression, not spectators* (`S1`) — applied to
-          // the works instead of the square.
-          //
-          // ⚠ ONE GUARD, WALKING THE WORKS: legs at the ore face and the camp, so each end is
-          // held when the watch is at it and exposed when it is not. That is deliberately not
-          // total cover — the mine still stops when something is standing on it and the guard
-          // is at the other end, which is what leaves `S7`'s pickets something to buy and
-          // keeps the den's raids able to bite.
-          //
-          // ✅ AND `S7` BOUGHT IT (2026-08-10): a picket posted for the ore face takes it from
-          // **775 of 1600 unsafe ticks to 0** and the deliveries from 3 to 6, with the den
-          // alive throughout. ⚠ The picket stands two hexes BEYOND the face rather than on it
-          // — this guard's own ore-face leg is why that rule exists (`militia_stand`).
-          enemies += [mk_npc(3, "guard", "works guard", "g", 175, 180, 210,
-                             daq, dar, daq, dar,
-                             mnq, mnr, daq, dar)];
-        }
-      }
-
-      // THE MILL grinds the bread grain: WATER-powered at the riverbank if
-      // the window has running water, WIND-powered on open ground otherwise
-      if intown {
-      mlq = -1;
-      mlr = -1;
-      bml = 999;
-      for vr8 in 2..h - 2 {
-        for vq8 in 2..w - 2 {
-          dml = hex_distance(vq8, vr8, w / 2, h / 2);
-          if dml >= 8 && dml < bml {
-            tiv = vr8 * w + vq8;
-            tkv = 0;
-            if tiv < len(tk) { tkv = tk[tiv] ?? 0; }
-            if (tiles[tiv] ?? 1) == 0 && tkv != K_LAKE + 1 && tkv != K_SEA + 1 {
-              wetv = false;
-              for d11 in 0..6 {
-                (nq11, nr11) = hex_neighbor(vq8, vr8, d11);
-                if nq11 >= 0 && nq11 < w && nr11 >= 0 && nr11 < h {
-                  tjv = nr11 * w + nq11;
-                  if tjv < len(tk) && (tk[tjv] ?? 0) == K_RIVER + 1 { wetv = true; }
-                }
-              }
-              if wetv { bml = dml; mlq = vq8; mlr = vr8; }
-            }
-          }
-        }
-      }
-      if mlq < 0 {
-        // no running water: the WINDMILL stands on open ground instead
-        mlq = w / 2 + 14;
-        mlr = h / 2 - 10;
-      }
-      stamp_round_tower(tiles, tk, w, h, gtw, mlq, mlr, 2, mlq, mlr + 1);
-      }
-
-      // THE ALCHEMIST'S GATHERER: a rugged traveler fetching the special
-      // ingredients — met on the roads or the hillsides, shunning the deeper
-      // mountains. There are not many of them: ONE walks the home window.
-      if intown && tsize >= 3 {
-        // ⚠ REACHABLE FIRST, NEAREST SECOND. The picking ground has to be somewhere the
-        // gatherer can actually walk to; on world 777 the nearest one at the old ≥14 bound
-        // had NO path from town, so the worker stood still for the life of the world.
-        ghq = w / 2 + 3;
-        ghr = h / 2 + 3;
-        reach8 = walk_reach(tiles, tk, w, h, ghq, ghr);
-        // ⚠ PICKING GROUND IS A RANKED PREFERENCE, NOT ONE TERRAIN. It used to be meadow or
-        // scree only — the alpine shelves, which is the right *first* choice and was the only
-        // one. Measured on world 777: of 9801 hexes the town can walk to just 498, and they
-        // are 467 grass + 31 road — no meadow, no scree, no forest anywhere inside the
-        // pocket. A gatherer that only picks alpine herbs cannot work in a grass valley, so
-        // it took the best ground it could see and stood 37 hexes short of it forever.
-        bestrank = 99;
-        hsq = -1;
-        hsr = -1;
-        bhs = 999;
-        farq2 = -1;      // within the best rank present: the farthest, when none is >= 14
-        farr2 = -1;
-        bfar2 = -1;
-        for gr8 in 1..h - 1 {
-          for gq8 in 1..w - 1 {
-            tih = gr8 * w + gq8;
-            tkh = 0;
-            if tih < len(tk) { tkh = tk[tih] ?? 0; }
-            rank = pick_rank(tkh);
-            if rank >= 0 && rank <= bestrank && (reach8[tih] ?? 0) == 1 {
-              dh8 = hex_distance(gq8, gr8, ghq, ghr);
-              if dh8 > 0 && dh8 <= WORK_MAX_D {
-                if rank < bestrank {      // a better ground exists: forget the poorer ones
-                  bestrank = rank;
-                  hsq = -1; hsr = -1; bhs = 999;
-                  farq2 = -1; farr2 = -1; bfar2 = -1;
-                }
-                if dh8 >= 14 && dh8 < bhs { bhs = dh8; hsq = gq8; hsr = gr8; }
-                if dh8 > bfar2 { bfar2 = dh8; farq2 = gq8; farr2 = gr8; }
-              }
-            }
-          }
-        }
-        // Working far out is the intent, not a requirement — the farthest reachable ground
-        // beats a distant unreachable one, and beats no gatherer at all.
-        if hsq < 0 { hsq = farq2; hsr = farr2; }
-        // ⚠ NO REACHABLE PICKING GROUND MEANS NO GATHERER. Spawning one anyway is how role 9
-        // came to exist as decoration: placed, walking, and structurally unable to work.
-        if hsq >= 0 && bfar > 12 {
-          enemies += [mk_npc(9, "gatherer", "rugged traveler", "t", 160, 150, 120,
-                             ghq, ghr, ghq, ghr,
-                             hsq, hsr, farq, farr)];
-        }
-
-        // THE DEN OVER THE RIDGE (plan #17 `S5`) — the settlement's own source of pressure,
-        // sited at the FARTHEST hex the town can walk to.
-        //
-        // ⚠ IT IS HERE BECAUSE THE MECHANISM HAD NO CONSUMER, and a seam with no consumer is
-        // a seam with no test (STATE.md, from `producttest`). Measured 2026-08-10 on world
-        // 777: all three ruin bosses stand in windows holding 0 guards and 0 civilians, and
-        // the home window — 4 guards, 24 civilians, the one gatherer, the whole economy —
-        // holds no tagged monster at all. So `send_incursions` was correct code that could
-        // never fire on a settlement in any window of the shipped world.
-        //
-        // ⚠ FARTHEST-REACHABLE IS THE SITING RULE, and it does two jobs. It is *over the
-        // ridge* rather than next door, so it does not make the first minute of a level-1
-        // game lethal; and it is inside the walkable pocket, so the player can go at the
-        // cause on foot and the raiders have a path back in. ⚠ It does NOT try to place the
-        // den near the work it will press on — an earlier version of this comment claimed
-        // the march would cross the picking ground and the measurement said otherwise (0
-        // unsafe ticks in seven days). Where the raid BITES is decided by `raid_objective`,
-        // which aims it at the work; the siting only decides how far away the cause lives.
-        //
-        // ⚠ AND IT MAKES THE STARTING NEIGHBOURHOOD HARDER, on top of a curve STATE.md
-        // already records as unowned (a gnoll 8 hexes from the vantage, a level-1 hero dead
-        // on tick 13). `RAID_CAP` is 2, so this is +1 leader +3 nest and at most 2 walking:
-        // small against the 15 hostiles already here, and it is the first danger in the game
-        // with a CAUSE the player can end. Flagged in the plan, not decided here.
-        //
-        // ⚠ AND IT NEEDS ROOM. Plain farthest-reachable is a CUL-DE-SAC by construction —
-        // the deepest hex of a pocket has the fewest ways out. Measured 2026-08-10: the den
-        // landed with one free neighbour, its three sleepers took it, and the source could
-        // field exactly ONE raider for seven days running. `RAID_CAP` was never the binding
-        // constraint; the geometry was, silently. So a den hex needs four walkable
-        // neighbours — enough for its band and a way out for its people.
-        dnq2 = -1;
-        dnr2 = -1;
-        bdn = 20;                       // never nearer than 20 hexes (300 m) to the square
-        for dr8 in 1..h - 1 {
-          for dq8 in 1..w - 1 {
-            tid = dr8 * w + dq8;
-            if (reach8[tid] ?? 0) == 1 {
-              dd8 = hex_distance(dq8, dr8, ghq, ghr);
-              if dd8 > bdn {
-                room = 0;
-                for dnb in 0..6 {
-                  (rq8, rr8) = hex_neighbor(dq8, dr8, dnb);
-                  if rq8 >= 1 && rr8 >= 1 && rq8 < w - 1 && rr8 < h - 1 {
-                    if (reach8[rr8 * w + rq8] ?? 0) == 1 { room += 1; }
-                  }
-                }
-                if room >= 4 { bdn = dd8; dnq2 = dq8; dnr2 = dr8; }
-              }
-            }
-          }
-        }
-        if dnq2 >= 0 {
-          dtbl = game_monsters();
-          dsalt = (dnq2 * 2654435761 ^ dnr2 * 40503) & 2147483647;
-          dld = mon_pick_tag(dtbl, TAG_RUIN_BOSS, dsalt);
-          if dld.m_hp > 0 && !occupied_hex(enemies, dnq2, dnr2) {
-            ne = mk_enemy(dld, dnq2, dnr2); enemies += [ne];
-            // its people, asleep around it — the same construction as a ruin nest, because
-            // it is the same thing: whoever nests in the broken places, nesting here.
-            dgb = mon_pick_tag(dtbl, TAG_RUIN_NEST, dsalt);
-            if dgb.m_hp > 0 {
-              for db2 in 0..3 {
-                (dgq, dgr) = hex_neighbor(dnq2, dnr2, db2 * 2 % 6 ?? 0);
-                if !tile_solid(tiles, w, h, dgq, dgr) && !occupied_hex(enemies, dgq, dgr) {
-                  ne = mk_enemy(dgb, dgq, dgr); enemies += [ne];
-                }
-              }
-            }
-          }
-        }
-      }
+    sim_gen_surface(w, h, tiles, tk, enemies, gtw, rng, ovw, intown, nhouse, tsize, sstep,
+                    ax, ay, cwx, cwy, hring, pier_aq, pier_ar, pier_sea);
   }
 
   // Stairs: up at the player start, down at the farthest reachable floor hex.
