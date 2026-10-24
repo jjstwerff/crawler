@@ -20,21 +20,21 @@ pub const RF_RES_BLIND   = 512;
 pub const RF_RES_POISON  = 1024;
 
 pub struct RaceDef {
-  r_key: text, r_name: text,
+  pub r_key: text, pub r_name: text,
   // The EIGHT (CATALOG.md §0), in `stat_name`'s order — the field name IS the stat key, so
   // `r_<k>` and `sim_stat(s, "<k>")` cannot drift apart. NAMED fields, not a vector, on purpose:
   // a ninth axis must make all 10 race bundles fail to COMPILE. A positional vector would
   // zero-pad them silently, which is the exact flattening plan #16 `M0` warned about.
-  r_might: integer not null, r_endu: integer not null, r_dex: integer not null,
-  r_perc: integer not null,  r_speed: integer not null, r_will: integer not null,
-  r_char: integer not null,  r_hand: integer not null,
-  r_hd: integer not null,    // hit-die modifier
-  r_xp: integer not null,    // % experience factor
-  r_melee: integer not null, r_bow: integer not null, r_device: integer not null,
-  r_disarm: integer not null, r_stealth: integer not null, r_save: integer not null,
-  r_infra: integer not null, // infravision (tens of feet)
-  r_flags: integer not null,
-  r_desc: text,
+  pub r_might: integer not null, pub r_endu: integer not null, pub r_dex: integer not null,
+  pub r_perc: integer not null,  pub r_speed: integer not null, pub r_will: integer not null,
+  pub r_char: integer not null,  pub r_hand: integer not null,
+  pub r_hd: integer not null,    // hit-die modifier
+  pub r_xp: integer not null,    // % experience factor
+  pub r_melee: integer not null, pub r_bow: integer not null, pub r_device: integer not null,
+  pub r_disarm: integer not null, pub r_stealth: integer not null, pub r_save: integer not null,
+  pub r_infra: integer not null, // infravision (tens of feet)
+  pub r_flags: integer not null,
+  pub r_desc: text,
 }
 
 fn race_none() -> RaceDef {

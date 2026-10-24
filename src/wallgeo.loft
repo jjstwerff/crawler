@@ -31,8 +31,8 @@ WIDEN_V      = 0.1339746;  // 1 - sqrt(3)/2
 SNAP_TOL2_V  = 0.5625;     // (0.75)^2 — vertical lines must catch both stagger parities
 
 pub struct WallSeg {
-  ax: float not null, ay: float not null,
-  bx: float not null, by: float not null,
+  pub ax: float not null, pub ay: float not null,
+  pub bx: float not null, pub by: float not null,
 }
 
 struct WCorner {

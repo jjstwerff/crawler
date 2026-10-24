@@ -18,14 +18,14 @@ pub const MATCH_TOL = 1.0;
 
 // A recovered surface run: which stretch of the loop it covers, and its primitive.
 pub struct Fit {
-  ft_kind:  vector<integer>,   // 1 straight, 2 arc
-  ft_a:     vector<float>,     // straight: nx    arc: cx
-  ft_b:     vector<float>,     // straight: ny    arc: cy
-  ft_c:     vector<float>,     // straight: c     arc: r
-  ft_from:  vector<integer>,   // first loop vertex index
-  ft_to:    vector<integer>,   // one past the last
-  ft_res:   vector<float>,     // fit residual
-  ft_n:     integer,
+  pub ft_kind:  vector<integer>,   // 1 straight, 2 arc
+  pub ft_a:     vector<float>,     // straight: nx    arc: cx
+  pub ft_b:     vector<float>,     // straight: ny    arc: cy
+  pub ft_c:     vector<float>,     // straight: c     arc: r
+  pub ft_from:  vector<integer>,   // first loop vertex index
+  pub ft_to:    vector<integer>,   // one past the last
+  pub ft_res:   vector<float>,     // fit residual
+  pub ft_n:     integer,
 }
 
 pub fn fit_new() -> Fit {

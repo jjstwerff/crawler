@@ -7,22 +7,22 @@
 // experience needed (100 = normal, higher = slower).
 
 pub struct ClassDef {
-  c_key: text, c_name: text,
-  c_hd: integer not null,    // hit-die bonus
-  c_xp: integer not null,    // % experience factor
+  pub c_key: text, pub c_name: text,
+  pub c_hd: integer not null,    // hit-die bonus
+  pub c_xp: integer not null,    // % experience factor
   // The EIGHT, in `stat_name`'s order — the field name IS the stat key (see RaceDef).
-  c_might: integer not null, c_endu: integer not null, c_dex: integer not null,
-  c_perc: integer not null,  c_speed: integer not null, c_will: integer not null,
-  c_char: integer not null,  c_hand: integer not null,
-  c_melee: integer not null, c_bow: integer not null, c_device: integer not null,
-  c_disarm: integer not null, c_stealth: integer not null, c_save: integer not null,
-  c_realm: text,             // "none" / "arcane" / "divine" / "nature"
+  pub c_might: integer not null, pub c_endu: integer not null, pub c_dex: integer not null,
+  pub c_perc: integer not null,  pub c_speed: integer not null, pub c_will: integer not null,
+  pub c_char: integer not null,  pub c_hand: integer not null,
+  pub c_melee: integer not null, pub c_bow: integer not null, pub c_device: integer not null,
+  pub c_disarm: integer not null, pub c_stealth: integer not null, pub c_save: integer not null,
+  pub c_realm: text,             // "none" / "arcane" / "divine" / "nature"
   // Which AXIS this class casts on — a stat key, resolved through `stat_index`. Under the
   // eight there is one casting axis, so every caster in the tree says "will"; the field stays
   // a DECLARATION rather than becoming `c_realm != "none"` so a bundle can author a class that
   // casts off another axis (a seer off Perception) without touching the engine.
-  c_spell_stat: text,        // "none" / a stat key
-  c_desc: text,
+  pub c_spell_stat: text,        // "none" / a stat key
+  pub c_desc: text,
 }
 
 fn class_none() -> ClassDef {

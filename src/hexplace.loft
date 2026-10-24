@@ -22,14 +22,14 @@ pub const L_MOVABLE = 2;   // carts, wagons, barrels — change constantly
 // SHEET, not a slot, and nothing about it limits one prop per cell.
 pub struct PropSet {
   pp_level: integer,
-  pp_q:     vector<integer>,
-  pp_r:     vector<integer>,
-  pp_kind:  vector<integer>,
-  pp_seed:  vector<integer>,
-  pp_ox:    vector<float>,
-  pp_oy:    vector<float>,
+  pub pp_q:     vector<integer>,
+  pub pp_r:     vector<integer>,
+  pub pp_kind:  vector<integer>,
+  pub pp_seed:  vector<integer>,
+  pub pp_ox:    vector<float>,
+  pub pp_oy:    vector<float>,
   pp_yaw:   vector<float>,
-  pp_scale: vector<float>,
+  pub pp_scale: vector<float>,
   pp_next:  vector<integer>,
   // ONE number per prop, not per part (PROPS §Part 4): a door's angle, a shutter's, a
   // wheel's phase. Stored state is a decision someone made; derived state (a wheel's) is a
