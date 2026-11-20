@@ -1,5 +1,5 @@
-# random 0.3.3 — public API surface
-# generated from /home/jurjens/.claude/jobs/1ef41c78/tmp/cihome/.loft/registry/random-0.3.3
+# random 0.5.2 — public API surface
+# generated from /home/jurjens/.loft/registry/random-0.5.2
 # use it with: use random::*;
 
 ## src/random.loft
@@ -13,7 +13,7 @@
 // RandStream gives instead.
 pub fn rand(lo: integer, hi: integer) -> integer?
 
-// Seeds the thread-local random number generator with the given value.
+// Seeds the shared random number generator with the given value.
 // Call this before rand() or rand_indices() to get reproducible sequences — but
 // note that it fixes what the GENERATOR produces, not what you receive: it is
 // shared, so one `rand()` from anywhere else shifts everything after it.  When
@@ -22,15 +22,26 @@ pub fn rand(lo: integer, hi: integer) -> integer?
 // interruption against a RandStream.
 pub fn rand_seed(seed: integer)
 
+// The next draw of the shared generator reduced modulo m, in [0, m); 0 when m < 1.
+// The step of a shuffle (`rand_indices`), published so a shuffle of your own draws
+// the same sequence.
+pub fn rand_below(m: integer) -> integer
+
 // Returns a vector of n integers [0, 1, ..., n-1] in a random order.
 // Useful for random iteration, shuffling, or sampling without replacement.
-// Returns an empty vector when n is 0 or null.
+// Returns an empty vector when n is 0, negative or null.
 // Example: @RND-001 — this draws from the shared global generator too.
 pub fn rand_indices(n: integer) -> vector<integer>
 
 // --- RandStream: owned random streams (the value tier) ---
 
-pub struct RandStream
+// An independent random stream: the two Lehmer generator states.  Seed one with `seed_stream`
+// and draw from it with its methods, so its sequence does not depend on any other draw in the
+// program.
+pub struct RandStream {
+  s1: integer,  // Lehmer state A in [1, 2147483562]
+  s2: integer,  // Lehmer state B in [1, 2147483398]
+}
 
 // Seed an independent stream. Any integer seed is valid (negative and zero included);
 // equal seeds give equal streams, different seeds give decorrelated streams.
@@ -51,3 +62,44 @@ pub fn get(self: RandStream, lo: integer, hi: integer) -> integer?
 // Example: @RND-003 — a shuffle is a countable number of draws, so inserting one
 // shifts the rest of the sequence by a known amount rather than adding noise.
 pub fn indices(self: RandStream, n: integer) -> vector<integer>
+
+// --- Rand32: the 32-bit tier ---
+
+// An owned 32-bit stream: assigning one copies it, passing one to a function links it, as a
+// `RandStream` does.  Its state is opaque: sixteen bytes only the C part reads and writes.
+pub struct Rand32 {
+  st: vector<u8>,
+}
+
+// Seed an owned 32-bit stream.  Any seed is valid; equal seeds give equal streams, and
+// different seeds give decorrelated ones (SplitMix64 spreads the seed over the state).
+pub fn seed32(seed: integer) -> Rand32
+
+// A random `i32` in [lo, hi] (inclusive) from THIS stream, advancing it; null when lo > hi.
+// Unbiased: every value of the range is equally likely.
+pub fn get32(self: Rand32, lo: i32, hi: i32) -> i32?
+
+// The next 31 random bits of THIS stream, in [0, 2147483647].
+pub fn bits31(self: Rand32) -> i32
+
+// A random `single` in [0, 1) from THIS stream: 24 random bits, all a single holds.
+pub fn unit32(self: Rand32) -> single
+
+// A random permutation of [0, 1, ..., n-1] from THIS stream (Fisher-Yates), advancing it by
+// exactly n - 1 draws.  Empty when n is 0 or negative.
+pub fn indices32(self: Rand32, n: i32) -> vector<i32>
+
+// A random `i32` in [lo, hi] from the shared 32-bit generator (seeded with 12345 at startup);
+// null when lo > hi.  Shared like `rand`: any other call site's draw shifts your sequence.
+pub fn rand32(lo: i32, hi: i32) -> i32?
+
+// Seed the shared 32-bit generator.
+pub fn rand32_seed(seed: integer)
+
+// A random `single` in [0, 1) from the shared 32-bit generator.
+pub fn rand32_unit() -> single
+
+// A seed from the platform's entropy — the hardware random number generator on the Tanmatsu
+// (ESP-IDF), the operating system's elsewhere — for a run that is NOT meant to be reproduced:
+// `seed32(seed_hw() ?? 1)`.  Null where the platform has no entropy source (the wasm builds).
+pub fn seed_hw() -> integer?
