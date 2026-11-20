@@ -38,6 +38,11 @@ a showcase demonstrates judgment too; immediate mode is the right tool there.
 
 ## The primitives (what `graphics` has / lacks)
 
+> **Names below are graphics 0.9's.** Since the move to graphics 0.13 each handle is a value
+> (`Window`, `Shader`, `GpuMesh`, `Texture`, `Framebuffer`, `Painter`) and each call a method on
+> it; the library's README § *Moving from 0.9* maps every name here to its 0.13 form, and
+> `src/view.loft` is the worked example.
+
 Present and proven in crawler: `gl_upload_vertices(data, stride) -> vao` (persistent
 VBO), `gl_draw` / `gl_draw_mode` / `gl_draw_elements`, `gl_create_shader` + mat4/vec3/
 int/float uniforms, `gl_load_texture` / `gl_upload_canvas` / `gl_bind_texture`,
