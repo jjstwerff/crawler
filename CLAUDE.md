@@ -239,10 +239,10 @@ editor as the second consumer*).
     **O(n²)** — ~18 min for that one line, at 99 % CPU with no output, so it presents as a hang.
     **loft#854**; a sweep's `timeout` cannot tell it from a deadlock, so do not read one as the
     other.
-- **Headless rendering IS self-verifiable.** `gl_screenshot` reads the GL framebuffer reliably
+- **Headless rendering IS self-verifiable.** `Window.capture` (0.9's `gl_screenshot`) reads the GL framebuffer reliably
   under Xvfb (`xvfb-run` is installed) — it is what `make probe` uses. The only
   positionally-unreliable capture is `make shot`'s window-grab. So render **correctness** gates
-  headlessly by golden-image diff, two paths: **native GL** (`gl_screenshot` under `xvfb-run` +
+  headlessly by golden-image diff, two paths: **native GL** (`Window.capture` under `xvfb-run` +
   Mesa `llvmpipe`, tolerance ~max-16/mean-2) and **WebGL** (`loft --html` in headless Chrome via
   loft's `tools/html_render_check.mjs`). For plain 2D diagnostics the `graphics` **`Canvas`**
   needs no GL or Xvfb at all (`../hexbody/src/houseshot.loft` is the worked example). **The user
@@ -293,7 +293,7 @@ editor as the second consumer*).
 
 **Full survival guide, bug-filing procedure and toolchain/library locations: `LOFT-NOTES.md`.**
 Crawler is a CONSUMER — we never fix loft here; file it (standing grant: no per-issue
-authorization needed), work around it, keep moving. `graphics` must be **>=0.5.0**; the
+authorization needed), work around it, keep moving. `graphics` must be **>=0.13.3** (the object API; 0.5-0.9 are deprecated and do not install); the
 toolchain version is **not written here** — `make test` stamps it (version + md5 + whether it
 is `../loft`'s working-tree build), because it changes under you and `--version` is not
 provenance. The short list:

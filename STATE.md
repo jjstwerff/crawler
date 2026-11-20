@@ -937,6 +937,6 @@ sibling tree outranks the registry, so every extra one is a silent override**: t
 how the lock came to describe a build that could not compile. Test against an unreleased
 sibling on the **command line for that run**, never in the Makefile.
 
-**`xvfb-run` IS installed** — the native `gl_screenshot` path and `make probe` work. For plain
+**`xvfb-run` IS installed** — the native `Window.capture` path and `make probe` work. For plain
 2D diagnostics the `graphics` `Canvas` (`fill_triangle`/`save_png`) needs no GL or Xvfb at all;
 `../hexbody/src/houseshot.loft` is the worked example. `glbview.py` needs neither either.
