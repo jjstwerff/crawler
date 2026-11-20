@@ -31,9 +31,9 @@
 // Heights ride just above the terrain mesh (region heights × exag + LIFT_EPS)
 // so the ribbon doesn't z-fight with the 18-tri terrain it overlays.
 
-use region;
-use hydro;
-use hex_grid;
+use region::*;
+use hydro::*;
+use hex_grid::*;
 
 // World-metres circumradius of the 1500 m moros odd-r hex. Same constant as
 // trimesh.loft / overland.loft / chunk.loft — inlined here so this module

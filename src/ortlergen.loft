@@ -6,9 +6,9 @@
 // Two classifications over the SAME real heights (the @PLN1 A/B adequacy comparison):
 //   real=true  (A) — REAL OSM landcover (ground truth).
 //   real=false (B) — OUR MODEL's elevation bands. The gap A→B is the adequacy answer.
-use ortlerdata;
-use chunk;
-use overland;
+use ortlerdata::*;
+use chunk::*;
+use overland::*;
 
 // OSM landcover code (0..10, ortlerdata legend) + river flag -> a crawler K_ kind. The ground
 // truth (A): water splits river/lake by the river mask; farmland/orchard/vineyard -> FIELD.

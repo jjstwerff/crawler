@@ -19,13 +19,13 @@
 // Region-agnostic: this same module runs against Ortler, Wales, and any
 // future region. No mention of Ortler-specific constants anywhere.
 
-use region;
-use hex_grid;
+use region::*;
+use hex_grid::*;
 
 pub struct Hydro {
-  filled: vector<integer> not null,
-  flow:   vector<integer> not null,
-  acc:    vector<integer> not null,
+  pub filled: vector<integer> not null,
+  pub flow:   vector<integer> not null,
+  pub acc:    vector<integer> not null,
 }
 
 // ── parallel-vector min-heap on (key=filled_height, val=cell_index) ──────
