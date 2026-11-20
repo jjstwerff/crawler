@@ -19,151 +19,211 @@ flight), and `loft api --registry` / `.loft/api/_available.api` (the live catalo
 Found one? Declare it in `loft.toml`, compile once, check `loft.lock` names it, and
 `make apidoc` — then it is in here.
 
-## `graphics` 0.9.4
+## `graphics` 0.13.3
 
 ```
-fn audio_load(path: text) -> integer;
-fn audio_play(clip: integer, volume: float, looping: boolean = false,
-fn audio_play_raw(samples: vector<single>, sample_rate: integer, volume: float) -> integer;
-fn audio_seek(sink: integer, seconds: float) -> boolean;
-fn audio_set_pan(sink: integer, pan: float);
-fn audio_set_volume(sink: integer, volume: float);
-fn audio_stop_all();
-fn audio_stop(sink: integer);
+const BLEND_DST_ALPHA = 4;
+const BLEND_ONE = 1;
+const BLEND_ONE_MINUS_DST_ALPHA = 5;
+const BLEND_ONE_MINUS_SRC_ALPHA = 3;
+const BLEND_SRC_ALPHA = 2;
+const BLEND_ZERO = 0;
+const DRAW_LINES = 1;
+const DRAW_POINTS = 2;
+const DRAW_TRIANGLES = 0;
+const EV_KEY_DOWN = 1;
+const EV_KEY_UP = 2;
+const EV_MOUSE_DOWN = 4;
+const EV_MOUSE_MOVE = 6;
+const EV_MOUSE_UP = 5;
+const EV_NONE = 0;
+const EV_RESIZE = 11;
+const EV_TEXT = 3;
+const EV_TOUCH_BEGIN = 8;
+const EV_TOUCH_END = 10;
+const EV_TOUCH_MOVE = 9;
+const EV_WHEEL = 7;
+const GL_BLEND = 2;
+const GL_CULL_FACE = 3;
+const GL_DEPTH_TEST = 1;
+const GL_SCISSOR_TEST = 4;
+const KEY_0 = 48;
+const KEY_1 = 49;
+const KEY_2 = 50;
+const KEY_3 = 51;
+const KEY_4 = 52;
+const KEY_5 = 53;
+const KEY_6 = 54;
+const KEY_7 = 55;
+const KEY_8 = 56;
+const KEY_9 = 57;
+const KEY_A = 97;
+const KEY_BACKSPACE = 8;
+const KEY_CTRL = 133;
+const KEY_D = 100;
+const KEY_DELETE = 147;
+const KEY_DOWN = 129;
+const KEY_E = 101;
+const KEY_END = 150;
+const KEY_ENTER = 13;
+const KEY_ESCAPE = 27;
+const KEY_F = 102;  // lower-layer
+const KEY_F1  = 135;
+const KEY_F10 = 144;
+const KEY_F11 = 145;
+const KEY_F12 = 146;
+const KEY_F2  = 136;
+const KEY_F3  = 137;
+const KEY_F4  = 138;
+const KEY_F5  = 139;
+const KEY_F6  = 140;
+const KEY_F7  = 141;
+const KEY_F8  = 142;
+const KEY_F9  = 143;
+const KEY_HOME = 149;
+const KEY_INSERT = 148;
+const KEY_LBRACKET = 91;   // [
+const KEY_LEFT = 130;
+const KEY_O = 111;  // occlusion toggle
+const KEY_PAGEDOWN = 152;
+const KEY_PAGEUP = 151;
+const KEY_Q = 113;
+const KEY_R = 114;  // raise-layer
+const KEY_RBRACKET = 93;   // ]
+const KEY_RIGHT = 131;
+const KEY_S = 115;
+const KEY_SHIFT = 132;
+const KEY_SPACE = 32;
+const KEY_TAB = 9;
+const KEY_UP = 128;
+const KEY_W = 119;
+const KEY_Y = 121;  // redo (with Ctrl)
+const KEY_Z = 122;  // undo (with Ctrl)
+const MOD_ALT = 4;
+const MOD_CTRL = 2;
+const MOD_SHIFT = 1;
+const MOD_SUPER = 8;
+fn ascent(self: const Font, size: float) -> float
+fn attach(self: const Framebuffer, t: const Texture)
+fn bind(self: const Texture, unit: integer)
 fn blend(dst: integer, src: integer) -> integer
 fn blend_pixel(self: Canvas, bx: integer, by: integer, color: integer)
+fn blend(self: const Window, src: integer, dst: integer)
 fn canvas(cw: integer, ch: integer, fill_color: integer) -> Canvas
+fn capture(self: const Window) -> Canvas
 fn clear(self: Canvas, color: integer)
+fn clear(self: const Window, color: integer)
+fn close(self: Window)
 fn color_a(color: integer) -> integer
 fn color_b(color: integer) -> integer
 fn color_g(color: integer) -> integer
 fn color_r(color: integer) -> integer
-fn create_painter_2d(screen_w: float, screen_h: float) -> Painter2D
-fn create_renderer(rw: integer, rh: integer, title: text) -> Renderer
-fn create_sprite_sheet(atlas: const Canvas, cols: integer, rows: integer, vao: integer) -> SpriteSheet
-fn create_text_texture(font: integer, content: text, size: float, color: integer) -> integer
-fn destroy(self: Renderer)
+fn count(self: const GroupMeshes) -> integer
+fn cull(self: const Window, face: integer)
+fn depth_texture(self: const Window, width: integer, height: integer) -> Texture
+fn depth_write(self: const Window, on: boolean)
+fn disable(self: const Window, cap: integer)
 fn draw_aa_line(self: Canvas, ax0: integer, ay0: integer, ax1: integer, ay1: integer, color: integer)
+fn draw_all(self: const GroupMeshes, shader: const Shader)
 fn draw_bezier(self: Canvas, bx0: integer, by0: integer, bx1: integer, by1: integer, bx2: integer, by2: integer, bx3: integer, by3: integer, color: integer)
 fn draw_circle(self: Canvas, ccx: integer, ccy: integer, radius: integer, color: integer)
 fn draw_ellipse(self: Canvas, ecx: integer, ecy: integer, erx: integer, ery: integer, color: integer)
+fn draw_indexed(self: const GpuMesh, shader: const Shader, mode: integer)
+fn draw_instanced(self: const GpuMesh, shader: const Shader, count: integer)
 fn draw_line(self: Canvas, lx0: integer, ly0: integer, lx1: integer, ly1: integer, color: integer)
-fn draw_rect_at(painter: const Painter2D, x: float, y: float, w: float, h: float,
+fn draw_mode(self: const GpuMesh, shader: const Shader, mode: integer)
 fn draw_rect(self: Canvas, drx: integer, dry: integer, drw: integer, drh: integer, color: integer)
-fn draw_sprite_at(sheet: const SpriteSheet, painter: const Painter2D,
-fn draw_sprite(sheet: const SpriteSheet, mvp: const vector<float>, sp_idx: integer)
-fn draw_text(self: Canvas, font: integer, content: text, size: float,
-fn draw_texture_at(painter: const Painter2D, tex: integer,
-fn elapsed(self: const Renderer) -> float
+fn draw(self: const GpuMesh, shader: const Shader)
+fn draw(self: const Sprites, mvp: const vector<float>, index: integer)
+fn draw_text(
+fn enabled(self: const Window, cap: integer) -> boolean
+fn enable(self: const Window, cap: integer)
+fn events(self: const Window) -> vector<Event>
 fn fill_circle(self: Canvas, fcx: integer, fcy: integer, radius: integer, color: integer)
 fn fill_ellipse(self: Canvas, fex: integer, fey: integer, ferx: integer, fery: integer, color: integer)
 fn fill_polygon(self: Canvas, pts: const vector<Coord>, color: integer)
 fn fill_rect(self: Canvas, rx: integer, ry: integer, rw: integer, rh: integer, color: integer)
 fn fill_triangle(self: Canvas, tx0: integer, ty0: integer, tx1: integer, ty1: integer, tx2: integer, ty2: integer, color: integer)
+fn filter(self: const Texture, nearest: boolean)
+fn finish(self: const Window)
+fn framebuffer(self: const Window) -> Framebuffer
 fn get_pixel(self: const Canvas, gx: integer, gy: integer) -> integer
-fn gl_bind_framebuffer(fbo: integer);
-fn gl_bind_texture(texture_id: integer, unit: integer);
-fn gl_blend_func(src: integer, dst: integer);
-fn gl_clear(color: integer);
-fn gl_create_color_texture(width: integer, height: integer) -> integer;
-fn gl_create_depth_texture(width: integer, height: integer) -> integer;
-fn gl_create_framebuffer() -> integer;
-fn gl_create_fullscreen_window(title: text) -> boolean;
-fn gl_create_shader(vertex_source: text, fragment_source: text) -> integer;
-fn gl_create_window(width: integer, height: integer, title: text) -> boolean;
-fn gl_cull_face(face: integer);
-fn gl_delete_framebuffer(fbo: integer);
-fn gl_delete_shader(program: integer);
-fn gl_delete_texture(texture_id: integer);
-fn gl_delete_vao(vao: integer);
-fn gl_depth_mask(write: boolean);
-fn gl_destroy_window();
-fn gl_disable(cap: integer);
-fn gl_draw_elements(vao: integer, index_count: integer, mode: integer);
-fn gl_draw_fullscreen_quad();
-fn gl_draw_instanced(vao: integer, vertex_count: integer, instance_count: integer);
-fn gl_draw_mode(vao: integer, vertex_count: integer, mode: integer);
-fn gl_draw(vao: integer, vertex_count: integer);
-fn gl_enable(cap: integer);
-fn gl_event_button() -> integer;
-fn gl_event_key() -> integer;
-fn gl_event_mods() -> integer;
-fn gl_event_repeat() -> boolean;
-fn gl_event_text() -> text;
-fn gl_event_touch_id() -> integer;
-fn gl_event_wheel() -> integer;
-fn gl_event_x() -> float;
-fn gl_event_y() -> float;
-fn gl_finish();
-fn gl_font_ascent(font: integer, size: float) -> float;
-fn gl_framebuffer_texture(fbo: integer, attachment: integer, tex: integer);
-fn gl_generate_mipmap(tex: integer);
-fn gl_instance_attrib(vao: integer, ivbo: integer, location: integer, components: integer, stride_floats: integer, offset_floats: integer);
-fn gl_key_pressed(key_code: integer) -> boolean;
-fn gl_line_width(width: float);
-fn gl_load_font(path: text) -> integer
-fn gl_load_texture(path: text) -> integer;
-fn gl_measure_text(font: integer, content: text, size: float) -> float;
-fn gl_mouse_button() -> integer;
-fn gl_mouse_wheel() -> integer;
-fn gl_mouse_x() -> float;
-fn gl_mouse_y() -> float;
-fn gl_next_event() -> integer;
-fn gl_point_size(size: float);
-fn gl_poll_events() -> boolean;
-fn gl_scissor(x: integer, y: integer, w: integer, h: integer);
-fn gl_screenshot(width: integer, height: integer, path: text) -> boolean;
-fn gl_set_fullscreen(on: boolean);
-fn gl_set_uniform_float(program: integer, name: text, val: float);
-fn gl_set_uniform_int(program: integer, name: text, val: integer);
-fn gl_set_uniform_mat4(program: integer, name: text, mat: const vector<float>);
-fn gl_set_uniform_vec2(program: integer, name: text, x: float, y: float);
-fn gl_set_uniform_vec3(program: integer, name: text, x: float, y: float, z: float);
-fn gl_set_uniform_vec4(program: integer, name: text, x: float, y: float, z: float, w: float);
-fn gl_swap_buffers();
-fn gl_text_height(font: integer, size: float) -> integer;
-fn gl_texture_filter(tex: integer, nearest: boolean);
-fn gl_texture_subimage(tex: integer, x: integer, y: integer, w: integer, h: integer, data: vector<integer>);
-fn gl_update_buffer(vbo: integer, data: vector<single>);
-fn gl_upload_canvas(data: const vector<integer>, width: integer, height: integer) -> integer;
-fn gl_upload_indices(vao: integer, data: vector<integer>) -> integer;
-fn gl_upload_instance_buffer(data: vector<single>) -> integer;
-fn gl_upload_vertices(data: vector<single>, stride: integer) -> integer;
-fn gl_use_shader(program: integer);
-fn gl_viewport(x: integer, y: integer, w: integer, h: integer);
-fn gl_window_height() -> integer;
-fn gl_window_width() -> integer;
-fn group_vbos_destroy(set: GroupVboSet)
-fn group_vbos_draw_all(set: const GroupVboSet)
-fn group_vbos_new(stride: integer, draw_mode: integer) -> GroupVboSet
-fn group_vbos_upsert(set: GroupVboSet, gk: integer, verts: vector<single>,
+fn group_meshes(stride: integer, mode: integer) -> GroupMeshes
+fn has(self: const GroupMeshes, gk: integer) -> boolean
+fn height(self: const Texture) -> integer
+fn height(self: const Window) -> integer
 fn hline(self: Canvas, hx0: integer, hx1: integer, hy: integer, color: integer)
-fn painter_vao(self: const Painter2D) -> integer
-fn render_frame_no_swap(self: Renderer, sc: const scene::Scene,
-fn render_frame(self: Renderer, sc: const scene::Scene,
-fn render_loop(self: Renderer, sc: const scene::Scene, cam: const scene::Camera)
+fn image(self: const Painter, t: const Texture, x: float, y: float, w: float, h: float)
+fn indices(self: const GpuMesh, list: const vector<integer>)
+fn instance_attrib(
+fn instances(self: const Window, data: const vector<single>) -> InstanceBuffer
+fn key_down(self: const Window, key: integer) -> boolean
+fn line_height(self: const Font, size: float) -> integer
+fn line_width(self: const Window, width: float)
+fn load_font(path: text) -> Font?
+fn load_texture(self: const Window, path: text) -> Texture?
+fn measure(self: const Font, content: text, size: float) -> float
+fn mipmaps(self: const Texture)
+fn mouse_buttons(self: const Window) -> integer
+fn mouse_x(self: const Window) -> float
+fn mouse_y(self: const Window) -> float
+fn open_fullscreen(title: text) -> Window?
+fn open_window(width: integer, height: integer, title: text) -> Window?
+fn painter(self: const Window) -> Painter?
+fn point_size(self: const Window, size: float)
+fn poll(self: const Window) -> boolean
+fn put(self: const Texture, x: integer, y: integer, image: const Canvas)
+fn quad(self: const Window) -> GpuMesh
+fn rasterize(self: const Font, c: character, size: float) -> Glyph
+fn rasterize_text(self: const Font, content: text, size: float) -> Glyph
+fn rect(
+fn render_to(self: const Window, target: const Framebuffer)
+fn render_to_window(self: const Window)
 fn resize_bicubic(self: const Canvas, ow: integer, oh: integer) -> Canvas
 fn resize_lanczos(self: const Canvas, ow: integer, oh: integer) -> Canvas
+fn resize(self: Painter, width: integer, height: integer)
 fn rgba(cr: integer, cg: integer, cb: integer, ca: integer) -> integer
 fn rgb(cr: integer, cg: integer, cb: integer) -> integer
 fn save_png(self: const Canvas, path: text) -> boolean
+fn scissor(self: const Window, x: integer, y: integer, width: integer, height: integer)
+fn set_float(self: const Shader, name: text, v: float)
+fn set_int(self: const Shader, name: text, v: integer)
+fn set_mat4(self: const Shader, name: text, m: const vector<float>)
 fn set_pixel(self: Canvas, sx: integer, sy: integer, color: integer)
-fn sfx_beep(sb_freq: single, sb_dur: single, sb_vol: single) -> integer
-fn sfx_bounce(sp_freq: single, sp_vol: single) -> integer
-fn sfx_chirp(sc_f0: single, sc_f1: single, sc_dur: single, sc_vol: single) -> integer
-fn sfx_descend(sd_f0: single, sd_f1: single, sd_dur: single, sd_vol: single) -> integer
-fn sfx_noise(sn_dur: single, sn_vol: single) -> integer
-fn upload_scene(self: Renderer, sc: const scene::Scene)
+fn set_vec2(self: const Shader, name: text, x: float, y: float)
+fn set_vec3(self: const Shader, name: text, x: float, y: float, z: float)
+fn set_vec4(self: const Shader, name: text, x: float, y: float, z: float, w: float)
+fn shader(self: const Window, vertex: text, fragment: text) -> Shader?
+fn sprite(
+fn sprites(self: const Window, atlas: const Canvas, cols: integer, rows: integer) -> Sprites?
+fn swap(self: const Window)
+fn text_texture(self: const Window, font: const Font, content: text, size: float, color: integer) -> Texture
+fn texture_from(self: const Window, image: const Canvas) -> Texture
+fn texture(self: const Window, width: integer, height: integer) -> Texture
+fn update(self: const GpuMesh, data: const vector<single>)
+fn update(self: const InstanceBuffer, data: const vector<single>)
+fn upload(self: const Window, data: const vector<single>, stride: integer) -> GpuMesh
+fn upsert(
+fn viewport(self: const Window, x: integer, y: integer, width: integer, height: integer)
 fn vline(self: Canvas, vx: integer, vy0: integer, vy1: integer, color: integer)
+fn width(self: const Texture) -> integer
+fn width(self: const Window) -> integer
 struct Canvas
 struct Coord
-struct GroupVboSet
-struct Painter2D
-struct Renderer
-struct SpriteSheet
+struct Font
+struct Framebuffer
+struct Glyph
+struct GpuMesh
+struct GroupMeshes
+struct InstanceBuffer
+struct Painter
+struct Shader
+struct Sprites
+struct Texture
+struct Window
 ```
 
-## `hex_grid` 0.1.2
+## `hex_grid` 0.1.4
 
 ```
 const GRID_LEN  = 1.0;   // distance between adjacent cells = the distance-clock unit
@@ -192,7 +252,7 @@ fn px_to_cell(x: float, y: float) -> (integer, integer)
 fn px_to_hex(x: float, y: float) -> (integer, integer)
 ```
 
-## `hex_terrain` 0.1.3
+## `hex_terrain` 0.1.8
 
 ```
 fn terrain_blend_h(t: Terrain, p: TerrainParams, x: float, y: float) -> float
@@ -223,26 +283,37 @@ struct TerrainSurf
 struct TerrainType
 ```
 
-## `random` 0.3.3
+## `random` 0.5.2
 
 ```
+fn bits31(self: Rand32) -> i32
+fn get32(self: Rand32, lo: i32, hi: i32) -> i32?
 fn get(self: RandStream, lo: integer, hi: integer) -> integer?
+fn indices32(self: Rand32, n: i32) -> vector<i32>
 fn indices(self: RandStream, n: integer) -> vector<integer>
-fn rand_indices(n: integer) -> vector<integer>;
-fn rand(lo: integer, hi: integer) -> integer?;
+fn rand32(lo: i32, hi: i32) -> i32?
+fn rand32_seed(seed: integer)
+fn rand32_unit() -> single
+fn rand_below(m: integer) -> integer;
+fn rand_indices(n: integer) -> vector<integer>
+fn rand(lo: integer, hi: integer) -> integer?
 fn rand_seed(seed: integer);
+fn seed32(seed: integer) -> Rand32
+fn seed_hw() -> integer?
 fn seed_stream(seed: integer) -> RandStream
+fn unit32(self: Rand32) -> single
+struct Rand32
 struct RandStream
 ```
 
-## `glb` 0.1.3
+## `glb` 0.1.8
 
 ```
 fn save_glb(m: Mesh, path: text)
 fn save_scene_glb(sc: Scene, path: text)
 ```
 
-## `hex_field` 0.1.3
+## `hex_field` 0.1.11
 
 ```
 const EDGE_MAT_MAX = 255;
@@ -293,7 +364,7 @@ fn edge_surf(e: EdgeSet, qa: integer, ra: integer, qb: integer, rb: integer) -> 
 fn form_circle(w: integer, radius: float) -> HexSet
 fn form_hexdisk(w: integer, n: integer) -> HexSet
 fn form_octagon(w: integer, apothem: float) -> HexSet
-fn height_get(f: Heights, q: integer, r: integer) -> float
+fn height_get(f: const Heights, q: integer, r: integer) -> float
 fn height_set(f: Heights, q: integer, r: integer, z: float)
 fn heights_new(q0: integer, r0: integer, w: integer, h: integer) -> Heights
 fn hex_at(px: float, py: float) -> (integer, integer)
@@ -308,7 +379,7 @@ fn hexset_q0(s: HexSet) -> integer
 fn hexset_r0(s: HexSet) -> integer
 fn hexset_set(s: HexSet, q: integer, r: integer, on: boolean)
 fn hexset_w(s: HexSet) -> integer
-fn label_get(f: Labels, q: integer, r: integer) -> integer
+fn label_get(f: const Labels, q: integer, r: integer) -> integer
 fn label_set(f: Labels, q: integer, r: integer, v: integer)
 fn labels_new(q0: integer, r0: integer, w: integer, h: integer) -> Labels
 fn lattice_k(q: integer, r: integer) -> integer
@@ -334,6 +405,9 @@ fn outline_count(v: VecMap) -> integer
 fn shoelace2(v: VecMap, i: integer) -> integer
 fn shoelace_total(v: VecMap) -> integer
 fn stencil_from(s: HexSet, hz: Heights, lb: Labels, has_h: boolean, has_l: boolean) -> Stencil
+fn stencil_has_edges(st: const Stencil) -> boolean
+fn stencil_has_heights(st: const Stencil) -> boolean
+fn stencil_has_labels(st: const Stencil) -> boolean
 fn stencil_mirror(st: Stencil) -> Stencil
 fn stencil_rotate_deg(st: Stencil, deg: integer) -> Stencil
 fn stencil_rotate(st: Stencil, n: integer) -> Stencil
@@ -345,9 +419,11 @@ fn stencil_unstamp(
 fn stencil_unstamp_all(
 fn stencil_unstamp_layers(
 fn stencil_with_edges(s: HexSet, hz: Heights, lb: Labels, eg: EdgeSet,
+fn trace_edges(s: HexSet) -> EdgeMap
 fn trace(s: HexSet) -> VecMap
 fn validate(v: VecMap, cells: integer) -> integer
 fn wall_count(s: HexSet) -> integer
+struct EdgeMap
 struct EdgeSet
 struct Heights
 struct HexDoc
@@ -358,7 +434,7 @@ struct Stencil
 struct VecMap
 ```
 
-## `hex_edge` 0.2.1
+## `hex_edge` 0.2.7
 
 ```
 const FEAT_DOOR     = 1;
@@ -413,7 +489,7 @@ struct Materials
 struct Surfaces
 ```
 
-## `hex_way` 0.1.2
+## `hex_way` 0.1.7
 
 ```
 const WAY_ARC      = 2;
@@ -441,7 +517,7 @@ fn way_surfaces(t: Track, sf: Surfaces) -> integer
 struct Track
 ```
 
-## `hex_roof` 0.1.5
+## `hex_roof` 0.1.10
 
 ```
 const ROOF_CONE    = 2;
