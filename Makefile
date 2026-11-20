@@ -343,9 +343,9 @@ shot:
 
 # ── Pixel probes (Xvfb; plan #7 P0) ───────────────────────────────────
 # Render side: gpushot (the R1+R3 scene) + every src/*probe.loft, each a
-# deterministic scene -> gl_screenshot. Assert side: tools/probe.py per
+# deterministic scene -> Window.capture. Assert side: tools/probe.py per
 # probes/*.probe spec (point colors / ramps / golden diffs); exit 1 on FAIL.
-# gl_screenshot reads the GL framebuffer — reliable under Xvfb (the
+# Window.capture reads the GL framebuffer — reliable under Xvfb (the
 # positional caveat applies only to `make shot`'s X11 window grab).
 
 # ⚠ THE GATE'S SCENES ARE NAMED, NOT GLOBBED — `src/*probe.loft` is not the gate.

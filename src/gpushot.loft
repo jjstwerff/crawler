@@ -2,7 +2,7 @@
 // camera mat4, FOV applied on the GPU via a tiny per-hex visibility texture (R channel =
 // brightness: 0 unseen, 0.45 remembered, 1.0 visible). The static VBO bakes each hex's
 // visibility-texel UV into the unused NORMAL slot (loc1); only the small texture updates
-// per frame. Dev harness; render -> gl_screenshot -> read PNG. Run under xvfb.
+// per frame. Dev harness; render -> Window.capture -> read PNG. Run under xvfb.
 
 use graphics;
 use hex_grid::*;
@@ -96,43 +96,47 @@ fn build_world_mesh(s: Sim) -> vector<single> {
 }
 
 // Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
-fn build_vis_texture(s: Sim) -> integer {
-  pix: vector<integer> = [];
+fn build_vis_texture(win: const graphics::Window, s: Sim) -> graphics::Texture {
+  pix: vector<u32> = [];
   for gr in 0..s.lh {
     for gq in 0..s.lw {
       st = sim_hex_state(s, s.qmin + gq, s.rmin + gr);
       b = 0;
       if st == 2 { b = 255; } else if st == 1 { b = 115; }
-      pix += [graphics::rgba(b, 0, 0, 255)];
+      pix += [graphics::rgba(b, 0, 0, 255) & 4294967295];
     }
   }
-  graphics::gl_upload_canvas(pix, s.lw, s.lh)
+  win.texture_from(graphics::Canvas { width: s.lw, height: s.lh, data: pix })
 }
 
 fn main() {
-  if !graphics::gl_create_window(800, 600, "gpu r1+r3") {
+  win = graphics::open_window(800, 600, "gpu r1+r3");
+  if win == null {
     println("gpushot: no window");
     return;
   }
-  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  win.disable(graphics::GL_DEPTH_TEST);
 
   s = sim_new_gen(1337, 1);
   sim_compute_fov(s);
   buf = build_world_mesh(s);
-  vao = graphics::gl_upload_vertices(buf, 10);
+  vao = win.upload(buf, 10);
   nverts = len(buf) / 10 ?? 0;
-  vistex = build_vis_texture(s);
-  prog = graphics::gl_create_shader(VERT, FRAG);
+  vistex = build_vis_texture(win, s);
+  prog = win.shader(VERT, FRAG);
+  if prog == null {
+    println("gpushot: the shader did not compile");
+    return;
+  }
   mat = cam_mat4(s.px, s.py, s.heading);
 
-  graphics::gl_poll_events();
-  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
-  graphics::gl_use_shader(prog);
-  graphics::gl_set_uniform_mat4(prog, "uMVP", mat);
-  graphics::gl_bind_texture(vistex, 0);
-  graphics::gl_set_uniform_int(prog, "uVis", 0);
-  graphics::gl_draw(vao, nverts);
-  ok = graphics::gl_screenshot(800, 600, "/tmp/gpu_r3.png");
-  println("gpushot: vao={vao} prog={prog} nverts={nverts} vistex={vistex} shot={ok}");
-  graphics::gl_destroy_window();
+  _alive = win.poll();
+  win.clear(graphics::rgba(14, 16, 24, 255));
+  prog.set_mat4("uMVP", mat);
+  vistex.bind(0);
+  prog.set_int("uVis", 0);
+  vao.draw(prog);   // every vertex: nverts of them
+  ok = win.capture().save_png("/tmp/gpu_r3.png");
+  println("gpushot: nverts={nverts} vistex={vistex.width()}x{vistex.height()} shot={ok}");
+  win.close();
 }

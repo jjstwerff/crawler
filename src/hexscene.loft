@@ -101,7 +101,7 @@ pub fn unproject_plane(c: SceneCamera, sx: float, sy: float, gz: float) -> (floa
   (c.cx + dx * t, c.cy + dy * t, t)
 }
 
-// The world->clip matrix the GPU gets, column-major for `gl_set_uniform_mat4`.
+// The world->clip matrix the GPU gets, column-major for `Shader.set_mat4`.
 //
 // It is built here, beside `project`, and gated to AGREE with it (`scenetest`). That
 // agreement is the whole of I-STAND on the render side: if the shader used a matrix
@@ -178,7 +178,7 @@ pub struct ActorView {
 //
 // Appends 6 vertices (stride 6: xyz + uv0) per actor into `buf`. Returns the vertex count.
 // Deliberately writes into a caller-owned buffer rather than returning one: loft#392 makes
-// a `fn -> vector<single>` reaching gl_upload_vertices abort the program silently.
+// a `fn -> vector<single>` reaching `Window.upload` abort the program silently.
 pub fn present_boards(c: SceneCamera, views: vector<ActorView>, buf: vector<single>) -> integer {
   (rx, ry, rz) = cam_right(c);
   n = 0;

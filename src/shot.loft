@@ -1,4 +1,4 @@
-// shot — render one framed frame and capture it via gl_screenshot, so the
+// shot — render one framed frame and capture it via Window.capture, so the
 // glyph/text rendering can be verified headlessly (run under xvfb). Not part
 // of the game; a development aid.
 
@@ -9,25 +9,28 @@ use wallgeo::*;
 use view::*;
 
 fn main() {
-  if !graphics::gl_create_window(800, 600, "story — shot") {
+  win = graphics::open_window(800, 600, "story — shot");
+  if win == null {
     println("shot: no window");
     return;
   }
-  painter = graphics::create_painter_2d(800.0, 600.0);
-  graphics::gl_disable(graphics::GL_DEPTH_TEST);
-  graphics::gl_enable(graphics::GL_BLEND);
-  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  painter = win.painter() ?? return;
+  win.disable(graphics::GL_DEPTH_TEST);
+  win.enable(graphics::GL_BLEND);
+  win.blend(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
 
   s = sim_new_gen(1337, 5);
   walls = build_walls(s);
-  hud = build_hud(s);
-  wprog = make_world_shader_inst();   // R7 instanced terrain shader
-  wvao = build_hex_vao();             // base hexagon (built once)
-  wivbo = build_world_ivbo(wvao, s);  // floor instances (shot has one level — no update)
-  wallprog = make_wall_shader();
-  postprog = make_post_shader();
-  (postfbo, posttex) = make_post_target();
-  wallvao = build_walls_vbo(s, walls);
+  hud = build_hud(win, s);
+  wprog = make_world_shader_inst(win) ?? return;   // R7 instanced terrain shader
+  wvao = build_hex_vao(win);               // base hexagon (built once)
+  // floor instances (shot has one level — no update). Held, not used again: the mesh
+  // reads the buffer at every draw, so it must live as long as the mesh does.
+  _wivbo = build_world_ivbo(win, wvao, s);
+  wallprog = make_wall_shader(win) ?? return;
+  postprog = make_post_shader(win) ?? return;
+  post = make_post_target(win);
+  wallvao = build_walls_vbo(win, s, walls);
   walln = len(walls) * 6;
   sim_award_xp(s, 35);   // (shot only) show the XP bar partway + a higher CL
 
@@ -45,13 +48,13 @@ fn main() {
   sim_compute_fov(s);   // FOV gates the view now; without this everything renders hidden
 
   for _ in 0..2 {
-    graphics::gl_poll_events();
-    view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, postfbo, posttex);
-    graphics::gl_swap_buffers();
+    _alive = win.poll();
+    view_draw(win, painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, post);
+    win.swap();
   }
-  graphics::gl_poll_events();
-  view_draw(painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, postfbo, posttex);
-  ok = graphics::gl_screenshot(800, 600, "/tmp/story_frame.png");
+  _alive2 = win.poll();
+  view_draw(win, painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, post);
+  ok = win.capture().save_png("/tmp/story_frame.png");   // the frame just drawn: before any swap
   println("shot: screenshot ok={ok}");
-  graphics::gl_destroy_window();
+  win.close();
 }

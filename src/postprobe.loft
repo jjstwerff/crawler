@@ -6,24 +6,24 @@ use graphics;
 use view::*;
 
 fn main() {
-  if !graphics::gl_create_window(800, 600, "post r6 probe") {
+  win = graphics::open_window(800, 600, "post r6 probe");
+  if win == null {
     println("postprobe: no window");
     return;
   }
-  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  win.disable(graphics::GL_DEPTH_TEST);
 
-  postprog = make_post_shader();
-  (postfbo, posttex) = make_post_target();
+  postprog = make_post_shader(win) ?? return;
+  post = make_post_target(win);
 
-  graphics::gl_poll_events();
-  graphics::gl_bind_framebuffer(postfbo);
-  graphics::gl_clear(graphics::rgba(128, 128, 128, 255));   // the uniform scene
-  graphics::gl_bind_framebuffer(0);
-  graphics::gl_use_shader(postprog);
-  graphics::gl_bind_texture(posttex, 0);
-  graphics::gl_set_uniform_int(postprog, "uScene", 0);
-  graphics::gl_draw_fullscreen_quad();
-  ok = graphics::gl_screenshot(800, 600, "/tmp/probe_post.png");
+  _alive = win.poll();
+  win.render_to(post.fbo);
+  win.clear(graphics::rgba(128, 128, 128, 255));   // the uniform scene
+  win.render_to_window();
+  post.tex.bind(0);
+  postprog.set_int("uScene", 0);
+  post.quad.draw(postprog);
+  ok = win.capture().save_png("/tmp/probe_post.png");
   println("postprobe: shot={ok}");
-  graphics::gl_destroy_window();
+  win.close();
 }
