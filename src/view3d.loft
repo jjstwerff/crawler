@@ -81,7 +81,7 @@ void main() {{
 }}
 `;
 
-pub fn make_view3d_shader(win: const graphics::Window) -> graphics::Shader? {
+pub fn make_view3d_shader(win: graphics::Window) -> graphics::Shader? {
   win.shader(V3VERT, V3FRAG)
 }
 
@@ -116,7 +116,7 @@ fn kind_rgb3(k: integer) -> (float, float, float) {
 // TEX_SX=4 is 0.19 m of world. Nearest would keep the claim literal at every fragment and
 // show 19 cm blocks underfoot; the blend is the better picture and the error is stated
 // rather than hidden.
-pub fn build_world_texture3d(win: const graphics::Window, s: Sim) -> graphics::Texture {
+pub fn build_world_texture3d(win: graphics::Window, s: Sim) -> graphics::Texture {
   t = build_world_tex(s);
   pal: vector<integer> = [];
   for pk in -1..14 {
@@ -176,7 +176,7 @@ pub struct Scene3d {
 // returned from a helper. loft#392: a `fn(...) -> vector<single>` whose result reaches
 // the upload SILENTLY ABORTS the program once the real pipeline is in context —
 // no output, no error, exit 0. This shape is the documented workaround, not a style choice.
-pub fn build_scene3d(win: const graphics::Window, s: Sim) -> Scene3d {
+pub fn build_scene3d(win: graphics::Window, s: Sim) -> Scene3d {
   build_scene3d_arc(win, s, true)
 }
 
@@ -184,7 +184,7 @@ pub fn build_scene3d(win: const graphics::Window, s: Sim) -> Scene3d {
 // the facets they used to be. Diffing the two frames answers "which pixels does the arc
 // change?" — and that is a stricter control than looking at one picture, because a renderer
 // that curved everything would show every wall in the diff, not only the towers.
-pub fn build_scene3d_arc(win: const graphics::Window, s: Sim, usearc: boolean) -> Scene3d {
+pub fn build_scene3d_arc(win: graphics::Window, s: Sim, usearc: boolean) -> Scene3d {
   buf: vector<single> = [];
   n = 0;
   zf = 0.0 as single;
@@ -393,7 +393,7 @@ pub fn build_scene3d_arc(win: const graphics::Window, s: Sim, usearc: boolean) -
 // use and needs no shader branch of its own.
 //
 // Same inline-buffer rule as `build_scene3d` (loft#392).
-pub fn build_far3d(win: const graphics::Window, s: Sim) -> Scene3d? {
+pub fn build_far3d(win: graphics::Window, s: Sim) -> Scene3d? {
   if s.depth != 0 { return null; }
   buf: vector<single> = [];
   n = 0;
@@ -485,14 +485,15 @@ pub fn view3d_camera(s: Sim, vw: float, vh: float) -> hexscene::SceneCamera {
 // The board buffer, created ONCE and re-uploaded each frame with `GpuMesh.update` rather
 // than recreated — a mesh per frame would churn GL objects for no gain. Seeded with one
 // degenerate quad so the mesh is valid before any actor exists.
-pub fn make_actor_vbo(win: const graphics::Window) -> graphics::GpuMesh {
+pub fn make_actor_vbo(win: graphics::Window) -> graphics::GpuMesh {
   seed: vector<single> = [];
   z = 0.0 as single;
   for _ in 0..36 { seed += [z]; }
   win.upload(seed, 6)
 }
 
-pub fn view3d_actors(s: Sim, prog: const graphics::Shader, avbo: const graphics::GpuMesh, vw: float, vh: float) -> integer {
+pub fn view3d_actors(win: graphics::Window, s: Sim, prog: graphics::Shader, avbo: graphics::GpuMesh,
+                     wtex: const graphics::Texture, vw: float, vh: float) -> integer {
   c = view3d_camera(s, vw, vh);
   texs: vector<integer> = [];
   views = actors_collect(s, texs);
@@ -500,7 +501,7 @@ pub fn view3d_actors(s: Sim, prog: const graphics::Shader, avbo: const graphics:
   n = present_boards(c, views, buf);          // inline: never route a vector<single>
   if n > 0 {                                  //   through a returning helper (loft#392)
     avbo.update(buf);   // the mesh's vertex count follows the new data: exactly the n boards
-    avbo.draw(prog);
+    avbo.draw(win, prog, wtex);
   }
   n
 }
@@ -510,7 +511,7 @@ pub fn view3d_actors(s: Sim, prog: const graphics::Shader, avbo: const graphics:
 // the world rather than a shader constant nobody can price (SCALE.md's rule).
 FAR_VIS_M = 25000.0;
 
-pub fn view3d_frame(win: const graphics::Window, s: Sim, prog: const graphics::Shader,
+pub fn view3d_frame(win: graphics::Window, s: Sim, prog: graphics::Shader,
                     near: const Scene3d, wtex: const graphics::Texture,
                     vw: float, vh: float) {
   view3d_frame_far(win, s, prog, near, null, wtex, vw, vh);
@@ -518,7 +519,7 @@ pub fn view3d_frame(win: const graphics::Window, s: Sim, prog: const graphics::S
 
 // `near` or `far` null draws without that half — shot3d's negative controls.
 
-pub fn view3d_frame_far(win: const graphics::Window, s: Sim, prog: const graphics::Shader,
+pub fn view3d_frame_far(win: graphics::Window, s: Sim, prog: graphics::Shader,
                         near: const Scene3d?, far: const Scene3d?,
                         wtex: const graphics::Texture, vw: float, vh: float) {
   // Depth state BEFORE the clear: `clear` is documented as clearing colour and says
@@ -542,11 +543,9 @@ pub fn view3d_frame_far(win: const graphics::Window, s: Sim, prog: const graphic
   prog.set_mat4("uMVP", m);
   prog.set_vec3("uFog", 0.376, 0.439, 0.541);
   prog.set_float("uHaze", 1.0 / m_to_wu(FAR_VIS_M) ?? 0.0);
-  wtex.bind(0);
-  prog.set_int("uWorld", 0);
   // The far field first: it is behind the near window everywhere except the one-hex band
   // they share, and the depth test settles that band rather than a draw order guess.
-  if far != null && far.verts > 0 { far.mesh.draw(prog); }
-  if near != null && near.verts > 0 { near.mesh.draw(prog); }
+  if far != null && far.verts > 0 { far.mesh.draw(win, prog, wtex); }
+  if near != null && near.verts > 0 { near.mesh.draw(win, prog, wtex); }
   win.disable(graphics::GL_DEPTH_TEST);
 }

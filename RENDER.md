@@ -40,8 +40,10 @@ a showcase demonstrates judgment too; immediate mode is the right tool there.
 
 > **Names below are graphics 0.9's.** Since the move to graphics 0.13 each handle is a value
 > (`Window`, `Shader`, `GpuMesh`, `Texture`, `Framebuffer`, `Painter`) and each call a method on
-> it; the library's README § *Moving from 0.9* maps every name here to its 0.13 form, and
-> `src/view.loft` is the worked example.
+> it; the library's README § *Moving from 0.9* maps every name here to its 0.13 form.  Since
+> graphics 0.14 the window holds its own state, so a draw names its window and its textures
+> (`mesh.draw(win, shader, texture)`; no `bind`, no sampler `set_int`) and a function that draws
+> takes a `Window`, not a `const Window`.  `src/view.loft` is the worked example.
 
 Present and proven in crawler: `gl_upload_vertices(data, stride) -> vao` (persistent
 VBO), `gl_draw` / `gl_draw_mode` / `gl_draw_elements`, `gl_create_shader` + mat4/vec3/

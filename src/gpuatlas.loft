@@ -46,7 +46,7 @@ fn main() {
   // Draw every atlas sprite in a row by index.
   for i in 0..len(GLYPHS) {
     x = 30.0 + (i as float) * 46.0;
-    painter.sprite(sheet, x, 280.0, 40.0, 40.0, i);
+    painter.sprite(win, sheet, x, 280.0, 40.0, 40.0, i);
   }
   ok = win.capture().save_png("/tmp/gpu_atlas.png");
   println("gpuatlas: atlas={sheet.texture.width()}x{sheet.texture.height()} cells={sheet.cols}x{sheet.rows} shot={ok}");

@@ -23,7 +23,7 @@ struct Rig {
   avbo: graphics::GpuMesh,
 }
 
-fn shot_at(s: Sim, name: text, g: const Rig, vw: float, vh: float) {
+fn shot_at(s: Sim, name: text, g: Rig, vw: float, vh: float) {
   shot_far(s, name, g, vw, vh, true, true);
 }
 
@@ -31,12 +31,12 @@ fn shot_at(s: Sim, name: text, g: const Rig, vw: float, vh: float) {
 // beyond the window not drawn. A diff of the two PNGs is what proves the far mesh is
 // contributing pixels — 108 000 vertices that change nothing look exactly like 108 000
 // vertices that were never uploaded.
-fn shot_far(s: Sim, name: text, g: const Rig, vw: float, vh: float,
+fn shot_far(s: Sim, name: text, g: Rig, vw: float, vh: float,
             usefar: boolean, usenear: boolean) {
   shot_arc(s, name, g, vw, vh, usefar, usenear, true);
 }
 
-fn shot_arc(s: Sim, name: text, g: const Rig, vw: float, vh: float,
+fn shot_arc(s: Sim, name: text, g: Rig, vw: float, vh: float,
             usefar: boolean, usenear: boolean, usearc: boolean) {
   (pq, pr) = sim_player_hex(s);
   near = build_scene3d_arc(g.win, s, usearc);
@@ -50,7 +50,7 @@ fn shot_arc(s: Sim, name: text, g: const Rig, vw: float, vh: float,
   else if usenear { view3d_frame_far(g.win, s, g.prog, near, null, wtex, vw, vh); }
   else if usefar { view3d_frame_far(g.win, s, g.prog, null, far, wtex, vw, vh); }
   else { view3d_frame_far(g.win, s, g.prog, null, null, wtex, vw, vh); }
-  na = view3d_actors(s, g.prog, g.avbo, vw, vh);
+  na = view3d_actors(g.win, s, g.prog, g.avbo, wtex, vw, vh);
   ok = g.win.capture().save_png("/tmp/{name}.png");
   hz = horizon_y(view3d_camera(s, vw, vh));
   println("{name}: hex=({pq},{pr}) scene_verts={sn} far_verts={fvn} actor_verts={na} horizon_y={hz} png={ok}");

@@ -5,7 +5,7 @@ version = "0.0.0"
 loft    = ">=0.8"
 
 [dependencies]
-graphics    = ">=0.13.3"    # the object API (Window/Shader/GpuMesh/Texture/Font); 0.5-0.9 are deprecated
+graphics    = ">=0.14.0"    # the window holds its own state: a draw names its window and its textures; 0.5-0.9 are deprecated
 hex_grid    = ">=0.1"
 hex_terrain = ">=0.1"
 random      = ">=0.2"       # the source already uses 0.2.0's RandStream

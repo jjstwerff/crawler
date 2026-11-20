@@ -51,8 +51,8 @@ fn obs_rebuild(w: ObsWorld) {
   w.walls = build_walls(w.s);
   w.hud = build_hud(w.win, w.s);
   // R7 instanced floor: the base hexagon is built once (in main); the first level
-  // binds a per-hex instance buffer to it and each later one re-uploads that buffer
-  // in place (plan #7 P6).
+  // makes the per-hex instance buffer its draw is given, and each later one re-uploads
+  // that buffer in place (plan #7 P6).
   ivbo = w.wivbo;
   if ivbo == null {
     w.wivbo = build_world_ivbo(w.win, w.wvao, w.s);
@@ -105,9 +105,11 @@ fn obs_tick(w: ObsWorld) {
       w.ml = build_msglog(w.win, w.s, w.hud.font);   // the old lines' textures go with the old vector
       w.last_total = tot;
     }
-    view_draw(w.win, w.painter, w.s, w.hud, w.wprog, w.wvao, w.wallprog, wallvao, w.walln,
+    wivbo = w.wivbo;
+    if wivbo == null { return; }   // no level yet: obs_rebuild makes the floor's records
+    view_draw(w.win, w.painter, w.s, w.hud, w.wprog, w.wvao, wivbo, w.wallprog, wallvao, w.walln,
               w.postprog, w.post);
-    draw_msglog(w.painter, w.s, w.hud, w.ml);
+    draw_msglog(w.win, w.painter, w.s, w.hud, w.ml);
     w.win.swap();
   }
 }

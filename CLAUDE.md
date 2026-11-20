@@ -293,7 +293,7 @@ editor as the second consumer*).
 
 **Full survival guide, bug-filing procedure and toolchain/library locations: `LOFT-NOTES.md`.**
 Crawler is a CONSUMER — we never fix loft here; file it (standing grant: no per-issue
-authorization needed), work around it, keep moving. `graphics` must be **>=0.13.3** (the object API; 0.5-0.9 are deprecated and do not install); the
+authorization needed), work around it, keep moving. `graphics` must be **>=0.14.0** (the window holds its own state, so a function that draws takes a `Window`, not a `const Window`, and a draw names its window and its textures: `mesh.draw(win, shader, texture)`; 0.5-0.9 are deprecated and do not install); the
 toolchain version is **not written here** — `make test` stamps it (version + md5 + whether it
 is `../loft`'s working-tree build), because it changes under you and `--version` is not
 provenance. The short list:

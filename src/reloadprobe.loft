@@ -11,13 +11,13 @@ struct Probe {
   painter: graphics::Painter,
 }
 
-fn tick_draw(p: const Probe) {
+fn tick_draw(p: Probe) {
   if !p.win.poll() || p.win.key_down(27) {
     engine_host::client_stop();
     return;
   }
   p.win.clear(graphics::rgba(10, 10, 10, 255));
-  p.painter.rect(200.0, 150.0, 400.0, 300.0, 0.90, 0.15, 0.15, 1.0);
+  p.painter.rect(p.win, 200.0, 150.0, 400.0, 300.0, 0.90, 0.15, 0.15, 1.0);
   p.win.swap();
 }
 

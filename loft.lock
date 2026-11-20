@@ -4,11 +4,11 @@ schema_version = 1
 
 [[package]]
 name = "graphics"
-version = "0.13.3"
-url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/graphics-v0.13.3/graphics-0.13.3.tar.gz"
-sha256 = "597271114aa10fdfd5ba3e0e7459e68dbe785c2b242c42a657c893cdd367216f"
+version = "0.14.0"
+url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/graphics-v0.14.0/graphics-0.14.0.tar.gz"
+sha256 = "74b69ab360ff302877844e97fe343f7c89a2549ae930f4215d7902c86f86d0e8"
 source = "registry"
-deps = ["glb", "imaging", "mesh3d"]
+deps = ["glb", "gpu", "gpu_gl", "imaging", "mesh3d"]
 
 [[package]]
 name = "glb"
@@ -27,9 +27,9 @@ source = "registry"
 
 [[package]]
 name = "imaging"
-version = "0.5.3"
-url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/imaging-v0.5.3/imaging-0.5.3.tar.gz"
-sha256 = "81372433cb03a84904bfaefcd4fdb360c7e5cddf4c0fffd81e5ac99ca8c79d12"
+version = "0.5.4"
+url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/imaging-v0.5.4/imaging-0.5.4.tar.gz"
+sha256 = "d0a6f9e6ed2e7c3a7c580baf7a1ca7b534dbec75a0ec6385ba8e64a7e15acb0c"
 source = "registry"
 
 [[package]]
@@ -84,3 +84,18 @@ url = "https://github.com/loft-lang/loft-libs-world/releases/download/hex_roof-v
 sha256 = "c13b59fb7417c5fc06f65c28544101a8906a3fb33591da3e1168e67f60d0eec1"
 source = "registry"
 deps = ["hex_field", "hex_way"]
+
+[[package]]
+name = "gpu"
+version = "0.4.1"
+url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/gpu-v0.4.1/gpu-0.4.1.tar.gz"
+sha256 = "fcb11eaf7f35e13ea2f529013aa1ff36999d4d68fa97bd432fc08c790a308c99"
+source = "registry"
+
+[[package]]
+name = "gpu_gl"
+version = "0.3.2"
+url = "https://github.com/loft-lang/loft-libs-graphics/releases/download/gpu_gl-v0.3.2/gpu_gl-0.3.2.tar.gz"
+sha256 = "a89f2dfc2487b1ffc227fc3842eb1c7990a2a7ce7803b7ffb5b4344ccee17383"
+source = "registry"
+deps = ["gpu"]
