@@ -96,7 +96,7 @@ fn build_world_mesh(s: Sim) -> vector<single> {
 }
 
 // Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
-fn build_vis_texture(win: const graphics::Window, s: Sim) -> graphics::Texture {
+fn build_vis_texture(win: graphics::Window, s: Sim) -> graphics::Texture {
   pix: vector<u32> = [];
   for gr in 0..s.lh {
     for gq in 0..s.lw {
@@ -133,9 +133,7 @@ fn main() {
   _alive = win.poll();
   win.clear(graphics::rgba(14, 16, 24, 255));
   prog.set_mat4("uMVP", mat);
-  vistex.bind(0);
-  prog.set_int("uVis", 0);
-  vao.draw(prog);   // every vertex: nverts of them
+  vao.draw(win, prog, vistex);   // every vertex: nverts of them
   ok = win.capture().save_png("/tmp/gpu_r3.png");
   println("gpushot: nverts={nverts} vistex={vistex.width()}x{vistex.height()} shot={ok}");
   win.close();

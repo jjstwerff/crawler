@@ -70,17 +70,13 @@ fn main() {
   _alive = win.poll();
   win.clear(graphics::rgba(14, 16, 24, 255));
   wprog.set_mat4("uMVP", mat);
-  vistex.bind(0);
-  wprog.set_int("uVis", 0);
-  wvao.draw(wprog);   // every vertex of the fat mesh: 18 per hex
+  wvao.draw(win, wprog, vistex);   // every vertex of the fat mesh: 18 per hex
   // R5 wall strokes over the terrain (same camera + vis texture).
   wallprog = make_wall_shader(win) ?? return;
   wallvao = build_walls_vbo(win, s, walls);
   wallprog.set_mat4("uMVP", mat);
-  vistex.bind(0);
-  wallprog.set_int("uVis", 0);
   wallprog.set_vec3("uColor", 0.92, 0.82, 0.45);
-  wallvao.draw(wallprog);   // 6 vertices per segment
+  wallvao.draw(win, wallprog, vistex);   // 6 vertices per segment
   ok = win.capture().save_png("/tmp/probe_world.png");
   println("worldprobe: shot={ok} heading={s.heading} player=({s.px},{s.py})");
   win.close();

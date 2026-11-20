@@ -20,9 +20,7 @@ fn main() {
   win.render_to(post.fbo);
   win.clear(graphics::rgba(128, 128, 128, 255));   // the uniform scene
   win.render_to_window();
-  post.tex.bind(0);
-  postprog.set_int("uScene", 0);
-  post.quad.draw(postprog);
+  post.quad.draw(win, postprog, post.tex);
   ok = win.capture().save_png("/tmp/probe_post.png");
   println("postprobe: shot={ok}");
   win.close();

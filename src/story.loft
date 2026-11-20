@@ -122,13 +122,13 @@ struct GameWorld {
 // flags a frozen window and polled input has nowhere to land. Between boot
 // phases: feed the WM, draw a font-free progress bar (the font itself loads in
 // phase 3), swap. Boot LATENCY stays (inherent); UNRESPONSIVENESS goes.
-fn boot_pump(win: const graphics::Window, painter: const graphics::Painter, step: integer, total: integer) {
+fn boot_pump(win: graphics::Window, painter: graphics::Painter, step: integer, total: integer) {
   _alive = win.poll();
   win.clear(graphics::rgba(14, 16, 24, 255));
   frac = (step as float) / (total as float) ?? 0.0;
-  painter.rect(250.0, 290.0, 300.0, 20.0, 0.10, 0.10, 0.22, 1.0);
+  painter.rect(win, 250.0, 290.0, 300.0, 20.0, 0.10, 0.10, 0.22, 1.0);
   if frac > 0.0 {
-    painter.rect(250.0, 290.0, 300.0 * frac, 20.0, 0.45, 0.45, 0.85, 1.0);
+    painter.rect(win, 250.0, 290.0, 300.0 * frac, 20.0, 0.45, 0.45, 0.85, 1.0);
   }
   win.swap();
 }
@@ -376,14 +376,14 @@ fn game_tick(w: GameWorld) {
       vpw = w.win.width() as float;
       vph = w.win.height() as float;
       view3d_frame(w.win, w.s, w.s3prog, w.s3vao, w.s3wtex, vpw, vph);
-      view3d_actors(w.s, w.s3prog, w.s3actor, vpw, vph);
+      view3d_actors(w.win, w.s, w.s3prog, w.s3actor, w.s3wtex, vpw, vph);
     } else {
-      view_draw(w.win, w.painter, w.s, w.hud, w.wprog, w.wvao, w.wallprog, w.wallvao, w.walln, w.postprog, w.post);
-      draw_msglog(w.painter, w.s, w.hud, w.ml);
+      view_draw(w.win, w.painter, w.s, w.hud, w.wprog, w.wvao, w.wivbo, w.wallprog, w.wallvao, w.walln, w.postprog, w.post);
+      draw_msglog(w.win, w.painter, w.s, w.hud, w.ml);
     }
-    if w.page_open { draw_charpage(w.painter, w.s, w.hud, w.pg); }
-    else if w.inv_open { draw_invpage(w.painter, w.s, w.hud, w.pg_inv, w.inv_cursor); }
-    else if w.crys_open { draw_crystalpage(w.painter, w.s, w.hud, w.pg_crys, w.crys_col, w.crys_cur); }
+    if w.page_open { draw_charpage(w.win, w.painter, w.s, w.hud, w.pg); }
+    else if w.inv_open { draw_invpage(w.win, w.painter, w.s, w.hud, w.pg_inv, w.inv_cursor); }
+    else if w.crys_open { draw_crystalpage(w.win, w.painter, w.s, w.hud, w.pg_crys, w.crys_col, w.crys_cur); }
     w.win.swap();
   }
   }

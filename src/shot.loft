@@ -26,7 +26,7 @@ fn main() {
   wvao = build_hex_vao(win);               // base hexagon (built once)
   // floor instances (shot has one level — no update). Held, not used again: the mesh
   // reads the buffer at every draw, so it must live as long as the mesh does.
-  _wivbo = build_world_ivbo(win, wvao, s);
+  wivbo = build_world_ivbo(win, wvao, s);
   wallprog = make_wall_shader(win) ?? return;
   postprog = make_post_shader(win) ?? return;
   post = make_post_target(win);
@@ -49,11 +49,11 @@ fn main() {
 
   for _ in 0..2 {
     _alive = win.poll();
-    view_draw(win, painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, post);
+    view_draw(win, painter, s, hud, wprog, wvao, wivbo, wallprog, wallvao, walln, postprog, post);
     win.swap();
   }
   _alive2 = win.poll();
-  view_draw(win, painter, s, hud, wprog, wvao, wallprog, wallvao, walln, postprog, post);
+  view_draw(win, painter, s, hud, wprog, wvao, wivbo, wallprog, wallvao, walln, postprog, post);
   ok = win.capture().save_png("/tmp/story_frame.png");   // the frame just drawn: before any swap
   println("shot: screenshot ok={ok}");
   win.close();
