@@ -45,20 +45,20 @@ pub const OSM_WETLAND  = 10;
 // modules can branch on it where they must, and so the validation reports
 // (§9.5) print the right header.
 pub struct Region {
-  rgn_name:   text not null,
-  rgn_cols:   integer not null,
-  rgn_rows:   integer not null,
-  rgn_v_cols: integer not null,
-  rgn_v_rows: integer not null,
-  rgn_n_verts: integer not null,
-  hex_h:     vector<integer> not null,
-  hex_osm:   vector<integer> not null,
-  hex_river: vector<integer> not null,
-  tri_osm:   vector<integer> not null,
-  vert_x:    vector<float>   not null,
-  vert_y:    vector<float>   not null,
-  vert_h:    vector<integer> not null,
-  vert_tris: vector<integer> not null,
+  pub rgn_name:   text not null,
+  pub rgn_cols:   integer not null,
+  pub rgn_rows:   integer not null,
+  pub rgn_v_cols: integer not null,
+  pub rgn_v_rows: integer not null,
+  pub rgn_n_verts: integer not null,
+  pub hex_h:     vector<integer> not null,
+  pub hex_osm:   vector<integer> not null,
+  pub hex_river: vector<integer> not null,
+  pub tri_osm:   vector<integer> not null,
+  pub vert_x:    vector<float>   not null,
+  pub vert_y:    vector<float>   not null,
+  pub vert_h:    vector<integer> not null,
+  pub vert_tris: vector<integer> not null,
 }
 
 // ── accessors (the only call sites consumers should touch) ───────────────
