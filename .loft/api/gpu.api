@@ -1,0 +1,403 @@
+# gpu 0.4.1 — public API surface
+# generated from /home/jurjens/.loft/registry/gpu-0.4.1
+# use it with: use gpu::*;
+
+## src/gpu.loft
+
+// --- What a program and a pipeline are made of ---
+
+// An input or a block field of 1, 2, 3 or 4 floats.  A block takes no `F3`: the stacks disagree
+// on where the field after one starts, so declare `F4` and read three.
+pub const F1 = 1
+
+pub const F2 = 2
+
+pub const F3 = 3
+
+pub const F4 = 4
+
+// A block field of 16 floats: a matrix, column-major.
+pub const MAT4 = 16
+
+// A block field that is an array of `count` `F4`s.
+pub fn f4s(count: integer) -> integer
+
+// What a pipeline draws.
+pub const TRIANGLES = 0
+
+pub const LINES = 1
+
+pub const POINTS = 2
+
+// Whether a draw is tested against the depth already drawn, and whether it writes its own.
+pub const DEPTH_OFF = 0
+
+pub const DEPTH_TEST = 1
+
+pub const DEPTH_TEST_WRITE = 2
+
+// A draw that writes its depth and is not tested: it covers what is there and leaves its own
+// depth behind, as a clear of part of a target does.  A backend that cannot answers no pipeline
+// (`gpu_gl` in a browser page).
+pub const DEPTH_WRITE = 3
+
+// A draw replaces what the target holds.
+pub const BLEND_OFF = 0
+
+// The factors `blend` takes.
+pub const ZERO = 0
+
+pub const ONE = 1
+
+pub const SRC_ALPHA = 2
+
+pub const ONE_MINUS_SRC_ALPHA = 3
+
+pub const DST_ALPHA = 4
+
+pub const ONE_MINUS_DST_ALPHA = 5
+
+// A draw is combined with what the target holds: its colour times `source`, plus the target's
+// times `destination`.  `blend(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)` is plain transparency.
+pub fn blend(source: integer, destination: integer) -> integer
+
+// Which faces are dropped; counter-clockwise is the front.
+pub const CULL_NONE = 0
+
+pub const CULL_BACK = 1
+
+pub const CULL_FRONT = 2
+
+// What a pipeline is built to draw into: the window (colour and depth), or a target of a colour
+// texture, of a colour and a depth texture, or of a depth texture alone.
+pub const INTO_WINDOW = 0
+
+pub const INTO_COLOUR = 1
+
+pub const INTO_COLOUR_DEPTH = 2
+
+pub const INTO_DEPTH = 3
+
+// How a pass starts: the target cleared to a colour (and its depth to the far end), or kept.
+pub const CLEAR = 0
+
+pub const KEEP = 1
+
+// A shader's text in one shading language.  `tag` names the language as a backend spells it
+// (its README says which it takes); this library compares the tag and never reads it.
+pub struct Source {
+  tag: text,
+  vertex: text,
+  fragment: text,
+}
+
+// A source for the backend whose shading language is `tag`.
+pub fn source(tag: text, vertex: text, fragment: text) -> Source
+
+// A shader set: what the shader reads, and its text for each backend it may meet.
+pub struct Program {
+  vertex: vector<integer>,  // The inputs read once per vertex, in order: `F1` to `F4` each.
+  instance: vector<integer>,  // The inputs read once per drawn copy (`draw_copies`), numbered after the vertex's.
+  block: vector<integer>,  // The uniform block's fields, in order: `F1`, `F2`, `F4`, `MAT4` or `f4s(n)` each.
+  textures: integer,  // How many textures it samples: slots 0 up to this.
+  sources: vector<Source>,
+}
+
+// Render state: fixed for a pipeline's life, so two states are two pipelines.
+pub struct State {
+  shape: integer = 0,
+  depth: integer = 0,
+  blend: integer = 0,
+  cull: integer = 0,
+  into: integer = 0,
+}
+
+// Where each field of a block starts, in floats, with the block's whole size as the last
+// entry.  Each field starts on the next multiple of its own size (a matrix and an array on 4
+// floats) and the size is rounded up to 4 — the layout every backend's shading language gives
+// these field kinds, so a program reads the same bytes on each.
+pub fn layout(block: const vector<integer>) -> vector<integer>
+
+// --- The device ---
+
+// One window (a page's canvas) and its GPU.  Everything made from it is freed when it closes.
+pub struct Device {
+  handle: integer,
+  table: integer,  // The table of the backend that opened it: every call of this device goes through it.
+  pass: integer,  // What the pass in progress draws into (`INTO_*`), -1 between passes.
+  pipe: integer,  // The pipeline bound in this pass, and what it still needs before a draw.
+  need_block: integer,
+  need_textures: integer,
+  sampled: integer,
+  has_block: boolean,
+  has_vertices: boolean,
+  has_indices: boolean,
+  has_instances: boolean,
+  pipe_instances: boolean,
+  refused: vector<text>,
+}
+
+// Open a window of `width` x `height` pixels through the backend whose table is `table` (a
+// backend library's `table()`).  Null when the table is none — its stack is absent on this
+// machine — or the window does not open.  A game does not call this: its host package asks each
+// backend in turn.
+pub fn open(table: i64, width: integer, height: integer, title: text) -> Device?
+
+// Open a window over the whole screen through the backend whose table is `table`: no border,
+// the machine's own bars hidden where it has them.  Its size is the screen's (`width`,
+// `height`).  Null as `open`, and where the backend has no whole-screen window.
+pub fn open_fullscreen(table: i64, title: text) -> Device?
+
+// The name of the backend this device is on, for a message.  Never branch on it: ask what the
+// machine has.
+pub fn backend(self: const Device) -> text
+
+// The name of the backend a device was opened on last, for a message in a program that holds
+// one device; `dev.backend()` says it of a device.
+pub fn backend_name() -> text
+
+// Hand the machine's events to the window; false once it was closed.
+pub fn poll(self: const Device) -> boolean
+
+// The window's width in pixels, as it is now.
+pub fn width(self: const Device) -> integer
+
+// And its height.
+pub fn height(self: const Device) -> integer
+
+// Close the window and free everything made from it.
+pub fn close(self: Device)
+
+// How many numbers an event is in `events`: a tag (1 a key down, 2 a key up, 3 text, 4 a
+// button down, 5 a button up, 6 the pointer moved, 7 the wheel, 8 to 10 a touch begun, moved
+// and ended, 11 the window resized) and four fields.
+pub const EVENT_WORDS = 5
+
+// Whether key `key` (a code from 0 to 255) is down now.
+pub fn key_down(self: const Device, key: integer) -> boolean
+
+// Which keys are down now: 256 flags by key code, the form `screen::keys()` answers and
+// `input::input_tick_from_state` takes, in the same codes (a letter its lower-case character,
+// the arrows 128 to 131, F1 to F12 135 to 146) — so a view in a device's window reads its keys
+// as one in `screen`'s does.
+pub fn keys(self: const Device) -> vector<boolean>
+
+// The pointer's place in the window, in pixels from the top left.
+pub fn pointer_x(self: const Device) -> integer
+
+pub fn pointer_y(self: const Device) -> integer
+
+// The pointer's buttons held now: 1 the left, 2 the right, 4 the middle, added.
+pub fn buttons(self: const Device) -> integer
+
+// The bytes typed since the last `events` (UTF-8, the queued text events end to end).  Read
+// them before `events`, which empties the queue.
+pub fn typed(self: const Device) -> vector<u8>
+
+// The events queued since the last call, oldest first, `EVENT_WORDS` numbers each; the queue
+// is empty after.
+pub fn events(self: const Device) -> vector<integer>
+
+// What was refused so far, oldest first: one line a call, saying which call and why.  Empty for a
+// program that keeps the rule.
+pub fn refusals(self: const Device) -> vector<text>
+
+// --- Buffers ---
+
+// Floats on the GPU: vertices, or the values of drawn copies.
+pub struct Buffer {
+  handle: integer,
+  table: integer,  // The backend that made it, which is the one it is released into.
+  size: integer,
+}
+
+// Upload `data` for a pipeline to read as vertices (`vertices`) or per copy (`instances`).
+pub fn buffer(self: const Device, data: const vector<single>) -> Buffer
+
+// Replace the floats; the length may change.  For data that changes every frame.
+pub fn update(self: Buffer, data: const vector<single>)
+
+// How many floats it holds.
+pub fn floats(self: const Buffer) -> integer
+
+// Vertex numbers on the GPU, for `draw_indexed`.
+pub struct IndexBuffer {
+  handle: integer,
+  table: integer,  // The backend that made it, which is the one it is released into.
+  size: integer,
+}
+
+// Upload a list of vertex numbers.
+pub fn index_buffer(self: const Device, list: const vector<integer>) -> IndexBuffer
+
+// How many vertex numbers it holds.
+pub fn count(self: const IndexBuffer) -> integer
+
+// --- Textures and targets ---
+
+// An image on the GPU: colour (red, green, blue, alpha at 8 bits each) or depth.
+pub struct Texture {
+  handle: integer,
+  table: integer,  // The backend that made it, which is the one it is released into.
+  w: integer,
+  h: integer,
+  depth: boolean,
+}
+
+// An empty colour texture, sampled between its pixels and clamped at its edges.
+pub fn texture(self: const Device, width: integer, height: integer) -> Texture
+
+// An empty depth texture: the depth of a target, or a shadow map.
+pub fn depth_texture(self: const Device, width: integer, height: integer) -> Texture
+
+// A colour texture holding `pixels` (0xAARRGGBB each, `width` to a row).  Its first pixel is
+// texture coordinate (0, 0).
+pub fn texture_from(self: const Device, pixels: const vector<u32>, width: integer, height: integer) -> Texture
+
+// Replace the `width` x `height` pixels at (`x`, `y`), counted from the texture's first pixel.
+// Inside a pass, what was drawn before this call shows the pixels as they were.
+pub fn put(self: const Texture, x: integer, y: integer, pixels: const vector<u32>, width: integer, height: integer)
+
+// The same from RGB565 values (5 bits red, 6 green, 5 blue, as a small machine's frame holds
+// them), every pixel opaque: a frame drawn on the CPU shown through the device.
+pub fn put_rgb565(self: const Texture, x: integer, y: integer, pixels: const vector<i32>, width: integer, height: integer)
+
+// Sample the nearest pixel (pixel art), or between pixels (how a texture starts).  It holds
+// for every draw after this call, also of a pass that named the texture before it.
+pub fn nearest(self: const Texture, on: boolean)
+
+// Build smaller copies from the pixels it holds now and sample through them when it is drawn
+// small; call again after `put`, or after drawing into it.
+pub fn mipmaps(self: const Texture)
+
+// Its width in pixels.
+pub fn width(self: const Texture) -> integer
+
+// And its height.
+pub fn height(self: const Texture) -> integer
+
+// What a pass draws into other than the window.  Its textures stay usable after it is gone.
+pub struct Target {
+  handle: integer,
+  table: integer,  // The backend that made it, which is the one it is released into.
+  into: integer,
+  w: integer,
+  h: integer,
+}
+
+// A target of one colour texture.
+pub fn colour_target(self: const Device, colour: const Texture) -> Target
+
+// A target of a colour and a depth texture of one size.
+pub fn target(self: const Device, colour: const Texture, depth: const Texture) -> Target
+
+// A target of a depth texture alone: no colour is drawn.
+pub fn depth_target(self: const Device, depth: const Texture) -> Target
+
+// --- Pipelines and blocks ---
+
+// A program, its inputs and its render state, built for one kind of target.
+pub struct Pipeline {
+  handle: integer,
+  table: integer,  // The backend that made it, which is the one it is released into.
+  into: integer,
+  textures: integer,
+  instances: boolean,
+  fields: vector<integer>,
+  starts: vector<integer>,
+}
+
+// Build a pipeline: `program` drawn with `state`.  Null when the program has no source for this
+// backend, declares what a block cannot hold, or does not compile — the backend says why on
+// stderr.
+pub fn pipeline(self: const Device, program: const Program, state: const State) -> Pipeline?
+
+// The values of a pipeline's uniform block.  A field is named by its position in the program's
+// `block` list.  Setting a field as another kind than it was declared, or one that is not
+// there, marks the block, and `uniforms` then refuses it.
+pub struct Block {
+  data: vector<single>,
+  fields: vector<integer>,
+  starts: vector<integer>,
+  wrong: integer,
+}
+
+// A block for this pipeline, every field zero.
+pub fn block(self: const Pipeline) -> Block
+
+// Set an `F1` field.
+pub fn f1(self: Block, field: integer, x: float)
+
+// Set an `F2` field.
+pub fn f2(self: Block, field: integer, x: float, y: float)
+
+// Set an `F4` field.
+pub fn f4(self: Block, field: integer, x: float, y: float, z: float, w: float)
+
+// Set element `index` of an `f4s` field; an index past its length marks the block.
+pub fn f4_at(self: Block, field: integer, index: integer, x: float, y: float, z: float, w: float)
+
+// Set a `MAT4` field from 16 floats, column-major; fewer marks the block.
+pub fn mat4(self: Block, field: integer, m: const vector<float>)
+
+// The block's floats as the backend receives them, for a test of a layout.
+pub fn floats(self: const Block) -> vector<single>
+
+// --- A pass ---
+
+// Start a pass that draws into the window, cleared to `colour` (0xAARRGGBB) or kept.
+pub fn begin_window(self: Device, load: integer, colour: i64)
+
+// Start a pass that draws into `target`.
+pub fn begin(self: Device, target: const Target, load: integer, colour: i64)
+
+// Draw with `pipeline` from here on.  It forgets the block, textures and buffers the pipeline
+// before it was given: name them again.
+pub fn bind(self: Device, pipeline: const Pipeline)
+
+// Give the bound pipeline its uniform block.
+pub fn uniforms(self: Device, block: const Block)
+
+// Give the bound pipeline the texture its slot `slot` samples.
+pub fn sample(self: Device, slot: integer, texture: const Texture)
+
+// The vertices the next draws read.
+pub fn vertices(self: Device, buffer: const Buffer)
+
+// The values the next `draw_copies` reads once per copy, starting at float `first` of `buffer`.
+pub fn instances(self: Device, buffer: const Buffer, first: integer)
+
+// The vertex numbers the next `draw_indexed` reads.
+pub fn indices(self: Device, buffer: const IndexBuffer)
+
+// The rectangle draws map onto, origin bottom-left; a pass starts with the whole target.
+pub fn viewport(self: Device, x: integer, y: integer, width: integer, height: integer)
+
+// Draw only inside this rectangle, origin bottom-left, until `no_scissor` or the pass ends.
+pub fn scissor(self: Device, x: integer, y: integer, width: integer, height: integer)
+
+// Draw on the whole target again.
+pub fn no_scissor(self: Device)
+
+// Draw `count` vertices from vertex `first`.
+pub fn draw(self: Device, first: integer, count: integer)
+
+// Draw the first `count` vertices the index buffer names, in its order.
+pub fn draw_indexed(self: Device, count: integer)
+
+// Draw the first `count` vertices `copies` times; the inputs per copy advance once a copy.
+pub fn draw_copies(self: Device, count: integer, copies: integer)
+
+// End the pass.
+pub fn end(self: Device)
+
+// Show the frame, waiting for the display's next one where the machine has a frame clock.
+pub fn present(self: Device)
+
+// The window's pixels as they are now, 0xAARRGGBB, top row first, `width()` to a row.  A window
+// has no alpha: every pixel reads opaque.
+pub fn capture(self: const Device) -> vector<u32>
+
+// The colour a target holds now, 0xAARRGGBB, the top row first, its width to a row: what a
+// pass into it drew, read back without showing it.  Empty for a target with no colour.
+pub fn capture_of(self: const Device, target: const Target) -> vector<u32>
