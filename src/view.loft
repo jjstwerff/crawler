@@ -5,7 +5,7 @@
 // the 2D stand-in for moros_render::camera_follow; the kernel is unchanged.
 //
 // Monsters render as their roguelike glyph letters (DB glyph + colour) through
-// the graphics text bridge (gl_load_font / create_text_texture / draw_texture_at),
+// the graphics text bridge (load_font / Window.text_texture / Painter.image),
 // falling back to coloured squares if the font cannot be loaded.
 
 use graphics;
@@ -36,42 +36,49 @@ SB_NAME_W   = 150.0; // pixel budget for a quick-slot item name (overflow -> ell
 
 // Baked text resources for the renderer (render-side only — the kernel stays
 // graphics-free). Built once after the window exists via build_hud(); if the
-// font fails to load (font < 0) the view falls back to coloured squares.
+// font fails to load (font == null) the view falls back to coloured squares.
+//
+// A texture is a VALUE the Hud owns (graphics >=0.10): a single one that may be
+// absent is a `Texture?`, a baked set is a `vector<Texture>` that is empty without
+// a font, and the SPRITES — which have holes (no file, no sprite yet) — live in one
+// pool, named by index with -1 for "none -> glyph fallback". Replacing a field or
+// the whole Hud releases what it held; nothing here is freed by hand.
 pub struct Hud {
-  pub font:   integer not null,
-  ptex:   integer not null,           // the player '@'
-  etex:   vector<integer> not null,   // one glyph texture per enemy index
-  digits: vector<integer> not null,   // '0'..'9' for numeric HP
-  died:   integer not null,           // "YOU DIED" banner
-  disc:   integer not null,           // soft-black backdrop drawn behind tokens
-  estex:  vector<integer> not null,   // per-enemy SPRITE by def key (<key>.png; 0 = glyph fallback)
-  esact:  vector<integer> not null,   // per-enemy ACTION sprite (<key>_gaze.png; 0 = none)
-  pspr:   integer not null,           // the player sprite (player.png; 0 = '@' glyph fallback)
-  catspr: vector<integer> not null,   // floor-item sprite per IT_* category (0 = glyph fallback)
-  goldspr: integer not null,          // the gold-pile sprite
-  sdown:  integer not null,           // '>' down-stair glyph
-  board:  integer not null,           // '!' notice-board glyph (tile 8)
-  pooltx: integer not null,           // '~' magical-pool glyph (tile 9)
-  sup:    integer not null,           // '<' up-stair glyph
-  dlbl:   integer not null,           // "DEPTH" label
-  clbl:   integer not null,           // "CL" (character level) label
-  gtex:   integer not null,           // gold '$' glyph (floor + purse readout)
-  catex:  vector<integer> not null,   // floor-item glyph per IT_* category
-  stair_up: integer not null,         // '<' up-stair sprite (stepped, wider+white)
-  stair_dn: integer not null,         // '>' down-stair sprite (stepped, narrower+dark)
-  panel:  integer not null,           // dark backdrop for the character page overlay
-  pub itex:   vector<integer> not null,   // item display name per def index (quick-slot + inventory)
-  statlbl: vector<integer> not null,  // one baked sidebar label per axis — see stat_abbrevs()
-  hplbl:  integer not null,           // "HP" sidebar label
-  splbl:  integer not null,           // "SP" sidebar label (live bar for casters; dim otherwise)
-  castlbl: integer not null,          // dim "cast" hint on an unbound E slot for casters
-  qlbl:   integer not null,           // active-slot "Q" key label
-  elbl:   integer not null,           // active-slot "E" key label
-  dash:   integer not null,           // dim "-" for an empty quick-slot
-  hints:  vector<integer> not null,   // baked keyboard-hint lines (the non-obvious keys), sidebar foot
-  stat_para: integer not null,        // "PARALYSED" / "POISONED" / "WARDED" status pips (SP row)
-  stat_pois: integer not null,
-  stat_ward: integer not null,
+  pub font:   graphics::Font?,
+  ptex:   graphics::Texture?,                  // the player '@'
+  etex:   vector<graphics::Texture> not null,  // one glyph texture per enemy index
+  digits: vector<graphics::Texture> not null,  // '0'..'9' for numeric HP
+  died:   graphics::Texture?,                  // "YOU DIED" banner
+  disc:   graphics::Texture?,                  // soft-black backdrop drawn behind tokens
+  sprites: vector<graphics::Texture> not null, // the sprite pool the four index lists below name
+  estex:  vector<integer> not null,   // per-enemy SPRITE by def key (<key>.png; -1 = glyph fallback)
+  esact:  vector<integer> not null,   // per-enemy ACTION sprite (<key>_gaze.png; -1 = none)
+  pspr:   graphics::Texture?,         // the player sprite (player.png; null = '@' glyph fallback)
+  catspr: vector<integer> not null,   // floor-item sprite per IT_* category (-1 = glyph fallback)
+  goldspr: graphics::Texture?,        // the gold-pile sprite
+  sdown:  graphics::Texture?,         // '>' down-stair glyph
+  board:  graphics::Texture?,         // '!' notice-board glyph (tile 8)
+  pooltx: graphics::Texture?,         // '~' magical-pool glyph (tile 9)
+  sup:    graphics::Texture?,         // '<' up-stair glyph
+  dlbl:   graphics::Texture?,         // "DEPTH" label
+  clbl:   graphics::Texture?,         // "CL" (character level) label
+  gtex:   graphics::Texture?,         // gold '$' glyph (floor + purse readout)
+  catex:  vector<graphics::Texture> not null,  // floor-item glyph per IT_* category
+  stair_up: graphics::Texture?,       // '<' up-stair sprite (stepped, wider+white)
+  stair_dn: graphics::Texture?,       // '>' down-stair sprite (stepped, narrower+dark)
+  panel:  graphics::Texture?,         // dark backdrop for the character page overlay
+  pub itex:   vector<graphics::Texture> not null,  // item display name per def index (quick-slot + inventory)
+  statlbl: vector<graphics::Texture> not null, // one baked sidebar label per axis — see stat_abbrevs()
+  hplbl:  graphics::Texture?,         // "HP" sidebar label
+  splbl:  graphics::Texture?,         // "SP" sidebar label (live bar for casters; dim otherwise)
+  castlbl: graphics::Texture?,        // dim "cast" hint on an unbound E slot for casters
+  qlbl:   graphics::Texture?,         // active-slot "Q" key label
+  elbl:   graphics::Texture?,         // active-slot "E" key label
+  dash:   graphics::Texture?,         // dim "-" for an empty quick-slot
+  hints:  vector<graphics::Texture> not null,  // baked keyboard-hint lines (the non-obvious keys), sidebar foot
+  stat_para: graphics::Texture?,      // "PARALYSED" / "POISONED" / "WARDED" status pips (SP row)
+  stat_pois: graphics::Texture?,
+  stat_ward: graphics::Texture?,
 }
 
 // Roguelike map glyph for an item category (IT_*).
@@ -108,27 +115,23 @@ fn cat_sprite_name(cat: integer) -> text {
   ""
 }
 
-// Load the font and bake the static glyph/text textures for this level.
-// Load a sprite PNG by filename, trying the cwd-relative layouts gl_load_texture
-// resolves against (the same set as the font). Returns 0 if none load (caller
-// falls back to a glyph). gl_load_texture returns a GL id >= 1, or null/0 on failure.
-fn load_sprite(fname: text) -> integer {
-  cands = [
-    "assets/sprites/{fname}",
-    "../crawler/assets/sprites/{fname}",
-    "crawler/assets/sprites/{fname}",
-    "../story/assets/sprites/{fname}",
-    "story/assets/sprites/{fname}",
-  ];
-  tex = 0;
-  for ci in 0..len(cands) {
-    if tex == 0 {
-      c = cands[ci] ?? "";
-      t = graphics::gl_load_texture(c);
-      if t != null && t != 0 { tex = t; }
-    }
-  }
-  tex
+// Load a sprite PNG by filename. Null if it does not load (caller falls back to a
+// glyph). A relative path resolves against the PROGRAM's directory (src/), never the
+// process cwd, so the repo root is reached the way the font is: absolute through PWD
+// first (`make play` from the repo root), then `../assets` beside the entry file.
+fn load_sprite(win: const graphics::Window, fname: text) -> graphics::Texture? {
+  vroot = env_variable("PWD") ?? ".";
+  t = win.load_texture("{vroot}/assets/sprites/{fname}");
+  if t != null { return t; }
+  win.load_texture("../assets/sprites/{fname}")
+}
+
+// Load a sprite into the pool; its index there, or -1 when it does not load.
+fn pool_sprite(win: const graphics::Window, hud: Hud, fname: text) -> integer {
+  t = load_sprite(win, fname);
+  if t == null { return -1; }
+  hud.sprites += [t];
+  len(hud.sprites) - 1
 }
 
 // The non-obvious keyboard hints shown at the sidebar foot. The common keys (WASD glide/turn, Q/E
@@ -140,10 +143,10 @@ fn key_hints() -> vector<text> {
 // Safety net for a name still too wide after item_short: ellipsis-truncate to `max_w` px, KEEPING
 // the start (the identifier). Pixel-accurate (the font is proportional). Item names are ASCII, so the
 // built-in char slice `a[..n]` is byte-safe; the "…" is only appended, never sliced.
-fn fit_text(font: integer, str: text, max_w: float, size: float) -> text {
-  if graphics::gl_measure_text(font, str, size) <= max_w { return str; }
+fn fit_text(font: const graphics::Font, str: text, max_w: float, size: float) -> text {
+  if font.measure(str, size) <= max_w { return str; }
   out = str;
-  while len(out) > 1 && graphics::gl_measure_text(font, "{out}…", size) > max_w {
+  while len(out) > 1 && font.measure("{out}…", size) > max_w {
     out = out[..(len(out) - 1)];
   }
   "{out}…"
@@ -151,125 +154,79 @@ fn fit_text(font: integer, str: text, max_w: float, size: float) -> text {
 
 // Bake one short-name texture per item def for the quick-slot bar / inventory column. The names
 // resolve through sim (the per-game flavour while a kind is still a mystery), so this must be re-run
-// whenever identification changes — see hud_rebuild_items. (font must be valid.)
-fn bake_itex(font: integer, s: Sim) -> vector<integer> {
-  itex: vector<integer> = [];
+// whenever identification changes — see hud_rebuild_items.
+fn bake_itex(win: const graphics::Window, font: const graphics::Font, s: Sim) -> vector<graphics::Texture> {
+  itex: vector<graphics::Texture> = [];
   for ii in 0..sim_item_count() {        // merged catalog: covers bundle items too (indexed past base)
     nm = fit_text(font, sim_item_short_name(s, ii), SB_NAME_W, SB_SIZE);
-    itex += [graphics::create_text_texture(font, nm, SB_SIZE, graphics::rgba(220, 220, 205, 255))];
+    itex += [win.text_texture(font, nm, SB_SIZE, graphics::rgba(220, 220, 205, 255))];
   }
   itex
 }
 
-// Re-bake the item-name textures after an identification revealed a kind (flavour → real name). Frees
-// the stale textures and returns a fresh itex the caller assigns back (`hud.itex = …`); the rest of
-// the Hud is untouched. Mirrors the message-log's free-then-rebuild on a change-counter.
-pub fn hud_rebuild_items(hud: Hud, s: Sim) -> vector<integer> {
-  for k in 0..len(hud.itex) {
-    t = hud.itex[k] ?? 0;
-    if t != 0 { graphics::gl_delete_texture(t); }
-  }
-  if hud.font < 0 { return []; }
-  bake_itex(hud.font, s)
+// Re-bake the item-name textures after an identification revealed a kind (flavour → real name).
+// Returns a fresh itex the caller assigns back (`hud.itex = …`), which releases the stale set; the
+// rest of the Hud is untouched. Mirrors the message-log's rebuild on a change-counter.
+pub fn hud_rebuild_items(win: const graphics::Window, hud: const Hud, s: Sim) -> vector<graphics::Texture> {
+  font = hud.font;
+  if font == null { return []; }
+  bake_itex(win, font, s)
 }
 
-pub fn build_hud(s: Sim) -> Hud {
-  // gl_load_font resolves relative paths against the loft --path root
-  // (LOFT_REPO), so the project-bundled font is reached as "../story/assets/...".
-  // A few fallbacks cover other run layouts; if none load, the view falls back
-  // to coloured squares. (Note: `!font` is not logical-not on an integer in
-  // loft — compare against 0 explicitly.)
-  // gl_load_font reads relative to the process cwd. Try the common run layouts; the
-  // first is `make play` from the repo root. (Resolution is cwd-based, not --path-based.)
-  fcands = [
-    "assets/DejaVuSans-Bold.ttf",            // cwd = repo root (normal `make play`)
-    "../crawler/assets/DejaVuSans-Bold.ttf", // cwd = a sibling dir
-    "crawler/assets/DejaVuSans-Bold.ttf",    // cwd = workspace
-    "../story/assets/DejaVuSans-Bold.ttf",
-    "story/assets/DejaVuSans-Bold.ttf",
-    "doc/assets/DejaVuSans-Bold.ttf",
-  ];
-  // A loaded font is a valid index >= 0 (often 0 — the first font). gl_load_font returns
-  // null on read failure / -1 on parse failure, so the "not loaded" sentinel is -1, NOT 0.
-  font = -1;
-  // graphics >=0.5 resolves a relative font path against the PROGRAM, not the process
-  // cwd (loft-libs-graphics #255), so every cwd-relative candidate below now misses.
-  // Try the repo-root absolute path first — the same PWD idiom story.loft uses.
+pub fn build_hud(win: const graphics::Window, s: Sim) -> Hud {
+  // load_font resolves a relative path against the PROGRAM's directory (src/), not the
+  // process cwd, so the repo-root font is tried first as an absolute path — the same PWD
+  // idiom story.loft uses — and then beside the entry file. If neither loads, the view
+  // falls back to coloured squares (`font == null`).
   vroot = env_variable("PWD") ?? ".";
-  fabs = graphics::gl_load_font("{vroot}/assets/DejaVuSans-Bold.ttf");
-  if fabs != null && fabs >= 0 { font = fabs; }
-  for fci in 0..len(fcands) {
-    if font < 0 {
-      fc = fcands[fci] ?? "";
-      f = graphics::gl_load_font(fc);
-      if f != null && f >= 0 { font = f; }
-    }
-  }
-  if font < 0 { println("view: font not loaded — falling back to squares"); }
+  font = graphics::load_font("{vroot}/assets/DejaVuSans-Bold.ttf");
+  if font == null { font = graphics::load_font("../assets/DejaVuSans-Bold.ttf"); }
+  if font == null { println("view: font not loaded — falling back to squares"); }
+
+  hud = Hud { font: font, ptex: null, etex: [], digits: [], died: null, disc: null,
+    sprites: [], estex: [], esact: [], pspr: null, catspr: [], goldspr: null,
+    sdown: null, sup: null, board: null, pooltx: null, dlbl: null, clbl: null, gtex: null, catex: [],
+    stair_up: null, stair_dn: null, panel: null, itex: [], statlbl: [],
+    hplbl: null, splbl: null, castlbl: null, qlbl: null, elbl: null, dash: null, hints: [],
+    stat_para: null, stat_pois: null, stat_ward: null };
 
   // A soft-black backdrop disc, baked once and drawn behind every token so the
   // glyph letters read clearly against the dungeon floor. Baked at 64px and
   // drawn smaller, so the downscale smooths its edge.
   dcv = graphics::canvas(64, 64, 0);
   dcv.fill_circle(32, 32, 31, graphics::rgba(0, 0, 0, 230));
-  disc = graphics::gl_upload_canvas(dcv.data, 64, 64);
+  hud.disc = win.texture_from(dcv);
 
   // A near-opaque dark panel, baked once + drawn stretched as the character-page backdrop.
   pcv = graphics::canvas(8, 8, graphics::rgba(12, 14, 20, 235));
-  panel = graphics::gl_upload_canvas(pcv.data, 8, 8);
+  hud.panel = win.texture_from(pcv);
 
-  // Sprites (transparent PNGs) via the cwd-relative loader; 0 => fall back to a glyph.
-  pspr     = load_sprite("player.png");
-  goldspr  = load_sprite("gold_pile.png");
-  estex: vector<integer> = [];
-  esact: vector<integer> = [];
-  catspr: vector<integer> = [for _ in 0..14 { 0 }];
+  // Sprites (transparent PNGs); null / -1 => fall back to a glyph.
+  hud.pspr    = load_sprite(win, "player.png");
+  hud.goldspr = load_sprite(win, "gold_pile.png");
+  hud.catspr += [-1];
   for csi in 1..14 {
     cn = cat_sprite_name(csi);
-    if cn != "" { catspr[csi] = load_sprite(cn); }
+    hud.catspr += [if cn != "" { pool_sprite(win, hud, cn) } else { -1 }];
   }
-  stair_up = load_sprite("up_stair.png");     // '<' stepped staircase (wider+white)
-  stair_dn = load_sprite("down_stair.png");   // '>' stepped staircase (narrower+dark)
+  hud.stair_up = load_sprite(win, "up_stair.png");     // '<' stepped staircase (wider+white)
+  hud.stair_dn = load_sprite(win, "down_stair.png");   // '>' stepped staircase (narrower+dark)
 
-  ptex = 0;
-  died = 0;
-  sdown = 0;
-  board = 0;
-  pooltx = 0;
-  sup = 0;
-  dlbl = 0;
-  clbl = 0;
-  gtex = 0;
-  digits: vector<integer> = [for _ in 0..10 { 0 }];
-  catex: vector<integer> = [for _ in 0..14 { 0 }];
-  etex: vector<integer> = [];
-  itex: vector<integer> = [];
-  statlbl: vector<integer> = [for _ in 0..NUM_STATS { 0 }];
-  hplbl = 0;
-  splbl = 0;
-  castlbl = 0;
-  qlbl = 0;
-  elbl = 0;
-  dash = 0;
-  hints: vector<integer> = [];
-  stat_para = 0;
-  stat_pois = 0;
-  stat_ward = 0;
-  if font >= 0 {
-    ptex = graphics::create_text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
-    died = graphics::create_text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
-    sdown = graphics::create_text_texture(font, ">", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
-    board = graphics::create_text_texture(font, "!", STAIR_SIZE, graphics::rgba(210, 170, 90, 255));
-    pooltx = graphics::create_text_texture(font, "~", STAIR_SIZE, graphics::rgba(90, 180, 230, 255));
-    sup = graphics::create_text_texture(font, "<", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
-    dlbl = graphics::create_text_texture(font, "DEPTH", DIGIT_SIZE, graphics::rgba(180, 190, 210, 255));
-    clbl = graphics::create_text_texture(font, "CL", DIGIT_SIZE, graphics::rgba(190, 210, 180, 255));
-    gtex = graphics::create_text_texture(font, "$", ITEM_SIZE, graphics::rgba(240, 220, 70, 255));
-    for ci in 1..14 {
-      catex[ci] = graphics::create_text_texture(font, cat_glyph(ci), ITEM_SIZE, graphics::rgba(210, 210, 180, 255));
+  if font != null {
+    hud.ptex = win.text_texture(font, "@", PLAYER_SIZE, graphics::rgba(245, 230, 90, 255));
+    hud.died = win.text_texture(font, "YOU DIED", DIED_SIZE, graphics::rgba(240, 70, 60, 255));
+    hud.sdown = win.text_texture(font, ">", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
+    hud.board = win.text_texture(font, "!", STAIR_SIZE, graphics::rgba(210, 170, 90, 255));
+    hud.pooltx = win.text_texture(font, "~", STAIR_SIZE, graphics::rgba(90, 180, 230, 255));
+    hud.sup = win.text_texture(font, "<", STAIR_SIZE, graphics::rgba(230, 230, 245, 255));
+    hud.dlbl = win.text_texture(font, "DEPTH", DIGIT_SIZE, graphics::rgba(180, 190, 210, 255));
+    hud.clbl = win.text_texture(font, "CL", DIGIT_SIZE, graphics::rgba(190, 210, 180, 255));
+    hud.gtex = win.text_texture(font, "$", ITEM_SIZE, graphics::rgba(240, 220, 70, 255));
+    for ci in 0..14 {   // index 0 is no category; it bakes cat_glyph's "*" so the list stays dense
+      hud.catex += [win.text_texture(font, cat_glyph(ci), ITEM_SIZE, graphics::rgba(210, 210, 180, 255))];
     }
     for d in 0..10 {
-      digits[d] = graphics::create_text_texture(font, "{d}", DIGIT_SIZE, graphics::rgba(235, 235, 215, 255));
+      hud.digits += [win.text_texture(font, "{d}", DIGIT_SIZE, graphics::rgba(235, 235, 215, 255))];
     }
     ec = sim_enemy_count(s);
     ckeys: vector<text> = [];          // unique-key sprite cache (a pack of 11 rats = 1 texture)
@@ -278,7 +235,7 @@ pub fn build_hud(s: Sim) -> Hud {
     for i in 0..ec {
       g = sim_enemy_glyph(s, i);
       (cr, cg, cb) = sim_enemy_color(s, i);
-      etex += [graphics::create_text_texture(font, g, GLYPH_SIZE, graphics::rgba(cr, cg, cb, 255))];
+      hud.etex += [win.text_texture(font, g, GLYPH_SIZE, graphics::rgba(cr, cg, cb, 255))];
       k = sim_enemy_key(s, i);
       hit = -1;
       for cki in 0..len(ckeys) {
@@ -286,48 +243,61 @@ pub fn build_hud(s: Sim) -> Hud {
       }
       if hit < 0 {
         ckeys += [k];
-        ctexs += [load_sprite("{k}.png")];
-        cacts += [load_sprite("{k}_gaze.png")];
+        ctexs += [pool_sprite(win, hud, "{k}.png")];
+        cacts += [pool_sprite(win, hud, "{k}_gaze.png")];
         hit = len(ckeys) - 1;
       }
-      estex += [ctexs[hit] ?? 0];
-      esact += [cacts[hit] ?? 0];
+      hud.estex += [ctexs[hit] ?? -1];
+      hud.esact += [cacts[hit] ?? -1];
     }
     // Sidebar labels (static) + one display-name texture per item def (used by the quick-slots
     // and the inventory column) — baked once so the always-visible bar never churns textures.
-    hplbl = graphics::create_text_texture(font, "HP", SB_SIZE, graphics::rgba(210, 150, 150, 255));
-    splbl = graphics::create_text_texture(font, "SP", SB_SIZE, graphics::rgba(150, 170, 215, 255));
-    castlbl = graphics::create_text_texture(font, "cast", SB_SIZE, graphics::rgba(140, 160, 215, 255));
-    qlbl  = graphics::create_text_texture(font, "Q", SB_SIZE, graphics::rgba(225, 215, 160, 255));
-    elbl  = graphics::create_text_texture(font, "E", SB_SIZE, graphics::rgba(225, 215, 160, 255));
-    dash  = graphics::create_text_texture(font, "-", SB_SIZE, graphics::rgba(110, 115, 125, 255));
+    hud.hplbl = win.text_texture(font, "HP", SB_SIZE, graphics::rgba(210, 150, 150, 255));
+    hud.splbl = win.text_texture(font, "SP", SB_SIZE, graphics::rgba(150, 170, 215, 255));
+    hud.castlbl = win.text_texture(font, "cast", SB_SIZE, graphics::rgba(140, 160, 215, 255));
+    hud.qlbl  = win.text_texture(font, "Q", SB_SIZE, graphics::rgba(225, 215, 160, 255));
+    hud.elbl  = win.text_texture(font, "E", SB_SIZE, graphics::rgba(225, 215, 160, 255));
+    hud.dash  = win.text_texture(font, "-", SB_SIZE, graphics::rgba(110, 115, 125, 255));
     // keyboard hints for the non-obvious keys (the common WASD / Q-E / 1-9 are left out)
     khs = key_hints();
     for hi in 0..len(khs) {
-      hints += [graphics::create_text_texture(font, khs[hi] ?? "", SB_SIZE, graphics::rgba(150, 155, 165, 255))];
+      hud.hints += [win.text_texture(font, khs[hi], SB_SIZE, graphics::rgba(150, 155, 165, 255))];
     }
-    stat_para = graphics::create_text_texture(font, "PARALYSED", SB_SIZE, graphics::rgba(235, 80, 70, 255));
-    stat_pois = graphics::create_text_texture(font, "POISONED", SB_SIZE, graphics::rgba(120, 215, 90, 255));
-    stat_ward = graphics::create_text_texture(font, "WARDED", SB_SIZE, graphics::rgba(120, 200, 235, 255));
+    hud.stat_para = win.text_texture(font, "PARALYSED", SB_SIZE, graphics::rgba(235, 80, 70, 255));
+    hud.stat_pois = win.text_texture(font, "POISONED", SB_SIZE, graphics::rgba(120, 215, 90, 255));
+    hud.stat_ward = win.text_texture(font, "WARDED", SB_SIZE, graphics::rgba(120, 200, 235, 255));
     snames = stat_abbrevs();
     for si in 0..len(snames) {
-      statlbl[si] = graphics::create_text_texture(font, snames[si] ?? "", SB_SIZE, graphics::rgba(190, 195, 175, 255));
+      hud.statlbl += [win.text_texture(font, snames[si], SB_SIZE, graphics::rgba(190, 195, 175, 255))];
     }
-    itex = bake_itex(font, s);
+    hud.itex = bake_itex(win, font, s);
   }
-  Hud { font: font, ptex: ptex, etex: etex, digits: digits, died: died, disc: disc,
-    estex: estex, esact: esact, pspr: pspr, catspr: catspr, goldspr: goldspr,
-    sdown: sdown, sup: sup, board: board, pooltx: pooltx, dlbl: dlbl, clbl: clbl, gtex: gtex, catex: catex,
-    stair_up: stair_up, stair_dn: stair_dn, panel: panel, itex: itex, statlbl: statlbl,
-    hplbl: hplbl, splbl: splbl, castlbl: castlbl, qlbl: qlbl, elbl: elbl, dash: dash, hints: hints,
-    stat_para: stat_para, stat_pois: stat_pois, stat_ward: stat_ward }
+  hud
+}
+
+// A texture stretched over (x, y) of w x h pixels — nothing when it is absent. Every 2D
+// image in this file goes through here, so "no texture" is asked in one place.
+fn img(painter: const graphics::Painter, tex: const graphics::Texture?,
+       x: float, y: float, w: float, h: float) {
+  if tex == null { return; }
+  painter.image(tex, x, y, w, h);
+}
+
+// Pool sprite `idx` over (x, y) of w x h pixels; false when the index names none (-1) —
+// the caller then falls back to a glyph. ⚠ -1 is tested BEFORE the index: `v[-1]` is the
+// vector's LAST element, never null.
+fn img_sprite(painter: const graphics::Painter, hud: const Hud, idx: integer,
+              x: float, y: float, w: float, h: float) -> boolean {
+  if idx < 0 { return false; }
+  t = hud.sprites[idx];
+  if t == null { return false; }
+  painter.image(t, x, y, w, h);
+  true
 }
 
 // Draw the baked backdrop disc of diameter d centred on (cx, cy).
-fn draw_disc(painter: graphics::Painter2D, tex: integer, cx: float, cy: float, d: float) {
-  if tex != 0 {
-    graphics::draw_texture_at(painter, tex, cx - d / 2.0, cy - d / 2.0, d, d);
-  }
+fn draw_disc(painter: const graphics::Painter, tex: const graphics::Texture?, cx: float, cy: float, d: float) {
+  img(painter, tex, cx - d / 2.0, cy - d / 2.0, d, d);
 }
 
 // World-plane point -> screen, rotated so the player's heading points up.
@@ -344,17 +314,20 @@ pub fn world_to_screen(s: Sim, wx: float, wy: float) -> (float, float) {
   (sx, sy)
 }
 
-// Draw a baked text texture centred on (cx, cy). create_text_texture pads the
+// Draw a baked text texture centred on (cx, cy). text_texture pads the
 // canvas by 2px/side (+1 width); reproduce those dims so it isn't distorted.
-fn draw_glyph_centered(painter: graphics::Painter2D, font: integer, tex: integer,
+// Nothing is drawn without a font or without the texture.
+fn draw_glyph_centered(painter: const graphics::Painter, font: const graphics::Font?,
+                       tex: const graphics::Texture?,
                        content: text, size: float, cx: float, cy: float) {
-  gw = graphics::gl_measure_text(font, content, size) + 5.0;
-  gh = graphics::gl_text_height(font, size) as float + 4.0;
-  graphics::draw_texture_at(painter, tex, cx - gw / 2.0, cy - gh / 2.0, gw, gh);
+  if font == null { return; }
+  gw = font.measure(content, size) + 5.0;
+  gh = font.line_height(size) as float + 4.0;
+  img(painter, tex, cx - gw / 2.0, cy - gh / 2.0, gw, gh);
 }
 
 // Draw a non-negative integer as baked digit textures, left-aligned at (x, y).
-fn draw_number(painter: graphics::Painter2D, hud: Hud, value: integer, x: float, y: float) {
+fn draw_number(painter: const graphics::Painter, hud: const Hud, value: integer, x: float, y: float) {
   v = value;
   if v < 0 { v = 0; }
   ds: vector<integer> = [];
@@ -363,26 +336,31 @@ fn draw_number(painter: graphics::Painter2D, hud: Hud, value: integer, x: float,
     ds += [v % 10 ?? 0];
     v = v / 10;
   }
-  digs = hud.digits;
   n = len(ds);
   dw = 13.0;
   for k in 0..n {
-    di = ds[n - 1 - k] ?? 0;
-    tx = if di < len(digs) { digs[di] ?? 0 } else { 0 };
-    if tx != 0 {
-      graphics::draw_texture_at(painter, tx, x + (k as float) * dw, y, 12.0, 20.0);
-    }
+    di = ds[n - 1 - k] ?? 0;   // a decimal digit, 0..9 — never negative
+    img(painter, hud.digits[di], x + (k as float) * dw, y, 12.0, 20.0);
   }
 }
 
-// Draw `tex` centred at (cx,cy), size (w,h), rotated by `theta` (screen radians,
-// y-down). Like graphics::draw_texture_at but with a rotated + scaled MVP built from
-// the painter's projection — the moros placement primitive (12/24-dir rotation +
-// scale), proven here in 2D. Reaches painter internals directly (loft doesn't
-// enforce field privacy; the view already reads Canvas.data).
-fn draw_texture_rot(painter: graphics::Painter2D, tex: integer,
-                    cx: float, cy: float, w: float, h: float, theta: float) {
-  proj = painter.p2_proj;
+// Draw pool sprite `idx` centred at (cx,cy), size (w,h), rotated by `theta` (screen
+// radians, y-down). Like Painter.image but with a rotated + scaled MVP — the moros
+// placement primitive (12/24-dir rotation + scale), proven here in 2D. It draws through
+// the painter's own textured shader and unit quad (`tex`, `quad` — public for exactly
+// this); the painter's projection is private, so the 800x600 pixel projection (origin
+// top-left) is restated here. False when the index names no sprite.
+fn draw_sprite_rot(painter: const graphics::Painter, hud: const Hud, idx: integer,
+                   cx: float, cy: float, w: float, h: float, theta: float) -> boolean {
+  if idx < 0 { return false; }
+  tex = hud.sprites[idx];
+  if tex == null { return false; }
+  proj: vector<float> = [
+    2.0 / VIEW_W ?? 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0 - (2.0 / VIEW_H ?? 0.0), 0.0, 0.0,
+    0.0, 0.0, -1.0, 0.0,
+    -1.0, 1.0, 0.0, 1.0
+  ];
   c = cos(theta);
   sn = sin(theta);
   m00 = w * c;
@@ -397,11 +375,11 @@ fn draw_texture_rot(painter: graphics::Painter2D, tex: integer,
     proj[8], proj[9], proj[10], proj[11],
     proj[0] * tx + proj[4] * ty + proj[12], proj[1] * tx + proj[5] * ty + proj[13], proj[2] * tx + proj[6] * ty + proj[14], proj[3] * tx + proj[7] * ty + proj[15]
   ];
-  graphics::gl_use_shader(painter.p2_tex);
-  graphics::gl_bind_texture(tex, 0);
-  graphics::gl_set_uniform_int(painter.p2_tex, "uTex", 0);
-  graphics::gl_set_uniform_mat4(painter.p2_tex, "uMVP", mvp);
-  graphics::gl_draw(painter.p2_vao, 6);
+  tex.bind(0);
+  painter.tex.set_int("uTex", 0);
+  painter.tex.set_mat4("uMVP", mvp);
+  painter.quad.draw(painter.tex);
+  true
 }
 
 // ── GPU world renderer (RENDER.md R1/R3): terrain as a persistent VBO, fog on the GPU ──
@@ -435,10 +413,11 @@ void main() {{
 `;
 
 // Compile the world-terrain shader once (global; pass the program to view_draw).
+// Null when it does not compile — the driver's log says why.
 // (Legacy fat path — still drives the probes; the play path uses the instanced
 // shader below. plan #7 P6.)
-pub fn make_world_shader() -> integer {
-  graphics::gl_create_shader(WVERT, WFRAG)
+pub fn make_world_shader(win: const graphics::Window) -> graphics::Shader? {
+  win.shader(WVERT, WFRAG)
 }
 
 // R7 instanced floor (plan #7 P6): the base hexagon's corner offsets (loc0)
@@ -465,8 +444,8 @@ void main() {{
 }}
 `;
 
-pub fn make_world_shader_inst() -> integer {
-  graphics::gl_create_shader(WVERT_I, WFRAG)
+pub fn make_world_shader_inst(win: const graphics::Window) -> graphics::Shader? {
+  win.shader(WVERT_I, WFRAG)
 }
 
 // ── R5 wall strokes: capsule-SDF quads (geometry: worldmesh::build_wall_mesh;
@@ -505,8 +484,8 @@ void main() {{
 }}
 `;
 
-pub fn make_wall_shader() -> integer {
-  graphics::gl_create_shader(WALLVERT, WALLFRAG)
+pub fn make_wall_shader(win: const graphics::Window) -> graphics::Shader? {
+  win.shader(WALLVERT, WALLFRAG)
 }
 
 // ── R6 post-fx: the directed light cone + vignette (plan #7 P4; constants
@@ -550,23 +529,29 @@ void main() {{
 }}
 `;
 
-pub fn make_post_shader() -> integer {
-  graphics::gl_create_shader(POSTVERT, POSTFRAG)
+pub fn make_post_shader(win: const graphics::Window) -> graphics::Shader? {
+  win.shader(POSTVERT, POSTFRAG)
 }
 
-// The offscreen world target: a color texture + FBO (built once; the window is
-// fixed-size). Returns (fbo, texture).
-pub fn make_post_target() -> (integer, integer) {
-  tex = graphics::gl_create_color_texture(800, 600);
-  fbo = graphics::gl_create_framebuffer();
-  graphics::gl_framebuffer_texture(fbo, 0, tex);
-  (fbo, tex)
+// The offscreen world target: a color texture, the framebuffer it is attached to,
+// and the fullscreen quad the post pass draws it back with (built once; the window
+// is fixed-size). One value, because the three live and die together.
+pub struct PostTarget {
+  pub fbo:  graphics::Framebuffer,
+  pub tex:  graphics::Texture,
+  pub quad: graphics::GpuMesh,
+}
+
+pub fn make_post_target(win: const graphics::Window) -> PostTarget {
+  pt = PostTarget { fbo: win.framebuffer(), tex: win.texture(800, 600), quad: win.quad() };
+  pt.fbo.attach(pt.tex);
+  pt
 }
 
 // Upload the per-level wall-stroke VBO (rebuild with the level, beside the floor
 // VBO). Vertex count is deterministic: 6 per segment.
-pub fn build_walls_vbo(s: Sim, walls: vector<WallSeg>) -> integer {
-  graphics::gl_upload_vertices(build_wall_mesh(s, walls), 10)
+pub fn build_walls_vbo(win: const graphics::Window, s: Sim, walls: vector<WallSeg>) -> graphics::GpuMesh {
+  win.upload(build_wall_mesh(s, walls), 10)
 }
 
 // World→clip mat4 (column-major), folding world_to_screen + the px→NDC map.
@@ -592,48 +577,48 @@ pub fn world_cam_mat4(s: Sim) -> vector<float> {
 // hexagon fans with the R4 tint pre-composed into vertex colors — comes from the
 // kernel-side worldmesh module; this is the one GL touch (upload). Vertex count is
 // deterministic: 18 * lw * lh.
-pub fn build_world_vbo(s: Sim) -> integer {
-  graphics::gl_upload_vertices(build_world_mesh(s), 10)
+pub fn build_world_vbo(win: const graphics::Window, s: Sim) -> graphics::GpuMesh {
+  win.upload(build_world_mesh(s), 10)
 }
 
 // R7 instanced floor (plan #7 P6). The base hexagon (18 verts of corner
 // offsets, stride 3 → loc0) is built ONCE — it never changes. Per-level the floor
 // is just a fresh instance buffer.
-pub fn build_hex_vao() -> integer {
-  graphics::gl_upload_vertices(build_hex_offsets(), 3)
+pub fn build_hex_vao(win: const graphics::Window) -> graphics::GpuMesh {
+  win.upload(build_hex_offsets(), 3)
 }
 
 // Upload this level's per-hex instance records and bind them to the base-hexagon
-// VAO at loc5/6/7 (divisor 1). Returns the instance VBO — keep it and feed it to
+// mesh at loc5/6/7 (divisor 1). Returns the instance buffer — keep it and feed it to
 // update_world_ivbo on each level change (re-uploads in place, no re-bind needed).
-pub fn build_world_ivbo(hexvao: integer, s: Sim) -> integer {
-  ivbo = graphics::gl_upload_instance_buffer(build_world_instances(s));
-  graphics::gl_instance_attrib(hexvao, ivbo, 5, 2, 7, 0);   // aLat (column, row_y)
-  graphics::gl_instance_attrib(hexvao, ivbo, 6, 2, 7, 2);   // aVisUV (u, v)
-  graphics::gl_instance_attrib(hexvao, ivbo, 7, 3, 7, 4);   // aColor (r, g, b)
+pub fn build_world_ivbo(win: const graphics::Window, hexvao: const graphics::GpuMesh, s: Sim) -> graphics::InstanceBuffer {
+  ivbo = win.instances(build_world_instances(s));
+  hexvao.instance_attrib(ivbo, 5, 2, 7, 0);   // aLat (column, row_y)
+  hexvao.instance_attrib(ivbo, 6, 2, 7, 2);   // aVisUV (u, v)
+  hexvao.instance_attrib(ivbo, 7, 3, 7, 4);   // aColor (r, g, b)
   ivbo
 }
 
 // Re-upload the instance buffer for a new level (orphan + DYNAMIC_DRAW); the
 // loc5/6/7 bindings persist across the re-upload, so no re-bind. Instance count
 // (lw·lh) is passed at draw time — it tracks s, not the buffer.
-pub fn update_world_ivbo(ivbo: integer, s: Sim) {
-  graphics::gl_update_buffer(ivbo, build_world_instances(s));
+pub fn update_world_ivbo(ivbo: const graphics::InstanceBuffer, s: Sim) {
+  ivbo.update(build_world_instances(s));
 }
 
 // Per-frame visibility texture (lw×lh): R = brightness from sim_hex_state.
 // (Pub: worldprobe renders through the real pipeline pieces.)
-pub fn build_vis_texture(s: Sim) -> integer {
-  pix: vector<integer> = [];
+pub fn build_vis_texture(win: const graphics::Window, s: Sim) -> graphics::Texture {
+  pix: vector<u32> = [];
   for gr in 0..s.lh {
     for gq in 0..s.lw {
       st = sim_hex_state(s, s.qmin + gq, s.rmin + gr);
       bb = 0;
       if st == 2 { bb = 255; } else if st == 1 { bb = 115; }
-      pix += [graphics::rgba(bb, 0, 0, 255)];
+      pix += [graphics::rgba(bb, 0, 0, 255) & 4294967295];
     }
   }
-  graphics::gl_upload_canvas(pix, s.lw, s.lh)
+  win.texture_from(graphics::Canvas { width: s.lw, height: s.lh, data: pix })
 }
 
 // Draw a baked text texture at its NATURAL size (measure width + text height) so it stays crisp.
@@ -649,19 +634,21 @@ fn stat_abbrevs() -> vector<text> {
   ["MIG", "END", "DEX", "PER", "SPD", "WIL", "CHA", "HAN"]
 }
 
-fn sb_text(painter: graphics::Painter2D, hud: Hud, tex: integer, str: text, x: float, y: float) {
-  if tex == 0 { return; }
-  w = graphics::gl_measure_text(hud.font, str, SB_SIZE);
-  h = graphics::gl_text_height(hud.font, SB_SIZE) as float;
-  graphics::draw_texture_at(painter, tex, x, y, w, h);
+fn sb_text(painter: const graphics::Painter, hud: const Hud, tex: const graphics::Texture?, str: text, x: float, y: float) {
+  font = hud.font;
+  if font == null || tex == null { return; }
+  w = font.measure(str, SB_SIZE);
+  h = font.line_height(SB_SIZE) as float;
+  painter.image(tex, x, y, w, h);
 }
 
 // The left character bar (Angband's known spot): HP (with the SP row reserved beneath it), the 8
 // base stats, then the 11 quick-slots (1-9 then Q/E). Drawn every frame from pre-baked textures +
 // draw_number — no per-frame baking — so it tracks HP/ammo/slots live. Q shows the bow + arrows-left.
-fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
-  if hud.panel != 0 { graphics::draw_texture_at(painter, hud.panel, 0.0, 0.0, SIDEBAR_W, VIEW_H); }
-  if hud.font < 0 { return; }
+fn draw_sidebar(painter: const graphics::Painter, s: Sim, hud: const Hud) {
+  img(painter, hud.panel, 0.0, 0.0, SIDEBAR_W, VIEW_H);
+  font = hud.font;
+  if font == null { return; }
   pad = 10.0;
   barx = pad + 24.0;
   barw = SIDEBAR_W - barx - pad;
@@ -673,8 +660,8 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   if hpf < 0.0 { hpf = 0.0; }
   if hpf > 1.0 { hpf = 1.0; }
   sb_text(painter, hud, hud.hplbl, "HP", pad, 11.0);
-  graphics::draw_rect_at(painter, barx, 13.0, barw, 13.0, 0.25, 0.05, 0.05, 1.0);
-  graphics::draw_rect_at(painter, barx, 13.0, barw * hpf, 13.0, 0.20, 0.80, 0.30, 1.0);
+  painter.rect(barx, 13.0, barw, 13.0, 0.25, 0.05, 0.05, 1.0);
+  painter.rect(barx, 13.0, barw * hpf, 13.0, 0.20, 0.80, 0.30, 1.0);
   draw_number(painter, hud, hp, barx + 4.0, 9.0);
   // SP row, repurposed to show the active player STATUS (paralysed/warded/poisoned); the dim SP
   // placeholder when clear. (Poison is silent per-tick, so the pip is the read on "why is HP falling".)
@@ -690,37 +677,35 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
       spfr = sp as float / spmax as float ?? 0.0;
       if spfr < 0.0 { spfr = 0.0; }
       if spfr > 1.0 { spfr = 1.0; }
-      graphics::draw_rect_at(painter, barx, 32.0, barw, 12.0, 0.08, 0.10, 0.26, 1.0);
-      graphics::draw_rect_at(painter, barx, 32.0, barw * spfr, 12.0, 0.30, 0.42, 0.85, 1.0);
+      painter.rect(barx, 32.0, barw, 12.0, 0.08, 0.10, 0.26, 1.0);
+      painter.rect(barx, 32.0, barw * spfr, 12.0, 0.30, 0.42, 0.85, 1.0);
       draw_number(painter, hud, sp, barx + 4.0, 28.0);
     } else {
-      graphics::draw_rect_at(painter, barx, 33.0, barw, 8.0, 0.10, 0.12, 0.20, 1.0);
+      painter.rect(barx, 33.0, barw, 8.0, 0.10, 0.12, 0.20, 1.0);
     }
   }
 
   // CL + gold on one row, the XP bar under them.
-  if hud.clbl != 0 {
-    graphics::draw_texture_at(painter, hud.clbl, pad, 49.0, 16.0, 15.0);
+  if hud.clbl != null {
+    img(painter, hud.clbl, pad, 49.0, 16.0, 15.0);
     draw_number(painter, hud, sim_clevel(s), pad + 20.0, 47.0);
   }
-  if hud.gtex != 0 {
-    graphics::draw_texture_at(painter, hud.gtex, pad + 74.0, 47.0, 11.0, 17.0);
+  if hud.gtex != null {
+    img(painter, hud.gtex, pad + 74.0, 47.0, 11.0, 17.0);
     draw_number(painter, hud, sim_gold(s), pad + 88.0, 47.0);
   }
   xpf = sim_xp_frac(s);
-  graphics::draw_rect_at(painter, pad, 68.0, SIDEBAR_W - 2.0 * pad, 5.0, 0.10, 0.10, 0.22, 1.0);
-  graphics::draw_rect_at(painter, pad, 68.0, (SIDEBAR_W - 2.0 * pad) * xpf, 5.0, 0.45, 0.45, 0.85, 1.0);
+  painter.rect(pad, 68.0, SIDEBAR_W - 2.0 * pad, 5.0, 0.10, 0.10, 0.22, 1.0);
+  painter.rect(pad, 68.0, (SIDEBAR_W - 2.0 * pad) * xpf, 5.0, 0.45, 0.45, 0.85, 1.0);
 
   // The EIGHT base stats (label + value) — CATALOG.md §0 order, plan #16 `M2`.
   // ⚠ Driven by the ARRAY's length, not a literal count, so the sidebar follows the axis set
   // (I-AXIS). Whether eight rows still FIT here is `M4`'s judgement, in `make play`.
   snames = stat_abbrevs();
   skeys  = ["might", "endu", "dex", "perc", "speed", "will", "char", "hand"];
-  slbl = hud.statlbl;
   sy = 84.0;
   for i in 0..len(skeys) {
-    t = if i < len(slbl) { slbl[i] ?? 0 } else { 0 };
-    sb_text(painter, hud, t, snames[i] ?? "", pad, sy);
+    sb_text(painter, hud, hud.statlbl[i], snames[i] ?? "", pad, sy);
     draw_number(painter, hud, sim_stat(s, skeys[i] ?? ""), pad + 46.0, sy - 2.0);
     sy += 20.0;
   }
@@ -739,11 +724,11 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
     nx = pad + 18.0;
     defidx = sim_qs_def(s, k);
     if defidx >= 0 && defidx < len(hud.itex) {
-      nm = fit_text(hud.font, sim_item_short_name(s, defidx), SB_NAME_W, SB_SIZE);   // flavour-aware short + ellipsis-fit
-      sb_text(painter, hud, hud.itex[defidx] ?? 0, nm, nx, qy);
+      nm = fit_text(font, sim_item_short_name(s, defidx), SB_NAME_W, SB_SIZE);   // flavour-aware short + ellipsis-fit
+      sb_text(painter, hud, hud.itex[defidx], nm, nx, qy);
       cnt = sim_qs_count(s, k);
       if sim_item_cat(defidx) == IT_BOW || cnt > 1 {
-        nw = graphics::gl_measure_text(hud.font, nm, SB_SIZE);
+        nw = font.measure(nm, SB_SIZE);
         draw_number(painter, hud, cnt, nx + nw + 6.0, qy - 2.0);
       }
     } else if k == QS_E && sim_player_realm(s) != "none" {
@@ -758,50 +743,48 @@ fn draw_sidebar(painter: graphics::Painter2D, s: Sim, hud: Hud) {
   khs = key_hints();
   hy = qy + 14.0;
   for hi in 0..len(hud.hints) {
-    t = hud.hints[hi] ?? 0;
-    if t != 0 && hi < len(khs) {
+    if hi < len(khs) {
       m = khs[hi] ?? "";
-      hw = graphics::gl_measure_text(hud.font, m, SB_SIZE);
-      hh = graphics::gl_text_height(hud.font, SB_SIZE) as float;
-      graphics::draw_texture_at(painter, t, pad, hy + (hi as float) * 18.0, hw, hh);
+      hw = font.measure(m, SB_SIZE);
+      hh = font.line_height(SB_SIZE) as float;
+      img(painter, hud.hints[hi], pad, hy + (hi as float) * 18.0, hw, hh);
     }
   }
 }
 
-pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer, wvao: integer,
-                 wallprog: integer, wallvao: integer, walln: integer,
-                 postprog: integer, postfbo: integer, posttex: integer) {
+pub fn view_draw(win: const graphics::Window, painter: const graphics::Painter, s: Sim, hud: const Hud,
+                 wprog: const graphics::Shader, wvao: const graphics::GpuMesh,
+                 wallprog: const graphics::Shader, wallvao: const graphics::GpuMesh, walln: integer,
+                 postprog: const graphics::Shader, post: const PostTarget) {
   // R6: the world layers render into the offscreen target; the light-cone pass
   // composites them to the backbuffer; the HUD draws after, unlit.
-  graphics::gl_bind_framebuffer(postfbo);
-  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
+  win.render_to(post.fbo);
+  win.clear(graphics::rgba(14, 16, 24, 255));
   cell = SCALE * 1.35;
 
   // Terrain: one GPU draw of the per-level VBO; the shader applies FOV from a tiny
   // per-hex visibility texture (discards unseen, dims remembered).
-  vistex = build_vis_texture(s);
+  vistex = build_vis_texture(win, s);
   mat = world_cam_mat4(s);
-  graphics::gl_use_shader(wprog);
-  graphics::gl_set_uniform_mat4(wprog, "uMVP", mat);
-  graphics::gl_bind_texture(vistex, 0);
-  graphics::gl_set_uniform_int(wprog, "uVis", 0);
+  wprog.set_mat4("uMVP", mat);
+  vistex.bind(0);
+  wprog.set_int("uVis", 0);
   // R7: one instanced draw — the base hexagon (18 verts), lw·lh instances. wvao
   // carries the per-level instance buffer (loc5/6/7). plan #7 P6.
-  graphics::gl_draw_instanced(wvao, 18, s.lw * s.lh);
+  wvao.draw_instanced(wprog, s.lw * s.lh);
 
   // R5 wall strokes: ONE draw of the per-level capsule-SDF quads — solid lines
   // with round joins and analytic AA (was: 13 stipple squares per segment per
   // frame). Same camera, same vis texture (remembered walls dim at x0.451,
   // unseen discard).
   if walln > 0 {
-    graphics::gl_use_shader(wallprog);
-    graphics::gl_set_uniform_mat4(wallprog, "uMVP", mat);
-    graphics::gl_bind_texture(vistex, 0);
-    graphics::gl_set_uniform_int(wallprog, "uVis", 0);
-    graphics::gl_set_uniform_vec3(wallprog, "uColor", 0.92, 0.82, 0.45);
-    graphics::gl_draw(wallvao, walln);
+    wallprog.set_mat4("uMVP", mat);
+    vistex.bind(0);
+    wallprog.set_int("uVis", 0);
+    wallprog.set_vec3("uColor", 0.92, 0.82, 0.45);
+    wallvao.draw(wallprog);   // every vertex of the level's wall mesh: 6 per segment
   }
-  graphics::gl_delete_texture(vistex);
+  // (vistex is this frame's own: it is released when this function ends.)
 
   // Terrain-kind tints are BAKED into the floor VBO's vertex colors (worldmesh,
   // R4) — no per-frame wash; FOV dimming covers tint and floor uniformly via the
@@ -819,22 +802,22 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
         if hsx > -cell && hsx < VIEW_W + cell && hsy > -cell && hsy < VIEW_H + cell {
           ssz = cell * 0.92;
           if t == 2 {
-            if hud.stair_dn != 0 {
-              graphics::draw_texture_at(painter, hud.stair_dn, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
-            } else if hud.font >= 0 && hud.sdown != 0 {
+            if hud.stair_dn != null {
+              img(painter, hud.stair_dn, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
+            } else if hud.font != null && hud.sdown != null {
               if sim_tile_kind(s, q, r) >= 0 { draw_disc(painter, hud.disc, hsx, hsy, ssz * 0.9); }
               draw_glyph_centered(painter, hud.font, hud.sdown, ">", STAIR_SIZE, hsx, hsy);
             }
           } else if t == 3 {
-            if hud.stair_up != 0 {
-              graphics::draw_texture_at(painter, hud.stair_up, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
-            } else if hud.font >= 0 && hud.sup != 0 {
+            if hud.stair_up != null {
+              img(painter, hud.stair_up, hsx - ssz / 2.0, hsy - ssz / 2.0, ssz, ssz);
+            } else if hud.font != null && hud.sup != null {
               if sim_tile_kind(s, q, r) >= 0 { draw_disc(painter, hud.disc, hsx, hsy, ssz * 0.9); }
               draw_glyph_centered(painter, hud.font, hud.sup, "<", STAIR_SIZE, hsx, hsy);
             }
-          } else if t == 8 && hud.font >= 0 && hud.board != 0 {
+          } else if t == 8 && hud.font != null && hud.board != null {
             draw_glyph_centered(painter, hud.font, hud.board, "!", STAIR_SIZE, hsx, hsy);
-          } else if t == 9 && hud.font >= 0 && hud.pooltx != 0 {
+          } else if t == 9 && hud.font != null && hud.pooltx != null {
             draw_glyph_centered(painter, hud.font, hud.pooltx, "~", STAIR_SIZE, hsx, hsy);
           }
         }
@@ -846,8 +829,7 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
 
   // Floor loot — gold piles ('$') and dropped items (category glyph), under the
   // tokens. Drawn only with a font (no square fallback — loot is glyph-only).
-  if hud.font >= 0 {
-    fcat = hud.catex;
+  if hud.font != null {
     fcount = sim_floor_count(s);
     for fl in 0..fcount {
       if sim_floor_live(s, fl) {
@@ -857,8 +839,8 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
           && sim_hex_state_at(s, fwx, fwy) != 0 {   // loot shown once seen (you remember it)
           isz = cell * 0.80;                    // item sprites lie on the floor, unrotated
           if sim_floor_is_gold(s, fl) {
-            if hud.goldspr != 0 {
-              graphics::draw_texture_at(painter, hud.goldspr, flsx - isz / 2.0, flsy - isz / 2.0, isz, isz);
+            if hud.goldspr != null {
+              img(painter, hud.goldspr, flsx - isz / 2.0, flsy - isz / 2.0, isz, isz);
             } else {
               (gq2, gr2) = px_to_hex(fwx, fwy);
               if sim_tile_kind(s, gq2, gr2) >= 0 { draw_disc(painter, hud.disc, flsx, flsy, DISC_E * 0.8); }
@@ -866,16 +848,12 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
             }
           } else {
             cat = sim_floor_cat(s, fl);
-            cspr = hud.catspr;
-            sptx = if cat >= 0 && cat < len(cspr) { cspr[cat] ?? 0 } else { 0 };
-            if sptx != 0 {
-              graphics::draw_texture_at(painter, sptx, flsx - isz / 2.0, flsy - isz / 2.0, isz, isz);
-            } else {
-              ctex = if cat >= 0 && cat < len(fcat) { fcat[cat] ?? 0 } else { 0 };
-              if ctex != 0 {
+            sptx = if cat >= 0 && cat < len(hud.catspr) { hud.catspr[cat] ?? -1 } else { -1 };
+            if !img_sprite(painter, hud, sptx, flsx - isz / 2.0, flsy - isz / 2.0, isz, isz) {
+              if cat >= 0 && cat < len(hud.catex) {
                 (cq2, cr2) = px_to_hex(fwx, fwy);
                 if sim_tile_kind(s, cq2, cr2) >= 0 { draw_disc(painter, hud.disc, flsx, flsy, DISC_E * 0.8); }
-                draw_glyph_centered(painter, hud.font, ctex, cat_glyph(cat), ITEM_SIZE, flsx, flsy);
+                draw_glyph_centered(painter, hud.font, hud.catex[cat], cat_glyph(cat), ITEM_SIZE, flsx, flsy);
               }
             }
           }
@@ -886,21 +864,17 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
 
   // Enemies — glyph letters in their DB colour (square fallback if no font).
   ecount = sim_enemy_count(s);
-  etexv = hud.etex;
   for ve in 0..ecount {
     if sim_enemy_alive(s, ve) {
       (ewx, ewy) = sim_enemy_pos(s, ve);
       if sim_hex_state_at(s, ewx, ewy) == 2 {   // enemies shown only when currently in view (they move)
       (esx, esy) = world_to_screen(s, ewx, ewy);
-      etx = if ve < len(etexv) { etexv[ve] ?? 0 } else { 0 };
       eg = sim_enemy_glyph(s, ve);
-      esv = hud.estex;
-      eav = hud.esact;
-      stx = if ve < len(esv) { esv[ve] ?? 0 } else { 0 };
-      act = if ve < len(eav) { eav[ve] ?? 0 } else { 0 };
+      stx = if ve < len(hud.estex) { hud.estex[ve] ?? -1 } else { -1 };
+      act = if ve < len(hud.esact) { hud.esact[ve] ?? -1 } else { -1 };
       // ACTION variant (<key>_gaze.png): shown while the monster is in striking contact
-      if act != 0 && sim_enemy_dist(s, ve) <= 1 { stx = act; }
-      if stx != 0 {
+      if act >= 0 && sim_enemy_dist(s, ve) <= 1 { stx = act; }
+      if stx >= 0 {
         // SPRITE monster: rotated + scaled, no disc (the sprites carry their own contrast).
         // Facing = movement snapped to the 12-direction model (k*30 deg); screen angle =
         // heading - facing (the world rotates around the player).
@@ -911,14 +885,14 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
         efq = (ek - 24) as float;
         etheta = s.heading - efq * estep;
         espz = SCALE * 2.45;                   // body-mass sized; appendages overhang the cell
-        draw_texture_rot(painter, stx, esx, esy, espz, espz, etheta);
-      } else if hud.font >= 0 && etx != 0 {
+        _drawn = draw_sprite_rot(painter, hud, stx, esx, esy, espz, espz, etheta);
+      } else if hud.font != null && ve < len(hud.etex) {
         draw_disc(painter, hud.disc, esx, esy, DISC_E);
-        draw_glyph_centered(painter, hud.font, etx, eg, GLYPH_SIZE, esx, esy);
+        draw_glyph_centered(painter, hud.font, hud.etex[ve], eg, GLYPH_SIZE, esx, esy);
       } else {
         (ecr, ecg, ecb) = sim_enemy_color(s, ve);
         msz = SCALE * 0.95;
-        graphics::draw_rect_at(painter, esx - msz / 2.0, esy - msz / 2.0, msz, msz,
+        painter.rect(esx - msz / 2.0, esy - msz / 2.0, msz, msz,
           ecr as float / 255.0, ecg as float / 255.0, ecb as float / 255.0, 1.0);
       }
       }   // close the in-view gate
@@ -928,45 +902,45 @@ pub fn view_draw(painter: graphics::Painter2D, s: Sim, hud: Hud, wprog: integer,
   // Player at the anchor — the authored sprite (heading is always "up" on screen, so it
   // draws UNROTATED); '@' glyph + disc as the fallback, square as the last resort.
   psz = SCALE * 1.0;
-  if hud.pspr != 0 {
+  if hud.pspr != null {
     ppsz = SCALE * 2.2;
-    graphics::draw_texture_at(painter, hud.pspr, CX - ppsz / 2.0, ANCHOR_Y - ppsz / 2.0, ppsz, ppsz);
-  } else if hud.font >= 0 && hud.ptex != 0 {
+    img(painter, hud.pspr, CX - ppsz / 2.0, ANCHOR_Y - ppsz / 2.0, ppsz, ppsz);
+  } else if hud.font != null && hud.ptex != null {
     draw_disc(painter, hud.disc, CX, ANCHOR_Y, DISC_P);
     draw_glyph_centered(painter, hud.font, hud.ptex, "@", PLAYER_SIZE, CX, ANCHOR_Y);
   } else {
-    graphics::draw_rect_at(painter, CX - psz / 2.0, ANCHOR_Y - psz / 2.0, psz, psz, 0.95, 0.90, 0.30, 1.0);
+    painter.rect(CX - psz / 2.0, ANCHOR_Y - psz / 2.0, psz, psz, 0.95, 0.90, 0.30, 1.0);
   }
   nsz = SCALE * 0.42;
-  graphics::draw_rect_at(painter, CX - nsz / 2.0, ANCHOR_Y - psz * 0.9 - nsz, nsz, nsz, 0.30, 0.92, 0.40, 1.0);
+  painter.rect(CX - nsz / 2.0, ANCHOR_Y - psz * 0.9 - nsz, nsz, nsz, 0.30, 0.92, 0.40, 1.0);
 
   // R6: world layers end — composite the offscreen target through the
   // light-cone + vignette pass, then draw the HUD unlit on the backbuffer.
-  graphics::gl_bind_framebuffer(0);
-  graphics::gl_use_shader(postprog);
-  graphics::gl_bind_texture(posttex, 0);
-  graphics::gl_set_uniform_int(postprog, "uScene", 0);
-  graphics::gl_draw_fullscreen_quad();
+  win.render_to_window();
+  post.tex.bind(0);
+  postprog.set_int("uScene", 0);
+  post.quad.draw(postprog);
 
   // The left character bar: HP (room for SP), CL/gold/XP, the 6 base stats, the 11 quick-slots.
   draw_sidebar(painter, s, hud);
 
   // Depth readout (top-right): "DEPTH n".
-  if hud.font >= 0 && hud.dlbl != 0 {
-    lblw = graphics::gl_measure_text(hud.font, "DEPTH", DIGIT_SIZE) + 5.0;
-    lblh = graphics::gl_text_height(hud.font, DIGIT_SIZE) as float + 4.0;
+  font = hud.font;
+  if font != null && hud.dlbl != null {
+    lblw = font.measure("DEPTH", DIGIT_SIZE) + 5.0;
+    lblh = font.line_height(DIGIT_SIZE) as float + 4.0;
     lx = VIEW_W - lblw - 60.0;
-    graphics::draw_texture_at(painter, hud.dlbl, lx, 12.0, lblw, lblh);
+    img(painter, hud.dlbl, lx, 12.0, lblw, lblh);
     draw_number(painter, hud, sim_depth(s), lx + lblw + 4.0, 10.0);
   }
 
   // Game over: red tint + "YOU DIED" banner.
   if sim_over(s) {
-    graphics::draw_rect_at(painter, 0.0, 0.0, VIEW_W, VIEW_H, 0.6, 0.05, 0.05, 0.45);
-    if hud.font >= 0 && hud.died != 0 {
-      dw = graphics::gl_measure_text(hud.font, "YOU DIED", DIED_SIZE) + 5.0;
-      dh = graphics::gl_text_height(hud.font, DIED_SIZE) as float + 4.0;
-      graphics::draw_texture_at(painter, hud.died, (VIEW_W - dw) / 2.0, (VIEW_H - dh) / 2.0, dw, dh);
+    painter.rect(0.0, 0.0, VIEW_W, VIEW_H, 0.6, 0.05, 0.05, 0.45);
+    if font != null && hud.died != null {
+      dw = font.measure("YOU DIED", DIED_SIZE) + 5.0;
+      dh = font.line_height(DIED_SIZE) as float + 4.0;
+      img(painter, hud.died, (VIEW_W - dw) / 2.0, (VIEW_H - dh) / 2.0, dw, dh);
     }
   }
 }
@@ -1003,37 +977,33 @@ fn charpage_lines(s: Sim) -> vector<text> {
 }
 
 // Bake the character-page line textures (call on open + after each spend).
-pub fn build_charpage(s: Sim, font: integer) -> vector<integer> {
-  out: vector<integer> = [];
-  if font >= 0 {
+pub fn build_charpage(win: const graphics::Window, s: Sim, font: const graphics::Font?) -> vector<graphics::Texture> {
+  out: vector<graphics::Texture> = [];
+  if font != null {
     lines = charpage_lines(s);
     for i in 0..len(lines) {
       ln = lines[i] ?? "";
-      out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
+      out += [win.text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
     }
   }
   out
 }
 
 // Draw the character page: dark backdrop + the baked lines, stacked.
-pub fn draw_charpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>) {
-  if hud.panel != 0 {
-    graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
-  }
-  if hud.font < 0 { return; }
+pub fn draw_charpage(painter: const graphics::Painter, s: Sim, hud: const Hud, pg: const vector<graphics::Texture>) {
+  img(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
+  font = hud.font;
+  if font == null { return; }
   lines = charpage_lines(s);
-  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 10.0;
+  lh = font.line_height(CHARPAGE_SIZE) as float + 10.0;
   y = 60.0;
   n = len(pg);
   for i in 0..n {
     if i < len(lines) {
       ln = lines[i] ?? "";
-      t = pg[i] ?? 0;
-      if t != 0 {
-        w = graphics::gl_measure_text(hud.font, ln, CHARPAGE_SIZE);
-        h = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 4.0;
-        graphics::draw_texture_at(painter, t, 60.0, y, w, h);
-      }
+      w = font.measure(ln, CHARPAGE_SIZE);
+      h = font.line_height(CHARPAGE_SIZE) as float + 4.0;
+      img(painter, pg[i], 60.0, y, w, h);
     }
     y += lh;
   }
@@ -1056,7 +1026,7 @@ COL_EQUIP_W   = 318.0;
 
 // Greedy word-wrap `str` to lines no wider than `max_w` px (the examine description can be long, e.g.
 // the quest scroll's orders). Splits on spaces; a single over-long word gets its own line.
-fn wrap_text(font: integer, str: text, max_w: float, size: float) -> vector<text> {
+fn wrap_text(font: const graphics::Font, str: text, max_w: float, size: float) -> vector<text> {
   out: vector<text> = [];
   words = str.split_text(" ");
   cur = "";
@@ -1065,7 +1035,7 @@ fn wrap_text(font: integer, str: text, max_w: float, size: float) -> vector<text
     if w != "" {
       trial = w;
       if cur != "" { trial = "{cur} {w}"; }
-      if graphics::gl_measure_text(font, trial, size) <= max_w { cur = trial; }
+      if font.measure(trial, size) <= max_w { cur = trial; }
       else {
         if cur != "" { out += [cur]; }
         cur = w;
@@ -1080,7 +1050,7 @@ fn wrap_text(font: integer, str: text, max_w: float, size: float) -> vector<text
 // Lines in a fixed order: [0] INVENTORY title · [1] EQUIPPED title · [2 .. 2+n) carried (cursor-marked)
 // · [2+n .. 2+n+12) worn locations · [.. -1) the examine description (now WRAPPED to several lines)
 // · [-1] hint. The desc line count varies, so draw_invpage derives it from the total length.
-fn inv_hub_lines(s: Sim, cursor: integer, font: integer) -> vector<text> {
+fn inv_hub_lines(s: Sim, cursor: integer, font: const graphics::Font) -> vector<text> {
   out: vector<text> = ["INVENTORY", "EQUIPPED"];
   n = sim_inv_count(s);
   for i in 0..n {
@@ -1106,42 +1076,39 @@ fn inv_hub_lines(s: Sim, cursor: integer, font: integer) -> vector<text> {
 }
 
 // Bake the inventory line textures (call on open + after each use/wield).
-pub fn build_invpage(s: Sim, font: integer, cursor: integer) -> vector<integer> {
-  out: vector<integer> = [];
-  if font >= 0 {
+pub fn build_invpage(win: const graphics::Window, s: Sim, font: const graphics::Font?, cursor: integer) -> vector<graphics::Texture> {
+  out: vector<graphics::Texture> = [];
+  if font != null {
     lines = inv_hub_lines(s, cursor, font);
     for i in 0..len(lines) {
       ln = lines[i] ?? "";
-      out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
+      out += [win.text_texture(font, ln, CHARPAGE_SIZE, graphics::rgba(225, 225, 210, 255))];
     }
   }
   out
 }
 
 // Draw the baked line `idx` (texture pg[idx], string lines[idx]) at (x, y), measured for crisp width.
-fn inv_draw_line(painter: graphics::Painter2D, hud: Hud, pg: vector<integer>, lines: vector<text>,
+fn inv_draw_line(painter: const graphics::Painter, hud: const Hud, pg: const vector<graphics::Texture>, lines: vector<text>,
                  idx: integer, x: float, y: float) {
-  if idx < 0 || idx >= len(pg) || idx >= len(lines) { return; }
-  t = pg[idx] ?? 0;
+  font = hud.font;
+  if font == null || idx < 0 || idx >= len(pg) || idx >= len(lines) { return; }
   ln = lines[idx] ?? "";
-  if t != 0 {
-    w = graphics::gl_measure_text(hud.font, ln, CHARPAGE_SIZE);
-    hh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 4.0;
-    graphics::draw_texture_at(painter, t, x, y, w, hh);
-  }
+  w = font.measure(ln, CHARPAGE_SIZE);
+  hh = font.line_height(CHARPAGE_SIZE) as float + 4.0;
+  img(painter, pg[idx], x, y, w, hh);
 }
 
 // Draw the hub: backdrop, carried column (left, cursor-marked), worn-locations column (right),
 // then the selected item's description + the hint.
-pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>, cursor: integer) {
-  if hud.panel != 0 {
-    graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
-  }
-  if hud.font < 0 { return; }
-  lines = inv_hub_lines(s, cursor, hud.font);
+pub fn draw_invpage(painter: const graphics::Painter, s: Sim, hud: const Hud, pg: const vector<graphics::Texture>, cursor: integer) {
+  img(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
+  font = hud.font;
+  if font == null { return; }
+  lines = inv_hub_lines(s, cursor, font);
   n = sim_inv_count(s);
   total = len(lines);
-  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 8.0;
+  lh = font.line_height(CHARPAGE_SIZE) as float + 8.0;
   xL = 60.0;
   xR = 430.0;
   y0 = 56.0;
@@ -1163,7 +1130,7 @@ pub fn draw_invpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<i
 // Opened when the player BUMPS the shrine crystal (sim_shrine_pending). Two columns from the
 // merged catalogs via sim_* roster accessors — a dropped-in race/class bundle appears here
 // automatically. Same bake-on-change pattern as the charpage/inv-hub. The world pauses.
-fn crystal_lines(s: Sim, col: integer, cursor: integer, font: integer) -> vector<text> {
+fn crystal_lines(s: Sim, col: integer, cursor: integer, font: const graphics::Font) -> vector<text> {
   out: vector<text> = ["THE CRYSTAL  --  it hums, waiting to reshape you"];
   out += ["RACE", "CLASS"];
   nr = sim_race_count();
@@ -1193,30 +1160,29 @@ fn crystal_lines(s: Sim, col: integer, cursor: integer, font: integer) -> vector
   out
 }
 
-pub fn build_crystalpage(s: Sim, font: integer, col: integer, cursor: integer) -> vector<integer> {
-  out: vector<integer> = [];
-  if font >= 0 {
+pub fn build_crystalpage(win: const graphics::Window, s: Sim, font: const graphics::Font?, col: integer, cursor: integer) -> vector<graphics::Texture> {
+  out: vector<graphics::Texture> = [];
+  if font != null {
     lines = crystal_lines(s, col, cursor, font);
     for i in 0..len(lines) {
       ln = lines[i] ?? "";
       tint = graphics::rgba(225, 225, 210, 255);
       if i == 0 { tint = graphics::rgba(150, 220, 235, 255); }   // the crystal's teal title
-      out += [graphics::create_text_texture(font, ln, CHARPAGE_SIZE, tint)];
+      out += [win.text_texture(font, ln, CHARPAGE_SIZE, tint)];
     }
   }
   out
 }
 
-pub fn draw_crystalpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vector<integer>, col: integer, cursor: integer) {
-  if hud.panel != 0 {
-    graphics::draw_texture_at(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
-  }
-  if hud.font < 0 { return; }
-  lines = crystal_lines(s, col, cursor, hud.font);
+pub fn draw_crystalpage(painter: const graphics::Painter, s: Sim, hud: const Hud, pg: const vector<graphics::Texture>, col: integer, cursor: integer) {
+  img(painter, hud.panel, 36.0, 36.0, VIEW_W - 72.0, VIEW_H - 72.0);
+  font = hud.font;
+  if font == null { return; }
+  lines = crystal_lines(s, col, cursor, font);
   nr = sim_race_count();
   nc = sim_class_count();
   total = len(lines);
-  lh = graphics::gl_text_height(hud.font, CHARPAGE_SIZE) as float + 8.0;
+  lh = font.line_height(CHARPAGE_SIZE) as float + 8.0;
   xL = 60.0;
   xR = 430.0;
   y0 = 52.0;
@@ -1237,47 +1203,38 @@ pub fn draw_crystalpage(painter: graphics::Painter2D, s: Sim, hud: Hud, pg: vect
 // ── The message log (SLICE §3): the most recent kernel messages, drawn over the dungeon view ──
 // Newest at the bottom, on a faint dark strip for readability over the lit floor. The textures are
 // baked by build_msglog and only REBAKED when sim_msg_total changes (story.loft watches it), so the
-// hot loop never churns textures; free_msglog releases the old set before a rebake.
+// hot loop never churns textures; assigning the rebake over the old set releases the old textures.
 MSGLOG_SIZE = 15.0;   // message line point size
 MSG_SHOW    = 5;      // how many recent lines to show
 
-pub fn build_msglog(s: Sim, font: integer) -> vector<integer> {
-  out: vector<integer> = [];
-  if font >= 0 {
+pub fn build_msglog(win: const graphics::Window, s: Sim, font: const graphics::Font?) -> vector<graphics::Texture> {
+  out: vector<graphics::Texture> = [];
+  if font != null {
     n = sim_msg_count(s);
     show = MSG_SHOW;
     if show > n { show = n; }
     for k in 0..show {
       m = sim_msg_at(s, show - 1 - k);   // oldest-shown first -> out[0] = oldest, out[show-1] = newest
-      out += [graphics::create_text_texture(font, m, MSGLOG_SIZE, graphics::rgba(228, 222, 200, 255))];
+      out += [win.text_texture(font, m, MSGLOG_SIZE, graphics::rgba(228, 222, 200, 255))];
     }
   }
   out
 }
 
-pub fn free_msglog(ml: vector<integer>) {
-  for k in 0..len(ml) {
-    t = ml[k] ?? 0;
-    if t != 0 { graphics::gl_delete_texture(t); }
-  }
-}
-
-pub fn draw_msglog(painter: graphics::Painter2D, s: Sim, hud: Hud, ml: vector<integer>) {
-  if hud.font < 0 { return; }
+pub fn draw_msglog(painter: const graphics::Painter, s: Sim, hud: const Hud, ml: const vector<graphics::Texture>) {
+  font = hud.font;
+  if font == null { return; }
   n = len(ml);
   if n == 0 { return; }
-  lh = graphics::gl_text_height(hud.font, MSGLOG_SIZE) as float + 3.0;
+  lh = font.line_height(MSGLOG_SIZE) as float + 3.0;
   x = SIDEBAR_W + 12.0;
   blk = (n as float) * lh + 8.0;
   y0 = VIEW_H - 10.0 - blk;
-  graphics::draw_rect_at(painter, SIDEBAR_W, y0 - 2.0, VIEW_W - SIDEBAR_W, blk + 4.0, 0.05, 0.06, 0.09, 0.55);
+  painter.rect(SIDEBAR_W, y0 - 2.0, VIEW_W - SIDEBAR_W, blk + 4.0, 0.05, 0.06, 0.09, 0.55);
   for k in 0..n {
-    t = ml[k] ?? 0;
-    if t != 0 {
-      m = sim_msg_at(s, n - 1 - k);   // same order as build; recompute width for crisp draw
-      w = graphics::gl_measure_text(hud.font, m, MSGLOG_SIZE);
-      h = graphics::gl_text_height(hud.font, MSGLOG_SIZE) as float;
-      graphics::draw_texture_at(painter, t, x, y0 + 6.0 + (k as float) * lh, w, h);
-    }
+    m = sim_msg_at(s, n - 1 - k);   // same order as build; recompute width for crisp draw
+    w = font.measure(m, MSGLOG_SIZE);
+    h = font.line_height(MSGLOG_SIZE) as float;
+    img(painter, ml[k], x, y0 + 6.0 + (k as float) * lh, w, h);
   }
 }

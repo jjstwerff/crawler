@@ -153,7 +153,7 @@ pub fn build_world_mesh(s: Sim) -> vector<single> {
 //
 // The fat mesh above re-emits 18 verts PER hex. The instanced floor emits the
 // hexagon ONCE (build_hex_offsets) and one small record per hex
-// (build_world_instances), drawn via gl_draw_instanced. The decomposition is the
+// (build_world_instances), drawn via `GpuMesh.draw_instanced`. The decomposition is the
 // LATTICE construction the blueprint pinned: a corner's world position is
 //   x = SQRT3 · (column + dx),   y = row_y + dy
 // where column = q + 0.5·(r&1) and row_y = 1.5·r are EXACT half-integers (per
@@ -196,7 +196,7 @@ pub fn build_hex_offsets() -> vector<single> {
 
 // Per-level instance records for the instanced floor: one 7-float record per hex
 // — (column = q + 0.5·(r&1), row_y = 1.5·r, visU, visV, r, g, b). Paired with
-// build_hex_offsets() + gl_draw_instanced(vao, 18, lw·lh). column/row_y are the
+// build_hex_offsets() + `wvao.draw_instanced(prog, lw·lh)`. column/row_y are the
 // EXACT lattice anchors; visUV is the per-hex FOV texel (centre); the color is
 // the R4-baked floor tone (hex_floor_rgb — the same oracle as the fat mesh).
 // Record count = lw · lh.

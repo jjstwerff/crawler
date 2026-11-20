@@ -3,7 +3,7 @@
 # Expected colors are THEORY, confirmed by measurement 2026-06-12:
 #   floor (0.80,0.745,0.59)*255 = (204,190,150) at vis 1.0
 #   wall  (0.15,0.14,0.13)*255  = (38,36,33)    at vis 1.0
-#   background = gl_clear rgba(14,16,24)         (unseen hexes discard)
+#   background = Window.clear rgba(14,16,24)         (unseen hexes discard)
 # Coords are PNG pixels, origin top-left. The scene is deterministic (fixed seed,
 # fixed camera) so the wall point (206,250) is stable for THIS gpushot code.
 

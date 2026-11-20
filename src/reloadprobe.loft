@@ -4,22 +4,30 @@
 use graphics;
 use engine_host;
 
-fn tick_draw(painter: graphics::Painter2D) {
-  if !graphics::gl_poll_events() || graphics::gl_key_pressed(27) {
+// The window and its painter, as the ONE link the tick closure captures (each is a
+// value that releases its GL object when its owner goes — story.loft's GameWorld shape).
+struct Probe {
+  win:     graphics::Window,
+  painter: graphics::Painter,
+}
+
+fn tick_draw(p: const Probe) {
+  if !p.win.poll() || p.win.key_down(27) {
     engine_host::client_stop();
     return;
   }
-  graphics::gl_clear(graphics::rgba(10, 10, 10, 255));
-  graphics::draw_rect_at(painter, 200.0, 150.0, 400.0, 300.0, 0.90, 0.15, 0.15, 1.0);
-  graphics::gl_swap_buffers();
+  p.win.clear(graphics::rgba(10, 10, 10, 255));
+  p.painter.rect(200.0, 150.0, 400.0, 300.0, 0.90, 0.15, 0.15, 1.0);
+  p.win.swap();
 }
 
 fn main() {
-  if !graphics::gl_create_window(800, 600, "reload probe") { return; }
-  painter = graphics::create_painter_2d(800.0, 600.0);
-  graphics::gl_disable(graphics::GL_DEPTH_TEST);
+  win = graphics::open_window(800, 600, "reload probe") ?? return;
+  painter = win.painter() ?? return;
+  win.disable(graphics::GL_DEPTH_TEST);
+  p = Probe { win: win, painter: painter };
   engine_host::run_local(16666, fn(_ev: engine_host::Event) {}, fn() {
-    tick_draw(painter);
+    tick_draw(p);
   });
-  graphics::gl_destroy_window();
+  p.win.close();
 }

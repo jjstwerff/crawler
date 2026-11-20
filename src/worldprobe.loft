@@ -2,7 +2,7 @@
 // through the REAL view pipeline (worldmesh bake → view's VBO/shader/vis/camera),
 // with the heading flipped once after the first FOV so the hexes that fell out of
 // the forward cone are REMEMBERED (seen, not visible) — both dim states land in
-// one deterministic frame. gl_screenshot → /tmp/probe_world.png; asserted by
+// one deterministic frame. Window.capture → /tmp/probe_world.png; asserted by
 // probes/world_r4.probe (expected colors derived from the bake formula).
 use graphics;
 use sim::*;
@@ -11,13 +11,14 @@ use wallgeo::*;
 use hex_grid::*;
 
 fn main() {
-  if !graphics::gl_create_window(800, 600, "world r4 probe") {
+  win = graphics::open_window(800, 600, "world r4 probe");
+  if win == null {
     println("worldprobe: no window");
     return;
   }
-  graphics::gl_disable(graphics::GL_DEPTH_TEST);
-  graphics::gl_enable(graphics::GL_BLEND);   // the R5 strokes carry coverage alpha
-  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  win.disable(graphics::GL_DEPTH_TEST);
+  win.enable(graphics::GL_BLEND);   // the R5 strokes carry coverage alpha
+  win.blend(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
 
   s = sim_new_gen(1337, 0);   // the surface: grass + road + stone faces
   sim_compute_fov(s);
@@ -61,28 +62,26 @@ fn main() {
     }
   }
 
-  wprog = make_world_shader();
-  wvao = build_world_vbo(s);
-  vistex = build_vis_texture(s);
+  wprog = make_world_shader(win) ?? return;
+  wvao = build_world_vbo(win, s);
+  vistex = build_vis_texture(win, s);
   mat = world_cam_mat4(s);
 
-  graphics::gl_poll_events();
-  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
-  graphics::gl_use_shader(wprog);
-  graphics::gl_set_uniform_mat4(wprog, "uMVP", mat);
-  graphics::gl_bind_texture(vistex, 0);
-  graphics::gl_set_uniform_int(wprog, "uVis", 0);
-  graphics::gl_draw(wvao, 18 * s.lw * s.lh);
+  _alive = win.poll();
+  win.clear(graphics::rgba(14, 16, 24, 255));
+  wprog.set_mat4("uMVP", mat);
+  vistex.bind(0);
+  wprog.set_int("uVis", 0);
+  wvao.draw(wprog);   // every vertex of the fat mesh: 18 per hex
   // R5 wall strokes over the terrain (same camera + vis texture).
-  wallprog = make_wall_shader();
-  wallvao = build_walls_vbo(s, walls);
-  graphics::gl_use_shader(wallprog);
-  graphics::gl_set_uniform_mat4(wallprog, "uMVP", mat);
-  graphics::gl_bind_texture(vistex, 0);
-  graphics::gl_set_uniform_int(wallprog, "uVis", 0);
-  graphics::gl_set_uniform_vec3(wallprog, "uColor", 0.92, 0.82, 0.45);
-  graphics::gl_draw(wallvao, len(walls) * 6);
-  ok = graphics::gl_screenshot(800, 600, "/tmp/probe_world.png");
+  wallprog = make_wall_shader(win) ?? return;
+  wallvao = build_walls_vbo(win, s, walls);
+  wallprog.set_mat4("uMVP", mat);
+  vistex.bind(0);
+  wallprog.set_int("uVis", 0);
+  wallprog.set_vec3("uColor", 0.92, 0.82, 0.45);
+  wallvao.draw(wallprog);   // 6 vertices per segment
+  ok = win.capture().save_png("/tmp/probe_world.png");
   println("worldprobe: shot={ok} heading={s.heading} player=({s.px},{s.py})");
-  graphics::gl_destroy_window();
+  win.close();
 }

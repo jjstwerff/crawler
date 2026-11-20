@@ -1,6 +1,7 @@
 // sprite_draw — the draw.py sprite primitives as pure-loft rasterization onto a BARE
 // `vector<integer>` pixel buffer (row-major, 0xAARRGGBB), authored in-loft → a runtime
-// texture via `graphics::gl_upload_canvas(buf, w, h)` or a dev PNG.
+// texture via `Window.texture_from` (a `graphics::Canvas` holding the buffer, masked to
+// `u32`) or a dev PNG.
 //
 // WHY a bare buffer, not graphics::Canvas: graphics' Canvas mutation methods
 // (set_pixel/fill_rect/hline) are passed the Canvas struct BY VALUE across the native
@@ -9,7 +10,7 @@
 // is passed by reference and mutates correctly in BOTH native and interpreted modes, and
 // scalar colour helpers (graphics::rgba/blend/color_*) are scalar-in/scalar-out so they're
 // native-safe too. So everything here stays native — only the final one-shot
-// gl_upload_canvas(buf, w, h) touches the cdylib, passing data IN (no mutate-back).
+// texture upload touches the cdylib, passing data IN (no mutate-back).
 //
 // Coordinates are PIXEL-space floats; geometry front-ends (smoothing/circle/petals/fronds)
 // produce them. Parity invariant vs draw.py: interior pixel-exact, judged on MEAN (the
@@ -311,7 +312,7 @@ fn stroke_path(buf: vector<integer>, w: integer, h: integer,
 
 // Box-filter downscale by an integer factor: render onto a factor× buffer, then average
 // each factor×factor block. Fills the caller-provided `dst` (size ow*oh, ow=sw/factor) —
-// NOT a returned vector, so the result can be handed straight to gl_upload_canvas without
+// NOT a returned vector, so the result can be handed straight to the texture upload without
 // the return-vector-to-FFI silent-abort trap (loft#392). Verified == PIL BOX (max=1).
 fn downscale(src: vector<integer>, sw: integer, factor: integer,
              dst: vector<integer>, ow: integer, oh: integer) {

@@ -2,7 +2,7 @@
 """Pixel-probe harness over rendered PNGs (PLAN-RENDER P0).
 
 The render side (a src/*probe.loft program, or gpushot) draws a deterministic
-scene and gl_screenshots it; this tool asserts pixels against a spec and prints
+scene and captures it (`Window.capture`); this tool asserts pixels against a spec and prints
 a draw.py-style report — exact judgment moved off the eye onto measurement.
 Exit 1 on any FAIL (CI-able).
 

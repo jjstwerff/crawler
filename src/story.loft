@@ -55,24 +55,31 @@ GEN_DEPTH = 0;      // start on the SURFACE (depth 0 = the open desert + the dun
 
 // K1 (plan #6): the world the kernel's closures capture — ONE struct link
 // (the loft#314 struct-held-world pattern; closures stay arguments per #313).
-// Every loop-mutated value lives here; immutables (painter, programs, the post
-// target) are captured directly.
+// Every loop-mutated value lives here — and so does everything the window owns
+// (the window itself, the painter, the programs, the post target): from graphics
+// 0.10 each is a VALUE that releases its GL object when its owner goes, so they
+// ride the same one link instead of being captured one by one.
 struct GameWorld {
+  win:     graphics::Window,
+  painter: graphics::Painter,
+  wprog:   graphics::Shader,           // R7 instanced terrain shader (built once)
+  wallprog: graphics::Shader,          // R5 wall-stroke shader (built once)
+  postprog: graphics::Shader,          // R6 light-cone + vignette pass (built once)
+  post:    PostTarget,                 // the offscreen world target the post pass reads
   s:       Sim not null,
   walls:   vector<WallSeg> not null,
   hud:     Hud not null,
-  ml:      vector<integer> not null,   // baked message-log textures
+  ml:      vector<graphics::Texture> not null,   // baked message-log textures
   last_total: integer not null,        // msg counter watched for rebakes
   last_known: integer not null,        // identify counter watched for rebakes
-  wvao:    integer not null,           // base-hexagon VAO (built once; R7 instanced floor)
-  wivbo:   integer not null,           // per-level floor instance buffer (loc5/6/7)
-  wallvao: integer not null,
+  wvao:    graphics::GpuMesh,          // base-hexagon mesh (built once; R7 instanced floor)
+  wivbo:   graphics::InstanceBuffer,   // per-level floor instance buffer (loc5/6/7)
+  wallvao: graphics::GpuMesh,
   walln:   integer not null,
-  s3prog:  integer not null,           // plan #11 P3: first-person 3D pass
-  s3vao:   integer not null,
-  s3n:     integer not null,
-  s3wtex:  integer not null,           // plan #11 P3b: the world texture (I-PAINT)
-  s3actor: integer not null,           // per-frame board buffer (one draw, updated in place)
+  s3prog:  graphics::Shader,           // plan #11 P3: first-person 3D pass
+  s3vao:   Scene3d,          
+  s3wtex:  graphics::Texture,          // plan #11 P3b: the world texture (I-PAINT)
+  s3actor: graphics::GpuMesh,          // per-frame board buffer (one draw, updated in place)
   mode3d:  boolean not null,
   v_was:   boolean not null,
   w_was:   boolean not null,           // edge-triggers (wait/grab/pages/slots/hub/crystal)
@@ -95,9 +102,9 @@ struct GameWorld {
   page_open: boolean not null,         // overlay pages + cursors
   inv_open:  boolean not null,
   crys_open: boolean not null,
-  pg:      vector<integer> not null,
-  pg_inv:  vector<integer> not null,
-  pg_crys: vector<integer> not null,
+  pg:      vector<graphics::Texture> not null,
+  pg_inv:  vector<graphics::Texture> not null,
+  pg_crys: vector<graphics::Texture> not null,
   inv_cursor: integer not null,
   crys_col: integer not null,
   crys_cur: integer not null,
@@ -115,15 +122,15 @@ struct GameWorld {
 // flags a frozen window and polled input has nowhere to land. Between boot
 // phases: feed the WM, draw a font-free progress bar (the font itself loads in
 // phase 3), swap. Boot LATENCY stays (inherent); UNRESPONSIVENESS goes.
-fn boot_pump(painter: graphics::Painter2D, step: integer, total: integer) {
-  _alive = graphics::gl_poll_events();
-  graphics::gl_clear(graphics::rgba(14, 16, 24, 255));
+fn boot_pump(win: const graphics::Window, painter: const graphics::Painter, step: integer, total: integer) {
+  _alive = win.poll();
+  win.clear(graphics::rgba(14, 16, 24, 255));
   frac = (step as float) / (total as float) ?? 0.0;
-  graphics::draw_rect_at(painter, 250.0, 290.0, 300.0, 20.0, 0.10, 0.10, 0.22, 1.0);
+  painter.rect(250.0, 290.0, 300.0, 20.0, 0.10, 0.10, 0.22, 1.0);
   if frac > 0.0 {
-    graphics::draw_rect_at(painter, 250.0, 290.0, 300.0 * frac, 20.0, 0.45, 0.45, 0.85, 1.0);
+    painter.rect(250.0, 290.0, 300.0 * frac, 20.0, 0.45, 0.45, 0.85, 1.0);
   }
-  graphics::gl_swap_buffers();
+  win.swap();
 }
 
 // K2: apply-and-broadcast — every Sim mutation is an INTENT, logged (for late
@@ -148,22 +155,21 @@ fn host_event(w: GameWorld, ev: engine_host::Event) {
 // One kernel tick = one frame: poll the window, apply input, advance the sim by
 // the FIXED quantum, and redraw only when the scene key moved. Runs at the
 // kernel's drift-free grid; between ticks the kernel idles (no busy-spin).
-fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
-             wallprog: integer, postprog: integer, postfbo: integer, posttex: integer) {
-  if !graphics::gl_poll_events() || graphics::gl_key_pressed(KEY_ESC) {
+fn game_tick(w: GameWorld) {
+  if !w.win.poll() || w.win.key_down(KEY_ESC) {
     engine_host::stop();
     return;
   }
   // V: first-person 3D <-> the 2D plan view. Both render the same kernel state; 3D
   // replaces 2D for good in plan #11 P9, so until then the toggle is how they are compared.
-  v_down = graphics::gl_key_pressed(KEY_V);
+  v_down = w.win.key_down(KEY_V);
   if v_down && !w.v_was {
     w.mode3d = !w.mode3d;
     println("story: view = {if w.mode3d { \"first-person 3D\" } else { \"2D plan\" }}");
   }
   w.v_was = v_down;
 
-  if graphics::gl_key_pressed(KEY_N) {
+  if w.win.key_down(KEY_N) {
     println("story: next world — re-scanning bundles ...");
     // K5 "next world": re-scan the bundle manifests (drop-ins get wired), leave
     // the new seed for the relaunch, and stop — make play's loop restarts us;
@@ -178,47 +184,47 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
 
   // Character page (C): toggle the overlay. While open the world is PAUSED and the number
   // keys 1-6 spend banked stat points (the deferred, player-chosen level-up).
-  c_down = graphics::gl_key_pressed(KEY_C);
+  c_down = w.win.key_down(KEY_C);
   if c_down && !w.c_was {
     w.page_open = !w.page_open;
-    if w.page_open { w.inv_open = false; w.pg = build_charpage(w.s, w.hud.font); }
+    if w.page_open { w.inv_open = false; w.pg = build_charpage(w.win, w.s, w.hud.font); }
   }
   w.c_was = c_down;
 
-  i_down = graphics::gl_key_pressed(KEY_I);
+  i_down = w.win.key_down(KEY_I);
   if i_down && !w.i_was {
     w.inv_open = !w.inv_open;
-    if w.inv_open { w.page_open = false; w.inv_cursor = 0; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+    if w.inv_open { w.page_open = false; w.inv_cursor = 0; w.pg_inv = build_invpage(w.win, w.s, w.hud.font, w.inv_cursor); }
   }
   w.i_was = i_down;
 
   if w.crys_open {
     // THE CRYSTAL PAGE — W/S move, A/D switch column, Enter reshapes, Q steps away.
     ccount = if w.crys_col == 0 { sim_race_count() } else { sim_class_count() };
-    cu = graphics::gl_key_pressed(KEY_W);
-    if cu && !w.cu_was && w.crys_cur > 0 { w.crys_cur -= 1; w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur); }
+    cu = w.win.key_down(KEY_W);
+    if cu && !w.cu_was && w.crys_cur > 0 { w.crys_cur -= 1; w.pg_crys = build_crystalpage(w.win, w.s, w.hud.font, w.crys_col, w.crys_cur); }
     w.cu_was = cu;
-    cd = graphics::gl_key_pressed(KEY_S);
-    if cd && !w.cd_was && w.crys_cur < ccount - 1 { w.crys_cur += 1; w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur); }
+    cd = w.win.key_down(KEY_S);
+    if cd && !w.cd_was && w.crys_cur < ccount - 1 { w.crys_cur += 1; w.pg_crys = build_crystalpage(w.win, w.s, w.hud.font, w.crys_col, w.crys_cur); }
     w.cd_was = cd;
-    ca = graphics::gl_key_pressed(KEY_A);
-    cdd = graphics::gl_key_pressed(KEY_D);
+    ca = w.win.key_down(KEY_A);
+    cdd = w.win.key_down(KEY_D);
     if (ca && !w.ca_was) || (cdd && !w.cdd_was) {
       w.crys_col = 1 - w.crys_col;
       nmax = if w.crys_col == 0 { sim_race_count() } else { sim_class_count() };
       if w.crys_cur >= nmax { w.crys_cur = nmax - 1; }
-      w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur);
+      w.pg_crys = build_crystalpage(w.win, w.s, w.hud.font, w.crys_col, w.crys_cur);
     }
     w.ca_was = ca;
     w.cdd_was = cdd;
-    cent = graphics::gl_key_pressed(KEY_ENTER);
+    cent = w.win.key_down(KEY_ENTER);
     if cent && !w.cent_was {
       emit(w, "A 7 {w.crys_col} {w.crys_cur}");
       _r7 = flow_action(w.s, 7, w.crys_col, w.crys_cur);
       w.crys_open = false;
     }
     w.cent_was = cent;
-    ckq = graphics::gl_key_pressed(KEY_Q);
+    ckq = w.win.key_down(KEY_Q);
     if ckq && !w.ckq_was { w.crys_open = false; }
     w.ckq_was = ckq;
   } else if w.page_open || w.inv_open {
@@ -226,7 +232,7 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     // that quick-slot (the manual reslot).
     sd = -1;
     for ki in 0..9 {
-      if graphics::gl_key_pressed(KEY_1 + ki) { sd = ki; }
+      if w.win.key_down(KEY_1 + ki) { sd = ki; }
     }
     sdn = sd >= 0;
     if sdn && !w.spend_was {
@@ -234,37 +240,37 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
       // two new axes cost ZERO new keys — the budget was always spent on the row, not the axis.
       if w.page_open && sd < NUM_STATS {
         emit(w, "A 4 {sd} 0");
-        if flow_action(w.s, 4, sd, 0) == 1 { w.pg = build_charpage(w.s, w.hud.font); }
+        if flow_action(w.s, 4, sd, 0) == 1 { w.pg = build_charpage(w.win, w.s, w.hud.font); }
       } else if w.inv_open {
         emit(w, "A 5 {w.inv_cursor} {sd}");
         _r5 = flow_action(w.s, 5, w.inv_cursor, sd);
-        w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
+        w.pg_inv = build_invpage(w.win, w.s, w.hud.font, w.inv_cursor);
       }
     }
     w.spend_was = sdn;
 
     if w.inv_open {
       // WASD cursor over the carried list
-      up_d = graphics::gl_key_pressed(KEY_W);
-      if up_d && !w.iu_was && w.inv_cursor > 0 { w.inv_cursor = w.inv_cursor - 1; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      up_d = w.win.key_down(KEY_W);
+      if up_d && !w.iu_was && w.inv_cursor > 0 { w.inv_cursor = w.inv_cursor - 1; w.pg_inv = build_invpage(w.win, w.s, w.hud.font, w.inv_cursor); }
       w.iu_was = up_d;
-      dn_d = graphics::gl_key_pressed(KEY_S);
-      if dn_d && !w.id_was && w.inv_cursor < sim_inv_count(w.s) - 1 { w.inv_cursor = w.inv_cursor + 1; w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      dn_d = w.win.key_down(KEY_S);
+      if dn_d && !w.id_was && w.inv_cursor < sim_inv_count(w.s) - 1 { w.inv_cursor = w.inv_cursor + 1; w.pg_inv = build_invpage(w.win, w.s, w.hud.font, w.inv_cursor); }
       w.id_was = dn_d;
       // Q / E bind the selected item to an active slot
-      q_d = graphics::gl_key_pressed(KEY_Q);
-      if q_d && !w.iq_was { emit(w, "A 5 {w.inv_cursor} {QS_Q}"); _rq = flow_action(w.s, 5, w.inv_cursor, QS_Q); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      q_d = w.win.key_down(KEY_Q);
+      if q_d && !w.iq_was { emit(w, "A 5 {w.inv_cursor} {QS_Q}"); _rq = flow_action(w.s, 5, w.inv_cursor, QS_Q); w.pg_inv = build_invpage(w.win, w.s, w.hud.font, w.inv_cursor); }
       w.iq_was = q_d;
-      e_d = graphics::gl_key_pressed(KEY_E);
-      if e_d && !w.ie_was { emit(w, "A 5 {w.inv_cursor} {QS_E}"); _re = flow_action(w.s, 5, w.inv_cursor, QS_E); w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor); }
+      e_d = w.win.key_down(KEY_E);
+      if e_d && !w.ie_was { emit(w, "A 5 {w.inv_cursor} {QS_E}"); _re = flow_action(w.s, 5, w.inv_cursor, QS_E); w.pg_inv = build_invpage(w.win, w.s, w.hud.font, w.inv_cursor); }
       w.ie_was = e_d;
       // Enter equips the selected item to its worn location
-      ent_d = graphics::gl_key_pressed(KEY_ENTER);
+      ent_d = w.win.key_down(KEY_ENTER);
       if ent_d && !w.ient_was {
         emit(w, "A 6 {w.inv_cursor} 0");
         _r6 = flow_action(w.s, 6, w.inv_cursor, 0);
         if w.inv_cursor >= sim_inv_count(w.s) && w.inv_cursor > 0 { w.inv_cursor = sim_inv_count(w.s) - 1; }
-        w.pg_inv = build_invpage(w.s, w.hud.font, w.inv_cursor);
+        w.pg_inv = build_invpage(w.win, w.s, w.hud.font, w.inv_cursor);
       }
       w.ient_was = ent_d;
     }
@@ -275,10 +281,10 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
   // Edge-triggered so a held key fires once. The bar reads live, so no rebake is needed.
   qslot = -1;
   for ki in 0..9 {
-    if graphics::gl_key_pressed(KEY_1 + ki) { qslot = ki; }
+    if w.win.key_down(KEY_1 + ki) { qslot = ki; }
   }
-  if graphics::gl_key_pressed(KEY_Q) { qslot = QS_Q; }
-  if graphics::gl_key_pressed(KEY_E) { qslot = QS_E; }
+  if w.win.key_down(KEY_Q) { qslot = QS_Q; }
+  if w.win.key_down(KEY_E) { qslot = QS_E; }
   qdn = qslot >= 0;
   if qdn && !w.qs_was { emit(w, "A 3 {qslot} 0"); _r3 = flow_action(w.s, 3, qslot, 0); }
   w.qs_was = qdn;
@@ -289,18 +295,18 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
   // ("Cannot redefine function 'turn' as a variable"). The wire format is unchanged; only
   // this local is renamed. LOFT-HANDOFF.md H11 carries the repro and the open question.
   turn_dir = 0;
-  if graphics::gl_key_pressed(KEY_W) { fwd = 1; }
-  if graphics::gl_key_pressed(KEY_S) { fwd = -1; }
-  if graphics::gl_key_pressed(KEY_A) { turn_dir = 1; }   // left  = CCW (heading up)
-  if graphics::gl_key_pressed(KEY_D) { turn_dir = -1; }  // right = CW
+  if w.win.key_down(KEY_W) { fwd = 1; }
+  if w.win.key_down(KEY_S) { fwd = -1; }
+  if w.win.key_down(KEY_A) { turn_dir = 1; }   // left  = CCW (heading up)
+  if w.win.key_down(KEY_D) { turn_dir = -1; }  // right = CW
 
   // Wait: '.' or Space advances one tick in place (enemies act, you don't move).
-  w_down = graphics::gl_key_pressed(KEY_DOT) || graphics::gl_key_pressed(KEY_SPC);
+  w_down = w.win.key_down(KEY_DOT) || w.win.key_down(KEY_SPC);
   if w_down && !w.w_was { emit(w, "A 1 0 0"); _r1 = flow_action(w.s, 1, 0, 0); }
   w.w_was = w_down;
 
   // Grab: 'g' picks up items under the player (gold auto-collects on walk-over).
-  g_down = graphics::gl_key_pressed(KEY_G);
+  g_down = w.win.key_down(KEY_G);
   if g_down && !w.g_was { emit(w, "A 2 0 0"); _r2 = flow_action(w.s, 2, 0, 0); }
   w.g_was = g_down;
 
@@ -315,18 +321,14 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     if chg == 1 {
       // the level changed (respawn / stairs / travel): rebuild the visuals
       w.walls = build_walls(w.s);
-      w.hud = build_hud(w.s);
+      // Each assignment below releases what the field held: the old level's Hud
+      // textures, wall mesh, 3D scene and world texture go as the new ones arrive.
+      w.hud = build_hud(w.win, w.s);
       update_world_ivbo(w.wivbo, w.s);   // R7: re-upload floor instances (base hexagon persists)
-      graphics::gl_delete_vao(w.wallvao);
-      w.wallvao = build_walls_vbo(w.s, w.walls);
+      w.wallvao = build_walls_vbo(w.win, w.s, w.walls);
       w.walln = len(w.walls) * 6;
-      graphics::gl_delete_vao(w.s3vao);
-      (n3v, n3n) = build_scene3d(w.s);   // hoisted: never inline a call into a field write
-      w.s3vao = n3v;
-      w.s3n = n3n;
-      graphics::gl_delete_texture(w.s3wtex);
-      n3t = build_world_texture3d(w.s);  // the world texture is per LEVEL, like the mesh
-      w.s3wtex = n3t;
+      w.s3vao = build_scene3d(w.win, w.s);
+      w.s3wtex = build_world_texture3d(w.win, w.s);  // the world texture is per LEVEL, like the mesh
     }
   }
   }
@@ -338,7 +340,7 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     w.inv_open = false;
     w.crys_col = 0;
     w.crys_cur = 0;
-    w.pg_crys = build_crystalpage(w.s, w.hud.font, w.crys_col, w.crys_cur);
+    w.pg_crys = build_crystalpage(w.win, w.s, w.hud.font, w.crys_col, w.crys_cur);
   }
   // IDLE SKIP (P1, RENDER.md Frame reuse Tier 0): digest everything the frame
   // depends on; unchanged -> skip FOV recompute, rebakes, draw AND swap. The
@@ -355,14 +357,13 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
     // Rebake the message log only when a new line arrived (combat, pickup, level, descend, …).
     tot = sim_msg_total(w.s);
     if tot != w.last_total {
-      free_msglog(w.ml);
-      w.ml = build_msglog(w.s, w.hud.font);
+      w.ml = build_msglog(w.win, w.s, w.hud.font);   // the old lines' textures go with the old vector
       w.last_total = tot;
     }
     // Re-bake the quick-slot item names only when an identification changed what they show.
     kn = sim_known_count(w.s);
     if kn != w.last_known {
-      w.hud.itex = hud_rebuild_items(w.hud, w.s);
+      w.hud.itex = hud_rebuild_items(w.win, w.hud, w.s);
       w.last_known = kn;
     }
     if w.mode3d {
@@ -372,35 +373,40 @@ fn game_tick(w: GameWorld, painter: graphics::Painter2D, wprog: integer,
       // window would otherwise stretch the world silently. Exact for a borderless /
       // fullscreen window; a decorated one still overstates the drawable by its
       // chrome inset until `graphics` can report the framebuffer size — LOFT-HANDOFF G3.
-      vpw = graphics::gl_window_width() as float;
-      vph = graphics::gl_window_height() as float;
-      view3d_frame(w.s, w.s3prog, w.s3vao, w.s3n, w.s3wtex, vpw, vph);
+      vpw = w.win.width() as float;
+      vph = w.win.height() as float;
+      view3d_frame(w.win, w.s, w.s3prog, w.s3vao, w.s3wtex, vpw, vph);
       view3d_actors(w.s, w.s3prog, w.s3actor, vpw, vph);
     } else {
-      view_draw(painter, w.s, w.hud, wprog, w.wvao, wallprog, w.wallvao, w.walln, postprog, postfbo, posttex);
-      draw_msglog(painter, w.s, w.hud, w.ml);
+      view_draw(w.win, w.painter, w.s, w.hud, w.wprog, w.wvao, w.wallprog, w.wallvao, w.walln, w.postprog, w.post);
+      draw_msglog(w.painter, w.s, w.hud, w.ml);
     }
-    if w.page_open { draw_charpage(painter, w.s, w.hud, w.pg); }
-    else if w.inv_open { draw_invpage(painter, w.s, w.hud, w.pg_inv, w.inv_cursor); }
-    else if w.crys_open { draw_crystalpage(painter, w.s, w.hud, w.pg_crys, w.crys_col, w.crys_cur); }
-    graphics::gl_swap_buffers();
+    if w.page_open { draw_charpage(w.painter, w.s, w.hud, w.pg); }
+    else if w.inv_open { draw_invpage(w.painter, w.s, w.hud, w.pg_inv, w.inv_cursor); }
+    else if w.crys_open { draw_crystalpage(w.painter, w.s, w.hud, w.pg_crys, w.crys_col, w.crys_cur); }
+    w.win.swap();
   }
   }
 
 fn main() {
-  if !graphics::gl_create_window(WIN_W, WIN_H, "story — M0") {
+  win = graphics::open_window(WIN_W, WIN_H, "story — M0");
+  if win == null {
     println("story: failed to create window");
     return;
   }
-  painter = graphics::create_painter_2d(WIN_W as float, WIN_H as float);
+  painter = win.painter();
+  if painter == null {
+    println("story: the 2D painter's shaders did not compile");
+    return;
+  }
   // The window enables GL_DEPTH_TEST by default, and 2D quads all share one
   // z — so with depth-test on, the FIRST quad drawn to a pixel wins (terrain
   // would occlude the player; a full-screen backdrop would occlude the whole
   // world -> black). Disable it for normal last-drawn-on-top painting, and
   // enable blending for alpha. (Same setup brick-buster uses.)
-  graphics::gl_disable(graphics::GL_DEPTH_TEST);
-  graphics::gl_enable(graphics::GL_BLEND);
-  graphics::gl_blend_func(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
+  win.disable(graphics::GL_DEPTH_TEST);
+  win.enable(graphics::GL_BLEND);
+  win.blend(graphics::BLEND_SRC_ALPHA, graphics::BLEND_ONE_MINUS_SRC_ALPHA);
   // K5: a pending "next world" flag carries the new seed across the restart.
   seed = GEN_SEED;
   root = env_variable("PWD") ?? ".";
@@ -411,38 +417,45 @@ fn main() {
     _del = delete(nf);
   }
   println("story: world seed={seed}");
-  boot_pump(painter, 0, 4);
+  boot_pump(win, painter, 0, 4);
   // QUICK-START genesis (shared with observers + replaytest via gameflow): a
   // ready-made HUMAN WARRIOR with its class kit — no creation screen in the way.
   // The crystal re-specs race/class later; the kit is a new-game grant only.
   s = flow_genesis(seed, GEN_DEPTH);
-  boot_pump(painter, 1, 4);
+  boot_pump(win, painter, 1, 4);
   walls = build_walls(s);   // smoothed wall outline, built once (static per level)
-  boot_pump(painter, 2, 4);
-  hud = build_hud(s);       // load font + bake glyph/HUD textures (after window)
-  boot_pump(painter, 3, 4);
-  ml = build_msglog(s, hud.font);     // baked message-log lines (rebaked only when a message arrives)
+  boot_pump(win, painter, 2, 4);
+  hud = build_hud(win, s);  // load font + bake glyph/HUD textures (after window)
+  boot_pump(win, painter, 3, 4);
+  ml = build_msglog(win, s, hud.font);  // baked message-log lines (rebaked only when a message arrives)
   last_total = sim_msg_total(s);      // watch this to know when to rebake
   last_known = sim_known_count(s);    // watch identifications to re-bake the quick-slot names (flavour → real)
-  wprog = make_world_shader_inst();  // R7 instanced terrain shader (global, built once)
-  wvao = build_hex_vao();            // base hexagon (global, built once)
-  wivbo = build_world_ivbo(wvao, s); // per-level floor instances (updated on level change)
-  wallprog = make_wall_shader(); // R5 wall-stroke shader (global, built once)
-  postprog = make_post_shader(); // R6 light-cone + vignette pass (built once)
-  (postfbo, posttex) = make_post_target();
-  boot_pump(painter, 4, 4);
-  wallvao = build_walls_vbo(s, walls);   // wall-stroke VBO (rebuilt with the level)
+  // A shader that does not compile answers null (the driver's log says why): the
+  // game cannot draw without any of the four, so it stops here with the name.
+  wprog = make_world_shader_inst(win);  // R7 instanced terrain shader (global, built once)
+  wallprog = make_wall_shader(win);     // R5 wall-stroke shader (global, built once)
+  postprog = make_post_shader(win);     // R6 light-cone + vignette pass (built once)
+  s3prog = make_view3d_shader(win);     // plan #11 P3: the first-person pass
+  if wprog == null || wallprog == null || postprog == null || s3prog == null {
+    println("story: a shader did not compile (world/wall/post/3D) — see the driver log above");
+    return;
+  }
+  wvao = build_hex_vao(win);              // base hexagon (global, built once)
+  wivbo = build_world_ivbo(win, wvao, s); // per-level floor instances (updated on level change)
+  post = make_post_target(win);
+  boot_pump(win, painter, 4, 4);
+  wallvao = build_walls_vbo(win, s, walls);   // wall-stroke mesh (rebuilt with the level)
   walln = len(walls) * 6;
-  s3prog = make_view3d_shader();         // plan #11 P3: the first-person pass
-  (s3vao, s3n) = build_scene3d(s);       // per-level 3D scene (floor + walls)
-  s3wtex = build_world_texture3d(s);     // plan #11 P3b: landcover off the field, not baked
-  s3actor = make_actor_vbo();            // boards: created once, re-uploaded per frame
+  s3vao = build_scene3d(win, s);          // per-level 3D scene (floor + walls)
+  s3wtex = build_world_texture3d(win, s); // plan #11 P3b: landcover off the field, not baked
+  s3actor = make_actor_vbo(win);          // boards: created once, re-uploaded per frame
   (sq, sr) = sim_player_hex(s);   // stair-hex tracker: armed on the start stair so
                                   // standing on it doesn't fire (walk-onto edge-trigger)
   w = GameWorld {
+    win: win, painter: painter, wprog: wprog, wallprog: wallprog, postprog: postprog, post: post,
     s: s, walls: walls, hud: hud, ml: ml, last_total: last_total, last_known: last_known,
     wvao: wvao, wivbo: wivbo, wallvao: wallvao, walln: walln,
-    s3prog: s3prog, s3vao: s3vao, s3n: s3n, s3wtex: s3wtex, s3actor: s3actor,
+    s3prog: s3prog, s3vao: s3vao, s3wtex: s3wtex, s3actor: s3actor,
     mode3d: false, v_was: false,
     w_was: false, g_was: false, c_was: false, spend_was: false, qs_was: false,
     i_was: false, iu_was: false, id_was: false, iq_was: false, ie_was: false,
@@ -462,8 +475,8 @@ fn main() {
   engine_host::run(STORY_PORT, TICK_US, fn(ev: engine_host::Event) {
     host_event(w, ev);
   }, fn() {
-    game_tick(w, painter, wprog, wallprog, postprog, postfbo, posttex);
+    game_tick(w);
   });
   println("idle-skip: drew {w.frames_drawn} frames over {w.ticks_n} ticks; key={w.last_key} ilog={len(w.ilog)} clients={engine_host::clients()}");
-  graphics::gl_destroy_window();
+  w.win.close();
 }
